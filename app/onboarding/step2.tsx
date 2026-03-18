@@ -6,7 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 
-const OPTIONS = ['Something serious', 'A life partner', 'Not sure yet'] as const;
+const OPTIONS = ['Something serious', 'A life partner', 'Just friends', 'Not sure yet'] as const;
 type Option = (typeof OPTIONS)[number];
 
 export default function OnboardingStep2() {

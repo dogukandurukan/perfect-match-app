@@ -89,9 +89,11 @@ export default function RegisterScreen() {
           value={password}
           onChangeText={setPassword}
         />
-        <ThemedText style={[styles.helperText, passwordStrength.style]}>
-          {password ? `Strength: ${passwordStrength.label}` : 'Min 8 characters'}
-        </ThemedText>
+        {password ? (
+          <ThemedText style={[styles.helperText, passwordStrength.style]}>
+            {`Strength: ${passwordStrength.label}`}
+          </ThemedText>
+        ) : null}
         <TextInput
           style={styles.input}
           placeholder="Confirm Password"
