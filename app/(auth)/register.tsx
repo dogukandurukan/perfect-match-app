@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { Alert, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function RegisterScreen() {
@@ -12,6 +15,8 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const passwordStrength = getPasswordStrength(password);
 
   const handleRegister = async () => {
     // Eğer email veya şifre hiç girilmemişse, direkt onboarding'e geç
@@ -25,26 +30,21 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (password && password.length < 6) {
-      Alert.alert('Hata', 'Şifre en az 6 karakter olmalı.');
+    if (password.length < 8) {
+      Alert.alert('Hata', 'Şifre en az 8 karakter olmalı.');
       return;
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp(
-      {
-        email,
-        password,
-        options: {
-          data: {
-            username,
-          },
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username,
         },
       },
-      {
-        emailRedirectTo: undefined,
-      },
-    );
+    });
     setLoading(false);
 
     if (error) {
@@ -57,7 +57,8 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
+      <HomeTopIcon />
       <ThemedText type="title" style={styles.title}>
         Create account
       </ThemedText>
@@ -65,7 +66,7 @@ export default function RegisterScreen() {
       <View style={styles.form}>
         <TextInput
           style={styles.input}
-          placeholder="Kullanıcı adı"
+          placeholder="Full Name"
           placeholderTextColor="#9CA3AF"
           autoCapitalize="none"
           value={username}
@@ -73,7 +74,7 @@ export default function RegisterScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="E‑posta"
+          placeholder="Email"
           placeholderTextColor="#9CA3AF"
           autoCapitalize="none"
           keyboardType="email-address"
@@ -82,88 +83,97 @@ export default function RegisterScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Şifre"
+          placeholder="Password"
           placeholderTextColor="#9CA3AF"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
+        <ThemedText style={[styles.helperText, passwordStrength.style]}>
+          {password ? `Strength: ${passwordStrength.label}` : 'Min 8 characters'}
+        </ThemedText>
         <TextInput
           style={styles.input}
-          placeholder="Şifre tekrar"
+          placeholder="Confirm Password"
           placeholderTextColor="#9CA3AF"
           secureTextEntry
           value={confirmPassword}
           onChangeText={setConfirmPassword}
         />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          activeOpacity={0.9}
+        <PrimaryButton
+          label={loading ? 'Oluşturuluyor…' : 'Create account'}
           onPress={handleRegister}
-          disabled={loading}>
-          <ThemedText style={styles.buttonText}>
-            {loading ? 'Oluşturuluyor…' : 'Create account'}
-          </ThemedText>
-        </TouchableOpacity>
+          loading={loading}
+        />
 
-        <TouchableOpacity onPress={() => router.replace('/onboarding')}>
-          <ThemedText style={styles.linkText}>Hesap oluşturmadan devam et</ThemedText>
-        </TouchableOpacity>
+        <ThemedText style={styles.linkText} onPress={() => router.replace('/onboarding')}>
+          Hesap oluşturmadan devam et
+        </ThemedText>
 
-        <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
-          <ThemedText style={styles.linkText}>Zaten hesabın var mı? Log in</ThemedText>
-        </TouchableOpacity>
+        <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/login')}>
+          Zaten hesabın var mı? Log in
+        </ThemedText>
       </View>
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
     justifyContent: 'center',
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#C9A96E',
     marginBottom: 24,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: '#111827',
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    color: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#1F2937',
+    backgroundColor: '#1C2030',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    color: '#F5F0E8',
   },
-  button: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#111827',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkText: {
-    marginTop: 8,
-    textAlign: 'center',
+  helperText: {
+    marginTop: -8,
+    marginBottom: 4,
+    fontSize: 12,
     color: '#9CA3AF',
   },
+  linkText: {
+    marginTop: 16,
+    textAlign: 'center',
+    color: '#F5F0E8',
+    fontSize: 14,
+  },
 });
+
+function getPasswordStrength(password: string): { label: 'Weak' | 'Mid' | 'Strong'; style: any } {
+  const length = password.length;
+  const hasLower = /[a-z]/.test(password);
+  const hasUpper = /[A-Z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSymbol = /[^A-Za-z0-9]/.test(password);
+
+  let score = 0;
+  if (length >= 8) score += 1;
+  if (length >= 12) score += 1;
+  if (hasLower && hasUpper) score += 1;
+  if (hasNumber) score += 1;
+  if (hasSymbol) score += 1;
+
+  if (score >= 4) {
+    return { label: 'Strong', style: { color: '#C9A96E' } };
+  }
+  if (score >= 2) {
+    return { label: 'Mid', style: { color: '#F5F0E8' } };
+  }
+  return { label: 'Weak', style: { color: '#EF4444' } };
+}
 

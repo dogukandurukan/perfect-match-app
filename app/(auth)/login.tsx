@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { Alert, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function LoginScreen() {
@@ -29,7 +32,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
+      <HomeTopIcon />
       <ThemedText type="title" style={styles.title}>
         Log in
       </ThemedText>
@@ -53,28 +57,18 @@ export default function LoginScreen() {
           onChangeText={setPassword}
         />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          activeOpacity={0.9}
-          onPress={handleLogin}
-          disabled={loading}>
-          <ThemedText style={styles.buttonText}>{loading ? 'Giriş yapılıyor…' : 'Log in'}</ThemedText>
-        </TouchableOpacity>
+        <PrimaryButton label={loading ? 'Giriş yapılıyor…' : 'Log in'} onPress={handleLogin} loading={loading} />
 
-        <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-          <ThemedText style={styles.linkText}>Hesabın yok mu? Create account</ThemedText>
-        </TouchableOpacity>
+        <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/register')}>
+          Hesabın yok mu? Create account
+        </ThemedText>
       </View>
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
     justifyContent: 'center',
   },
   title: {
@@ -86,32 +80,17 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 16,
+    marginTop: 24,
   },
   input: {
-    backgroundColor: '#111827',
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    backgroundColor: '#1C2030',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     color: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#1F2937',
-  },
-  button: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#111827',
-    fontSize: 16,
-    fontWeight: '600',
   },
   linkText: {
-    marginTop: 8,
+    marginTop: 16,
     textAlign: 'center',
     color: '#9CA3AF',
   },

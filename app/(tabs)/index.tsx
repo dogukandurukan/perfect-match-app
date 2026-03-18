@@ -1,6 +1,9 @@
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
+import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -9,95 +12,62 @@ export default function HomeScreen() {
     router.push('/(auth)/login');
   };
 
-  const handleCreateAccount = () => {
-    router.push('/(auth)/register');
+  const handleGetStarted = () => {
+    router.push('/onboarding/step2');
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
+      <HomeTopIcon />
+
       <View style={styles.content}>
         <ThemedText type="title" style={styles.title}>
-          Swipe Right
+          Dating App
         </ThemedText>
 
         <ThemedText style={styles.subtitle}>
-          Sana en uygun insanlarla tanış, gerçek bağlantılar kur ve yeni hikayelere ilk adımı at.
+          Meet the one who fits your life
         </ThemedText>
       </View>
 
       <View style={styles.buttonsContainer}>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          activeOpacity={0.9}
-          onPress={handleCreateAccount}>
-          <ThemedText style={styles.primaryButtonText}>Create account</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          activeOpacity={0.9}
-          onPress={handleLogin}>
-          <ThemedText style={styles.secondaryButtonText}>Log in</ThemedText>
-        </TouchableOpacity>
+        <PrimaryButton label="Get Started" onPress={handleGetStarted} />
+        <PrimaryButton label="Log in" onPress={handleLogin} style={styles.loginButton} />
       </View>
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
     justifyContent: 'space-between',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    gap: 16,
+    alignItems: 'center',
+    gap: 12,
   },
   title: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '700',
     letterSpacing: 0.5,
-    color: '#FFFFFF',
+    color: '#C9A96E',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#E5E7EB',
-    lineHeight: 22,
+    color: '#F5F0E8',
+    textAlign: 'center',
+    maxWidth: 320,
   },
   buttonsContainer: {
-    gap: 12,
+    gap: 16,
     marginBottom: 16,
+    alignSelf: 'center',
+    width: 260,
   },
-  primaryButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    color: '#111827',
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-  },
-  secondaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: 0.4,
+  loginButton: {
+    backgroundColor: '#C9A96E',
   },
 });
