@@ -7,6 +7,7 @@ import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { supabase } from '@/lib/supabaseClient';
+import { getProfileSetupState } from '@/lib/profileCompletion';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -28,7 +29,22 @@ export default function LoginScreen() {
       return;
     }
 
-    router.replace('/(tabs)');
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.replace('/(tabs)');
+      return;
+    }
+
+    const state = await getProfileSetupState(user.id);
+
+    if (state === 'setup1') router.replace('/profile-setup/step1');
+    else if (state === 'setup2') router.replace('/profile-setup/step2');
+    else if (state === 'setup3') router.replace('/profile-setup/step3');
+    else if (state === 'setup4') router.replace('/profile-setup/step4');
+    else router.replace('/(tabs)');
   };
 
   return (

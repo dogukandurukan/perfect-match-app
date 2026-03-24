@@ -23,6 +23,7 @@ export function Chip({ label, selected, onPress, style }: ChipProps) {
 
 const styles = StyleSheet.create({
   chip: {
+    backgroundColor: '#1C2030',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
@@ -30,15 +31,15 @@ const styles = StyleSheet.create({
     borderColor: '#4B5563',
   },
   chipSelected: {
-    backgroundColor: '#F97316',
-    borderColor: '#F97316',
+    backgroundColor: '#C9A96E',
+    borderColor: '#C9A96E',
   },
   label: {
-    color: '#E5E7EB',
+    color: '#F5F0E8',
     fontSize: 13,
   },
   labelSelected: {
-    color: '#111827',
+    color: '#0F1117',
     fontWeight: '600',
   },
 });

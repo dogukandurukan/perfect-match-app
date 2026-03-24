@@ -19,9 +19,24 @@ export default function RegisterScreen() {
   const passwordStrength = getPasswordStrength(password);
 
   const handleRegister = async () => {
-    // Eğer email veya şifre hiç girilmemişse, direkt onboarding'e geç
+    // Eğer email veya şifre hiç girilmemişse, anonim oturum açıp profile setup'a geçiyoruz.
     if (!email || !password) {
-      router.replace('/onboarding');
+      setLoading(true);
+      try {
+        const { error } = await supabase.auth.signInAnonymously();
+        if (error) throw error;
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        router.replace('/profile-setup/step1');
+      } catch (e: any) {
+        console.warn(e);
+        Alert.alert('Devam edemedik', 'Anonim devam etmek için ayarların açık olduğundan emin ol.');
+        router.replace('/(tabs)');
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -53,7 +68,14 @@ export default function RegisterScreen() {
     }
 
     Alert.alert('Başarılı', 'Hesap oluşturuldu. Şimdi seni daha yakından tanıyalım.');
-    router.replace('/onboarding');
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      router.replace('/profile-setup/step1');
+    } else router.replace('/(auth)/login');
   };
 
   return (
@@ -109,7 +131,23 @@ export default function RegisterScreen() {
           loading={loading}
         />
 
-        <ThemedText style={styles.linkText} onPress={() => router.replace('/onboarding')}>
+        <ThemedText
+          style={styles.linkText}
+          onPress={async () => {
+            if (loading) return;
+            setLoading(true);
+            try {
+              const { error } = await supabase.auth.signInAnonymously();
+              if (error) throw error;
+              router.replace('/profile-setup/step1');
+            } catch (e: any) {
+              console.warn(e);
+              Alert.alert('Devam edemedik', 'Anonim devam etmek için ayarların açık olduğundan emin ol.');
+              router.replace('/(tabs)');
+            } finally {
+              setLoading(false);
+            }
+          }}>
           Hesap oluşturmadan devam et
         </ThemedText>
 
