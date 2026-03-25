@@ -1,34 +1,32 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
+import { OptionalFieldReveal } from '@/components/ui/OptionalFieldReveal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
 import { supabase } from '@/lib/supabaseClient';
 import type { IntentKey } from '@/lib/onboardingIntent';
 import { normalizeIntentKey } from '@/lib/onboardingIntent';
 
-type ConnectionOpen = 'Friendship' | 'Something romantic' | 'Both';
+type SubIntent = 'Friendship' | 'Something romantic' | 'Both';
 
-/** Dynamic answers stored in preferences.setup2_answers */
 export type Setup2Answers = {
-  connection_open?: ConnectionOpen;
-  /** Intent: keeping_it_casual */
-  casual_hoping?: string;
-  casual_exclusivity?: string;
-  friendship_kind?: string;
+  sub_intent?: SubIntent;
+  friendship_type?: string;
   shared_interests_importance?: string;
-  social_style?: string;
-  marriage?: string;
-  children?: string;
-  living_long_term?: string;
+  social_preference?: string;
+  casualness_expectation?: string;
+  exclusivity_view?: string;
+  marriage_view?: string;
+  children_view?: string;
+  living_preference?: string;
   life_priority?: string;
-  children_someday?: string;
-  marriage_feeling?: string;
-  friendship_also?: string;
+  commitment_view?: string;
 };
 
 const INTENT_OPTIONS: { label: string; key: IntentKey }[] = [
@@ -62,6 +60,33 @@ function ChipRow({
   );
 }
 
+function IntentChip({
+  label,
+  selected,
+  showSparkle,
+  onPress,
+  onLongPress,
+}: {
+  label: string;
+  selected: boolean;
+  showSparkle: boolean;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
+  return (
+    <View style={styles.intentChipWrap}>
+      {showSparkle ? <ThemedText style={styles.sparkle}>✨</ThemedText> : null}
+      <Pressable
+        style={[styles.intentChip, selected && styles.intentChipSelected]}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={280}>
+        <ThemedText style={[styles.intentLabel, selected && styles.intentLabelSelected]}>{label}</ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function ProfileSetupStep2() {
   const router = useRouter();
   const params = useLocalSearchParams<{ demo?: string; intent?: string }>();
@@ -72,16 +97,25 @@ export default function ProfileSetupStep2() {
   const [intent, setIntent] = useState<IntentKey | null>(null);
   const [answers, setAnswers] = useState<Setup2Answers>({});
   const [saving, setSaving] = useState(false);
+  const [showNotSureTooltip, setShowNotSureTooltip] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const intentRef = useRef<IntentKey | null>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     intentRef.current = intent;
   }, [intent]);
 
+  useEffect(() => {
+    const id = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350);
+    return () => clearTimeout(id);
+  }, [intent, answers]);
+
   const setAnswer = useCallback(<K extends keyof Setup2Answers>(key: K, value: Setup2Answers[K]) => {
+    if (showNotSureTooltip) setShowNotSureTooltip(false);
     setAnswers((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  }, [showNotSureTooltip]);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -130,76 +164,83 @@ export default function ProfileSetupStep2() {
 
     return () => {
       mounted = false;
+      if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
     };
   }, [isDemoMode, params.intent, router]);
+
+  const showNotSureHint = useCallback(() => {
+    setShowNotSureTooltip(true);
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    tooltipTimerRef.current = setTimeout(() => setShowNotSureTooltip(false), 3000);
+  }, []);
 
   const selectIntent = useCallback((key: IntentKey) => {
     if (intentRef.current !== null && intentRef.current !== key) {
       setAnswers({});
     }
+    if (showNotSureTooltip) setShowNotSureTooltip(false);
     setIntent(key);
-  }, []);
+    if (key === 'not_sure_yet') showNotSureHint();
+  }, [showNotSureHint, showNotSureTooltip]);
 
   const showVersionCasual = useMemo(() => intent === 'keeping_it_casual', [intent]);
 
   const showVersionA = useMemo(() => {
     if (!intent) return false;
     if (intent === 'just_friends') return true;
-    if (intent === 'not_sure_yet' && answers.connection_open === 'Friendship') return true;
+    if (intent === 'not_sure_yet' && answers.sub_intent === 'Friendship') return true;
     return false;
-  }, [intent, answers.connection_open]);
+  }, [intent, answers.sub_intent]);
 
   const showVersionB = useMemo(() => {
     if (!intent) return false;
     if (intent === 'open_to_relationship') return true;
-    if (intent === 'not_sure_yet' && answers.connection_open === 'Something romantic') return true;
+    if (intent === 'not_sure_yet' && answers.sub_intent === 'Something romantic') return true;
     return false;
-  }, [intent, answers.connection_open]);
+  }, [intent, answers.sub_intent]);
 
-  const showVersionCBoth = useMemo(() => {
-    return intent === 'not_sure_yet' && answers.connection_open === 'Both';
-  }, [intent, answers.connection_open]);
+  const showVersionD = useMemo(() => intent === 'not_sure_yet' && answers.sub_intent === 'Both', [intent, answers.sub_intent]);
 
   const dynamicTitle = useMemo(() => {
     if (!intent) return '';
     if (showVersionCasual) return 'Keeping it casual';
-    if (intent === 'just_friends' || (intent === 'not_sure_yet' && showVersionA && !showVersionCBoth)) {
+    if (intent === 'just_friends' || (intent === 'not_sure_yet' && showVersionA && !showVersionD)) {
       return "Tell us about the friendship you're looking for";
     }
     if (intent === 'open_to_relationship' || (intent === 'not_sure_yet' && showVersionB)) {
       return "Let's understand what you're looking for";
     }
     return "Let's figure out what feels right";
-  }, [intent, showVersionA, showVersionB, showVersionCBoth, showVersionCasual]);
+  }, [intent, showVersionA, showVersionB, showVersionD, showVersionCasual]);
 
   const canProceed = useMemo(() => {
     if (!intent) return false;
     if (intent === 'keeping_it_casual') {
-      return !!(answers.casual_hoping && answers.casual_exclusivity);
+      return !!(answers.casualness_expectation && answers.exclusivity_view);
     }
     if (intent === 'just_friends') {
       return !!(
-        answers.friendship_kind &&
+        answers.friendship_type &&
         answers.shared_interests_importance &&
-        answers.social_style
+        answers.social_preference
       );
     }
     if (intent === 'open_to_relationship') {
-      return !!(answers.marriage && answers.children && answers.living_long_term && answers.life_priority);
+      return !!(answers.marriage_view && answers.children_view && answers.living_preference && answers.life_priority);
     }
-    if (!answers.connection_open) return false;
-    if (answers.connection_open === 'Friendship') {
+    if (!answers.sub_intent) return false;
+    if (answers.sub_intent === 'Friendship') {
       return !!(
-        answers.friendship_kind &&
+        answers.friendship_type &&
         answers.shared_interests_importance &&
-        answers.social_style
+        answers.social_preference
       );
     }
-    if (answers.connection_open === 'Something romantic') {
-      return !!(answers.marriage && answers.children && answers.living_long_term && answers.life_priority);
+    if (answers.sub_intent === 'Something romantic') {
+      return !!(answers.marriage_view && answers.children_view && answers.living_preference && answers.life_priority);
     }
-    if (answers.connection_open === 'Both') {
-      return !!(answers.children_someday && answers.marriage_feeling && answers.friendship_also);
+    if (answers.sub_intent === 'Both') {
+      return !!(answers.commitment_view && answers.friendship_type && answers.social_preference);
     }
     return false;
   }, [intent, answers]);
@@ -217,6 +258,26 @@ export default function ProfileSetupStep2() {
 
     setSaving(true);
     try {
+      const onboardingPayload = {
+        user_id: userId,
+        intent,
+        sub_intent: answers.sub_intent ? answers.sub_intent.toLowerCase().replace(' ', '_') : null,
+        friendship_type: answers.friendship_type ?? null,
+        shared_interests_importance: answers.shared_interests_importance ?? null,
+        social_preference: answers.social_preference ?? null,
+        casualness_expectation: answers.casualness_expectation ?? null,
+        exclusivity_view: answers.exclusivity_view ?? null,
+        marriage_view: answers.marriage_view ?? null,
+        children_view: answers.children_view ?? null,
+        living_preference: answers.living_preference ?? null,
+        life_priority: answers.life_priority ?? null,
+        commitment_view: answers.commitment_view ?? null,
+      };
+      const { error: onboardingErr } = await supabase
+        .from('onboarding_answers')
+        .upsert(onboardingPayload, { onConflict: 'user_id' });
+      if (onboardingErr) throw onboardingErr;
+
       const prefPayload = {
         user_id: userId,
         intent,
@@ -245,38 +306,69 @@ export default function ProfileSetupStep2() {
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ThemedText style={styles.progress}>Step 2 of 4</ThemedText>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
+      <Pressable style={styles.main} onPress={() => setShowNotSureTooltip(false)}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={() => setShowNotSureTooltip(false)}>
+        <SetupScreenHeader step={2} />
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionLabel}>What kind of connection are you looking for?</ThemedText>
           <View style={styles.chipRow}>
-            {INTENT_OPTIONS.map(({ label, key }) => (
-              <Chip
-                key={key}
-                label={label}
-                selected={intent === key}
-                onPress={() => selectIntent(key)}
-                style={styles.profileChip}
-              />
-            ))}
+            {INTENT_OPTIONS.map(({ label, key }) =>
+              key === 'not_sure_yet' ? (
+                <View key={key} style={styles.notSureWrap}>
+                  {showNotSureTooltip ? (
+                    <View style={styles.tooltipAboveChip} pointerEvents="none">
+                      <View style={styles.tooltip}>
+                        <ThemedText style={styles.tooltipTextSmall}>
+                          Keeping it open means you&apos;ll appear in more matches
+                        </ThemedText>
+                      </View>
+                      <View style={styles.tooltipCaretDown} />
+                    </View>
+                  ) : null}
+                  <IntentChip
+                    label={label}
+                    selected={intent === key}
+                    showSparkle
+                    onPress={() => selectIntent(key)}
+                    onLongPress={showNotSureHint}
+                  />
+                </View>
+              ) : (
+                <IntentChip
+                  key={key}
+                  label={label}
+                  selected={intent === key}
+                  showSparkle={false}
+                  onPress={() => selectIntent(key)}
+                />
+              ),
+            )}
           </View>
         </View>
 
         {intent ? (
           <>
-            {dynamicTitle ? (
+            <OptionalFieldReveal show={!!dynamicTitle} animationKey={dynamicTitle}>
               <ThemedText style={styles.title}>{dynamicTitle}</ThemedText>
-            ) : null}
+            </OptionalFieldReveal>
 
             {showVersionCasual && (
-              <>
+              <OptionalFieldReveal show animationKey="casual-block">
                 <View style={styles.section}>
                   <ThemedText style={styles.sectionLabel}>What are you hoping for?</ThemedText>
                   <ChipRow
                     options={['Fun & good vibes', 'New experiences', 'See where it goes', 'All of the above'] as const}
-                    selected={answers.casual_hoping ?? null}
-                    onSelect={(v) => setAnswer('casual_hoping', v)}
+                    selected={answers.casualness_expectation ?? null}
+                    onSelect={(v) => setAnswer('casualness_expectation', v)}
                   />
                 </View>
                 <View style={styles.section}>
@@ -287,32 +379,34 @@ export default function ProfileSetupStep2() {
                       'Open to it eventually',
                       'Prefer to keep it open',
                     ] as const}
-                    selected={answers.casual_exclusivity ?? null}
-                    onSelect={(v) => setAnswer('casual_exclusivity', v)}
+                    selected={answers.exclusivity_view ?? null}
+                    onSelect={(v) => setAnswer('exclusivity_view', v)}
                   />
                 </View>
-              </>
+              </OptionalFieldReveal>
             )}
 
             {intent === 'not_sure_yet' && (
+              <OptionalFieldReveal show animationKey="sub-intent">
               <View style={styles.section}>
                 <ThemedText style={styles.sectionLabel}>What kind of connection are you open to?</ThemedText>
                 <ChipRow
                   options={['Friendship', 'Something romantic', 'Both'] as const}
-                  selected={answers.connection_open ?? null}
-                  onSelect={(v) => setAnswer('connection_open', v as ConnectionOpen)}
+                  selected={answers.sub_intent ?? null}
+                  onSelect={(v) => setAnswer('sub_intent', v as SubIntent)}
                 />
               </View>
+              </OptionalFieldReveal>
             )}
 
             {showVersionA && (
-              <>
+              <OptionalFieldReveal show animationKey="friends-block">
                 <View style={styles.section}>
                   <ThemedText style={styles.sectionLabel}>What kind of friendship are you looking for?</ThemedText>
                   <ChipRow
                     options={['Activity buddy', 'Someone to talk to', 'Both'] as const}
-                    selected={answers.friendship_kind ?? null}
-                    onSelect={(v) => setAnswer('friendship_kind', v)}
+                    selected={answers.friendship_type ?? null}
+                    onSelect={(v) => setAnswer('friendship_type', v)}
                   />
                 </View>
                 <View style={styles.section}>
@@ -327,37 +421,37 @@ export default function ProfileSetupStep2() {
                   <ThemedText style={styles.sectionLabel}>Do you prefer group hangouts or one-on-one?</ThemedText>
                   <ChipRow
                     options={['Group', 'One-on-one', 'Both'] as const}
-                    selected={answers.social_style ?? null}
-                    onSelect={(v) => setAnswer('social_style', v)}
+                    selected={answers.social_preference ?? null}
+                    onSelect={(v) => setAnswer('social_preference', v)}
                   />
                 </View>
-              </>
+              </OptionalFieldReveal>
             )}
 
             {showVersionB && (
-              <>
+              <OptionalFieldReveal show animationKey="relationship-block">
                 <View style={styles.section}>
                   <ThemedText style={styles.sectionLabel}>Do you see yourself getting married?</ThemedText>
                   <ChipRow
                     options={['Yes, definitely', 'Open to it', 'Not sure', 'No'] as const}
-                    selected={answers.marriage ?? null}
-                    onSelect={(v) => setAnswer('marriage', v)}
+                    selected={answers.marriage_view ?? null}
+                    onSelect={(v) => setAnswer('marriage_view', v)}
                   />
                 </View>
                 <View style={styles.section}>
                   <ThemedText style={styles.sectionLabel}>Do you want children?</ThemedText>
                   <ChipRow
                     options={['Yes', 'Maybe someday', 'No', 'Already have kids'] as const}
-                    selected={answers.children ?? null}
-                    onSelect={(v) => setAnswer('children', v)}
+                    selected={answers.children_view ?? null}
+                    onSelect={(v) => setAnswer('children_view', v)}
                   />
                 </View>
                 <View style={styles.section}>
                   <ThemedText style={styles.sectionLabel}>Where do you see yourself living long-term?</ThemedText>
                   <ChipRow
                     options={['Same city', 'Open to moving', 'Want to move abroad'] as const}
-                    selected={answers.living_long_term ?? null}
-                    onSelect={(v) => setAnswer('living_long_term', v)}
+                    selected={answers.living_preference ?? null}
+                    onSelect={(v) => setAnswer('living_preference', v)}
                   />
                 </View>
                 <View style={styles.section}>
@@ -368,49 +462,50 @@ export default function ProfileSetupStep2() {
                     onSelect={(v) => setAnswer('life_priority', v)}
                   />
                 </View>
-              </>
+              </OptionalFieldReveal>
             )}
 
-            {showVersionCBoth && (
-              <>
+            {showVersionD && (
+              <OptionalFieldReveal show animationKey="not-sure-both">
                 <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>Do you want children someday?</ThemedText>
+                  <ThemedText style={styles.sectionLabel}>How do you feel about commitment?</ThemedText>
                   <ChipRow
-                    options={['Yes', 'Maybe', 'No', 'Not thinking about it yet'] as const}
-                    selected={answers.children_someday ?? null}
-                    onSelect={(v) => setAnswer('children_someday', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>How do you feel about marriage?</ThemedText>
-                  <ChipRow
-                    options={['Open to it', 'Not for me', "Haven't thought about it"] as const}
-                    selected={answers.marriage_feeling ?? null}
-                    onSelect={(v) => setAnswer('marriage_feeling', v)}
+                    options={['Taking it slow', 'Open to it', 'Not thinking about it'] as const}
+                    selected={answers.commitment_view ?? null}
+                    onSelect={(v) => setAnswer('commitment_view', v)}
                   />
                 </View>
                 <View style={styles.section}>
                   <ThemedText style={styles.sectionLabel}>What kind of friendship are you open to?</ThemedText>
                   <ChipRow
                     options={['Activity buddy', 'Someone to talk to', 'Both'] as const}
-                    selected={answers.friendship_also ?? null}
-                    onSelect={(v) => setAnswer('friendship_also', v)}
+                    selected={answers.friendship_type ?? null}
+                    onSelect={(v) => setAnswer('friendship_type', v)}
                   />
                 </View>
-              </>
+                <View style={styles.section}>
+                  <ThemedText style={styles.sectionLabel}>Do you prefer group hangouts or one-on-one?</ThemedText>
+                  <ChipRow
+                    options={['Group', 'One-on-one', 'Both'] as const}
+                    selected={answers.social_preference ?? null}
+                    onSelect={(v) => setAnswer('social_preference', v)}
+                  />
+                </View>
+              </OptionalFieldReveal>
             )}
           </>
         ) : null}
-
-        <View style={styles.footer}>
-          <PrimaryButton
-            label={saving ? 'Saving…' : 'Next →'}
-            onPress={handleNext}
-            disabled={!canProceed || saving}
-            loading={saving}
-          />
-        </View>
       </ScrollView>
+      <View style={styles.footer}>
+        <PrimaryButton
+          label={saving ? 'Saving…' : 'Next →'}
+          onPress={handleNext}
+          disabled={!canProceed || saving}
+          loading={saving}
+        />
+      </View>
+      </Pressable>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
@@ -419,16 +514,15 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'flex-start',
   },
-  content: {
-    paddingBottom: 48,
-    paddingRight: 8,
+  keyboard: {
+    flex: 1,
   },
-  progress: {
-    textAlign: 'center',
-    color: '#C9A96E',
-    fontSize: 14,
-    marginTop: 12,
-    marginBottom: 16,
+  main: {
+    flex: 1,
+  },
+  content: {
+    paddingBottom: 120,
+    paddingRight: 8,
   },
   title: {
     color: '#F5F0E8',
@@ -448,13 +542,89 @@ const styles = StyleSheet.create({
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
+  },
+  intentChipWrap: {
+    position: 'relative',
+  },
+  intentChip: {
+    backgroundColor: '#1C2030',
+    borderRadius: 20,
+    borderWidth: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  intentChipSelected: {
+    backgroundColor: '#C9A96E',
+  },
+  intentLabel: {
+    color: '#F5F0E8',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  intentLabelSelected: {
+    color: '#0F1117',
+    fontWeight: '600',
+  },
+  notSureWrap: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  tooltipAboveChip: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 0,
+    marginBottom: 4,
+    zIndex: 30,
+    maxWidth: 200,
+  },
+  sparkle: {
+    position: 'absolute',
+    right: 2,
+    top: 0,
+    zIndex: 2,
+    fontSize: 11,
+  },
+  tooltip: {
+    backgroundColor: '#1C2030',
+    borderColor: '#C9A96E',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  tooltipCaretDown: {
+    width: 0,
+    height: 0,
+    alignSelf: 'center',
+    marginTop: -1,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#C9A96E',
+  },
+  tooltipTextSmall: {
+    color: '#F5F0E8',
+    fontSize: 10,
+    lineHeight: 13,
   },
   profileChip: {
     borderRadius: 20,
   },
   footer: {
-    marginTop: 24,
-    marginBottom: 16,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 16,
+    backgroundColor: '#0F1117',
+    borderTopWidth: 1,
+    borderTopColor: '#1C2030',
   },
 });

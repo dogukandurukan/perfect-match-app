@@ -34,6 +34,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#C9A96E',
     borderRadius: 12,
     width: '100%',
+    minHeight: 56,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -43,7 +44,7 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.4,
   },
   label: {
     color: '#0F1117',

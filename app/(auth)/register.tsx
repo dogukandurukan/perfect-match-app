@@ -1,81 +1,63 @@
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const passwordStrength = getPasswordStrength(password);
+  const [verifyModal, setVerifyModal] = useState(false);
 
   const handleRegister = async () => {
-    // Eğer email veya şifre hiç girilmemişse, anonim oturum açıp profile setup'a geçiyoruz.
     if (!email || !password) {
-      setLoading(true);
-      try {
-        const { error } = await supabase.auth.signInAnonymously();
-        if (error) throw error;
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        router.replace('/profile-setup/step1');
-      } catch (e: any) {
-        console.warn(e);
-        Alert.alert('Devam edemedik', 'Anonim devam etmek için ayarların açık olduğundan emin ol.');
-        router.replace('/(tabs)');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    if (password && confirmPassword && password !== confirmPassword) {
-      Alert.alert('Hata', 'Şifre ve şifre tekrarı eşleşmiyor.');
       return;
     }
 
     if (password.length < 8) {
-      Alert.alert('Hata', 'Şifre en az 8 karakter olmalı.');
       return;
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const emailRedirectTo = Linking.createURL('/profile-setup/step1');
+    const meta: Record<string, string> = {};
+    const trimmedPhone = phoneNumber.trim();
+    if (trimmedPhone) meta.phone_number = trimmedPhone;
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          username,
-        },
+        emailRedirectTo,
+        ...(Object.keys(meta).length ? { data: meta } : {}),
       },
     });
     setLoading(false);
 
     if (error) {
-      Alert.alert('Kayıt başarısız', error.message);
+      Alert.alert('Sign up failed', error.message);
       return;
     }
 
-    Alert.alert('Başarılı', 'Hesap oluşturuldu. Şimdi seni daha yakından tanıyalım.');
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
+    if (data.session) {
       router.replace('/profile-setup/step1');
-    } else router.replace('/(auth)/login');
+      return;
+    }
+
+    setVerifyModal(true);
+  };
+
+  const openMailApp = () => {
+    Linking.openURL('mailto:').catch(() => {});
   };
 
   return (
@@ -86,14 +68,6 @@ export default function RegisterScreen() {
       </ThemedText>
 
       <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Full Name"
-          placeholderTextColor="#9CA3AF"
-          autoCapitalize="none"
-          value={username}
-          onChangeText={setUsername}
-        />
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -111,50 +85,42 @@ export default function RegisterScreen() {
           value={password}
           onChangeText={setPassword}
         />
-        {password ? (
-          <ThemedText style={[styles.helperText, passwordStrength.style]}>
-            {`Strength: ${passwordStrength.label}`}
-          </ThemedText>
-        ) : null}
         <TextInput
           style={styles.input}
-          placeholder="Confirm Password"
+          placeholder="Phone"
           placeholderTextColor="#9CA3AF"
-          secureTextEntry
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
+          keyboardType="phone-pad"
+          value={phoneNumber}
+          onChangeText={setPhoneNumber}
         />
 
         <PrimaryButton
-          label={loading ? 'Oluşturuluyor…' : 'Create account'}
+          label={loading ? 'Signing up…' : 'Sign up'}
           onPress={handleRegister}
           loading={loading}
+          disabled={!email.trim() || !password || password.length < 8}
         />
 
-        <ThemedText
-          style={styles.linkText}
-          onPress={async () => {
-            if (loading) return;
-            setLoading(true);
-            try {
-              const { error } = await supabase.auth.signInAnonymously();
-              if (error) throw error;
-              router.replace('/profile-setup/step1');
-            } catch (e: any) {
-              console.warn(e);
-              Alert.alert('Devam edemedik', 'Anonim devam etmek için ayarların açık olduğundan emin ol.');
-              router.replace('/(tabs)');
-            } finally {
-              setLoading(false);
-            }
-          }}>
-          Hesap oluşturmadan devam et
-        </ThemedText>
-
         <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/login')}>
-          Zaten hesabın var mı? Log in
+          Already have an account? Log in
         </ThemedText>
       </View>
+
+      <Modal visible={verifyModal} transparent animationType="fade" onRequestClose={() => setVerifyModal(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setVerifyModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <ThemedText style={styles.verifyIcon}>✉️</ThemedText>
+            <ThemedText style={styles.verifyTitle}>Check your email!</ThemedText>
+            <ThemedText style={styles.verifyBody}>
+              We sent you a confirmation link. Click it to get started.
+            </ThemedText>
+            <PrimaryButton label="Open email app" onPress={openMailApp} />
+            <Pressable onPress={() => setVerifyModal(false)} style={styles.modalDismiss}>
+              <ThemedText style={styles.modalDismissText}>Close</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -166,7 +132,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#C9A96E',
+    color: colors.accent,
     marginBottom: 24,
     textAlign: 'left',
   },
@@ -174,46 +140,53 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   input: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    color: '#F5F0E8',
-  },
-  helperText: {
-    marginTop: -8,
-    marginBottom: 4,
-    fontSize: 12,
-    color: '#9CA3AF',
+    color: colors.textPrimary,
   },
   linkText: {
     marginTop: 16,
     textAlign: 'center',
-    color: '#F5F0E8',
+    color: colors.textPrimary,
+    fontSize: 14,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: 16,
+    padding: 24,
+    gap: 16,
+  },
+  verifyIcon: {
+    fontSize: 40,
+    textAlign: 'center',
+  },
+  verifyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  verifyBody: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    opacity: 0.85,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  modalDismiss: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  modalDismissText: {
+    color: '#9CA3AF',
     fontSize: 14,
   },
 });
-
-function getPasswordStrength(password: string): { label: 'Weak' | 'Mid' | 'Strong'; style: any } {
-  const length = password.length;
-  const hasLower = /[a-z]/.test(password);
-  const hasUpper = /[A-Z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  const hasSymbol = /[^A-Za-z0-9]/.test(password);
-
-  let score = 0;
-  if (length >= 8) score += 1;
-  if (length >= 12) score += 1;
-  if (hasLower && hasUpper) score += 1;
-  if (hasNumber) score += 1;
-  if (hasSymbol) score += 1;
-
-  if (score >= 4) {
-    return { label: 'Strong', style: { color: '#C9A96E' } };
-  }
-  if (score >= 2) {
-    return { label: 'Mid', style: { color: '#F5F0E8' } };
-  }
-  return { label: 'Weak', style: { color: '#EF4444' } };
-}
-

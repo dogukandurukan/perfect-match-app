@@ -8,3 +8,16 @@ export function intentsCanMatch(a: IntentKey, b: IntentKey): boolean {
   if (a === 'not_sure_yet' || b === 'not_sure_yet') return true;
   return a === b;
 }
+
+/**
+ * Intent score table:
+ * - same explicit intent: +20
+ * - explicit + not_sure_yet: +10
+ * - not_sure_yet + not_sure_yet: +15
+ */
+export function intentPairScore(a: IntentKey, b: IntentKey): number {
+  if (a === 'not_sure_yet' && b === 'not_sure_yet') return 15;
+  if (a === b) return 20;
+  if (a === 'not_sure_yet' || b === 'not_sure_yet') return 10;
+  return 0;
+}

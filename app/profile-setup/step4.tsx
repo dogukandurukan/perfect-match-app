@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
@@ -8,6 +8,7 @@ import { OptionalFieldReveal } from '@/components/ui/OptionalFieldReveal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
 import { supabase } from '@/lib/supabaseClient';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
@@ -16,11 +17,11 @@ const ALL_DAYS = [...DAY_LABELS];
 const TIME_OPTIONS = ['Morning (9-12)', 'Afternoon (12-18)', 'Evening (18-21)'] as const;
 
 const VENUE_DEFS = [
-  { label: 'Coffee' as const, spotKey: 'coffee', placeholder: "What's your favorite coffee place?" },
-  { label: 'Walk in the park' as const, spotKey: 'park', placeholder: "What's your favorite park or area?" },
-  { label: 'Dinner' as const, spotKey: 'dinner', placeholder: 'Any favorite restaurant or cuisine?' },
-  { label: 'Drinks' as const, spotKey: 'drinks', placeholder: 'Any favorite bar or spot?' },
-  { label: 'Something active' as const, spotKey: 'active', placeholder: 'What kind of activity do you enjoy?' },
+  { label: 'Coffee' as const, spotKey: 'coffee', placeholder: "What's your favorite coffee place? (optional)" },
+  { label: 'Walk in the park' as const, spotKey: 'park', placeholder: "What's your favorite park or area? (optional)" },
+  { label: 'Dinner' as const, spotKey: 'dinner', placeholder: 'Any favorite restaurant or cuisine? (optional)' },
+  { label: 'Drinks' as const, spotKey: 'drinks', placeholder: 'Any favorite bar or spot? (optional)' },
+  { label: 'Something active' as const, spotKey: 'active', placeholder: 'What kind of activity do you enjoy? (optional)' },
 ];
 
 const FIRST_MEETING_OPTIONS = [
@@ -40,13 +41,14 @@ export default function ProfileSetupStep4() {
 
   const [alwaysOn, setAlwaysOn] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
-  const [firstDateVenues, setFirstDateVenues] = useState<string[]>([]);
+  const [selectedHours, setSelectedHours] = useState<string[]>([]);
+  const [meetingEnvironment, setMeetingEnvironment] = useState<string[]>([]);
   const [favoriteSpots, setFavoriteSpots] = useState<Record<string, string>>({});
-  const [firstMeetingHope, setFirstMeetingHope] = useState<string | null>(null);
+  const [firstDateExpectation, setFirstDateExpectation] = useState<string | null>(null);
   const [bio, setBio] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const [staggerIdx, setStaggerIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -74,7 +76,32 @@ export default function ProfileSetupStep4() {
     };
   }, [isDemoMode, router]);
 
+  useEffect(() => {
+    if (!alwaysOn) {
+      setStaggerIdx(null);
+      return;
+    }
+    let i = 0;
+    setStaggerIdx(0);
+    const id = setInterval(() => {
+      i++;
+      if (i > 6) {
+        clearInterval(id);
+        setStaggerIdx(null);
+      } else {
+        setStaggerIdx(i);
+      }
+    }, 50);
+    return () => clearInterval(id);
+  }, [alwaysOn]);
+
   const dayChipSelected = (d: string) => alwaysOn || selectedDays.includes(d);
+
+  const dayVisualSelected = (d: string) => {
+    const idx = DAY_LABELS.indexOf(d as (typeof DAY_LABELS)[number]);
+    if (staggerIdx !== null) return staggerIdx >= idx;
+    return dayChipSelected(d);
+  };
 
   const toggleAlways = () => {
     if (alwaysOn) {
@@ -105,6 +132,23 @@ export default function ProfileSetupStep4() {
     else setList([...list, value]);
   };
 
+  const toggleVenue = (label: string) => {
+    setMeetingEnvironment((prev) => {
+      if (prev.includes(label)) {
+        const def = VENUE_DEFS.find((v) => v.label === label);
+        if (def) {
+          setFavoriteSpots((spots) => {
+            const next = { ...spots };
+            delete next[def.spotKey];
+            return next;
+          });
+        }
+        return prev.filter((x) => x !== label);
+      }
+      return [...prev, label];
+    });
+  };
+
   const setSpot = (key: string, text: string) => {
     setFavoriteSpots((prev) => ({ ...prev, [key]: text }));
   };
@@ -122,33 +166,58 @@ export default function ProfileSetupStep4() {
         ? {
             user_id: userId,
             availability_days: null,
-            availability_times: null,
-            first_date_venues: null,
+            availability_hours: null,
+            meeting_environment: null,
             favorite_spots: null,
-            first_meeting_hope: null,
-            about_me: null,
+            first_date_expectation: null,
+            bio: null,
             availability: null,
             setup4_completed: true,
           }
         : {
             user_id: userId,
             availability_days: persistDays.length ? persistDays : null,
-            availability_times: selectedTimes.length ? selectedTimes : null,
-            first_date_venues: firstDateVenues.length ? firstDateVenues : null,
+            availability_hours: selectedHours.length ? selectedHours : null,
+            meeting_environment: meetingEnvironment.length ? meetingEnvironment : null,
             favorite_spots:
               Object.keys(favoriteSpots).length > 0
                 ? Object.fromEntries(
                     Object.entries(favoriteSpots).filter(([, v]) => String(v).trim().length > 0),
                   )
                 : null,
-            first_meeting_hope: firstMeetingHope,
-            about_me: bio.trim() || null,
+            first_date_expectation: firstDateExpectation,
+            bio: bio.trim() || null,
             availability: null,
             setup4_completed: true,
           };
 
       const { error: prefErr } = await supabase.from('preferences').upsert(prefPayload, { onConflict: 'user_id' });
       if (prefErr) throw prefErr;
+
+      const profilePayload = skip
+        ? {
+            availability_days: null,
+            availability_hours: null,
+            meeting_environment: null,
+            favorite_spots: null,
+            first_date_expectation: null,
+            bio: null,
+          }
+        : {
+            availability_days: persistDays.length ? persistDays : null,
+            availability_hours: selectedHours.length ? selectedHours : null,
+            meeting_environment: meetingEnvironment.length ? meetingEnvironment : null,
+            favorite_spots:
+              Object.keys(favoriteSpots).length > 0
+                ? Object.fromEntries(
+                    Object.entries(favoriteSpots).filter(([, v]) => String(v).trim().length > 0),
+                  )
+                : null,
+            first_date_expectation: firstDateExpectation,
+            bio: bio.trim() || null,
+          };
+      const { error: profileErr } = await supabase.from('profiles').update(profilePayload).eq('id', userId);
+      if (profileErr) console.warn('profiles setup4 update:', profileErr);
 
       router.replace('/(tabs)');
     } catch (e: any) {
@@ -163,8 +232,12 @@ export default function ProfileSetupStep4() {
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ThemedText style={styles.progress}>Step 4 of 4</ThemedText>
+        <SetupScreenHeader step={4} />
         <ThemedText style={styles.title}>Last few things</ThemedText>
 
         <View style={styles.section}>
@@ -174,7 +247,7 @@ export default function ProfileSetupStep4() {
               <Chip
                 key={d}
                 label={d}
-                selected={dayChipSelected(d)}
+                selected={dayVisualSelected(d)}
                 onPress={() => toggleDay(d)}
                 style={styles.profileChip}
               />
@@ -190,8 +263,8 @@ export default function ProfileSetupStep4() {
               <Chip
                 key={opt}
                 label={opt}
-                selected={selectedTimes.includes(opt)}
-                onPress={() => toggleMulti(opt, selectedTimes, setSelectedTimes)}
+                selected={selectedHours.includes(opt)}
+                onPress={() => toggleMulti(opt, selectedHours, setSelectedHours)}
                 style={styles.profileChip}
               />
             ))}
@@ -205,14 +278,14 @@ export default function ProfileSetupStep4() {
               <Chip
                 key={label}
                 label={label}
-                selected={firstDateVenues.includes(label)}
-                onPress={() => toggleMulti(label, firstDateVenues, setFirstDateVenues)}
+                selected={meetingEnvironment.includes(label)}
+                onPress={() => toggleVenue(label)}
                 style={styles.profileChip}
               />
             ))}
           </View>
           {VENUE_DEFS.map(({ label, spotKey, placeholder }) =>
-            firstDateVenues.includes(label) ? (
+            meetingEnvironment.includes(label) ? (
               <OptionalFieldReveal key={spotKey} show animationKey={spotKey}>
                 <TextInput
                   style={styles.optionalInput}
@@ -233,8 +306,8 @@ export default function ProfileSetupStep4() {
               <Chip
                 key={opt}
                 label={opt}
-                selected={firstMeetingHope === opt}
-                onPress={() => setFirstMeetingHope(opt)}
+                selected={firstDateExpectation === opt}
+                onPress={() => setFirstDateExpectation(opt)}
                 style={styles.profileChip}
               />
             ))}
@@ -242,17 +315,21 @@ export default function ProfileSetupStep4() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Anything you'd like people to know?</ThemedText>
-          <TextInput
-            style={styles.bioInput}
-            placeholder="Write a short bio... (optional)"
-            placeholderTextColor="#9CA3AF"
-            multiline
-            maxLength={300}
-            value={bio}
-            onChangeText={setBio}
-          />
-          <ThemedText style={styles.charCount}>{bio.length}/300</ThemedText>
+          <ThemedText style={styles.sectionLabel}>Anything you&apos;d like people to know?</ThemedText>
+          <View style={styles.bioWrap}>
+            <TextInput
+              style={styles.bioInput}
+              placeholder="Write a short bio... (optional)"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              maxLength={300}
+              value={bio}
+              onChangeText={setBio}
+            />
+            <ThemedText style={[styles.charCount, bio.length >= 280 && styles.charCountWarn]}>
+              {bio.length}/300
+            </ThemedText>
+          </View>
         </View>
 
         <View style={styles.footer}>
@@ -262,6 +339,7 @@ export default function ProfileSetupStep4() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
@@ -270,16 +348,12 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'flex-start',
   },
+  keyboard: {
+    flex: 1,
+  },
   content: {
     paddingBottom: 48,
     paddingRight: 8,
-  },
-  progress: {
-    textAlign: 'center',
-    color: '#C9A96E',
-    fontSize: 14,
-    marginTop: 12,
-    marginBottom: 16,
   },
   title: {
     color: '#F5F0E8',
@@ -299,7 +373,7 @@ const styles = StyleSheet.create({
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   profileChip: {
     borderRadius: 20,
@@ -312,20 +386,28 @@ const styles = StyleSheet.create({
     color: '#F5F0E8',
     marginTop: 12,
   },
+  bioWrap: {
+    position: 'relative',
+  },
   bioInput: {
     backgroundColor: '#1C2030',
     borderRadius: 12,
-    minHeight: 100,
+    minHeight: 120,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingBottom: 28,
     color: '#F5F0E8',
     textAlignVertical: 'top',
   },
   charCount: {
+    position: 'absolute',
+    right: 12,
+    bottom: 10,
     color: '#9CA3AF',
     fontSize: 12,
-    marginTop: 6,
-    textAlign: 'right',
+  },
+  charCountWarn: {
+    color: '#C9A96E',
   },
   footer: {
     marginTop: 20,
@@ -333,7 +415,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   skipText: {
-    color: '#F5F0E8',
+    color: 'rgba(245, 240, 232, 0.6)',
     fontSize: 14,
     textAlign: 'center',
   },

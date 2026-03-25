@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -14,12 +15,15 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
+import { heightInputToCm } from '@/lib/heightCm';
 import { supabase } from '@/lib/supabaseClient';
 import { calculateAge, formatZodiacTooltip, getZodiacFromDate } from '@/lib/zodiac';
 
@@ -99,7 +103,7 @@ export default function ProfileSetupStep1() {
 
   const photoSlotSize = useMemo(() => {
     const horizontalPadding = 24 * 2;
-    const gaps = 12 * (PHOTO_SLOTS - 1);
+    const gaps = 8 * (PHOTO_SLOTS - 1);
     const raw = Math.floor((windowWidth - horizontalPadding - gaps) / PHOTO_SLOTS);
     return Math.max(56, Math.min(PHOTO_SLOT_MAX, raw));
   }, [windowWidth]);
@@ -288,6 +292,16 @@ export default function ProfileSetupStep1() {
       const uploadedPhotoUrls = await uploadPhotosToSupabase(userId, selectedPhotoUris);
 
       const isoDob = `${effectiveDob.getFullYear()}-${pad2(effectiveDob.getMonth() + 1)}-${pad2(effectiveDob.getDate())}`;
+      const heightCm = heightInputToCm(height, heightUnit);
+
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      const phoneFromSignup =
+        typeof authUser?.user_metadata?.phone_number === 'string'
+          ? authUser.user_metadata.phone_number.trim()
+          : '';
+      const phonePayload = phoneFromSignup.length > 0 ? { phone_number: phoneFromSignup } : {};
 
       const baseProfile = {
         id: userId,
@@ -304,9 +318,9 @@ export default function ProfileSetupStep1() {
         languages: languages.length ? languages : null,
         date_of_birth: isoDob,
         zodiac_sign: zodiacInfo.sign,
-        height: height.trim() ? Number(height.replace(',', '.')) : null,
-        height_unit: height.trim() ? heightUnit : null,
+        height_cm: heightCm,
         setup1_completed: true,
+        ...phonePayload,
       };
 
       const minimalProfile = {
@@ -322,12 +336,14 @@ export default function ProfileSetupStep1() {
         languages: languages.length ? languages : null,
         date_of_birth: isoDob,
         zodiac_sign: zodiacInfo.sign,
+        height_cm: heightCm,
         setup1_completed: true,
+        ...phonePayload,
       };
 
       const payloadWithPhotos = {
         ...baseProfile,
-        photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : null,
+        photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : null,
       };
 
       const { error: upsertError } = await supabase.from('profiles').upsert(payloadWithPhotos, {
@@ -360,9 +376,13 @@ export default function ProfileSetupStep1() {
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ThemedText style={styles.progress}>Step 1 of 4</ThemedText>
-        <ThemedText style={styles.title}>Let's build your profile</ThemedText>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <SetupScreenHeader step={1} />
+        <ThemedText style={styles.title}>Let&apos;s build your profile</ThemedText>
 
         <View style={styles.photoRow}>
           {photos.map((uri, idx) => {
@@ -391,7 +411,7 @@ export default function ProfileSetupStep1() {
           })}
         </View>
 
-        <ThemedText style={styles.sectionLabel}>What's your name?</ThemedText>
+        <ThemedText style={styles.sectionLabel}>What&apos;s your name?</ThemedText>
         <View style={styles.inlineInputs}>
           <TextInput
             style={[styles.input, styles.halfInput]}
@@ -583,42 +603,36 @@ export default function ProfileSetupStep1() {
                 style={styles.profileChip}
               />
             ))}
+            {customLanguages.map((lang) => (
+              <Animated.View key={lang} entering={FadeIn.duration(300)}>
+                <Chip label={lang} selected onPress={() => toggleLanguage(lang)} style={styles.profileChip} />
+              </Animated.View>
+            ))}
           </View>
           <View style={styles.addInputWrap}>
             <TextInput
               style={styles.addInput}
-              placeholder="+ Add your own"
+              placeholder={languages.length >= MAX_LANGUAGES ? 'Maximum 5 reached' : '+ Add your own'}
               placeholderTextColor="#9CA3AF"
               value={newLanguage}
+              editable={languages.length < MAX_LANGUAGES}
               onChangeText={setNewLanguage}
               returnKeyType="done"
               onSubmitEditing={() => {
                 const t = newLanguage.trim();
-                if (!t) return;
+                if (!t || languages.length >= MAX_LANGUAGES) return;
                 setNewLanguage('');
                 toggleLanguage(t);
               }}
             />
           </View>
-          {customLanguages.length > 0 ? (
-            <View style={styles.customLangRow}>
-              {customLanguages.map((lang) => (
-                <Chip
-                  key={lang}
-                  label={lang}
-                  selected
-                  onPress={() => toggleLanguage(lang)}
-                  style={styles.profileChip}
-                />
-              ))}
-            </View>
-          ) : null}
         </View>
 
         <View style={styles.footer}>
           <PrimaryButton label={saving ? 'Saving…' : 'Next →'} onPress={handleNext} disabled={!canProceed || saving} loading={saving} />
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
@@ -627,15 +641,11 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'flex-start',
   },
+  keyboard: {
+    flex: 1,
+  },
   content: {
     paddingBottom: 40,
-  },
-  progress: {
-    textAlign: 'center',
-    color: '#C9A96E',
-    fontSize: 14,
-    marginTop: 12,
-    marginBottom: 24,
   },
   title: {
     color: '#F5F0E8',
@@ -647,7 +657,7 @@ const styles = StyleSheet.create({
   photoRow: {
     flexDirection: 'row',
     flexWrap: 'nowrap',
-    gap: 12,
+    gap: 8,
     marginBottom: 18,
     justifyContent: 'center',
     alignItems: 'flex-start',
@@ -715,12 +725,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   zodiacTooltip: {
-    backgroundColor: '#2B3249',
+    backgroundColor: '#1C2030',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#C9A96E',
+    borderRadius: 8,
   },
   zodiacTooltipText: {
     color: '#C9A96E',
@@ -791,7 +799,7 @@ const styles = StyleSheet.create({
   },
   langSubtitle: {
     color: 'rgba(245, 240, 232, 0.5)',
-    fontSize: 13,
+    fontSize: 12,
     marginBottom: 12,
     marginTop: -6,
   },
@@ -806,16 +814,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: '#F5F0E8',
   },
-  customLangRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   profileChip: {
     borderRadius: 20,

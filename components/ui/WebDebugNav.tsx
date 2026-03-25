@@ -6,9 +6,13 @@ import { ThemedText } from '@/components/themed-text';
 export function WebDebugNav() {
   const router = useRouter();
 
-  if (Platform.OS !== 'web') return null;
+  /** Web’de her zaman; native’de sadece __DEV__ (Setup ekranlarına hızlı geçiş). */
+  if (Platform.OS !== 'web' && !__DEV__) return null;
 
-  const go = (to: string) => router.push({ pathname: to as any });
+  /** Query string ile push; `profile-setup/_layout` demo=1 + web URL ile gate bypass. */
+  const go = (to: string) => {
+    router.push(to as any);
+  };
 
   return (
     <View style={styles.container} pointerEvents="box-none">

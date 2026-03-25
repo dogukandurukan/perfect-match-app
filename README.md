@@ -192,9 +192,9 @@ git push -u origin main
 
 - Web'i başlat: `npx expo start --web`
 - Değişikliği görmek için dosyayı kaydet (`Cmd+S`); görünmüyorsa terminalde `r` ile reload
-- Sağ üstteki `WebDebugNav` paneli (sadece web) ile hızlı geçiş:
+- Sağ üstteki `WebDebugNav` paneli: **web’de her zaman**; **native’de yalnızca `__DEV__`** ile hızlı geçiş:
   - `Home`, `Login`, `Sign up`, `Setup-1` … `Setup-4`
-- Setup ekranları için demo: `?demo=1` (ör. `/profile-setup/step2?demo=1`)
+- Setup ekranları için demo: `?demo=1` (ör. `/profile-setup/step2?demo=1`). Oturum yok veya e-posta doğrulanmamışken Setup’e girmek için bu parametre gerekir; web’de `profile-setup/_layout` ayrıca URL’den `demo=1` okur.
 
 ---
 
@@ -210,7 +210,7 @@ git push -u origin main
 
 **Uygulama şu an şunları kullanıyor / migration dosyalarına bakın:** `supabase/migrations/`
 
-Örnek `profiles` alanları: `first_name`, `last_name`, `gender`, `date_of_birth`, `zodiac_sign`, `city`, `district`, `full_address`, `lat`, `lng`, `photo_urls`, `height`, `height_unit`, `meeting_preferences`, `languages`, `intent` (Setup-2 sonrası), `occupation`, `education_detail`, `setup1_completed`, …
+Örnek `profiles` alanları: `first_name`, `last_name`, `gender`, `date_of_birth`, `zodiac_sign`, `city`, `district`, `full_address`, `lat`, `lng`, `photos` (`text[]`), `height_cm`, `meeting_preferences`, `languages`, `intent` (Setup-2 sonrası), `occupation`, `education_detail`, `setup1_completed`, …
 
 `preferences`: `intent`, `setup2_answers`, `setup2_completed` … `setup4_completed`, müsaitlik / bio / hobiler vb. (Setup-3 ve 4’e göre).
 
@@ -222,11 +222,11 @@ Gelecek tablolar (MVP+): `matches`, `places`, `meetings` — bkz. [`docs/MASTER_
 
 ## Matching (kod + plan)
 
-- **Intent (sert / havuz):** `lib/intentMatching.ts` — `just_friends`, `keeping_it_casual`, `open_to_relationship`, `not_sure_yet`; `not_sure_yet` herkesle uyumlu kabul edilir.
-- **Gender ↔ meeting_preferences (karşılıklı sert):** `lib/profileMatching.ts` — `Everyone` tüm profil cinsiyetlerini kabul eder; `Man` ↔ `Men` eşlemesi.
-- **Dil (soft bonus):** ortak dil → +10 puan önerisi (`languageOverlapBonus`).
+- **Intent (havuz):** `lib/intentMatching.ts` — `not_sure_yet` herkesle uyumlu; ayrıntı README / Setup-2 dokümanı.
+- **Setup-1 (sert filtre):** `lib/profileMatching.ts` — aynı `city`; karşılıklı `gender` ↔ `meeting_preferences`; ortak dil zorunlu (`languagesHardCompatible`).
+- **Setup-1 (skor):** ilçe bonusu, yaş farkı, Man+Woman boy farkı, ortak dil sayısına göre dil puanı — bkz. [`docs/SETUP1_MATCHING.md`](docs/SETUP1_MATCHING.md) (`setup1ScoreTotal`).
 
-Setup-2’deki evlilik/çocuk gibi alanlar için sert filtreler dökümanda tanımlı; **sunucu tarafında** tek RPC/Edge Function’da toplanması hedeflenir.
+Setup-2+ alanları ve sunucu tarafı pipeline ayrıca tanımlanacak.
 
 ---
 

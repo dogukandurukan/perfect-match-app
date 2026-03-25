@@ -26,13 +26,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C2030',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#4B5563',
+    borderRadius: 20,
+    borderWidth: 0,
   },
   chipSelected: {
     backgroundColor: '#C9A96E',
-    borderColor: '#C9A96E',
+    borderWidth: 0,
   },
   label: {
     color: '#F5F0E8',

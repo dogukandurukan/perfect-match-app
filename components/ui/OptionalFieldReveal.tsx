@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 type Props = {
   show: boolean;
@@ -8,11 +8,15 @@ type Props = {
   children: ReactNode;
 };
 
-/** Optional form field that fades/slides in when `show` becomes true. */
+/** Optional form field: opacity + layout transition (300ms). */
 export function OptionalFieldReveal({ show, animationKey, children }: Props) {
   if (!show) return null;
   return (
-    <Animated.View entering={FadeInDown.duration(220)} key={animationKey}>
+    <Animated.View
+      key={animationKey}
+      layout={LinearTransition.duration(300)}
+      entering={FadeIn.duration(300)}
+      exiting={FadeOut.duration(200)}>
       {children}
     </Animated.View>
   );

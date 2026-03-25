@@ -12,12 +12,12 @@ Bu belge projenin **şu anki aşamasını**, **MVP hedeflerini** ve **sıradaki 
 
 | Alan | Durum |
 |------|--------|
-| Expo Router, auth (login/register), anon devam | Var |
+| Expo Router, auth (login/register), e-posta doğrulama + şifre sıfırlama | Var |
 | Landing: Get Started → Kayıt, profil eksikse yönlendirme | Var |
 | Onboarding step2/3 kaldırıldı; intent Setup-2 içinde | Var |
 | Profile Setup 1–4 (foto, isim, DOB+burç, boy, konum, gender, meeting prefs, diller; Setup-2 dinamik intent; Setup-3 yaşam; Setup-4 müsaitlik/bio) | Var |
-| Tasarım token’ları (bg-primary, accent, chip) | Kısmen (`Chip`, ekranlar) |
-| İstemci tarafı matching yardımcıları (`lib/intentMatching.ts`, `lib/profileMatching.ts`) | Var (henüz backend/job yok) |
+| Tasarım token’ları + Setup UI (progress bar, chip 20px, KeyboardAvoidingView) | Var (`lib/designTokens.ts`, `SetupScreenHeader`, setup ekranları) |
+| İstemci tarafı matching yardımcıları (`lib/intentMatching.ts`, `lib/profileMatching.ts`, `lib/setup2Matching.ts`, `lib/setup3Matching.ts`, `lib/setup4Matching.ts`, `lib/matchScoring.ts`) | Var (henüz backend/job yok) |
 | Supabase client + `app.json` extra | Var |
 | SQL migration dosyaları (`supabase/migrations/`) | Var (projede; prod’da çalıştırılmalı) |
 
@@ -62,7 +62,7 @@ Bu belge projenin **şu anki aşamasını**, **MVP hedeflerini** ve **sıradaki 
    - Intent: `intentsCanMatch` mantığı (`lib/intentMatching.ts`).
    - Gender ↔ `meeting_preferences`: `meetingPreferencesMutuallyCompatible` (`lib/profileMatching.ts`).
    - Şehir: aynı `city` (veya mesafe) sert filtre.
-   - Dil: `languageOverlapBonus` skora eklenir (eşleşmeyi tamamen kesmez).
+   - Dil: ortak dil zorunlu (sert filtre); ek puan `languageCountScore` (`docs/SETUP1_MATCHING.md`).
 2. Setup-2’deki evlilik/çocuk gibi alanlar için **sert filtre** kuralları (dökümana göre) kodlanmalı.
 3. Skor sonrası **tek kullanıcı** seçimi + “bugün eşleşme yok” eşiği.
 
@@ -91,9 +91,9 @@ Bu belge projenin **şu anki aşamasını**, **MVP hedeflerini** ve **sıradaki 
 | Kaynak | Örnek alan | Profilde (önerilen gösterim) |
 |--------|------------|------------------------------|
 | Setup-1 | `first_name`, `last_name` | İsim |
-| Setup-1 | `photo_urls` | Galeri / ilk foto |
+| Setup-1 | `photos` | Galeri / ilk foto |
 | Setup-1 | `date_of_birth`, `zodiac_sign` | Yaş · burç |
-| Setup-1 | `height`, `height_unit` | Boy (varsa) |
+| Setup-1 | `height_cm` | Boy (cm, varsa) |
 | Setup-1 | `district`, `city` | Kadıköy, İstanbul |
 | Setup-1 | `gender` | Cinsiyet |
 | Setup-1 | `meeting_preferences` | Aranan: Men, Women, … |
@@ -112,8 +112,15 @@ Kart eşleşmesinde **karşı tarafa** neyin açılacağı gizlilik politikasın
 - Setup: `app/profile-setup/step1.tsx` … `step4.tsx`
 - Intent tipleri: `lib/onboardingIntent.ts`
 - Eşleşme yardımcıları: `lib/intentMatching.ts`, `lib/profileMatching.ts`
+- Setup-1 eşleşme: `docs/SETUP1_MATCHING.md`
+- Setup-2 eşleşme: `docs/SETUP2_MATCHING.md`
+- Setup-3 eşleşme: `docs/SETUP3_MATCHING.md`
+- Setup-4 eşleşme: `docs/SETUP4_MATCHING.md`
+- Master eşleşme akışı: `docs/MATCHING_MASTER.md`
 - Migration’lar: `supabase/migrations/`
+- Auth / deep link: `lib/authDeepLinks.ts`, `app/reset-password.tsx`
+- Debug gezinme (Setup demo): `components/ui/WebDebugNav.tsx` — web’de her zaman; **native’de yalnızca `__DEV__`** sağ üst panel
 
 ---
 
-*Son güncelleme: bu commit ile README ve repo durumu senkron tutulmalıdır.*
+*Son güncelleme: auth + Setup UI + match skor cap + demo gate notları bu belgeye işlendi.*

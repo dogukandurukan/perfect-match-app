@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
@@ -8,6 +9,7 @@ import { OptionalFieldReveal } from '@/components/ui/OptionalFieldReveal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
 import { supabase } from '@/lib/supabaseClient';
 
 type Vibe = 'Introvert' | 'Extrovert' | 'Mixed';
@@ -24,7 +26,7 @@ export default function ProfileSetupStep3() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const [dayNight, setDayNight] = useState<string | null>(null);
+  const [morningNight, setMorningNight] = useState<string | null>(null);
   const [recharge, setRecharge] = useState<string | null>(null);
   const [hobbies, setHobbies] = useState<string[]>([]);
   const [newHobby, setNewHobby] = useState('');
@@ -112,7 +114,7 @@ export default function ProfileSetupStep3() {
       const payload = skip
         ? {
             user_id: userId,
-            day_night_person: null,
+            morning_night: null,
             recharge_style: null,
             hobbies: null,
             vibe: null,
@@ -126,7 +128,7 @@ export default function ProfileSetupStep3() {
           }
         : {
             user_id: userId,
-            day_night_person: dayNight,
+            morning_night: morningNight,
             recharge_style: recharge,
             hobbies: hobbies.length ? hobbies : null,
             vibe,
@@ -145,8 +147,17 @@ export default function ProfileSetupStep3() {
       const educationDetailOut =
         !skip && education && education !== 'Other' ? educationDetail.trim() || null : null;
       const { error: profileErr } = await supabase.from('profiles').update({
-        occupation: skip ? null : occupation.trim() || null,
+        morning_night: skip ? null : morningNight,
+        recharge_style: skip ? null : recharge,
+        hobbies: skip ? null : (hobbies.length ? hobbies : null),
+        vibe: skip ? null : vibe,
+        drinking: skip ? null : drinking,
+        smoking: skip ? null : smoking,
+        pets: skip ? null : pets,
+        education: skip ? null : education,
         education_detail: skip ? null : educationDetailOut,
+        occupation: skip ? null : occupation.trim() || null,
+        religion: skip ? null : religion,
       }).eq('id', userId);
       if (profileErr) console.warn('profiles occupation/education_detail:', profileErr);
 
@@ -163,8 +174,12 @@ export default function ProfileSetupStep3() {
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ThemedText style={styles.progress}>Step 3 of 4</ThemedText>
+        <SetupScreenHeader step={3} />
         <ThemedText style={styles.title}>A little more about you</ThemedText>
 
         <View style={styles.section}>
@@ -174,8 +189,8 @@ export default function ProfileSetupStep3() {
               <Chip
                 key={opt}
                 label={opt}
-                selected={dayNight === opt}
-                onPress={() => setDayNight(opt)}
+                selected={morningNight === opt}
+                onPress={() => setMorningNight(opt)}
                 style={styles.profileChip}
               />
             ))}
@@ -209,36 +224,29 @@ export default function ProfileSetupStep3() {
                 style={styles.profileChip}
               />
             ))}
+            {customHobbies.map((h) => (
+              <Animated.View key={h} entering={FadeIn.duration(300)}>
+                <Chip label={h} selected onPress={() => toggleHobby(h)} style={styles.profileChip} />
+              </Animated.View>
+            ))}
           </View>
           <View style={styles.addInputWrap}>
             <TextInput
               style={styles.addInput}
-              placeholder="+ Add your own"
+              placeholder={hobbies.length >= MAX_HOBBIES ? 'Maximum 5 reached' : '+ Add your own'}
               placeholderTextColor="#9CA3AF"
               value={newHobby}
+              editable={hobbies.length < MAX_HOBBIES}
               onChangeText={setNewHobby}
               returnKeyType="done"
               onSubmitEditing={() => {
                 const t = newHobby.trim();
-                if (!t) return;
+                if (!t || hobbies.length >= MAX_HOBBIES) return;
                 setNewHobby('');
                 toggleHobby(t);
               }}
             />
           </View>
-          {customHobbies.length > 0 ? (
-            <View style={styles.customHobbiesRow}>
-              {customHobbies.map((h) => (
-                <Chip
-                  key={h}
-                  label={h}
-                  selected
-                  onPress={() => toggleHobby(h)}
-                  style={styles.profileChip}
-                />
-              ))}
-            </View>
-          ) : null}
         </View>
 
         <View style={styles.section}>
@@ -358,6 +366,7 @@ export default function ProfileSetupStep3() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
@@ -366,16 +375,12 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'flex-start',
   },
+  keyboard: {
+    flex: 1,
+  },
   content: {
     paddingBottom: 40,
     paddingRight: 8,
-  },
-  progress: {
-    textAlign: 'center',
-    color: '#C9A96E',
-    fontSize: 14,
-    marginTop: 12,
-    marginBottom: 16,
   },
   title: {
     color: '#F5F0E8',
@@ -395,7 +400,7 @@ const styles = StyleSheet.create({
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   profileChip: {
     borderRadius: 20,
@@ -426,19 +431,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: '#F5F0E8',
   },
-  customHobbiesRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
   footer: {
     marginTop: 20,
     gap: 18,
     marginBottom: 24,
   },
   skipText: {
-    color: '#F5F0E8',
+    color: 'rgba(245, 240, 232, 0.6)',
     fontSize: 14,
     textAlign: 'center',
   },
