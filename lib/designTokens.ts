@@ -1,7 +1,7 @@
 /** App design tokens (UI spec) */
 export const colors = {
-  bgPrimary: '#0F1117',
-  bgCard: '#1C2030',
-  accent: '#C9A96E',
-  textPrimary: '#F5F0E8',
+  bgPrimary: '#FFFFFF',
+  bgCard: '#F5F5F5',
+  accent: '#B8860B',
+  textPrimary: '#1A1A1A',
 } as const;

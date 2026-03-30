@@ -15,6 +15,7 @@ import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { supabase } from '@/lib/supabaseClient';
+import { colors } from '@/lib/designTokens';
 import { getProfileSetupState } from '@/lib/profileCompletion';
 
 export default function LoginScreen() {
@@ -109,7 +110,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor="#AAAAAA"
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
@@ -118,7 +119,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor="#AAAAAA"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
@@ -142,7 +143,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="Email"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#AAAAAA"
               autoCapitalize="none"
               keyboardType="email-address"
               value={forgotEmail}
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#C9A96E',
+    color: colors.accent,
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -179,11 +180,13 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   input: {
-    backgroundColor: '#1C2030',
+    backgroundColor: '#F5F5F5',
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    color: '#FFFFFF',
+    color: '#1A1A1A',
   },
   forgotWrap: {
     alignItems: 'center',
@@ -191,13 +194,13 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 14,
-    color: '#C9A96E',
+    color: colors.accent,
     textAlign: 'center',
   },
   signUpLink: {
     marginTop: 16,
     textAlign: 'center',
-    color: '#F5F0E8',
+    color: colors.accent,
     fontSize: 14,
   },
   modalBackdrop: {
@@ -207,7 +210,9 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#15182A',
+    backgroundColor: '#F5F5F5',
+    borderWidth: 0.5,
+    borderColor: '#E5E5E5',
     borderRadius: 16,
     padding: 20,
     gap: 16,
@@ -215,7 +220,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#F5F0E8',
+    color: '#1A1A1A',
     marginBottom: 4,
   },
   modalCancel: {
@@ -223,7 +228,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   modalCancelText: {
-    color: '#9CA3AF',
+    color: '#AAAAAA',
     fontSize: 15,
   },
 });

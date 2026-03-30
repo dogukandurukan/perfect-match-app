@@ -2,6 +2,7 @@ import React from 'react';
 import { GestureResponderEvent, Pressable, StyleSheet, ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { colors } from '@/lib/designTokens';
 
 type SecondaryButtonProps = {
   label: string;
@@ -21,21 +22,21 @@ export function SecondaryButton({ label, onPress, style }: SecondaryButtonProps)
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
     borderRadius: 12,
     width: '100%',
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#1C2030',
+    borderColor: '#E5E5E5',
   },
   buttonPressed: {
     transform: [{ scale: 0.98 }],
     opacity: 0.95,
   },
   label: {
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.4,

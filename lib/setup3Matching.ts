@@ -2,12 +2,10 @@ type MaybeText = string | null | undefined;
 
 export type Setup3Fields = {
   morning_night?: MaybeText;
-  recharge_style?: MaybeText;
+  /** Multi-select: Alone time / With people / With my pet / Mix of everything */
+  recharge_style?: string[] | null;
   hobbies?: string[] | null;
-  vibe?: MaybeText;
-  drinking?: MaybeText;
-  smoking?: MaybeText;
-  pets?: MaybeText;
+  drinking_smoking?: MaybeText;
   education?: MaybeText;
   education_detail?: MaybeText;
   religion?: MaybeText;
@@ -31,9 +29,18 @@ function eqNormalized(a: MaybeText, b: MaybeText): boolean {
   return na.length > 0 && na === nb;
 }
 
-function overlapCount(a: string[] | null | undefined, b: string[] | null | undefined): number {
-  const aa = [...new Set((a ?? []).map((x) => normalizeText(x)).filter(Boolean))];
-  const bb = new Set((b ?? []).map((x) => normalizeText(x)).filter(Boolean));
+function toStringArray(v: string | string[] | null | undefined): string[] {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v;
+  return [v];
+}
+
+function overlapCount(
+  a: string | string[] | null | undefined,
+  b: string | string[] | null | undefined,
+): number {
+  const aa = [...new Set(toStringArray(a).map((x) => normalizeText(x)).filter(Boolean))];
+  const bb = new Set(toStringArray(b).map((x) => normalizeText(x)).filter(Boolean));
   return aa.filter((x) => bb.has(x)).length;
 }
 
@@ -41,34 +48,39 @@ export function morningNightScore(a: MaybeText, b: MaybeText): number {
   return eq(a, b) ? 10 : 0;
 }
 
-export function rechargeStyleScore(a: MaybeText, b: MaybeText): number {
-  return eq(a, b) ? 10 : 0;
-}
-
-export function hobbiesScore(a: string[] | null | undefined, b: string[] | null | undefined): number {
+/** Recharge: at least one shared option → +10 */
+export function rechargeStyleScore(
+  a: string[] | string | null | undefined,
+  b: string[] | string | null | undefined,
+): number {
   const common = overlapCount(a, b);
   if (common <= 0) return 0;
-  if (common === 1) return 15;
-  if (common === 2) return 20;
-  if (common === 3) return 25;
-  if (common === 4) return 30;
-  return 35;
+  return 10;
 }
 
-export function vibeScore(a: MaybeText, b: MaybeText): number {
-  return eq(a, b) ? 15 : 0;
+/** Hobbies: 1 common → +15, each extra +15, max +45 */
+export function hobbiesScore(
+  a: string[] | string | null | undefined,
+  b: string[] | string | null | undefined,
+): number {
+  const common = overlapCount(a, b);
+  if (common <= 0) return 0;
+  return Math.min(common * 15, 45);
 }
 
-export function drinkingScore(a: MaybeText, b: MaybeText): number {
-  return eq(a, b) ? 10 : 0;
+export function hobbiesOverlapCount(
+  a: string[] | string | null | undefined,
+  b: string[] | string | null | undefined,
+): number {
+  return overlapCount(a, b);
 }
 
-export function smokingScore(a: MaybeText, b: MaybeText): number {
-  return eq(a, b) ? 10 : 0;
-}
-
-export function petsScore(a: MaybeText, b: MaybeText): number {
-  return eq(a, b) ? 5 : 0;
+/** Drinking + smoking combined: aynı seçim → +10+10; sosyalleşince → +3+3; uyumsuz → ceza */
+export function drinkingSmokingScore(a: MaybeText, b: MaybeText): number {
+  if (!a || !b) return 0;
+  if (eq(a, b)) return 20;
+  if (a === 'When socializing' || b === 'When socializing') return 6;
+  return -10;
 }
 
 export function educationScore(
@@ -78,30 +90,30 @@ export function educationScore(
   detailB: MaybeText,
 ): number {
   if (!eq(educationA, educationB)) return 0;
-  let score = 15;
-  if (eqNormalized(detailA, detailB)) score += 20;
+  let score = 10;
+  if (eqNormalized(detailA, detailB)) score += 10;
   return score;
 }
 
 export function religionScore(a: MaybeText, b: MaybeText): number {
   if (!a || !b) return 0;
   if (a === 'Prefer not to say' || b === 'Prefer not to say') return 0;
-  if (a === b) return 20;
+  if (a === b) return 5;
 
   const pair = [a, b].sort().join('|');
   switch (pair) {
     case 'Religious|Spiritual':
-      return 10;
+      return 3;
     case 'Agnostic|Atheist':
-      return 10;
+      return 3;
     case 'Agnostic|Spiritual':
-      return 5;
+      return 2;
     case 'Agnostic|Religious':
-      return -5;
+      return -3;
     case 'Atheist|Spiritual':
-      return -5;
+      return -3;
     case 'Atheist|Religious':
-      return -15;
+      return -5;
     default:
       return 0;
   }
@@ -112,10 +124,7 @@ export function setup3ScoreTotal(a: Setup3Fields, b: Setup3Fields): number {
     morningNightScore(a.morning_night, b.morning_night) +
     rechargeStyleScore(a.recharge_style, b.recharge_style) +
     hobbiesScore(a.hobbies ?? null, b.hobbies ?? null) +
-    vibeScore(a.vibe, b.vibe) +
-    drinkingScore(a.drinking, b.drinking) +
-    smokingScore(a.smoking, b.smoking) +
-    petsScore(a.pets, b.pets) +
+    drinkingSmokingScore(a.drinking_smoking, b.drinking_smoking) +
     educationScore(a.education, b.education, a.education_detail, b.education_detail) +
     religionScore(a.religion, b.religion)
   );

@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, GestureResponderEvent, Pressable, StyleSheet, ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { colors } from '@/lib/designTokens';
 
 type PrimaryButtonProps = {
   label: string;
@@ -24,14 +25,14 @@ export function PrimaryButton({ label, onPress, disabled, loading, style }: Prim
       ]}
       onPress={onPress}
       disabled={isDisabled}>
-      {loading ? <ActivityIndicator color="#0F1117" /> : <ThemedText style={styles.label}>{label}</ThemedText>}
+      {loading ? <ActivityIndicator color="#FFFFFF" /> : <ThemedText style={styles.label}>{label}</ThemedText>}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#C9A96E',
+    backgroundColor: colors.accent,
     borderRadius: 12,
     width: '100%',
     minHeight: 56,
@@ -47,7 +48,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   label: {
-    color: '#0F1117',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.4,

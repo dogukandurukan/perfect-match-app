@@ -4,7 +4,10 @@ export type ZodiacInfo = {
   sign: string;
 };
 
-/** Western zodiac from calendar month (1–12) and day. */
+/**
+ * Western zodiac — boundaries per product spec (month 1–12, day 1–31).
+ * Aries 21 Mar–19 Apr, … Capricorn 22 Dec–19 Jan, etc.
+ */
 export function getZodiacFromParts(month: number, day: number): ZodiacInfo | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
 

@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
   track: {
     height: 3,
     borderRadius: 2,
-    backgroundColor: colors.bgCard,
+    backgroundColor: '#F0F0F0',
     overflow: 'hidden',
     marginBottom: 10,
   },

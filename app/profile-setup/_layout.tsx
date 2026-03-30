@@ -2,6 +2,7 @@ import { Stack, Redirect, useGlobalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
+import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 
 type GateState = 'loading' | 'ok' | 'denied';
@@ -77,7 +78,7 @@ export default function ProfileSetupLayout() {
   if (gate === 'loading') {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#C9A96E" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -94,6 +95,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0B0D14',
+    backgroundColor: colors.bgPrimary,
   },
 });

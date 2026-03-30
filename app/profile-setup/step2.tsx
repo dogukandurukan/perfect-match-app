@@ -9,24 +9,25 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
+import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 import type { IntentKey } from '@/lib/onboardingIntent';
 import { normalizeIntentKey } from '@/lib/onboardingIntent';
 
-type SubIntent = 'Friendship' | 'Something romantic' | 'Both';
-
 export type Setup2Answers = {
-  sub_intent?: SubIntent;
-  friendship_type?: string;
-  shared_interests_importance?: string;
+  friendship_value?: string;
+  hangout_frequency?: string;
   social_preference?: string;
   casualness_expectation?: string;
   exclusivity_view?: string;
+  connection_style?: string;
   marriage_view?: string;
   children_view?: string;
-  living_preference?: string;
+  relationship_pace?: string;
   life_priority?: string;
+  excitement_factor?: string;
   commitment_view?: string;
+  connection_energy?: string;
 };
 
 const INTENT_OPTIONS: { label: string; key: IntentKey }[] = [
@@ -174,73 +175,49 @@ export default function ProfileSetupStep2() {
     tooltipTimerRef.current = setTimeout(() => setShowNotSureTooltip(false), 3000);
   }, []);
 
-  const selectIntent = useCallback((key: IntentKey) => {
-    if (intentRef.current !== null && intentRef.current !== key) {
-      setAnswers({});
-    }
-    if (showNotSureTooltip) setShowNotSureTooltip(false);
-    setIntent(key);
-    if (key === 'not_sure_yet') showNotSureHint();
-  }, [showNotSureHint, showNotSureTooltip]);
+  const selectIntent = useCallback(
+    (key: IntentKey) => {
+      if (intentRef.current !== null && intentRef.current !== key) {
+        setAnswers({});
+      }
+      if (showNotSureTooltip) setShowNotSureTooltip(false);
+      setIntent(key);
+      if (key === 'not_sure_yet') showNotSureHint();
+    },
+    [showNotSureHint, showNotSureTooltip],
+  );
 
   const showVersionCasual = useMemo(() => intent === 'keeping_it_casual', [intent]);
-
-  const showVersionA = useMemo(() => {
-    if (!intent) return false;
-    if (intent === 'just_friends') return true;
-    if (intent === 'not_sure_yet' && answers.sub_intent === 'Friendship') return true;
-    return false;
-  }, [intent, answers.sub_intent]);
-
-  const showVersionB = useMemo(() => {
-    if (!intent) return false;
-    if (intent === 'open_to_relationship') return true;
-    if (intent === 'not_sure_yet' && answers.sub_intent === 'Something romantic') return true;
-    return false;
-  }, [intent, answers.sub_intent]);
-
-  const showVersionD = useMemo(() => intent === 'not_sure_yet' && answers.sub_intent === 'Both', [intent, answers.sub_intent]);
+  const showJustFriends = useMemo(() => intent === 'just_friends', [intent]);
+  const showOpenRelationship = useMemo(() => intent === 'open_to_relationship', [intent]);
+  const showNotSure = useMemo(() => intent === 'not_sure_yet', [intent]);
 
   const dynamicTitle = useMemo(() => {
     if (!intent) return '';
     if (showVersionCasual) return 'Keeping it casual';
-    if (intent === 'just_friends' || (intent === 'not_sure_yet' && showVersionA && !showVersionD)) {
-      return "Tell us about the friendship you're looking for";
-    }
-    if (intent === 'open_to_relationship' || (intent === 'not_sure_yet' && showVersionB)) {
-      return "Let's understand what you're looking for";
-    }
+    if (intent === 'just_friends') return "Tell us about the friendship you're looking for";
+    if (intent === 'open_to_relationship') return "Let's understand what you're looking for";
     return "Let's figure out what feels right";
-  }, [intent, showVersionA, showVersionB, showVersionD, showVersionCasual]);
+  }, [intent, showVersionCasual]);
 
   const canProceed = useMemo(() => {
     if (!intent) return false;
     if (intent === 'keeping_it_casual') {
-      return !!(answers.casualness_expectation && answers.exclusivity_view);
+      return !!(answers.casualness_expectation && answers.exclusivity_view && answers.connection_style);
     }
     if (intent === 'just_friends') {
-      return !!(
-        answers.friendship_type &&
-        answers.shared_interests_importance &&
-        answers.social_preference
-      );
+      return !!(answers.friendship_value && answers.hangout_frequency && answers.social_preference);
     }
     if (intent === 'open_to_relationship') {
-      return !!(answers.marriage_view && answers.children_view && answers.living_preference && answers.life_priority);
-    }
-    if (!answers.sub_intent) return false;
-    if (answers.sub_intent === 'Friendship') {
       return !!(
-        answers.friendship_type &&
-        answers.shared_interests_importance &&
-        answers.social_preference
+        answers.marriage_view &&
+        answers.children_view &&
+        answers.relationship_pace &&
+        answers.life_priority
       );
     }
-    if (answers.sub_intent === 'Something romantic') {
-      return !!(answers.marriage_view && answers.children_view && answers.living_preference && answers.life_priority);
-    }
-    if (answers.sub_intent === 'Both') {
-      return !!(answers.commitment_view && answers.friendship_type && answers.social_preference);
+    if (intent === 'not_sure_yet') {
+      return !!(answers.excitement_factor && answers.commitment_view && answers.connection_energy);
     }
     return false;
   }, [intent, answers]);
@@ -261,17 +238,19 @@ export default function ProfileSetupStep2() {
       const onboardingPayload = {
         user_id: userId,
         intent,
-        sub_intent: answers.sub_intent ? answers.sub_intent.toLowerCase().replace(' ', '_') : null,
-        friendship_type: answers.friendship_type ?? null,
-        shared_interests_importance: answers.shared_interests_importance ?? null,
+        friendship_value: answers.friendship_value ?? null,
+        hangout_frequency: answers.hangout_frequency ?? null,
         social_preference: answers.social_preference ?? null,
         casualness_expectation: answers.casualness_expectation ?? null,
         exclusivity_view: answers.exclusivity_view ?? null,
+        connection_style: answers.connection_style ?? null,
         marriage_view: answers.marriage_view ?? null,
         children_view: answers.children_view ?? null,
-        living_preference: answers.living_preference ?? null,
+        relationship_pace: answers.relationship_pace ?? null,
         life_priority: answers.life_priority ?? null,
+        excitement_factor: answers.excitement_factor ?? null,
         commitment_view: answers.commitment_view ?? null,
+        connection_energy: answers.connection_energy ?? null,
       };
       const { error: onboardingErr } = await supabase
         .from('onboarding_answers')
@@ -310,201 +289,231 @@ export default function ProfileSetupStep2() {
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
-      <Pressable style={styles.main} onPress={() => setShowNotSureTooltip(false)}>
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        onScrollBeginDrag={() => setShowNotSureTooltip(false)}>
-        <SetupScreenHeader step={2} />
+        <Pressable style={styles.main} onPress={() => setShowNotSureTooltip(false)}>
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            onScrollBeginDrag={() => setShowNotSureTooltip(false)}>
+            <SetupScreenHeader step={2} />
 
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>What kind of connection are you looking for?</ThemedText>
-          <View style={styles.chipRow}>
-            {INTENT_OPTIONS.map(({ label, key }) =>
-              key === 'not_sure_yet' ? (
-                <View key={key} style={styles.notSureWrap}>
-                  {showNotSureTooltip ? (
-                    <View style={styles.tooltipAboveChip} pointerEvents="none">
-                      <View style={styles.tooltip}>
-                        <ThemedText style={styles.tooltipTextSmall}>
-                          Keeping it open means you&apos;ll appear in more matches
-                        </ThemedText>
-                      </View>
-                      <View style={styles.tooltipCaretDown} />
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionLabel}>What kind of connection are you looking for?</ThemedText>
+              <View style={styles.chipRow}>
+                {INTENT_OPTIONS.map(({ label, key }) =>
+                  key === 'not_sure_yet' ? (
+                    <View key={key} style={styles.notSureWrap}>
+                      {showNotSureTooltip ? (
+                        <View style={styles.tooltipAboveChip} pointerEvents="none">
+                          <View style={styles.tooltip}>
+                            <ThemedText style={styles.tooltipTextSmall}>
+                              Keeping it open means you&apos;ll appear in more matches
+                            </ThemedText>
+                          </View>
+                          <View style={styles.tooltipCaretDown} />
+                        </View>
+                      ) : null}
+                      <IntentChip
+                        label={label}
+                        selected={intent === key}
+                        showSparkle
+                        onPress={() => selectIntent(key)}
+                        onLongPress={showNotSureHint}
+                      />
                     </View>
-                  ) : null}
-                  <IntentChip
-                    label={label}
-                    selected={intent === key}
-                    showSparkle
-                    onPress={() => selectIntent(key)}
-                    onLongPress={showNotSureHint}
-                  />
-                </View>
-              ) : (
-                <IntentChip
-                  key={key}
-                  label={label}
-                  selected={intent === key}
-                  showSparkle={false}
-                  onPress={() => selectIntent(key)}
-                />
-              ),
-            )}
-          </View>
-        </View>
-
-        {intent ? (
-          <>
-            <OptionalFieldReveal show={!!dynamicTitle} animationKey={dynamicTitle}>
-              <ThemedText style={styles.title}>{dynamicTitle}</ThemedText>
-            </OptionalFieldReveal>
-
-            {showVersionCasual && (
-              <OptionalFieldReveal show animationKey="casual-block">
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>What are you hoping for?</ThemedText>
-                  <ChipRow
-                    options={['Fun & good vibes', 'New experiences', 'See where it goes', 'All of the above'] as const}
-                    selected={answers.casualness_expectation ?? null}
-                    onSelect={(v) => setAnswer('casualness_expectation', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>How do you feel about exclusivity?</ThemedText>
-                  <ChipRow
-                    options={[
-                      'Not important right now',
-                      'Open to it eventually',
-                      'Prefer to keep it open',
-                    ] as const}
-                    selected={answers.exclusivity_view ?? null}
-                    onSelect={(v) => setAnswer('exclusivity_view', v)}
-                  />
-                </View>
-              </OptionalFieldReveal>
-            )}
-
-            {intent === 'not_sure_yet' && (
-              <OptionalFieldReveal show animationKey="sub-intent">
-              <View style={styles.section}>
-                <ThemedText style={styles.sectionLabel}>What kind of connection are you open to?</ThemedText>
-                <ChipRow
-                  options={['Friendship', 'Something romantic', 'Both'] as const}
-                  selected={answers.sub_intent ?? null}
-                  onSelect={(v) => setAnswer('sub_intent', v as SubIntent)}
-                />
+                  ) : (
+                    <IntentChip
+                      key={key}
+                      label={label}
+                      selected={intent === key}
+                      showSparkle={false}
+                      onPress={() => selectIntent(key)}
+                    />
+                  ),
+                )}
               </View>
-              </OptionalFieldReveal>
-            )}
+            </View>
 
-            {showVersionA && (
-              <OptionalFieldReveal show animationKey="friends-block">
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>What kind of friendship are you looking for?</ThemedText>
-                  <ChipRow
-                    options={['Activity buddy', 'Someone to talk to', 'Both'] as const}
-                    selected={answers.friendship_type ?? null}
-                    onSelect={(v) => setAnswer('friendship_type', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>How important are shared interests to you?</ThemedText>
-                  <ChipRow
-                    options={['Very important', 'Somewhat important', 'Not that important'] as const}
-                    selected={answers.shared_interests_importance ?? null}
-                    onSelect={(v) => setAnswer('shared_interests_importance', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>Do you prefer group hangouts or one-on-one?</ThemedText>
-                  <ChipRow
-                    options={['Group', 'One-on-one', 'Both'] as const}
-                    selected={answers.social_preference ?? null}
-                    onSelect={(v) => setAnswer('social_preference', v)}
-                  />
-                </View>
-              </OptionalFieldReveal>
-            )}
+            {intent ? (
+              <>
+                <OptionalFieldReveal show={!!dynamicTitle} animationKey={dynamicTitle}>
+                  <ThemedText style={styles.title}>{dynamicTitle}</ThemedText>
+                </OptionalFieldReveal>
 
-            {showVersionB && (
-              <OptionalFieldReveal show animationKey="relationship-block">
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>Do you see yourself getting married?</ThemedText>
-                  <ChipRow
-                    options={['Yes, definitely', 'Open to it', 'Not sure', 'No'] as const}
-                    selected={answers.marriage_view ?? null}
-                    onSelect={(v) => setAnswer('marriage_view', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>Do you want children?</ThemedText>
-                  <ChipRow
-                    options={['Yes', 'Maybe someday', 'No', 'Already have kids'] as const}
-                    selected={answers.children_view ?? null}
-                    onSelect={(v) => setAnswer('children_view', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>Where do you see yourself living long-term?</ThemedText>
-                  <ChipRow
-                    options={['Same city', 'Open to moving', 'Want to move abroad'] as const}
-                    selected={answers.living_preference ?? null}
-                    onSelect={(v) => setAnswer('living_preference', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>What takes priority in your life right now?</ThemedText>
-                  <ChipRow
-                    options={['Career', 'Family', 'Balance of both', 'Still figuring it out'] as const}
-                    selected={answers.life_priority ?? null}
-                    onSelect={(v) => setAnswer('life_priority', v)}
-                  />
-                </View>
-              </OptionalFieldReveal>
-            )}
+                {showVersionCasual && (
+                  <OptionalFieldReveal show animationKey="casual-block">
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>What are you hoping for?</ThemedText>
+                      <ChipRow
+                        options={['Fun & good vibes', 'New experiences', 'See where it goes', 'All of the above'] as const}
+                        selected={answers.casualness_expectation ?? null}
+                        onSelect={(v) => setAnswer('casualness_expectation', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>How do you feel about exclusivity?</ThemedText>
+                      <ChipRow
+                        options={['Not important right now', 'Open to it eventually', 'Prefer to keep it open'] as const}
+                        selected={answers.exclusivity_view ?? null}
+                        onSelect={(v) => setAnswer('exclusivity_view', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>How do you usually connect with someone?</ThemedText>
+                      <ChipRow
+                        options={[
+                          'Physical chemistry first',
+                          'Good conversations',
+                          'Shared experiences',
+                          'A bit of everything',
+                        ] as const}
+                        selected={answers.connection_style ?? null}
+                        onSelect={(v) => setAnswer('connection_style', v)}
+                      />
+                    </View>
+                  </OptionalFieldReveal>
+                )}
 
-            {showVersionD && (
-              <OptionalFieldReveal show animationKey="not-sure-both">
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>How do you feel about commitment?</ThemedText>
-                  <ChipRow
-                    options={['Taking it slow', 'Open to it', 'Not thinking about it'] as const}
-                    selected={answers.commitment_view ?? null}
-                    onSelect={(v) => setAnswer('commitment_view', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>What kind of friendship are you open to?</ThemedText>
-                  <ChipRow
-                    options={['Activity buddy', 'Someone to talk to', 'Both'] as const}
-                    selected={answers.friendship_type ?? null}
-                    onSelect={(v) => setAnswer('friendship_type', v)}
-                  />
-                </View>
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionLabel}>Do you prefer group hangouts or one-on-one?</ThemedText>
-                  <ChipRow
-                    options={['Group', 'One-on-one', 'Both'] as const}
-                    selected={answers.social_preference ?? null}
-                    onSelect={(v) => setAnswer('social_preference', v)}
-                  />
-                </View>
-              </OptionalFieldReveal>
-            )}
-          </>
-        ) : null}
-      </ScrollView>
-      <View style={styles.footer}>
-        <PrimaryButton
-          label={saving ? 'Saving…' : 'Next →'}
-          onPress={handleNext}
-          disabled={!canProceed || saving}
-          loading={saving}
-        />
-      </View>
-      </Pressable>
+                {showJustFriends && (
+                  <OptionalFieldReveal show animationKey="friends-block">
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>What do you value most in a friendship?</ThemedText>
+                      <ChipRow
+                        options={[
+                          'Loyalty & trust',
+                          'Shared adventures',
+                          'Deep conversations',
+                          'Just having fun',
+                        ] as const}
+                        selected={answers.friendship_value ?? null}
+                        onSelect={(v) => setAnswer('friendship_value', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>How often do you like to hang out?</ThemedText>
+                      <ChipRow
+                        options={[
+                          'A few times a week',
+                          'Once a week',
+                          'A few times a month',
+                          'Whenever it happens',
+                        ] as const}
+                        selected={answers.hangout_frequency ?? null}
+                        onSelect={(v) => setAnswer('hangout_frequency', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>What kind of social settings do you prefer?</ThemedText>
+                      <ChipRow
+                        options={['One-on-one', 'Small groups', 'Big groups', 'Mix of everything'] as const}
+                        selected={answers.social_preference ?? null}
+                        onSelect={(v) => setAnswer('social_preference', v)}
+                      />
+                    </View>
+                  </OptionalFieldReveal>
+                )}
+
+                {showOpenRelationship && (
+                  <OptionalFieldReveal show animationKey="relationship-block">
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>Do you see yourself getting married?</ThemedText>
+                      <ChipRow
+                        options={['Yes, definitely', 'Open to it', 'Not sure', 'No'] as const}
+                        selected={answers.marriage_view ?? null}
+                        onSelect={(v) => setAnswer('marriage_view', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>Do you want children?</ThemedText>
+                      <ChipRow
+                        options={['Yes', 'Maybe someday', 'No', 'Already have kids'] as const}
+                        selected={answers.children_view ?? null}
+                        onSelect={(v) => setAnswer('children_view', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>What&apos;s your relationship pace?</ThemedText>
+                      <ChipRow
+                        options={[
+                          'Taking it slow',
+                          'Going with the flow',
+                          'Ready to commit',
+                          'Not sure yet',
+                        ] as const}
+                        selected={answers.relationship_pace ?? null}
+                        onSelect={(v) => setAnswer('relationship_pace', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>What takes priority in your life right now?</ThemedText>
+                      <ChipRow
+                        options={[
+                          'Career & ambition',
+                          'Family & relationships',
+                          'Personal growth',
+                          'Balance of everything',
+                        ] as const}
+                        selected={answers.life_priority ?? null}
+                        onSelect={(v) => setAnswer('life_priority', v)}
+                      />
+                    </View>
+                  </OptionalFieldReveal>
+                )}
+
+                {showNotSure && (
+                  <OptionalFieldReveal show animationKey="not-sure-block">
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>What would make you excited about meeting someone?</ThemedText>
+                      <ChipRow
+                        options={[
+                          'A great friendship',
+                          'A romantic spark',
+                          'An adventure buddy',
+                          'Just seeing what happens',
+                        ] as const}
+                        selected={answers.excitement_factor ?? null}
+                        onSelect={(v) => setAnswer('excitement_factor', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>How do you feel about commitment?</ThemedText>
+                      <ChipRow
+                        options={[
+                          'Taking it slow',
+                          'Open to whatever feels right',
+                          'Not thinking about it yet',
+                        ] as const}
+                        selected={answers.commitment_view ?? null}
+                        onSelect={(v) => setAnswer('commitment_view', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>What kind of energy are you bringing?</ThemedText>
+                      <ChipRow
+                        options={[
+                          'Laid back & easy going',
+                          'Curious & open minded',
+                          'Fun & spontaneous',
+                          'Still figuring it out',
+                        ] as const}
+                        selected={answers.connection_energy ?? null}
+                        onSelect={(v) => setAnswer('connection_energy', v)}
+                      />
+                    </View>
+                  </OptionalFieldReveal>
+                )}
+              </>
+            ) : null}
+          </ScrollView>
+          <View style={styles.footer}>
+            <PrimaryButton
+              label={saving ? 'Saving…' : 'Next →'}
+              onPress={handleNext}
+              disabled={!canProceed || saving}
+              loading={saving}
+            />
+          </View>
+        </Pressable>
       </KeyboardAvoidingView>
     </ScreenContainer>
   );
@@ -525,7 +534,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   title: {
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: '600',
     marginBottom: 20,
@@ -535,7 +544,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionLabel: {
-    color: '#C9A96E',
+    color: colors.accent,
     fontSize: 14,
     marginBottom: 12,
   },
@@ -548,24 +557,25 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   intentChip: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
+    borderWidth: 0.5,
+    borderColor: '#E0E0E0',
     borderRadius: 20,
-    borderWidth: 0,
     paddingHorizontal: 14,
     paddingVertical: 8,
     minHeight: 36,
     justifyContent: 'center',
   },
   intentChipSelected: {
-    backgroundColor: '#C9A96E',
+    backgroundColor: colors.accent,
   },
   intentLabel: {
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '500',
   },
   intentLabelSelected: {
-    color: '#0F1117',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
   notSureWrap: {
@@ -588,8 +598,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   tooltip: {
-    backgroundColor: '#1C2030',
-    borderColor: '#C9A96E',
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.accent,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 8,
@@ -605,10 +615,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 6,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: '#C9A96E',
+    borderTopColor: colors.accent,
   },
   tooltipTextSmall: {
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     fontSize: 10,
     lineHeight: 13,
   },
@@ -623,8 +633,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 16,
-    backgroundColor: '#0F1117',
+    backgroundColor: colors.bgPrimary,
     borderTopWidth: 1,
-    borderTopColor: '#1C2030',
+    borderTopColor: '#E5E5E5',
   },
 });

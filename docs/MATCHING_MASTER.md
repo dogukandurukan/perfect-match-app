@@ -36,3 +36,5 @@ Hard filtrelerden biri gecmezse skor hesaplanmaz.
 - Setup-2: `docs/SETUP2_MATCHING.md`
 - Setup-3: `docs/SETUP3_MATCHING.md`
 - Setup-4: `docs/SETUP4_MATCHING.md`
+
+**UI notu:** Setup-3 ekraninda `pets` / `drinking` / `smoking` sorulmaz; bu uc alan Setup-4’te toplanir. Skor fonksiyonlari (`setup3Matching` / `setup4Matching`) ayni DB alanlarini kullanmaya devam eder.

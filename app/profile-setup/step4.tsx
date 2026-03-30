@@ -9,12 +9,15 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
+import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 const ALL_DAYS = [...DAY_LABELS];
 
 const TIME_OPTIONS = ['Morning (9-12)', 'Afternoon (12-18)', 'Evening (18-21)'] as const;
+const TIME_ALWAYS = 'Always' as const;
+const TIME_CHIPS = [...TIME_OPTIONS, TIME_ALWAYS] as const;
 
 const VENUE_DEFS = [
   { label: 'Coffee' as const, spotKey: 'coffee', placeholder: "What's your favorite coffee place? (optional)" },
@@ -29,6 +32,33 @@ const FIRST_MEETING_OPTIONS = [
   'Have a real conversation',
   'Have fun and laugh',
   'All of the above',
+] as const;
+
+const NEIGHBORHOOD_PRESETS = ['Kadıköy', 'Beşiktaş', 'Cihangir'] as const;
+
+const MAX_NEIGHBORHOODS = 3;
+const NEIGHBORHOOD_SUGGESTIONS = [
+  'Kadıköy',
+  'Beşiktaş',
+  'Cihangir',
+  'Beyoğlu',
+  'Şişli',
+  'Nişantaşı',
+  'Karaköy',
+  'Galata',
+  'Taksim',
+  'Bakırköy',
+  'Etiler',
+  'Levent',
+  'Çamlıca',
+  'Üsküdar',
+  'Ataşehir',
+  'Kurtköy',
+  'Maltepe',
+  'Kartal',
+  'Kadıköy Moda',
+  'Bomonti',
+  'Sarıyer',
 ] as const;
 
 export default function ProfileSetupStep4() {
@@ -46,6 +76,9 @@ export default function ProfileSetupStep4() {
   const [favoriteSpots, setFavoriteSpots] = useState<Record<string, string>>({});
   const [firstDateExpectation, setFirstDateExpectation] = useState<string | null>(null);
   const [bio, setBio] = useState('');
+
+  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
+  const [neighborhoodInput, setNeighborhoodInput] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [staggerIdx, setStaggerIdx] = useState<number | null>(null);
@@ -127,9 +160,19 @@ export default function ProfileSetupStep4() {
     return [...selectedDays];
   }, [alwaysOn, selectedDays]);
 
-  const toggleMulti = (value: string, list: string[], setList: (v: string[]) => void) => {
-    if (list.includes(value)) setList(list.filter((x) => x !== value));
-    else setList([...list, value]);
+  const isAlwaysHoursSelected = useMemo(
+    () => TIME_OPTIONS.every((t) => selectedHours.includes(t)) && selectedHours.length === TIME_OPTIONS.length,
+    [selectedHours],
+  );
+
+  const toggleHoursChip = (opt: string) => {
+    if (opt === TIME_ALWAYS) {
+      if (isAlwaysHoursSelected) setSelectedHours([]);
+      else setSelectedHours([...TIME_OPTIONS]);
+      return;
+    }
+
+    setSelectedHours((prev) => (prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]));
   };
 
   const toggleVenue = (label: string) => {
@@ -153,10 +196,41 @@ export default function ProfileSetupStep4() {
     setFavoriteSpots((prev) => ({ ...prev, [key]: text }));
   };
 
+  const normalizeLoc = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const addNeighborhood = (raw: string) => {
+    const t = raw.trim();
+    if (!t) return;
+    setPreferredLocations((prev) => {
+      if (prev.length >= MAX_NEIGHBORHOODS) return prev;
+      const nextNorm = new Set(prev.map((x) => normalizeLoc(x)));
+      const tNorm = normalizeLoc(t);
+      if (nextNorm.has(tNorm)) return prev;
+      return [...prev, t];
+    });
+    setNeighborhoodInput('');
+  };
+
+  const filteredNeighborhoods = useMemo(() => {
+    const q = neighborhoodInput.trim().toLowerCase();
+    if (!q) return [...NEIGHBORHOOD_SUGGESTIONS];
+    return NEIGHBORHOOD_SUGGESTIONS.filter((n) => n.toLowerCase().includes(q) || n.toLowerCase().startsWith(q));
+  }, [neighborhoodInput]);
+
+  const customNeighborhoods = useMemo(() => {
+    const presetNorm = new Set(NEIGHBORHOOD_PRESETS.map((p) => normalizeLoc(p)));
+    return preferredLocations.filter((loc) => !presetNorm.has(normalizeLoc(loc)));
+  }, [preferredLocations]);
+
   const finish = async (skip: boolean) => {
     if (!userId) return;
     if (isDemoMode) {
-      router.replace('/(tabs)');
+      router.replace('/profile-setup/success?demo=1');
       return;
     }
 
@@ -164,7 +238,6 @@ export default function ProfileSetupStep4() {
     try {
       const prefPayload = skip
         ? {
-            user_id: userId,
             availability_days: null,
             availability_hours: null,
             meeting_environment: null,
@@ -175,7 +248,6 @@ export default function ProfileSetupStep4() {
             setup4_completed: true,
           }
         : {
-            user_id: userId,
             availability_days: persistDays.length ? persistDays : null,
             availability_hours: selectedHours.length ? selectedHours : null,
             meeting_environment: meetingEnvironment.length ? meetingEnvironment : null,
@@ -191,7 +263,7 @@ export default function ProfileSetupStep4() {
             setup4_completed: true,
           };
 
-      const { error: prefErr } = await supabase.from('preferences').upsert(prefPayload, { onConflict: 'user_id' });
+      const { error: prefErr } = await supabase.from('preferences').update(prefPayload).eq('user_id', userId);
       if (prefErr) throw prefErr;
 
       const profilePayload = skip
@@ -201,6 +273,7 @@ export default function ProfileSetupStep4() {
             meeting_environment: null,
             favorite_spots: null,
             first_date_expectation: null,
+            preferred_locations: null,
             bio: null,
           }
         : {
@@ -214,12 +287,13 @@ export default function ProfileSetupStep4() {
                   )
                 : null,
             first_date_expectation: firstDateExpectation,
+            preferred_locations: preferredLocations.length ? preferredLocations : null,
             bio: bio.trim() || null,
           };
       const { error: profileErr } = await supabase.from('profiles').update(profilePayload).eq('id', userId);
       if (profileErr) console.warn('profiles setup4 update:', profileErr);
 
-      router.replace('/(tabs)');
+      router.replace('/profile-setup/success');
     } catch (e: any) {
       Alert.alert('Kaydetme başarısız', e?.message ?? 'Bir hata oluştu.');
     } finally {
@@ -257,14 +331,14 @@ export default function ProfileSetupStep4() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>What time of day works best for you?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>What time of day works best?</ThemedText>
           <View style={styles.chipRow}>
-            {TIME_OPTIONS.map((opt) => (
+            {TIME_CHIPS.map((opt) => (
               <Chip
                 key={opt}
                 label={opt}
-                selected={selectedHours.includes(opt)}
-                onPress={() => toggleMulti(opt, selectedHours, setSelectedHours)}
+                selected={opt === TIME_ALWAYS ? isAlwaysHoursSelected : selectedHours.includes(opt)}
+                onPress={() => toggleHoursChip(opt)}
                 style={styles.profileChip}
               />
             ))}
@@ -290,13 +364,89 @@ export default function ProfileSetupStep4() {
                 <TextInput
                   style={styles.optionalInput}
                   placeholder={placeholder}
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="#AAAAAA"
                   value={favoriteSpots[spotKey] ?? ''}
                   onChangeText={(t) => setSpot(spotKey, t)}
                 />
               </OptionalFieldReveal>
             ) : null,
           )}
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionLabel}>Which neighborhoods do you prefer to meet in?</ThemedText>
+
+          <View style={styles.neighborhoodInputWrap}>
+            <View style={styles.neighborhoodPresetChips}>
+              {NEIGHBORHOOD_PRESETS.map((p) => {
+                const selected = preferredLocations.map(normalizeLoc).includes(normalizeLoc(p));
+                return (
+                  <Chip
+                    key={p}
+                    label={p}
+                    selected={selected}
+                    onPress={() => {
+                      // chip already selected -> remove
+                      if (selected) {
+                        setPreferredLocations((prev) => prev.filter((x) => normalizeLoc(x) !== normalizeLoc(p)));
+                        return;
+                      }
+                      if (preferredLocations.length >= MAX_NEIGHBORHOODS) return;
+                      addNeighborhood(p);
+                    }}
+                    style={styles.profileChip}
+                  />
+                );
+              })}
+            </View>
+
+            <TextInput
+              style={styles.neighborhoodInput}
+              placeholder={preferredLocations.length >= MAX_NEIGHBORHOODS ? 'Maximum 3 neighborhoods reached' : '+ Add a neighborhood'}
+              placeholderTextColor="#AAAAAA"
+              value={neighborhoodInput}
+              editable={preferredLocations.length < MAX_NEIGHBORHOODS}
+              onChangeText={setNeighborhoodInput}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                if (preferredLocations.length >= MAX_NEIGHBORHOODS) return;
+                addNeighborhood(neighborhoodInput);
+              }}
+            />
+
+            {neighborhoodInput.trim().length > 0 &&
+            preferredLocations.length < MAX_NEIGHBORHOODS &&
+            filteredNeighborhoods.length > 0 ? (
+              <View style={styles.neighborhoodDropdown}>
+                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={styles.dropdownScroll}>
+                  {filteredNeighborhoods.slice(0, 8).map((n) => (
+                    <TouchableOpacity
+                      key={n}
+                      style={styles.neighborhoodDropdownItem}
+                      onPress={() => addNeighborhood(n)}>
+                      <ThemedText style={styles.neighborhoodDropdownItemText}>{n}</ThemedText>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+          </View>
+
+          {customNeighborhoods.length > 0 ? (
+            <View style={styles.chipRow}>
+              {customNeighborhoods.map((loc) => (
+                <Chip
+                  key={loc}
+                  label={loc}
+                  selected
+                  onPress={() => {
+                    setPreferredLocations((prev) => prev.filter((x) => normalizeLoc(x) !== normalizeLoc(loc)));
+                  }}
+                  style={styles.profileChip}
+                />
+              ))}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.section}>
@@ -320,7 +470,7 @@ export default function ProfileSetupStep4() {
             <TextInput
               style={styles.bioInput}
               placeholder="Write a short bio... (optional)"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#AAAAAA"
               multiline
               maxLength={300}
               value={bio}
@@ -356,7 +506,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   title: {
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '600',
     marginBottom: 16,
@@ -366,7 +516,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   sectionLabel: {
-    color: '#C9A96E',
+    color: colors.accent,
     fontSize: 14,
     marginBottom: 12,
   },
@@ -379,35 +529,86 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   optionalInput: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
     borderRadius: 12,
     height: 56,
     paddingHorizontal: 16,
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     marginTop: 12,
+  },
+  neighborhoodInputWrap: {
+    position: 'relative',
+    zIndex: 30,
+    marginBottom: 6,
+  },
+  neighborhoodInput: {
+    backgroundColor: colors.bgCard,
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
+    borderRadius: 12,
+    height: 48,
+    paddingHorizontal: 16,
+    color: colors.textPrimary,
+  },
+  neighborhoodDropdown: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    marginTop: 4,
+    backgroundColor: colors.bgCard,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5E5',
+    maxHeight: 160,
+    overflow: 'hidden',
+  },
+  dropdownScroll: {
+    maxHeight: 160,
+  },
+  neighborhoodDropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5E5',
+  },
+  neighborhoodDropdownItemText: {
+    color: colors.textPrimary,
+    fontSize: 14,
+  },
+  neighborhoodPresetChips: {
+    marginTop: 8,
+    marginBottom: 2,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   bioWrap: {
     position: 'relative',
   },
   bioInput: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
     borderRadius: 12,
     minHeight: 120,
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingBottom: 28,
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     textAlignVertical: 'top',
   },
   charCount: {
     position: 'absolute',
     right: 12,
     bottom: 10,
-    color: '#9CA3AF',
+    color: '#AAAAAA',
     fontSize: 12,
   },
   charCountWarn: {
-    color: '#C9A96E',
+    color: colors.accent,
   },
   footer: {
     marginTop: 20,
@@ -415,7 +616,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   skipText: {
-    color: 'rgba(245, 240, 232, 0.6)',
+    color: '#555555',
     fontSize: 14,
     textAlign: 'center',
   },

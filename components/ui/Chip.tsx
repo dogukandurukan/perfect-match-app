@@ -2,6 +2,7 @@ import React from 'react';
 import { GestureResponderEvent, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { colors } from '@/lib/designTokens';
 
 type ChipProps = {
   label: string;
@@ -23,22 +24,23 @@ export function Chip({ label, selected, onPress, style }: ChipProps) {
 
 const styles = StyleSheet.create({
   chip: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 0,
+    borderWidth: 0.5,
+    borderColor: '#E0E0E0',
   },
   chipSelected: {
-    backgroundColor: '#C9A96E',
+    backgroundColor: colors.accent,
     borderWidth: 0,
   },
   label: {
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     fontSize: 13,
   },
   labelSelected: {
-    color: '#0F1117',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 });

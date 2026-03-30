@@ -11,7 +11,6 @@ Setup-2+ mantığı ayrı dokümanda; bu dosya yalnızca **Setup-1 alanları** v
 | Last name | `last_name` | text | Evet |
 | Doğum tarihi | `date_of_birth` | date (ISO string) | Evet |
 | Burç | `zodiac_sign` | text | Otomatik |
-| Boy | `height_cm` | integer (cm) | Hayır |
 | Konum | `city`, `district`, `lat`, `lng`, `full_address` | mixed | Evet |
 | Gender | `gender` | text | Evet |
 | Meeting preference | `meeting_preferences` | `text[]` | Evet |
@@ -29,7 +28,6 @@ Setup-2+ mantığı ayrı dokümanda; bu dosya yalnızca **Setup-1 alanları** v
 |---------|-----------|------|
 | İlçe bonusu | `districtBonusScore` | Aynı ilçe +10 |
 | Yaş farkı | `ageDifferenceScore` | Aynı yaş +10; 1–5 → 0; 6–10 → -10; 11–15 → -20; 15+ → -30 |
-| Boy (sadece Man+Woman) | `heterosexualHeightScore` | Fark >25 → -15; >10 → -5; kadın daha uzun → ek -10 |
 | Dil sayısı | `languageCountScore` | 1 ortak → 0; 2 → +5; 3+ → +10 |
 
 Birleşik kontrol: `setup1HardFiltersPass`, toplam skor (sert filtreler sonrası): `setup1ScoreTotal`.

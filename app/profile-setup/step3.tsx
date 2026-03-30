@@ -1,6 +1,16 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
@@ -10,13 +20,38 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
+import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 
-type Vibe = 'Introvert' | 'Extrovert' | 'Mixed';
-type Drinking = 'Yes' | 'No' | 'Socially';
-
-const PRESET_HOBBIES = ['Running', 'Movies', 'Music'] as const;
+const PRESET_HOBBIES = ['Travel', 'Music', 'Fitness'] as const;
+const HOBBY_SUGGESTIONS = [
+  'Running',
+  'Reading',
+  'Gaming',
+  'Cooking',
+  'Photography',
+  'Hiking',
+  'Dancing',
+  'Yoga',
+  'Cinema',
+  'Art',
+  'Sports',
+  'Coffee',
+  'Cycling',
+] as const;
 const MAX_HOBBIES = 5;
+
+type RechargeOption = 'Alone time' | 'With people' | 'With my pet' | 'Mix of everything';
+type DrinkingSmoking = 'Both' | 'Only drinking' | 'Only smoking' | 'When socializing' | 'Neither';
+
+const RECHARGE_OPTIONS: readonly RechargeOption[] = ['Alone time', 'With people', 'With my pet', 'Mix of everything'];
+const DRINK_SMOKE_OPTIONS: readonly DrinkingSmoking[] = [
+  'Both',
+  'Only drinking',
+  'Only smoking',
+  'When socializing',
+  'Neither',
+];
 
 export default function ProfileSetupStep3() {
   const router = useRouter();
@@ -27,16 +62,12 @@ export default function ProfileSetupStep3() {
   const [userId, setUserId] = useState<string | null>(null);
 
   const [morningNight, setMorningNight] = useState<string | null>(null);
-  const [recharge, setRecharge] = useState<string | null>(null);
+  const [recharge, setRecharge] = useState<RechargeOption[]>([]);
   const [hobbies, setHobbies] = useState<string[]>([]);
   const [newHobby, setNewHobby] = useState('');
-  const [vibe, setVibe] = useState<Vibe | null>(null);
-  const [drinking, setDrinking] = useState<Drinking | null>(null);
-  const [smoking, setSmoking] = useState<'Yes' | 'No' | 'Sometimes' | null>(null);
-  const [pets, setPets] = useState<'Dog' | 'Cat' | 'Other' | 'No pets' | null>(null);
-  const [education, setEducation] = useState<'High school' | 'University' | "Master's" | 'PhD' | 'Other' | null>(null);
+  const [drinkingSmoking, setDrinkingSmoking] = useState<DrinkingSmoking | null>(null);
+  const [education, setEducation] = useState<'High school' | 'University' | "Master's" | 'Other' | null>(null);
   const [educationDetail, setEducationDetail] = useState('');
-  const [occupation, setOccupation] = useState('');
   const [religion, setReligion] = useState<
     'Spiritual' | 'Religious' | 'Agnostic' | 'Atheist' | 'Prefer not to say' | null
   >(null);
@@ -81,24 +112,54 @@ export default function ProfileSetupStep3() {
       'High school': { placeholder: 'Which high school? (optional)' },
       University: { placeholder: 'Which university? (optional)' },
       "Master's": { placeholder: 'Which university / field? (optional)' },
-      PhD: { placeholder: 'Which university / field? (optional)' },
     };
     return meta[education] ?? null;
   }, [education]);
 
+  const hobbySuggestionsFiltered = useMemo(() => {
+    const q = newHobby.trim().toLowerCase();
+    const base =
+      !q || q.length < 1
+        ? [...HOBBY_SUGGESTIONS]
+        : HOBBY_SUGGESTIONS.filter((h) => h.toLowerCase().includes(q));
+    const taken = new Set(hobbies.map((h) => h.toLowerCase()));
+    return base.filter((h) => !taken.has(h.toLowerCase()));
+  }, [newHobby, hobbies]);
+
   const customHobbies = useMemo(
-    () => hobbies.filter((h) => !PRESET_HOBBIES.includes(h as any)),
+    () => hobbies.filter((h) => !PRESET_HOBBIES.includes(h as (typeof PRESET_HOBBIES)[number])),
     [hobbies],
   );
+
+  const addHobby = (value: string) => {
+    const t = value.trim();
+    if (!t) return;
+    setHobbies((prev) => {
+      if (prev.includes(t)) return prev;
+      if (prev.length >= MAX_HOBBIES) {
+        Alert.alert('Limit', `You can add up to ${MAX_HOBBIES}.`);
+        return prev;
+      }
+      return [...prev, t];
+    });
+    setNewHobby('');
+  };
 
   const toggleHobby = (value: string) => {
     setHobbies((prev) => {
       if (prev.includes(value)) return prev.filter((x) => x !== value);
       if (prev.length >= MAX_HOBBIES) {
-        Alert.alert('Limit', `En fazla ${MAX_HOBBIES} seçebilirsin.`);
+        Alert.alert('Limit', `You can add up to ${MAX_HOBBIES}.`);
         return prev;
       }
       return [...prev, value];
+    });
+  };
+
+  const toggleRecharge = (opt: RechargeOption) => {
+    setRecharge((prev) => {
+      if (prev.includes(opt)) return prev.filter((x) => x !== opt);
+      return [...prev, opt];
     });
   };
 
@@ -117,10 +178,7 @@ export default function ProfileSetupStep3() {
             morning_night: null,
             recharge_style: null,
             hobbies: null,
-            vibe: null,
-            drinking: null,
-            smoking: null,
-            pets: null,
+            drinking_smoking: null,
             education: null,
             religion: null,
             lifestyle_tags: null,
@@ -129,12 +187,9 @@ export default function ProfileSetupStep3() {
         : {
             user_id: userId,
             morning_night: morningNight,
-            recharge_style: recharge,
+            recharge_style: recharge.length ? recharge : null,
             hobbies: hobbies.length ? hobbies : null,
-            vibe,
-            drinking,
-            smoking,
-            pets,
+            drinking_smoking: drinkingSmoking,
             education,
             religion,
             lifestyle_tags: hobbies.length ? hobbies : null,
@@ -148,18 +203,15 @@ export default function ProfileSetupStep3() {
         !skip && education && education !== 'Other' ? educationDetail.trim() || null : null;
       const { error: profileErr } = await supabase.from('profiles').update({
         morning_night: skip ? null : morningNight,
-        recharge_style: skip ? null : recharge,
-        hobbies: skip ? null : (hobbies.length ? hobbies : null),
-        vibe: skip ? null : vibe,
-        drinking: skip ? null : drinking,
-        smoking: skip ? null : smoking,
-        pets: skip ? null : pets,
+        recharge_style: skip ? null : (recharge.length ? recharge : null),
+        hobbies: skip ? null : hobbies.length ? hobbies : null,
+        drinking_smoking: skip ? null : drinkingSmoking,
         education: skip ? null : education,
         education_detail: skip ? null : educationDetailOut,
-        occupation: skip ? null : occupation.trim() || null,
+        ...(skip ? {} : { occupation: null }),
         religion: skip ? null : religion,
       }).eq('id', userId);
-      if (profileErr) console.warn('profiles occupation/education_detail:', profileErr);
+      if (profileErr) console.warn('profiles setup3 update:', profileErr);
 
       router.replace('/profile-setup/step4');
     } catch (e: any) {
@@ -183,7 +235,7 @@ export default function ProfileSetupStep3() {
         <ThemedText style={styles.title}>A little more about you</ThemedText>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Are you more of a morning or night person?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>Morning or night person?</ThemedText>
           <View style={styles.chipRow}>
             {(['Morning person', 'Night owl', 'Depends on the day'] as const).map((opt) => (
               <Chip
@@ -200,12 +252,12 @@ export default function ProfileSetupStep3() {
         <View style={styles.section}>
           <ThemedText style={styles.sectionLabel}>How do you recharge?</ThemedText>
           <View style={styles.chipRow}>
-            {(['Alone time', 'With people', 'Mix of both'] as const).map((opt) => (
+            {RECHARGE_OPTIONS.map((opt) => (
               <Chip
                 key={opt}
                 label={opt}
-                selected={recharge === opt}
-                onPress={() => setRecharge(opt)}
+                selected={recharge.includes(opt)}
+                onPress={() => toggleRecharge(opt)}
                 style={styles.profileChip}
               />
             ))}
@@ -230,11 +282,11 @@ export default function ProfileSetupStep3() {
               </Animated.View>
             ))}
           </View>
-          <View style={styles.addInputWrap}>
+          <View style={styles.hobbyInputWrap}>
             <TextInput
               style={styles.addInput}
               placeholder={hobbies.length >= MAX_HOBBIES ? 'Maximum 5 reached' : '+ Add your own'}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#AAAAAA"
               value={newHobby}
               editable={hobbies.length < MAX_HOBBIES}
               onChangeText={setNewHobby}
@@ -242,67 +294,32 @@ export default function ProfileSetupStep3() {
               onSubmitEditing={() => {
                 const t = newHobby.trim();
                 if (!t || hobbies.length >= MAX_HOBBIES) return;
-                setNewHobby('');
-                toggleHobby(t);
+                addHobby(t);
               }}
             />
+            {newHobby.trim().length > 0 && hobbies.length < MAX_HOBBIES && hobbySuggestionsFiltered.length > 0 ? (
+              <View style={styles.dropdown}>
+                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={styles.dropdownScroll}>
+                  {hobbySuggestionsFiltered.slice(0, 8).map((h) => (
+                    <Pressable key={h} style={styles.dropdownItem} onPress={() => addHobby(h)}>
+                      <ThemedText style={styles.dropdownItemText}>{h}</ThemedText>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>How would you describe your energy?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>Do you drink or smoke?</ThemedText>
           <View style={styles.chipRow}>
-            {(['Introvert', 'Extrovert', 'Mixed'] as const).map((opt) => (
+            {DRINK_SMOKE_OPTIONS.map((opt) => (
               <Chip
                 key={opt}
                 label={opt}
-                selected={vibe === opt}
-                onPress={() => setVibe(opt)}
-                style={styles.profileChip}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Do you drink?</ThemedText>
-          <View style={styles.chipRow}>
-            {(['Yes', 'No', 'Socially'] as const).map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={drinking === opt}
-                onPress={() => setDrinking(opt)}
-                style={styles.profileChip}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Do you smoke?</ThemedText>
-          <View style={styles.chipRow}>
-            {(['Yes', 'No', 'Sometimes'] as const).map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={smoking === opt}
-                onPress={() => setSmoking(opt)}
-                style={styles.profileChip}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Do you have any pets?</ThemedText>
-          <View style={styles.chipRow}>
-            {(['Dog', 'Cat', 'Other', 'No pets'] as const).map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={pets === opt}
-                onPress={() => setPets(opt)}
+                selected={drinkingSmoking === opt}
+                onPress={() => setDrinkingSmoking(opt)}
                 style={styles.profileChip}
               />
             ))}
@@ -312,7 +329,7 @@ export default function ProfileSetupStep3() {
         <View style={styles.section}>
           <ThemedText style={styles.sectionLabel}>What is your education level?</ThemedText>
           <View style={styles.chipRow}>
-            {(['High school', 'University', "Master's", 'PhD', 'Other'] as const).map((opt) => (
+            {(['High school', 'University', "Master's", 'Other'] as const).map((opt) => (
               <Chip
                 key={opt}
                 label={opt}
@@ -326,22 +343,11 @@ export default function ProfileSetupStep3() {
             <TextInput
               style={styles.followUpInput}
               placeholder={educationFollowupMeta?.placeholder}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#AAAAAA"
               value={educationDetail}
               onChangeText={setEducationDetail}
             />
           </OptionalFieldReveal>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>What do you do for a living?</ThemedText>
-          <TextInput
-            style={styles.occupationInput}
-            placeholder="e.g. Software Engineer, Teacher, Student..."
-            placeholderTextColor="#9CA3AF"
-            value={occupation}
-            onChangeText={setOccupation}
-          />
         </View>
 
         <View style={styles.section}>
@@ -383,7 +389,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   title: {
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '600',
     marginBottom: 16,
@@ -393,7 +399,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   sectionLabel: {
-    color: '#C9A96E',
+    color: colors.accent,
     fontSize: 14,
     marginBottom: 12,
   },
@@ -406,30 +412,70 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   followUpInput: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
     borderRadius: 12,
     height: 56,
     paddingHorizontal: 16,
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     marginTop: 12,
   },
-  occupationInput: {
-    backgroundColor: '#1C2030',
-    borderRadius: 12,
-    height: 56,
-    paddingHorizontal: 16,
-    color: '#F5F0E8',
+  drinkSmokeRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
   },
-  addInputWrap: {
+  drinkSmokeCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  drinkSmokeLabel: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  hobbyInputWrap: {
     marginTop: 12,
+    position: 'relative',
+    zIndex: 20,
   },
   addInput: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
     borderRadius: 12,
     height: 44,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    color: '#F5F0E8',
+    color: colors.textPrimary,
+  },
+  dropdown: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    marginTop: 4,
+    backgroundColor: colors.bgCard,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5E5',
+    maxHeight: 160,
+    overflow: 'hidden',
+  },
+  dropdownScroll: {
+    maxHeight: 160,
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5E5',
+  },
+  dropdownItemText: {
+    color: colors.textPrimary,
+    fontSize: 14,
   },
   footer: {
     marginTop: 20,
@@ -437,7 +483,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   skipText: {
-    color: 'rgba(245, 240, 232, 0.6)',
+    color: '#555555',
     fontSize: 14,
     textAlign: 'center',
   },

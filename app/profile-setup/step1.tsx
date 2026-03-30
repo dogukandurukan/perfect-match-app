@@ -1,17 +1,15 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -23,38 +21,46 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
-import { heightInputToCm } from '@/lib/heightCm';
+import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 import { calculateAge, formatZodiacTooltip, getZodiacFromDate } from '@/lib/zodiac';
 
-type Gender = 'Man' | 'Woman' | 'Non-binary';
+const GENDER_CHIPS = ['Man', 'Woman', 'Non-binary', 'Other'] as const;
+type GenderChip = (typeof GENDER_CHIPS)[number];
 type MeetingPref = 'Men' | 'Women' | 'Non-binary' | 'Everyone';
-type HeightUnit = 'cm' | 'ft';
 
 const PRESET_LANGUAGES = ['Turkish', 'English', 'German'] as const;
+const LANGUAGE_SUGGESTIONS = [
+  'French',
+  'Spanish',
+  'Arabic',
+  'Italian',
+  'Portuguese',
+  'Russian',
+  'Japanese',
+  'Korean',
+  'Chinese',
+  'Dutch',
+  'Swedish',
+  'Polish',
+  'Greek',
+  'Hindi',
+  'Persian',
+] as const;
 const MAX_LANGUAGES = 5;
 
 const PHOTO_SLOTS = 3;
-/** Per doc: each slot max 100×100, responsive below that */
-const PHOTO_SLOT_MAX = 100;
+const PHOTO_SLOT_MAX = 72;
 const PROFILE_PHOTOS_BUCKET = 'profile-photos';
 
-function getMimeTypeFromUri(uri: string) {
-  const lower = uri.toLowerCase();
-  if (lower.endsWith('.png')) return 'image/png';
-  if (lower.endsWith('.webp')) return 'image/webp';
-  return 'image/jpeg';
-}
+/** Vertical gap between blocks (compact single-page goal) */
+const GAP = 14;
 
 function pad2(n: number) {
   return String(n).padStart(2, '0');
 }
 
-function formatDateDisplay(d: Date) {
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
-}
-
-function parseWebDob(day: string, month: string, year: string): Date | null {
+function parseDob(day: string, month: string, year: string): Date | null {
   const dd = Number(day);
   const mm = Number(month);
   const yyyy = Number(year);
@@ -62,6 +68,13 @@ function parseWebDob(day: string, month: string, year: string): Date | null {
   const d = new Date(yyyy, mm - 1, dd);
   if (d.getFullYear() !== yyyy || d.getMonth() !== mm - 1 || d.getDate() !== dd) return null;
   return d;
+}
+
+function getMimeTypeFromUri(uri: string) {
+  const lower = uri.toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  return 'image/jpeg';
 }
 
 async function uploadPhotosToSupabase(userId: string, uris: string[]): Promise<string[]> {
@@ -97,7 +110,7 @@ async function uploadPhotosToSupabase(userId: string, uris: string[]): Promise<s
 
 export default function ProfileSetupStep1() {
   const router = useRouter();
-  const { width: windowWidth } = useWindowDimensions();
+  const windowWidth = Dimensions.get('window').width;
   const params = useLocalSearchParams<{ demo?: string }>();
   const isDemoMode = params.demo === '1';
 
@@ -105,7 +118,7 @@ export default function ProfileSetupStep1() {
     const horizontalPadding = 24 * 2;
     const gaps = 8 * (PHOTO_SLOTS - 1);
     const raw = Math.floor((windowWidth - horizontalPadding - gaps) / PHOTO_SLOTS);
-    return Math.max(56, Math.min(PHOTO_SLOT_MAX, raw));
+    return Math.max(52, Math.min(PHOTO_SLOT_MAX, raw));
   }, [windowWidth]);
 
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -114,48 +127,46 @@ export default function ProfileSetupStep1() {
   const [photos, setPhotos] = useState<(string | null)[]>(() => Array(PHOTO_SLOTS).fill(null));
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
-  const [showDobPicker, setShowDobPicker] = useState(false);
-  const [webDobDay, setWebDobDay] = useState('');
-  const [webDobMonth, setWebDobMonth] = useState('');
-  const [webDobYear, setWebDobYear] = useState('');
-
-  const [height, setHeight] = useState('');
-  const [heightUnit, setHeightUnit] = useState<HeightUnit>('cm');
+  const [dobDay, setDobDay] = useState('');
+  const [dobMonth, setDobMonth] = useState('');
+  const [dobYear, setDobYear] = useState('');
 
   const [location, setLocation] = useState('Kadikoy, Istanbul');
   const [city, setCity] = useState('Istanbul');
   const [district, setDistrict] = useState('Kadikoy');
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
-  const [gender, setGender] = useState<Gender | null>(null);
+  const [genderSelection, setGenderSelection] = useState<GenderChip | null>(null);
+  const [genderOther, setGenderOther] = useState('');
   const [meetingPreferences, setMeetingPreferences] = useState<MeetingPref[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
-  const [newLanguage, setNewLanguage] = useState('');
+  const [langInput, setLangInput] = useState('');
 
   const [saving, setSaving] = useState(false);
 
-  const effectiveDob = useMemo(() => {
-    if (Platform.OS === 'web') {
-      return parseWebDob(webDobDay, webDobMonth, webDobYear);
-    }
-    return dateOfBirth;
-  }, [dateOfBirth, webDobDay, webDobMonth, webDobYear]);
-
+  const effectiveDob = useMemo(() => parseDob(dobDay, dobMonth, dobYear), [dobDay, dobMonth, dobYear]);
   const zodiacInfo = useMemo(() => (effectiveDob ? getZodiacFromDate(effectiveDob) : null), [effectiveDob]);
   const ageYears = useMemo(() => (effectiveDob ? calculateAge(effectiveDob) : null), [effectiveDob]);
 
-  const maxDobDate = useMemo(() => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 13);
-    return d;
-  }, []);
+  const resolvedGender = useMemo(() => {
+    if (genderSelection === null) return null;
+    if (genderSelection === 'Other') {
+      const t = genderOther.trim();
+      return t.length > 0 ? t : null;
+    }
+    return genderSelection;
+  }, [genderSelection, genderOther]);
 
-  const minDobDate = useMemo(() => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 100);
-    return d;
-  }, []);
+  const langSuggestionsFiltered = useMemo(() => {
+    const q = langInput.trim().toLowerCase();
+    if (!q) return [...LANGUAGE_SUGGESTIONS];
+    return LANGUAGE_SUGGESTIONS.filter((l) => l.toLowerCase().startsWith(q) || l.toLowerCase().includes(q));
+  }, [langInput]);
+
+  const customLanguages = useMemo(
+    () => languages.filter((l) => !PRESET_LANGUAGES.includes(l as (typeof PRESET_LANGUAGES)[number])),
+    [languages],
+  );
 
   useEffect(() => {
     if (isDemoMode) {
@@ -198,11 +209,11 @@ export default function ProfileSetupStep1() {
       firstName.trim().length > 0 &&
       lastName.trim().length > 0 &&
       location.trim().length > 0 &&
-      gender !== null &&
+      resolvedGender !== null &&
       meetingOk &&
       dobOk
     );
-  }, [ageYears, effectiveDob, firstName, gender, lastName, location, meetingPreferences.length, photoCount]);
+  }, [ageYears, effectiveDob, firstName, lastName, location, meetingPreferences.length, photoCount, resolvedGender]);
 
   const toggleMeetingPref = (value: MeetingPref) => {
     setMeetingPreferences((prev) => {
@@ -218,6 +229,20 @@ export default function ProfileSetupStep1() {
     });
   };
 
+  const addLanguage = (value: string) => {
+    const t = value.trim();
+    if (!t) return;
+    setLanguages((prev) => {
+      if (prev.includes(t)) return prev;
+      if (prev.length >= MAX_LANGUAGES) {
+        Alert.alert('Limit', `You can add up to ${MAX_LANGUAGES} languages.`);
+        return prev;
+      }
+      return [...prev, t];
+    });
+    setLangInput('');
+  };
+
   const toggleLanguage = (value: string) => {
     setLanguages((prev) => {
       if (prev.includes(value)) return prev.filter((x) => x !== value);
@@ -229,21 +254,16 @@ export default function ProfileSetupStep1() {
     });
   };
 
-  const customLanguages = useMemo(
-    () => languages.filter((l) => !PRESET_LANGUAGES.includes(l as (typeof PRESET_LANGUAGES)[number])),
-    [languages],
-  );
-
   const handlePickPhoto = async (slotIndex: number) => {
     if (Platform.OS === 'web') {
-      Alert.alert('Photo yükleme', 'Şu an web üzerinde fotoğraf seçimi desteklenmiyor.');
+      Alert.alert('Photos', 'Photo picker is not available on web in this build.');
       return;
     }
 
     const ImagePicker = await import('expo-image-picker');
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('İzin gerekli', 'Fotoğraflara erişim izni vermelisiniz.');
+      Alert.alert('Permission', 'Please allow photo library access.');
       return;
     }
 
@@ -263,21 +283,15 @@ export default function ProfileSetupStep1() {
     });
   };
 
-  const onDobChange = (event: { type?: string }, selected?: Date) => {
-    if (Platform.OS === 'android') setShowDobPicker(false);
-    if (event.type === 'dismissed') return;
-    if (selected) setDateOfBirth(selected);
-  };
-
   const handleNext = async () => {
     if (!userId) return;
     if (!canProceed) {
-      Alert.alert('Eksik bilgi', 'Lütfen tüm zorunlu alanları tamamlayın.');
+      Alert.alert('Missing info', 'Please complete all required fields.');
       return;
     }
 
     if (!effectiveDob || !zodiacInfo) {
-      Alert.alert('Doğum tarihi', 'Geçerli bir doğum tarihi gir.');
+      Alert.alert('Birth date', 'Enter a valid date of birth.');
       return;
     }
 
@@ -292,7 +306,6 @@ export default function ProfileSetupStep1() {
       const uploadedPhotoUrls = await uploadPhotosToSupabase(userId, selectedPhotoUris);
 
       const isoDob = `${effectiveDob.getFullYear()}-${pad2(effectiveDob.getMonth() + 1)}-${pad2(effectiveDob.getDate())}`;
-      const heightCm = heightInputToCm(height, heightUnit);
 
       const {
         data: { user: authUser },
@@ -301,7 +314,22 @@ export default function ProfileSetupStep1() {
         typeof authUser?.user_metadata?.phone_number === 'string'
           ? authUser.user_metadata.phone_number.trim()
           : '';
-      const phonePayload = phoneFromSignup.length > 0 ? { phone_number: phoneFromSignup } : {};
+      const countryFromSignup =
+        typeof authUser?.user_metadata?.country_code === 'string'
+          ? authUser.user_metadata.country_code.trim()
+          : '';
+      const dialFromSignup =
+        typeof authUser?.user_metadata?.dial_code === 'string'
+          ? authUser.user_metadata.dial_code.trim()
+          : '';
+      const phonePayload =
+        phoneFromSignup.length > 0
+          ? {
+              phone_number: phoneFromSignup,
+              country_code: countryFromSignup || 'TR',
+              dial_code: dialFromSignup || '+90',
+            }
+          : {};
 
       const baseProfile = {
         id: userId,
@@ -313,12 +341,11 @@ export default function ProfileSetupStep1() {
         district,
         lat,
         lng,
-        gender,
+        gender: resolvedGender,
         meeting_preferences: meetingPreferences,
         languages: languages.length ? languages : null,
         date_of_birth: isoDob,
         zodiac_sign: zodiacInfo.sign,
-        height_cm: heightCm,
         setup1_completed: true,
         ...phonePayload,
       };
@@ -331,12 +358,11 @@ export default function ProfileSetupStep1() {
         full_address: location.trim(),
         city,
         district,
-        gender,
+        gender: resolvedGender,
         meeting_preferences: meetingPreferences,
         languages: languages.length ? languages : null,
         date_of_birth: isoDob,
         zodiac_sign: zodiacInfo.sign,
-        height_cm: heightCm,
         setup1_completed: true,
         ...phonePayload,
       };
@@ -365,7 +391,7 @@ export default function ProfileSetupStep1() {
       router.replace('/profile-setup/step2');
     } catch (e: any) {
       console.warn(e);
-      Alert.alert('Kaydetme başarısız', e?.message ?? 'Bir hata oluştu.');
+      Alert.alert('Save failed', e?.message ?? 'Something went wrong.');
     } finally {
       setSaving(false);
     }
@@ -374,296 +400,264 @@ export default function ProfileSetupStep1() {
   if (checkingAuth) return null;
 
   return (
-    <ScreenContainer style={styles.container}>
+    <ScreenContainer style={styles.screenTight}>
       <HomeTopIcon />
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <SetupScreenHeader step={1} />
-        <ThemedText style={styles.title}>Let&apos;s build your profile</ThemedText>
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 56 : 0}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          <SetupScreenHeader step={1} />
+          <ThemedText style={styles.title}>Let&apos;s build your profile</ThemedText>
 
-        <View style={styles.photoRow}>
-          {photos.map((uri, idx) => {
-            const isFilled = !!uri;
-            const showPlus = idx === 0 && !isFilled;
-            const tileStyle = [
-              styles.photoTile,
-              { width: photoSlotSize, height: photoSlotSize, maxWidth: PHOTO_SLOT_MAX, maxHeight: PHOTO_SLOT_MAX },
-            ];
+          <View style={[styles.photoRow, { marginBottom: GAP }]}>
+            {photos.map((uri, idx) => {
+              const isFilled = !!uri;
+              const showPlus = idx === 0 && !isFilled;
+              const tileStyle = [
+                styles.photoTile,
+                { width: photoSlotSize, height: photoSlotSize, maxWidth: PHOTO_SLOT_MAX, maxHeight: PHOTO_SLOT_MAX },
+              ];
 
-            return (
-              <Pressable
-                key={idx}
-                style={tileStyle}
-                onPress={() => handlePickPhoto(idx)}
-                accessibilityRole="button">
-                {isFilled ? (
-                  <Image source={{ uri }} style={styles.photoImage} />
-                ) : showPlus ? (
-                  <ThemedText style={styles.plus}>+</ThemedText>
-                ) : (
-                  <ThemedText style={styles.emptySlot}> </ThemedText>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
+              return (
+                <Pressable
+                  key={idx}
+                  style={tileStyle}
+                  onPress={() => handlePickPhoto(idx)}
+                  accessibilityRole="button">
+                  {isFilled ? (
+                    <Image source={{ uri }} style={styles.photoImage} />
+                  ) : showPlus ? (
+                    <ThemedText style={styles.plus}>+</ThemedText>
+                  ) : (
+                    <ThemedText style={styles.emptySlot}> </ThemedText>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
 
-        <ThemedText style={styles.sectionLabel}>What&apos;s your name?</ThemedText>
-        <View style={styles.inlineInputs}>
-          <TextInput
-            style={[styles.input, styles.halfInput]}
-            placeholder="First name"
-            placeholderTextColor="#9CA3AF"
-            autoCapitalize="words"
-            value={firstName}
-            onChangeText={setFirstName}
-          />
-          <TextInput
-            style={[styles.input, styles.halfInput]}
-            placeholder="Last name"
-            placeholderTextColor="#9CA3AF"
-            autoCapitalize="words"
-            value={lastName}
-            onChangeText={setLastName}
-          />
-        </View>
-
-        <ThemedText style={styles.sectionLabel}>When were you born?</ThemedText>
-        {Platform.OS === 'web' ? (
-          <View style={styles.row3}>
+          <ThemedText style={styles.sectionLabel}>What&apos;s your name?</ThemedText>
+          <View style={[styles.nameColumn, { marginBottom: GAP }]}>
             <TextInput
-              style={[styles.input, styles.third]}
-              placeholder="DD"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="number-pad"
-              maxLength={2}
-              value={webDobDay}
-              onChangeText={setWebDobDay}
+              style={styles.input}
+              placeholder="First name"
+              placeholderTextColor="#AAAAAA"
+              autoCapitalize="words"
+              value={firstName}
+              onChangeText={setFirstName}
             />
             <TextInput
-              style={[styles.input, styles.third]}
-              placeholder="MM"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="number-pad"
-              maxLength={2}
-              value={webDobMonth}
-              onChangeText={setWebDobMonth}
-            />
-            <TextInput
-              style={[styles.input, styles.third]}
-              placeholder="YYYY"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="number-pad"
-              maxLength={4}
-              value={webDobYear}
-              onChangeText={setWebDobYear}
+              style={styles.input}
+              placeholder="Last name"
+              placeholderTextColor="#AAAAAA"
+              autoCapitalize="words"
+              value={lastName}
+              onChangeText={setLastName}
             />
           </View>
-        ) : (
-          <>
-            <View style={styles.dobRow}>
-              <Pressable style={[styles.input, styles.dobPressable]} onPress={() => setShowDobPicker(true)}>
-                <ThemedText style={styles.dobText}>
-                  {dateOfBirth ? formatDateDisplay(dateOfBirth) : 'Tap to choose date'}
+
+          <View style={{ marginBottom: GAP }}>
+            <ThemedText style={styles.blockLabel}>Birth date</ThemedText>
+            <View style={styles.row3}>
+              <TextInput
+                style={[styles.dobInput, styles.dobInputDay]}
+                placeholder="DD"
+                placeholderTextColor="#AAAAAA"
+                keyboardType="number-pad"
+                maxLength={2}
+                value={dobDay}
+                onChangeText={setDobDay}
+              />
+              <TextInput
+                style={[styles.dobInput, styles.dobInputMonth]}
+                placeholder="MM"
+                placeholderTextColor="#AAAAAA"
+                keyboardType="number-pad"
+                maxLength={2}
+                value={dobMonth}
+                onChangeText={setDobMonth}
+              />
+              <TextInput
+                style={[styles.dobInput, styles.dobInputYear]}
+                placeholder="YYYY"
+                placeholderTextColor="#AAAAAA"
+                keyboardType="number-pad"
+                maxLength={4}
+                value={dobYear}
+                onChangeText={setDobYear}
+              />
+            </View>
+            {zodiacInfo && ageYears !== null ? (
+              <Animated.View entering={FadeIn.duration(220)}>
+                <ThemedText style={styles.zodiacAgeLine}>
+                  {formatZodiacTooltip(zodiacInfo)} · Age {ageYears}
                 </ThemedText>
-              </Pressable>
-              {zodiacInfo ? (
-                <View style={styles.zodiacTooltip}>
-                  <ThemedText style={styles.zodiacTooltipText}>{formatZodiacTooltip(zodiacInfo)}</ThemedText>
+              </Animated.View>
+            ) : null}
+          </View>
+
+          <ThemedText style={styles.sectionLabel}>Where are you based?</ThemedText>
+          <TextInput
+            style={[styles.input, { marginBottom: GAP }]}
+            placeholder="Kadikoy, Istanbul"
+            placeholderTextColor="#AAAAAA"
+            value={location}
+            onChangeText={(value) => {
+              setLocation(value);
+              const parts = value.split(',').map((x) => x.trim());
+              if (parts[0]) setDistrict(parts[0]);
+              if (parts[1]) setCity(parts[1]);
+            }}
+          />
+          <TouchableOpacity
+            style={[styles.locationBtn, { marginBottom: GAP }]}
+            onPress={() => {
+              setLocation('Kadikoy, Istanbul');
+              setDistrict('Kadikoy');
+              setCity('Istanbul');
+              setLat(40.9917);
+              setLng(29.0277);
+            }}>
+            <ThemedText style={styles.locationBtnText}>Use my location</ThemedText>
+          </TouchableOpacity>
+
+          <View style={{ marginBottom: GAP }}>
+            <ThemedText style={styles.sectionLabel}>Which gender best describes you?</ThemedText>
+            <View style={styles.chipRow}>
+              {GENDER_CHIPS.map((opt) => (
+                <Chip
+                  key={opt}
+                  label={opt}
+                  selected={genderSelection === opt}
+                  onPress={() => {
+                    setGenderSelection(opt);
+                    if (opt !== 'Other') setGenderOther('');
+                  }}
+                  style={styles.profileChip}
+                />
+              ))}
+            </View>
+            {genderSelection === 'Other' ? (
+              <Animated.View entering={FadeIn.duration(220)} style={styles.genderOtherWrap}>
+                <TextInput
+                  style={styles.genderOtherInput}
+                  placeholder="How do you identify?"
+                  placeholderTextColor="#AAAAAA"
+                  value={genderOther}
+                  onChangeText={setGenderOther}
+                  autoCapitalize="sentences"
+                />
+              </Animated.View>
+            ) : null}
+          </View>
+
+          <View style={{ marginBottom: GAP }}>
+            <ThemedText style={styles.sectionLabel}>Which gender(s) are you open to meeting?</ThemedText>
+            <View style={styles.chipRow}>
+              {(['Men', 'Women', 'Non-binary', 'Everyone'] as const).map((opt) => (
+                <Chip
+                  key={opt}
+                  label={opt}
+                  selected={meetingPreferences.includes(opt)}
+                  onPress={() => toggleMeetingPref(opt)}
+                  style={styles.profileChip}
+                />
+              ))}
+            </View>
+          </View>
+
+          <View style={{ marginBottom: GAP }}>
+            <ThemedText style={styles.sectionLabel}>Which languages do you speak?</ThemedText>
+            <View style={styles.chipRow}>
+              {PRESET_LANGUAGES.map((opt) => (
+                <Chip
+                  key={opt}
+                  label={opt}
+                  selected={languages.includes(opt)}
+                  onPress={() => toggleLanguage(opt)}
+                  style={styles.profileChip}
+                />
+              ))}
+              {customLanguages.map((lang) => (
+                <Animated.View key={lang} entering={FadeIn.duration(200)}>
+                  <Chip label={lang} selected onPress={() => toggleLanguage(lang)} style={styles.profileChip} />
+                </Animated.View>
+              ))}
+            </View>
+            <View style={styles.langInputWrap}>
+              <TextInput
+                style={styles.addInput}
+                placeholder={languages.length >= MAX_LANGUAGES ? 'Maximum 5 reached' : '+ Add language'}
+                placeholderTextColor="#AAAAAA"
+                value={langInput}
+                editable={languages.length < MAX_LANGUAGES}
+                onChangeText={setLangInput}
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  const t = langInput.trim();
+                  if (!t || languages.length >= MAX_LANGUAGES) return;
+                  addLanguage(t);
+                }}
+              />
+              {langInput.trim().length > 0 && languages.length < MAX_LANGUAGES && langSuggestionsFiltered.length > 0 ? (
+                <View style={styles.dropdown}>
+                  <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={styles.dropdownScroll}>
+                    {langSuggestionsFiltered.slice(0, 8).map((lang) => (
+                      <Pressable
+                        key={lang}
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          addLanguage(lang);
+                        }}>
+                        <ThemedText style={styles.dropdownItemText}>{lang}</ThemedText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
                 </View>
               ) : null}
             </View>
-            {ageYears !== null && effectiveDob ? (
-              <ThemedText style={styles.ageHint}>Age: {ageYears}</ThemedText>
-            ) : null}
-            {showDobPicker && Platform.OS === 'ios' ? (
-              <Modal transparent animationType="slide" visible={showDobPicker}>
-                <View style={styles.modalBackdrop}>
-                  <View style={styles.modalCard}>
-                    <DateTimePicker
-                      value={dateOfBirth ?? maxDobDate}
-                      mode="date"
-                      display="spinner"
-                      themeVariant="dark"
-                      minimumDate={minDobDate}
-                      maximumDate={maxDobDate}
-                      onChange={onDobChange}
-                    />
-                    <PrimaryButton label="Done" onPress={() => setShowDobPicker(false)} />
-                  </View>
-                </View>
-              </Modal>
-            ) : null}
-            {showDobPicker && Platform.OS === 'android' ? (
-              <DateTimePicker
-                value={dateOfBirth ?? maxDobDate}
-                mode="date"
-                display="default"
-                minimumDate={minDobDate}
-                maximumDate={maxDobDate}
-                onChange={onDobChange}
-              />
-            ) : null}
-          </>
-        )}
-
-        {Platform.OS === 'web' && zodiacInfo ? (
-          <View style={styles.webZodiacRow}>
-            <View style={styles.zodiacTooltip}>
-              <ThemedText style={styles.zodiacTooltipText}>{formatZodiacTooltip(zodiacInfo)}</ThemedText>
-            </View>
-            {ageYears !== null ? (
-              <ThemedText style={styles.ageHint}>Age: {ageYears}</ThemedText>
-            ) : null}
           </View>
-        ) : null}
 
-        <ThemedText style={styles.sectionLabel}>How tall are you? (optional)</ThemedText>
-        <View style={styles.rowHeight}>
-          <TextInput
-            style={[styles.input, styles.flex1]}
-            placeholder="Height"
-            placeholderTextColor="#9CA3AF"
-            keyboardType="decimal-pad"
-            value={height}
-            onChangeText={setHeight}
-          />
-          <Chip label="cm" selected={heightUnit === 'cm'} onPress={() => setHeightUnit('cm')} style={styles.unitChip} />
-          <Chip label="ft" selected={heightUnit === 'ft'} onPress={() => setHeightUnit('ft')} style={styles.unitChip} />
-        </View>
-
-        <ThemedText style={styles.sectionLabel}>Where are you based?</ThemedText>
-        <TextInput
-          style={styles.input}
-          placeholder="Kadikoy, Istanbul"
-          placeholderTextColor="#9CA3AF"
-          value={location}
-          onChangeText={(value) => {
-            setLocation(value);
-            const parts = value.split(',').map((x) => x.trim());
-            if (parts[0]) setDistrict(parts[0]);
-            if (parts[1]) setCity(parts[1]);
-          }}
-        />
-        <TouchableOpacity
-          style={styles.locationBtn}
-          onPress={() => {
-            setLocation('Kadikoy, Istanbul');
-            setDistrict('Kadikoy');
-            setCity('Istanbul');
-            setLat(40.9917);
-            setLng(29.0277);
-          }}>
-          <ThemedText style={styles.locationBtnText}>Use my location</ThemedText>
-        </TouchableOpacity>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Which gender best describes you?</ThemedText>
-          <View style={styles.chipRow}>
-            {(['Man', 'Woman', 'Non-binary'] as const).map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={gender === opt}
-                onPress={() => setGender(opt)}
-                style={styles.profileChip}
-              />
-            ))}
+          <View style={styles.footer}>
+            <PrimaryButton label={saving ? 'Saving…' : 'Next →'} onPress={handleNext} disabled={!canProceed || saving} loading={saving} />
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Which gender(s) are you open to meeting?</ThemedText>
-          <View style={styles.chipRow}>
-            {(['Men', 'Women', 'Non-binary', 'Everyone'] as const).map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={meetingPreferences.includes(opt)}
-                onPress={() => toggleMeetingPref(opt)}
-                style={styles.profileChip}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Which languages do you speak?</ThemedText>
-          <ThemedText style={styles.langSubtitle}>Optional — add up to 5 for better matches</ThemedText>
-          <View style={styles.chipRow}>
-            {PRESET_LANGUAGES.map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={languages.includes(opt)}
-                onPress={() => toggleLanguage(opt)}
-                style={styles.profileChip}
-              />
-            ))}
-            {customLanguages.map((lang) => (
-              <Animated.View key={lang} entering={FadeIn.duration(300)}>
-                <Chip label={lang} selected onPress={() => toggleLanguage(lang)} style={styles.profileChip} />
-              </Animated.View>
-            ))}
-          </View>
-          <View style={styles.addInputWrap}>
-            <TextInput
-              style={styles.addInput}
-              placeholder={languages.length >= MAX_LANGUAGES ? 'Maximum 5 reached' : '+ Add your own'}
-              placeholderTextColor="#9CA3AF"
-              value={newLanguage}
-              editable={languages.length < MAX_LANGUAGES}
-              onChangeText={setNewLanguage}
-              returnKeyType="done"
-              onSubmitEditing={() => {
-                const t = newLanguage.trim();
-                if (!t || languages.length >= MAX_LANGUAGES) return;
-                setNewLanguage('');
-                toggleLanguage(t);
-              }}
-            />
-          </View>
-        </View>
-
-        <View style={styles.footer}>
-          <PrimaryButton label={saving ? 'Saving…' : 'Next →'} onPress={handleNext} disabled={!canProceed || saving} loading={saving} />
-        </View>
-      </ScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screenTight: {
     justifyContent: 'flex-start',
+    paddingVertical: 12,
   },
   keyboard: {
     flex: 1,
   },
   content: {
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   title: {
-    color: '#F5F0E8',
-    fontSize: 24,
+    color: colors.textPrimary,
+    fontSize: 20,
     fontWeight: '600',
-    marginBottom: 16,
+    marginBottom: GAP,
     textAlign: 'center',
   },
   photoRow: {
     flexDirection: 'row',
     flexWrap: 'nowrap',
     gap: 8,
-    marginBottom: 18,
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
   photoTile: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -675,144 +669,85 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   plus: {
-    fontSize: 30,
-    color: '#C9A96E',
+    fontSize: 26,
+    color: colors.accent,
     fontWeight: '700',
   },
   emptySlot: {
-    color: '#2B3249',
-    fontSize: 12,
+    color: '#E5E5E5',
+    fontSize: 10,
   },
   input: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
     borderRadius: 12,
-    height: 56,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    color: '#F5F0E8',
-    marginBottom: 12,
+    height: 48,
+    paddingHorizontal: 12,
+    color: colors.textPrimary,
   },
-  inlineInputs: {
-    flexDirection: 'row',
-    gap: 10,
+  nameColumn: {
+    gap: 8,
   },
-  halfInput: {
-    flex: 1,
+  sectionLabel: {
+    color: colors.accent,
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  blockLabel: {
+    color: colors.accent,
+    fontSize: 12,
+    marginBottom: 6,
+    fontWeight: '600',
   },
   row3: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 4,
+    gap: 6,
   },
-  third: {
-    flex: 1,
+  dobInputDay: {
+    width: 48,
   },
-  dobRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flexWrap: 'wrap',
-    marginBottom: 4,
+  dobInputMonth: {
+    width: 48,
   },
-  dobPressable: {
-    flex: 1,
-    minWidth: 160,
-    justifyContent: 'center',
-    marginBottom: 0,
+  dobInputYear: {
+    width: 72,
   },
-  dobText: {
-    color: '#F5F0E8',
-    fontSize: 16,
-  },
-  zodiacTooltip: {
-    backgroundColor: '#1C2030',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  zodiacTooltipText: {
-    color: '#C9A96E',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  webZodiacRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
-  ageHint: {
-    color: '#9CA3AF',
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#1C2030',
-    padding: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    gap: 12,
-  },
-  rowHeight: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  flex1: {
-    flex: 1,
-    marginBottom: 0,
-  },
-  unitChip: {
+  dobInput: {
+    backgroundColor: colors.bgCard,
+    borderRadius: 12,
     height: 44,
-    justifyContent: 'center',
-    minWidth: 58,
+    paddingHorizontal: 4,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  zodiacAgeLine: {
+    marginTop: 6,
+    color: colors.accent,
+    fontSize: 12,
+  },
+  genderOtherWrap: {
+    marginTop: 10,
+  },
+  genderOtherInput: {
+    backgroundColor: colors.bgCard,
+    borderRadius: 12,
+    height: 44,
+    paddingHorizontal: 12,
+    color: colors.textPrimary,
+    fontSize: 15,
   },
   locationBtn: {
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
     borderRadius: 12,
-    height: 44,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#2B3249',
+    borderColor: '#E5E5E5',
   },
   locationBtnText: {
-    color: '#F5F0E8',
-    fontSize: 14,
-  },
-  section: {
-    marginTop: 6,
-    marginBottom: 18,
-  },
-  sectionLabel: {
-    color: '#C9A96E',
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  langSubtitle: {
-    color: 'rgba(245, 240, 232, 0.5)',
-    fontSize: 12,
-    marginBottom: 12,
-    marginTop: -6,
-  },
-  addInputWrap: {
-    marginTop: 12,
-  },
-  addInput: {
-    backgroundColor: '#1C2030',
-    borderRadius: 12,
-    height: 44,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    color: '#F5F0E8',
+    color: colors.textPrimary,
+    fontSize: 13,
   },
   chipRow: {
     flexDirection: 'row',
@@ -822,7 +757,45 @@ const styles = StyleSheet.create({
   profileChip: {
     borderRadius: 20,
   },
+  addInput: {
+    backgroundColor: colors.bgCard,
+    borderRadius: 12,
+    height: 42,
+    paddingHorizontal: 12,
+    color: colors.textPrimary,
+  },
+  langInputWrap: {
+    marginTop: 8,
+    position: 'relative',
+    zIndex: 20,
+  },
+  dropdown: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    marginTop: 4,
+    backgroundColor: colors.bgCard,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5E5',
+    maxHeight: 160,
+    overflow: 'hidden',
+  },
+  dropdownScroll: {
+    maxHeight: 160,
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5E5',
+  },
+  dropdownItemText: {
+    color: colors.textPrimary,
+    fontSize: 14,
+  },
   footer: {
-    marginTop: 12,
+    marginTop: 8,
   },
 });

@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function ResetPasswordScreen() {
@@ -50,7 +51,7 @@ export default function ResetPasswordScreen() {
         <TextInput
           style={styles.input}
           placeholder="New password"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor="#AAAAAA"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
@@ -58,7 +59,7 @@ export default function ResetPasswordScreen() {
         <TextInput
           style={styles.input}
           placeholder="Confirm new password"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor="#AAAAAA"
           secureTextEntry
           value={confirmPassword}
           onChangeText={setConfirmPassword}
@@ -81,23 +82,25 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#C9A96E',
+    color: colors.accent,
     marginBottom: 8,
     textAlign: 'left',
   },
   subtitle: {
     fontSize: 15,
-    color: '#9CA3AF',
+    color: '#555555',
     marginBottom: 24,
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: '#1C2030',
+    backgroundColor: '#F5F5F5',
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    color: '#F5F0E8',
+    color: '#1A1A1A',
   },
 });

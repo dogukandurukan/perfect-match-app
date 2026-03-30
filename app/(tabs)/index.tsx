@@ -2,6 +2,7 @@ import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompletion';
 import { useRouter } from 'expo-router';
@@ -110,12 +111,12 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     letterSpacing: 0.5,
-    color: '#C9A96E',
+    color: colors.accent,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#F5F0E8',
+    color: '#555555',
     textAlign: 'center',
     maxWidth: 320,
   },
@@ -126,6 +127,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   loginButton: {
-    backgroundColor: '#C9A96E',
+    backgroundColor: colors.accent,
   },
 });

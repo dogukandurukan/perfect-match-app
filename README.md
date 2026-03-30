@@ -210,7 +210,7 @@ git push -u origin main
 
 **Uygulama şu an şunları kullanıyor / migration dosyalarına bakın:** `supabase/migrations/`
 
-Örnek `profiles` alanları: `first_name`, `last_name`, `gender`, `date_of_birth`, `zodiac_sign`, `city`, `district`, `full_address`, `lat`, `lng`, `photos` (`text[]`), `height_cm`, `meeting_preferences`, `languages`, `intent` (Setup-2 sonrası), `occupation`, `education_detail`, `setup1_completed`, …
+Örnek `profiles` alanları: `first_name`, `last_name`, `gender`, `date_of_birth`, `zodiac_sign`, `city`, `district`, `full_address`, `lat`, `lng`, `photos` (`text[]`), `meeting_preferences`, `languages`, `intent` (Setup-2 sonrası), `occupation`, `education_detail`, `setup1_completed`, …
 
 `preferences`: `intent`, `setup2_answers`, `setup2_completed` … `setup4_completed`, müsaitlik / bio / hobiler vb. (Setup-3 ve 4’e göre).
 

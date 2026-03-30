@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { colors } from '@/lib/designTokens';
 
 export function WebDebugNav() {
   const router = useRouter();
@@ -64,7 +65,9 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   panel: {
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0.5,
+    borderColor: '#E5E5E5',
     borderRadius: 14,
     padding: 8,
     gap: 8,
@@ -73,7 +76,9 @@ const styles = StyleSheet.create({
     width: 120,
     height: 30,
     borderRadius: 10,
-    backgroundColor: '#1C2030',
+    backgroundColor: colors.bgCard,
+    borderWidth: 0.5,
+    borderColor: '#E5E5E5',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -84,10 +89,10 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#C9A96E',
+    backgroundColor: colors.accent,
   },
   btnLabel: {
-    color: '#F5F0E8',
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: '600',
   },
