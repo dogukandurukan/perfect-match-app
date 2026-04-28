@@ -91,6 +91,9 @@ export function setup2PairScore(
 }
 
 export function intentScore(a: IntentKey, b: IntentKey): number {
+  if (a === 'sports_partner' || b === 'sports_partner') {
+    return a === 'sports_partner' && b === 'sports_partner' ? 45 : 0;
+  }
   if (a === 'not_sure_yet' && b === 'not_sure_yet') return 28;
   if (a === b) return 45;
   if (a === 'not_sure_yet' || b === 'not_sure_yet') return 20;
@@ -103,6 +106,7 @@ export function intentScore(a: IntentKey, b: IntentKey): number {
  * not_sure_yet×not_sure_yet 64, not_sure_yet×diğer 56.
  */
 export function setup2MaxPossible(intentA: IntentKey, intentB: IntentKey): number {
+  if (intentA === 'sports_partner' && intentB === 'sports_partner') return 45;
   if (intentA === 'not_sure_yet' && intentB === 'not_sure_yet') return 64;
   if (intentA === 'not_sure_yet' || intentB === 'not_sure_yet') return 56;
   if (intentA === 'just_friends' && intentB === 'just_friends') return 81;

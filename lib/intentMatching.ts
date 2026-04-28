@@ -5,6 +5,7 @@ import type { IntentKey } from '@/lib/onboardingIntent';
  * @see matching table: not_sure_yet matches everyone; others match same intent + not_sure_yet.
  */
 export function intentsCanMatch(a: IntentKey, b: IntentKey): boolean {
+  if (a === 'sports_partner' || b === 'sports_partner') return a === 'sports_partner' && b === 'sports_partner';
   if (a === 'not_sure_yet' || b === 'not_sure_yet') return true;
   return a === b;
 }
@@ -16,6 +17,9 @@ export function intentsCanMatch(a: IntentKey, b: IntentKey): boolean {
  * - not_sure_yet + not_sure_yet: +15
  */
 export function intentPairScore(a: IntentKey, b: IntentKey): number {
+  if (a === 'sports_partner' || b === 'sports_partner') {
+    return a === 'sports_partner' && b === 'sports_partner' ? 20 : 0;
+  }
   if (a === 'not_sure_yet' && b === 'not_sure_yet') return 15;
   if (a === b) return 20;
   if (a === 'not_sure_yet' || b === 'not_sure_yet') return 10;

@@ -172,49 +172,48 @@ export default function ProfileSetupStep3() {
 
     setSaving(true);
     try {
-      const payload = skip
-        ? {
-            user_id: userId,
-            morning_night: null,
-            recharge_style: null,
-            hobbies: null,
-            drinking_smoking: null,
-            education: null,
-            religion: null,
-            lifestyle_tags: null,
-            setup3_completed: true,
-          }
-        : {
-            user_id: userId,
-            morning_night: morningNight,
-            recharge_style: recharge.length ? recharge : null,
-            hobbies: hobbies.length ? hobbies : null,
-            drinking_smoking: drinkingSmoking,
-            education,
-            religion,
-            lifestyle_tags: hobbies.length ? hobbies : null,
-            setup3_completed: true,
-          };
-
-      const { error } = await supabase.from('preferences').upsert(payload, { onConflict: 'user_id' });
-      if (error) throw error;
-
       const educationDetailOut =
         !skip && education && education !== 'Other' ? educationDetail.trim() || null : null;
-      const { error: profileErr } = await supabase.from('profiles').update({
+      const drinkingValue =
+        skip || !drinkingSmoking
+          ? null
+          : drinkingSmoking === 'Both' || drinkingSmoking === 'Only drinking'
+            ? 'Yes'
+            : drinkingSmoking === 'When socializing'
+              ? 'Socially'
+              : 'No';
+      const smokingValue =
+        skip || !drinkingSmoking
+          ? null
+          : drinkingSmoking === 'Both' || drinkingSmoking === 'Only smoking'
+            ? 'Yes'
+            : drinkingSmoking === 'When socializing'
+              ? 'Socially'
+              : 'No';
+      const step3ProfilePayload = {
+        id: userId,
         morning_night: skip ? null : morningNight,
-        recharge_style: skip ? null : (recharge.length ? recharge : null),
+        recharge_style: skip ? null : recharge.length ? recharge.join(', ') : null,
         hobbies: skip ? null : hobbies.length ? hobbies : null,
-        drinking_smoking: skip ? null : drinkingSmoking,
+        drinking: drinkingValue,
+        smoking: smokingValue,
         education: skip ? null : education,
         education_detail: skip ? null : educationDetailOut,
-        ...(skip ? {} : { occupation: null }),
         religion: skip ? null : religion,
-      }).eq('id', userId);
-      if (profileErr) console.warn('profiles setup3 update:', profileErr);
+        current_step: 4,
+      };
+
+      console.log('STEP 3 - user id:', userId);
+      console.log('STEP 3 - upsert data:', step3ProfilePayload);
+      const { error: profileErr } = await supabase
+        .from('profiles')
+        .upsert(step3ProfilePayload, { onConflict: 'id' });
+      console.log('STEP 3 - upsert error:', profileErr);
+      if (profileErr) throw profileErr;
 
       router.replace('/profile-setup/step4');
     } catch (e: any) {
+      console.error('STEP 3 - persist error:', e);
       Alert.alert('Kaydetme başarısız', e?.message ?? 'Bir hata oluştu.');
     } finally {
       setSaving(false);
@@ -366,8 +365,8 @@ export default function ProfileSetupStep3() {
         </View>
 
         <View style={styles.footer}>
-          <PrimaryButton label={saving ? 'Saving…' : 'Next →'} onPress={() => persist(false)} loading={saving} />
-          <TouchableOpacity onPress={() => persist(true)}>
+          <PrimaryButton label={saving ? 'Saving…' : 'Next →'} onPress={() => persist(false)} loading={saving} disabled={saving} />
+          <TouchableOpacity onPress={() => persist(true)} disabled={saving}>
             <ThemedText style={styles.skipText}>Skip for now</ThemedText>
           </TouchableOpacity>
         </View>

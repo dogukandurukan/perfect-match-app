@@ -97,7 +97,7 @@ Route’lar: `app/profile-setup/step1.tsx` … `step4.tsx`
 
 **İstemci matching yardımcıları:** `lib/intentMatching.ts`, `lib/profileMatching.ts` (sunucu tarafı pipeline henüz MVP değil).
 
-**Fotoğraf bucket:** `profile-photos` — `{user_id}/photo_{n}.jpg`
+**Fotoğraf bucket:** `user-photos` (private) — nesne yolu `{user_id}/{filename}` (örn. `photo_0.jpg`). Göstermek için `lib/userPhotosStorage.ts` içindeki `resolveProfilePhotoUrl` ile imzalı URL üretin.
 
 **Detaylı faz planı ve sıradaki odak:** [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md)
 

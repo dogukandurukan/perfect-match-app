@@ -1,7 +1,16 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
@@ -55,7 +64,6 @@ export default function RegisterScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [verifyModal, setVerifyModal] = useState(false);
 
   const [selectedCountryCode, setSelectedCountryCode] = useState('TR');
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
@@ -99,132 +107,140 @@ export default function RegisterScreen() {
         ...(Object.keys(meta).length ? { data: meta } : {}),
       },
     });
-    setLoading(false);
+
+    console.log('SIGNUP - data:', data);
+    console.log('SIGNUP - error:', error);
 
     if (error) {
+      setLoading(false);
+      console.error('SIGNUP - failed:', error.message, error);
       Alert.alert('Sign up failed', error.message);
       return;
     }
 
-    if (data.session) {
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    setLoading(false);
+
+    if (!signInError && signInData.session) {
       router.replace('/profile-setup/step1');
-      return;
+    } else {
+      router.replace('/profile-setup/step1');
     }
-
-    setVerifyModal(true);
-  };
-
-  const openMailApp = () => {
-    Linking.openURL('mailto:').catch(() => {});
   };
 
   return (
     <ScreenContainer style={styles.container}>
-      <HomeTopIcon />
-      <ThemedText type="title" style={styles.title}>
-        Create account
-      </ThemedText>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}>
+          <HomeTopIcon />
+          <ThemedText type="title" style={styles.title}>
+            Create account
+          </ThemedText>
 
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#AAAAAA"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#AAAAAA"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        <View style={styles.phoneRow}>
-          <View style={styles.countrySelectWrap}>
-            <Pressable
-              style={[styles.input, styles.countrySelectBtn]}
-              onPress={() => setCountryDropdownOpen((v) => !v)}>
-              <ThemedText style={styles.countrySelectText}>
-                {selectedCountry.flag} {selectedCountry.dial} ▼
-              </ThemedText>
-            </Pressable>
+          <View style={styles.form}>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#AAAAAA"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#AAAAAA"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+            <View style={styles.phoneRow}>
+              <View style={styles.countrySelectWrap}>
+                <Pressable
+                  style={[styles.input, styles.countrySelectBtn]}
+                  onPress={() => setCountryDropdownOpen((v) => !v)}>
+                  <ThemedText style={styles.countrySelectText}>
+                    {selectedCountry.flag} {selectedCountry.dial} ▼
+                  </ThemedText>
+                </Pressable>
 
-            {countryDropdownOpen ? (
-              <View style={styles.countryDropdown} accessibilityRole="menu">
-                <TextInput
-                  style={styles.countrySearch}
-                  placeholder="Search country"
-                  placeholderTextColor="#AAAAAA"
-                  value={countrySearch}
-                  onChangeText={setCountrySearch}
-                  autoCapitalize="none"
-                />
-                <ScrollView style={styles.countryDropdownScroll} nestedScrollEnabled>
-                  {filteredCountries.map((c) => (
-                    <Pressable
-                      key={c.code}
-                      style={styles.countryDropdownItem}
-                      onPress={() => {
-                        setSelectedCountryCode(c.code);
-                        setCountryDropdownOpen(false);
-                        setCountrySearch('');
-                      }}>
-                      <ThemedText style={styles.countryDropdownItemText}>
-                        {c.flag} {c.name} {c.dial}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                {countryDropdownOpen ? (
+                  <View style={styles.countryDropdown} accessibilityRole="menu">
+                    <TextInput
+                      style={styles.countrySearch}
+                      placeholder="Search country"
+                      placeholderTextColor="#AAAAAA"
+                      value={countrySearch}
+                      onChangeText={setCountrySearch}
+                      autoCapitalize="none"
+                    />
+                    <ScrollView style={styles.countryDropdownScroll} nestedScrollEnabled>
+                      {filteredCountries.map((c) => (
+                        <Pressable
+                          key={c.code}
+                          style={styles.countryDropdownItem}
+                          onPress={() => {
+                            setSelectedCountryCode(c.code);
+                            setCountryDropdownOpen(false);
+                            setCountrySearch('');
+                          }}>
+                          <ThemedText style={styles.countryDropdownItemText}>
+                            {c.flag} {c.name} {c.dial}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
               </View>
-            ) : null}
-          </View>
 
-          <TextInput
-            style={[styles.input, styles.phoneInput]}
-            placeholder="555 000 00 00"
-            placeholderTextColor="#AAAAAA"
-            keyboardType="phone-pad"
-            value={phoneNumber}
-            onChangeText={(t) => setPhoneNumber(t.replace(/[^\d]/g, ''))}
-          />
-        </View>
+              <TextInput
+                style={[styles.input, styles.phoneInput]}
+                placeholder="555 000 00 00"
+                placeholderTextColor="#AAAAAA"
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={(t) => setPhoneNumber(t.replace(/[^\d]/g, ''))}
+              />
+            </View>
 
-        <PrimaryButton
-          label={loading ? 'Signing up…' : 'Sign up'}
-          onPress={handleRegister}
-          loading={loading}
-          disabled={!email.trim() || !password || password.length < 8}
-        />
+            <PrimaryButton
+              label={loading ? 'Signing up…' : 'Sign up'}
+              onPress={handleRegister}
+              loading={loading}
+              disabled={!email.trim() || !password || password.length < 8}
+            />
 
-        <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/login')}>
-          Already have an account? Log in
-        </ThemedText>
-      </View>
-
-      <Modal visible={verifyModal} transparent animationType="fade" onRequestClose={() => setVerifyModal(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setVerifyModal(false)}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <ThemedText style={styles.verifyIcon}>✉️</ThemedText>
-            <ThemedText style={styles.verifyTitle}>Check your email!</ThemedText>
-            <ThemedText style={styles.verifyBody}>
-              We sent you a confirmation link. Click it to get started.
+            <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/login')}>
+              Already have an account? Log in
             </ThemedText>
-            <PrimaryButton label="Open email app" onPress={openMailApp} />
-            <Pressable onPress={() => setVerifyModal(false)} style={styles.modalDismiss}>
-              <ThemedText style={styles.modalDismissText}>Close</ThemedText>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingBottom: 24,
+  },
   container: {
     justifyContent: 'center',
   },
@@ -302,43 +318,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
     color: colors.textPrimary,
-    fontSize: 14,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 16,
-    padding: 24,
-    gap: 16,
-  },
-  verifyIcon: {
-    fontSize: 40,
-    textAlign: 'center',
-  },
-  verifyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  verifyBody: {
-    fontSize: 15,
-    color: colors.textPrimary,
-    opacity: 0.85,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  modalDismiss: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  modalDismissText: {
-    color: '#AAAAAA',
     fontSize: 14,
   },
 });

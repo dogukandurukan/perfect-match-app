@@ -35,6 +35,7 @@ const INTENT_OPTIONS: { label: string; key: IntentKey }[] = [
   { label: 'Keeping it casual', key: 'keeping_it_casual' },
   { label: 'Open to a relationship', key: 'open_to_relationship' },
   { label: 'Not sure yet', key: 'not_sure_yet' },
+  { label: 'Spor partneri', key: 'sports_partner' },
 ];
 
 function ChipRow({
@@ -144,21 +145,6 @@ export default function ProfileSetupStep2() {
 
       setUserId(user.id);
 
-      const { data: pref } = await supabase
-        .from('preferences')
-        .select('intent, setup2_answers')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!mounted) return;
-
-      if (pref?.intent) {
-        const n = normalizeIntentKey(pref.intent as string);
-        if (n) setIntent(n);
-      }
-      if (pref?.setup2_answers && typeof pref.setup2_answers === 'object') {
-        setAnswers(pref.setup2_answers as Setup2Answers);
-      }
       setHydrated(true);
       setCheckingAuth(false);
     })();
@@ -202,6 +188,7 @@ export default function ProfileSetupStep2() {
 
   const canProceed = useMemo(() => {
     if (!intent) return false;
+    if (intent === 'sports_partner') return true;
     if (intent === 'keeping_it_casual') {
       return !!(answers.casualness_expectation && answers.exclusivity_view && answers.connection_style);
     }
@@ -223,7 +210,17 @@ export default function ProfileSetupStep2() {
   }, [intent, answers]);
 
   const handleNext = async () => {
-    if (!userId || !intent || !canProceed) {
+    if (!intent || !canProceed) {
+      Alert.alert('Eksik bilgi', 'Lütfen tüm soruları yanıtla.');
+      return;
+    }
+
+    if (intent === 'sports_partner') {
+      router.replace('/coming-soon');
+      return;
+    }
+
+    if (!userId) {
       Alert.alert('Eksik bilgi', 'Lütfen tüm soruları yanıtla.');
       return;
     }
@@ -252,27 +249,27 @@ export default function ProfileSetupStep2() {
         commitment_view: answers.commitment_view ?? null,
         connection_energy: answers.connection_energy ?? null,
       };
+      const profileStep2Payload = { id: userId, current_step: 3 as const };
+
+      console.log('STEP 2 - user id:', userId);
+      console.log('STEP 2 - upsert data:', onboardingPayload);
       const { error: onboardingErr } = await supabase
         .from('onboarding_answers')
         .upsert(onboardingPayload, { onConflict: 'user_id' });
+      console.log('STEP 2 - upsert error:', onboardingErr);
       if (onboardingErr) throw onboardingErr;
 
-      const prefPayload = {
-        user_id: userId,
-        intent,
-        setup2_answers: answers,
-        setup2_completed: true,
-      };
-      const { error: prefErr } = await supabase.from('preferences').upsert(prefPayload, { onConflict: 'user_id' });
-      if (prefErr) throw prefErr;
-
-      const { error: profileErr } = await supabase.from('profiles').update({ intent }).eq('id', userId);
-      if (profileErr) {
-        console.warn('profiles.intent update:', profileErr);
-      }
+      console.log('STEP 2 - user id:', userId);
+      console.log('STEP 2 - upsert data:', profileStep2Payload);
+      const { error: profileErr } = await supabase
+        .from('profiles')
+        .upsert(profileStep2Payload, { onConflict: 'id' });
+      console.log('STEP 2 - upsert error:', profileErr);
+      if (profileErr) throw profileErr;
 
       router.replace('/profile-setup/step3');
     } catch (e: any) {
+      console.error('STEP 2 - handleNext error:', e);
       console.warn(e);
       Alert.alert('Kaydetme başarısız', e?.message ?? 'Bir hata oluştu.');
     } finally {
@@ -334,7 +331,7 @@ export default function ProfileSetupStep2() {
               </View>
             </View>
 
-            {intent ? (
+            {intent && intent !== 'sports_partner' ? (
               <>
                 <OptionalFieldReveal show={!!dynamicTitle} animationKey={dynamicTitle}>
                   <ThemedText style={styles.title}>{dynamicTitle}</ThemedText>

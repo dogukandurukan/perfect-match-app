@@ -2,7 +2,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -17,6 +17,7 @@ import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
+import { calculateMatchScore, type SupabaseMatchUser } from '@/lib/matchScoring';
 import { normalizeIntentKey } from '@/lib/onboardingIntent';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -30,6 +31,17 @@ type SuccessData = {
   _intentPref?: string | null;
   _intentOnboarding?: string | null;
   _intentProfile?: string | null;
+};
+
+type MatchPreview = {
+  user_id: string;
+  first_name: string | null;
+  date_of_birth: string | null;
+  city: string | null;
+  photos: string[] | null;
+  match_percentage: number;
+  match_category: string;
+  reasons: string[];
 };
 
 function safeAgeFromDob(dob: string | null): number {
@@ -115,6 +127,7 @@ export default function ProfileSetupSuccess() {
     _intentProfile: null,
   });
   const [loading, setLoading] = useState(true);
+  const [findingMatches, setFindingMatches] = useState(false);
 
   const iconScale = useSharedValue(0);
   const pulse = useSharedValue(1);
@@ -218,6 +231,102 @@ export default function ProfileSetupSuccess() {
     [data.intent, daysSummary, hoursSummary, locationValue, showAvailabilityCard],
   );
 
+  const handleFindMyMatch = useCallback(async () => {
+    setFindingMatches(true);
+    try {
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser();
+      if (userErr || !user) throw new Error(userErr?.message ?? 'Kullanici bulunamadi.');
+
+      const [meProfileRes, meOnboardingRes, candidatesRes, candidateOnboardingRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select(
+            'id,first_name,city,district,date_of_birth,gender,meeting_preferences,languages,morning_night,recharge_style,hobbies,drinking,smoking,education,education_detail,religion,availability_days,availability_hours,meeting_environment,preferred_locations,first_date_expectation,bio,photos,setup_completed',
+          )
+          .eq('id', user.id)
+          .maybeSingle(),
+        supabase.from('onboarding_answers').select('*').eq('user_id', user.id).maybeSingle(),
+        supabase
+          .from('profiles')
+          .select(
+            'id,first_name,city,district,date_of_birth,gender,meeting_preferences,languages,morning_night,recharge_style,hobbies,drinking,smoking,education,education_detail,religion,availability_days,availability_hours,meeting_environment,preferred_locations,first_date_expectation,bio,photos,setup_completed',
+          )
+          .neq('id', user.id)
+          .eq('setup_completed', true),
+        supabase.from('onboarding_answers').select('*').neq('user_id', user.id),
+      ]);
+
+      if (meProfileRes.error) throw new Error(meProfileRes.error.message);
+      if (meOnboardingRes.error) throw new Error(meOnboardingRes.error.message);
+      if (candidatesRes.error) throw new Error(candidatesRes.error.message);
+      if (candidateOnboardingRes.error) throw new Error(candidateOnboardingRes.error.message);
+      if (!meProfileRes.data || !meOnboardingRes.data) {
+        throw new Error('Eslesme icin profil veya onboarding verisi eksik.');
+      }
+
+      const me: SupabaseMatchUser = {
+        profiles: meProfileRes.data,
+        onboarding_answers: meOnboardingRes.data,
+      };
+      const onboardingMap = new Map((candidateOnboardingRes.data ?? []).map((row) => [row.user_id, row]));
+
+      const top3 = (candidatesRes.data ?? [])
+        .map((profile) => {
+          const candidate: SupabaseMatchUser = {
+            profiles: profile,
+            onboarding_answers: onboardingMap.get(profile.id) ?? null,
+          };
+          const score = calculateMatchScore(me, candidate);
+          if (!score.ok) return null;
+          const preview: MatchPreview = {
+            user_id: profile.id,
+            first_name: (profile as any).first_name ?? null,
+            date_of_birth: profile.date_of_birth,
+            city: profile.city,
+            photos: (profile as any).photos ?? null,
+            match_percentage: score.matchPercentage,
+            match_category: score.matchCategory,
+            reasons: score.reasons.slice(0, 3),
+          };
+          return preview;
+        })
+        .filter((v): v is MatchPreview => !!v)
+        .sort((a, b) => b.match_percentage - a.match_percentage)
+        .slice(0, 3);
+
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      if (top3.length > 0) {
+        const { error: deleteErr } = await supabase.from('matches').delete().eq('user_id', user.id).eq('status', 'pending');
+        if (deleteErr) throw new Error(deleteErr.message);
+
+        const rows = top3.map((m) => ({
+          user_id: user.id,
+          matched_user_id: m.user_id,
+          match_percentage: m.match_percentage,
+          match_category: m.match_category,
+          reasons: m.reasons,
+          status: 'pending',
+          expires_at: expiresAt,
+        }));
+        const { error: insertErr } = await supabase.from('matches').insert(rows);
+        if (insertErr) throw new Error(insertErr.message);
+      }
+
+      router.push({
+        pathname: '/match-results',
+        params: { results: encodeURIComponent(JSON.stringify(top3)) },
+      });
+    } catch (e: any) {
+      console.error('FIND MATCH ERROR', e);
+      Alert.alert('Match bulunamadi', e?.message ?? 'Bir hata olustu.');
+    } finally {
+      setFindingMatches(false);
+    }
+  }, [router]);
+
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
@@ -240,7 +349,12 @@ export default function ProfileSetupSuccess() {
             </View>
           ) : null}
 
-          <PrimaryButton label="Go to home" onPress={() => router.replace('/(tabs)')} />
+          <PrimaryButton
+            label={findingMatches ? 'Finding...' : 'Find my match'}
+            onPress={handleFindMyMatch}
+            loading={findingMatches}
+            disabled={findingMatches}
+          />
 
           {__DEV__ ? (
             <ThemedText style={styles.debugText}>

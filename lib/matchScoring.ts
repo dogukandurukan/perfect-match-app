@@ -43,6 +43,8 @@ export type SupabaseMatchUser = {
     Setup4Fields & {
       // Some flows mirror intent either into `profiles.intent` or only in onboarding_answers.
       intent?: IntentKey | null;
+      current_step?: number | null;
+      setup_completed?: boolean | null;
     };
   onboarding_answers?: (Setup2AnswersFields & { intent?: IntentKey | null }) | null;
   /** İsteğe bağlı: `setup2_answers` JSON burada dolu, onboarding kolonları boşsa birleştirilir. */
@@ -50,6 +52,7 @@ export type SupabaseMatchUser = {
 };
 
 export type MatchFailureReason =
+  | 'incomplete_profile'
   | 'different_city'
   | 'age_gap_too_large'
   | 'gender_mismatch'
@@ -146,6 +149,29 @@ export function calculateMatchScore(
 ): MatchResult {
   const isSupabaseUser = (x: MatchProfile | SupabaseMatchUser): x is SupabaseMatchUser =>
     !!x && typeof x === 'object' && 'profiles' in x;
+
+  if (isSupabaseUser(a) && isSupabaseUser(b)) {
+    if (!a.onboarding_answers || !b.onboarding_answers) {
+      return {
+        ok: false,
+        reason: 'incomplete_profile',
+        rawScore: null,
+        totalScore: null,
+        matchPercentage: null,
+      };
+    }
+    const profA = a.profiles as Record<string, unknown>;
+    const profB = b.profiles as Record<string, unknown>;
+    if (profA['setup_completed'] === false || profB['setup_completed'] === false) {
+      return {
+        ok: false,
+        reason: 'incomplete_profile',
+        rawScore: null,
+        totalScore: null,
+        matchPercentage: null,
+      };
+    }
+  }
 
   const deriveDrinkingSmoking = (profiles: Record<string, unknown>): string | null | undefined => {
     const direct = profiles['drinking_smoking'];

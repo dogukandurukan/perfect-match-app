@@ -37,4 +37,4 @@ Birleşik kontrol: `setup1HardFiltersPass`, toplam skor (sert filtreler sonrası
 - Doğum tarihi → takvim; burç tooltip; `zodiac_sign` kaydı.
 - Konum: metin + “Use my location”; profilde `district + city`.
 - Diller: Turkish / English / German + özel; max 5; subtitle: *Optional — add up to 5 for better matches*.
-- Fotoğraflar: 3 slot, max ~100×100; Storage: `profile-photos/{user_id}/photo_{n}.jpg` → URL’ler `photos` dizisinde.
+- Fotoğraflar: 3 slot, max ~100×100; Storage (private): `user-photos` bucket, yol `{user_id}/photo_{n}.{ext}` → `photos` dizisinde bucket içi yol veya harici URL.

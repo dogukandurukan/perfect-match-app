@@ -236,36 +236,6 @@ export default function ProfileSetupStep4() {
 
     setSaving(true);
     try {
-      const prefPayload = skip
-        ? {
-            availability_days: null,
-            availability_hours: null,
-            meeting_environment: null,
-            favorite_spots: null,
-            first_date_expectation: null,
-            bio: null,
-            availability: null,
-            setup4_completed: true,
-          }
-        : {
-            availability_days: persistDays.length ? persistDays : null,
-            availability_hours: selectedHours.length ? selectedHours : null,
-            meeting_environment: meetingEnvironment.length ? meetingEnvironment : null,
-            favorite_spots:
-              Object.keys(favoriteSpots).length > 0
-                ? Object.fromEntries(
-                    Object.entries(favoriteSpots).filter(([, v]) => String(v).trim().length > 0),
-                  )
-                : null,
-            first_date_expectation: firstDateExpectation,
-            bio: bio.trim() || null,
-            availability: null,
-            setup4_completed: true,
-          };
-
-      const { error: prefErr } = await supabase.from('preferences').update(prefPayload).eq('user_id', userId);
-      if (prefErr) throw prefErr;
-
       const profilePayload = skip
         ? {
             availability_days: null,
@@ -273,8 +243,9 @@ export default function ProfileSetupStep4() {
             meeting_environment: null,
             favorite_spots: null,
             first_date_expectation: null,
-            preferred_locations: null,
             bio: null,
+            current_step: 4,
+            setup_completed: true,
           }
         : {
             availability_days: persistDays.length ? persistDays : null,
@@ -287,14 +258,23 @@ export default function ProfileSetupStep4() {
                   )
                 : null,
             first_date_expectation: firstDateExpectation,
-            preferred_locations: preferredLocations.length ? preferredLocations : null,
             bio: bio.trim() || null,
+            current_step: 4,
+            setup_completed: true,
           };
-      const { error: profileErr } = await supabase.from('profiles').update(profilePayload).eq('id', userId);
-      if (profileErr) console.warn('profiles setup4 update:', profileErr);
+      const step4UpsertRow = { id: userId, ...profilePayload };
+
+      console.log('STEP 4 - user id:', userId);
+      console.log('STEP 4 - upsert data:', step4UpsertRow);
+      const { error: profileErr } = await supabase
+        .from('profiles')
+        .upsert(step4UpsertRow, { onConflict: 'id' });
+      console.log('STEP 4 - upsert error:', profileErr);
+      if (profileErr) throw profileErr;
 
       router.replace('/profile-setup/success');
     } catch (e: any) {
+      console.error('STEP 4 - finish error:', e);
       Alert.alert('Kaydetme başarısız', e?.message ?? 'Bir hata oluştu.');
     } finally {
       setSaving(false);
@@ -483,8 +463,8 @@ export default function ProfileSetupStep4() {
         </View>
 
         <View style={styles.footer}>
-          <PrimaryButton label={saving ? 'Saving…' : 'Complete Profile'} onPress={() => finish(false)} loading={saving} />
-          <TouchableOpacity onPress={() => finish(true)}>
+          <PrimaryButton label={saving ? 'Saving…' : 'Complete Profile'} onPress={() => finish(false)} loading={saving} disabled={saving} />
+          <TouchableOpacity onPress={() => finish(true)} disabled={saving}>
             <ThemedText style={styles.skipText}>Skip for now</ThemedText>
           </TouchableOpacity>
         </View>

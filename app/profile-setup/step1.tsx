@@ -23,6 +23,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
 import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
+import { USER_PHOTOS_BUCKET, profilePhotoObjectPath } from '@/lib/userPhotosStorage';
 import { calculateAge, formatZodiacTooltip, getZodiacFromDate } from '@/lib/zodiac';
 
 const GENDER_CHIPS = ['Man', 'Woman', 'Non-binary', 'Other'] as const;
@@ -51,8 +52,6 @@ const MAX_LANGUAGES = 5;
 
 const PHOTO_SLOTS = 3;
 const PHOTO_SLOT_MAX = 72;
-const PROFILE_PHOTOS_BUCKET = 'profile-photos';
-
 /** Vertical gap between blocks (compact single-page goal) */
 const GAP = 14;
 
@@ -78,34 +77,45 @@ function getMimeTypeFromUri(uri: string) {
 }
 
 async function uploadPhotosToSupabase(userId: string, uris: string[]): Promise<string[]> {
+  console.log('STEP 1 - photo upload start', {
+    bucket: USER_PHOTOS_BUCKET,
+    userId,
+    paths: uris.map((_, i) => profilePhotoObjectPath(userId, i)),
+  });
+
+  const objectPaths: string[] = [];
+  const storage = supabase.storage.from(USER_PHOTOS_BUCKET);
+
   try {
-    const urls: string[] = [];
-    const storage = supabase.storage.from(PROFILE_PHOTOS_BUCKET);
+    for (let index = 0; index < uris.length; index++) {
+      const uri = uris[index];
+      const path = profilePhotoObjectPath(userId, index);
+      const contentType = getMimeTypeFromUri(uri);
 
-    await Promise.all(
-      uris.map(async (uri, index) => {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        const contentType = getMimeTypeFromUri(uri);
+      const response = await fetch(uri);
+      if (!response.ok) {
+        throw new Error(`Fotoğraf okunamadı (${response.status}) — ${path}`);
+      }
 
-        const path = `${userId}/photo_${index}.jpg`;
-        const uploadRes = await storage.upload(path, blob, {
-          contentType,
-          upsert: true,
-        });
+      const blob = await response.blob();
+      const uploadRes = await storage.upload(path, blob, {
+        contentType,
+        upsert: true,
+      });
 
-        if (uploadRes.error) throw uploadRes.error;
+      if (uploadRes.error) {
+        throw new Error(`${uploadRes.error.message ?? 'Fotoğraf yüklenemedi.'} (${path})`);
+      }
 
-        const publicUrl = storage.getPublicUrl(path).data.publicUrl;
-        urls.push(publicUrl);
-      }),
-    );
-
-    return urls;
+      objectPaths.push(path);
+      console.log('STEP 1 - photo upload ok:', path);
+    }
   } catch (e) {
-    console.warn('Photo upload failed (continuing without blocking):', e);
-    return [];
+    console.log('STEP 1 - photo upload error:', e);
+    throw e instanceof Error ? e : new Error(String(e));
   }
+
+  return objectPaths;
 }
 
 export default function ProfileSetupStep1() {
@@ -178,18 +188,25 @@ export default function ProfileSetupStep1() {
     let mounted = true;
     (async () => {
       const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const {
         data: { user },
-        error,
       } = await supabase.auth.getUser();
+
+      const userId = session?.user?.id ?? user?.id;
+
+      console.log('STEP 1 - session:', session?.user?.id);
+      console.log('STEP 1 - user:', user?.id);
 
       if (!mounted) return;
 
-      if (error || !user) {
+      if (!userId) {
         router.replace('/(auth)/login');
         return;
       }
 
-      setUserId(user.id);
+      setUserId(userId);
       setCheckingAuth(false);
     })();
 
@@ -273,18 +290,24 @@ export default function ProfileSetupStep1() {
       quality: 0.8,
     });
 
+    console.log('STEP 1 - picker result:', result);
+
     if (result.canceled || result.assets.length === 0) return;
 
     const uri = result.assets[0].uri;
     setPhotos((prev) => {
       const next = [...prev];
       next[slotIndex] = uri;
+      const selectedPhotoUris = next.filter(Boolean) as string[];
+      console.log('STEP 1 - selectedPhotoUris:', selectedPhotoUris);
       return next;
     });
   };
 
   const handleNext = async () => {
+    console.log('STEP 1 - handleNext called');
     if (!userId) return;
+    console.log('STEP 1 - canProceed:', canProceed);
     if (!canProceed) {
       Alert.alert('Missing info', 'Please complete all required fields.');
       return;
@@ -303,7 +326,13 @@ export default function ProfileSetupStep1() {
     setSaving(true);
     try {
       const selectedPhotoUris = photos.filter(Boolean) as string[];
-      const uploadedPhotoUrls = await uploadPhotosToSupabase(userId, selectedPhotoUris);
+      let uploadedPhotoPaths: string[] = [];
+      try {
+        uploadedPhotoPaths = await uploadPhotosToSupabase(userId, selectedPhotoUris);
+      } catch (photoError) {
+        console.log('STEP 1 - photo upload skipped:', photoError);
+        uploadedPhotoPaths = [];
+      }
 
       const isoDob = `${effectiveDob.getFullYear()}-${pad2(effectiveDob.getMonth() + 1)}-${pad2(effectiveDob.getDate())}`;
 
@@ -314,26 +343,12 @@ export default function ProfileSetupStep1() {
         typeof authUser?.user_metadata?.phone_number === 'string'
           ? authUser.user_metadata.phone_number.trim()
           : '';
-      const countryFromSignup =
-        typeof authUser?.user_metadata?.country_code === 'string'
-          ? authUser.user_metadata.country_code.trim()
-          : '';
-      const dialFromSignup =
-        typeof authUser?.user_metadata?.dial_code === 'string'
-          ? authUser.user_metadata.dial_code.trim()
-          : '';
-      const phonePayload =
-        phoneFromSignup.length > 0
-          ? {
-              phone_number: phoneFromSignup,
-              country_code: countryFromSignup || 'TR',
-              dial_code: dialFromSignup || '+90',
-            }
-          : {};
+      const phoneOnlyPayload = phoneFromSignup.length > 0 ? { phone_number: phoneFromSignup } : {};
+
+      const photosForDb = uploadedPhotoPaths.length > 0 ? uploadedPhotoPaths : [];
 
       const baseProfile = {
         id: userId,
-        username: `${firstName.trim()} ${lastName.trim()}`.trim(),
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         full_address: location.trim(),
@@ -346,13 +361,13 @@ export default function ProfileSetupStep1() {
         languages: languages.length ? languages : null,
         date_of_birth: isoDob,
         zodiac_sign: zodiacInfo.sign,
-        setup1_completed: true,
-        ...phonePayload,
+        current_step: 2,
+        photos: photosForDb,
+        ...phoneOnlyPayload,
       };
 
       const minimalProfile = {
         id: userId,
-        username: `${firstName.trim()} ${lastName.trim()}`.trim(),
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         full_address: location.trim(),
@@ -363,35 +378,46 @@ export default function ProfileSetupStep1() {
         languages: languages.length ? languages : null,
         date_of_birth: isoDob,
         zodiac_sign: zodiacInfo.sign,
-        setup1_completed: true,
-        ...phonePayload,
+        current_step: 2,
+        photos: photosForDb,
+        ...phoneOnlyPayload,
       };
 
       const payloadWithPhotos = {
         ...baseProfile,
-        photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : null,
+        photos: photosForDb,
       };
 
+      console.log('STEP 1 - user id:', userId);
+      console.log('STEP 1 - upsert data:', payloadWithPhotos);
       const { error: upsertError } = await supabase.from('profiles').upsert(payloadWithPhotos, {
         onConflict: 'id',
       });
+      console.log('STEP 1 - upsert error:', upsertError);
 
       if (upsertError) {
+        console.log('STEP 1 - user id:', userId);
+        console.log('STEP 1 - upsert data:', baseProfile);
         const { error: fallbackError } = await supabase.from('profiles').upsert(baseProfile, {
           onConflict: 'id',
         });
+        console.log('STEP 1 - upsert error:', fallbackError);
         if (fallbackError) {
+          console.log('STEP 1 - user id:', userId);
+          console.log('STEP 1 - upsert data:', minimalProfile);
           const { error: minimalError } = await supabase.from('profiles').upsert(minimalProfile, {
             onConflict: 'id',
           });
+          console.log('STEP 1 - upsert error:', minimalError);
           if (minimalError) throw minimalError;
         }
       }
 
       router.replace('/profile-setup/step2');
     } catch (e: any) {
+      console.error('STEP 1 - handleNext error:', e);
       console.warn(e);
-      Alert.alert('Save failed', e?.message ?? 'Something went wrong.');
+      Alert.alert('Kayıt başarısız', e?.message ?? 'Bir hata oluştu.');
     } finally {
       setSaving(false);
     }
@@ -401,15 +427,16 @@ export default function ProfileSetupStep1() {
 
   return (
     <ScreenContainer style={styles.screenTight}>
-      <HomeTopIcon />
       <KeyboardAvoidingView
         style={styles.keyboard}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 56 : 0}>
         <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
+          <HomeTopIcon />
           <SetupScreenHeader step={1} />
           <ThemedText style={styles.title}>Let&apos;s build your profile</ThemedText>
 
@@ -639,8 +666,12 @@ const styles = StyleSheet.create({
   keyboard: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
-    paddingBottom: 24,
+    flexGrow: 1,
+    paddingBottom: 100,
   },
   title: {
     color: colors.textPrimary,

@@ -37,6 +37,8 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding/index" options={{ headerShown: false }} />
           <Stack.Screen name="profile-setup" options={{ headerShown: false }} />
           <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+          <Stack.Screen name="coming-soon" options={{ headerShown: false }} />
+          <Stack.Screen name="match-results" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         </Stack>
       </View>
