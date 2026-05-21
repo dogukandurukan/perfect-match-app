@@ -1,3 +1,4 @@
+// Screen: Giriş (Login) | Status: stable | Last updated: Mayıs 2026
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';

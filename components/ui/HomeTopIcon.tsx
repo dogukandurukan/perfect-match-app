@@ -1,3 +1,4 @@
+// Screen: Üst ikon | Status: stable | Last updated: Mayıs 2026
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';

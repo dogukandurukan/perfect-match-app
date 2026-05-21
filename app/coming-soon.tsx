@@ -1,3 +1,4 @@
+// Screen: Spor partneri yakında | Status: stable | Last updated: Mayıs 2026
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 

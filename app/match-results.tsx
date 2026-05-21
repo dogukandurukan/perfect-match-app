@@ -1,10 +1,10 @@
-import { useLocalSearchParams } from 'expo-router';
+// Screen: Eşleşme sonuçları | Status: stable | Last updated: Mayıs 2026
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
@@ -34,7 +34,9 @@ function safeAge(dob: string | null): number {
 }
 
 export default function MatchResultsScreen() {
+  const router = useRouter();
   const params = useLocalSearchParams<{ results?: string }>();
+
   const parsedResults = useMemo<MatchResultItem[]>(() => {
     try {
       if (!params.results) return [];
@@ -63,36 +65,71 @@ export default function MatchResultsScreen() {
       );
       if (mounted) setCards(mapped);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [parsedResults]);
+
+  function handleTanis(match: MatchCardData) {
+    router.push({
+      pathname: '/micro-intro',
+      params: {
+        matchUserId: match.user_id,
+        matchName: match.first_name ?? 'Kullanıcı',
+        matchAge: String(safeAge(match.date_of_birth)),
+        matchCity: match.city ?? '',
+        matchPhoto: match.displayPhotoUrl,
+        matchPercentage: String(match.match_percentage),
+      },
+    } as unknown as Parameters<typeof router.push>[0]);
+  }
 
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ThemedText style={styles.title}>Top 3 Eslestirme Sonucun</ThemedText>
+        <ThemedText style={styles.title}>Eşleşmelerin ✨</ThemedText>
+        <ThemedText style={styles.subtitle}>
+          Algoritmamız sana en uygun {cards.length} kişiyi seçti
+        </ThemedText>
+
         {cards.map((match) => (
           <View key={match.user_id} style={styles.card}>
-            <Image source={{ uri: match.displayPhotoUrl }} style={styles.photo} />
-            <View style={styles.mainInfo}>
-              <ThemedText style={styles.name}>
-                {match.first_name ?? 'Kullanici'} · {safeAge(match.date_of_birth)}
-              </ThemedText>
-              <ThemedText style={styles.city}>{match.city ?? 'Bilinmeyen sehir'}</ThemedText>
-              <ThemedText style={styles.category}>{match.match_category}</ThemedText>
-              <View style={styles.reasonsWrap}>
-                {match.reasons.slice(0, 3).map((reason, idx) => (
-                  <ThemedText key={`${match.user_id}-r-${idx}`} style={styles.reason}>
-                    - {reason}
-                  </ThemedText>
-                ))}
+
+            <View style={styles.photoWrap}>
+              <Image source={{ uri: match.displayPhotoUrl }} style={styles.photo} />
+              <View style={styles.percentageBadge}>
+                <ThemedText style={styles.percentageText}>
+                  %{match.match_percentage}
+                </ThemedText>
               </View>
             </View>
-            <View style={styles.rightCol}>
-              <ThemedText style={styles.percentage}>{match.match_percentage}%</ThemedText>
-              <PrimaryButton label="Tanis" onPress={() => {}} style={styles.meetBtn} />
+
+            <View style={styles.infoWrap}>
+              <View style={styles.nameRow}>
+                <ThemedText style={styles.name}>
+                  {match.first_name ?? 'Kullanıcı'}, {safeAge(match.date_of_birth)}
+                </ThemedText>
+                <ThemedText style={styles.city}>📍 {match.city ?? 'Bilinmiyor'}</ThemedText>
+              </View>
+
+              <View style={styles.categoryWrap}>
+                <ThemedText style={styles.categoryText}>{match.match_category}</ThemedText>
+              </View>
+
+              <View style={styles.chipsRow}>
+                {match.reasons.slice(0, 4).map((reason, idx) => (
+                  <View key={`${match.user_id}-c-${idx}`} style={styles.chip}>
+                    <ThemedText style={styles.chipText}>{reason}</ThemedText>
+                  </View>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={styles.tanisBtn}
+                onPress={() => handleTanis(match)}
+                activeOpacity={0.8}
+              >
+                <ThemedText style={styles.tanisBtnText}>Tanış →</ThemedText>
+              </TouchableOpacity>
             </View>
           </View>
         ))}
@@ -103,36 +140,108 @@ export default function MatchResultsScreen() {
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
-  content: { paddingBottom: 32, gap: 12 },
+  content: { paddingBottom: 40, gap: 16 },
   title: {
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  subtitle: {
+    color: '#888',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 4,
   },
   card: {
     backgroundColor: colors.bgCard,
-    borderColor: '#E5E5E5',
+    borderRadius: 18,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    flexDirection: 'row',
-    gap: 10,
+    borderColor: '#E8E8E8',
+    overflow: 'hidden',
+  },
+  photoWrap: {
+    position: 'relative',
+    width: '100%',
+    height: 220,
   },
   photo: {
-    width: 72,
-    height: 72,
-    borderRadius: 10,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#DDD',
   },
-  mainInfo: { flex: 1, gap: 2 },
-  name: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  city: { color: '#666', fontSize: 12 },
-  category: { color: colors.textPrimary, fontSize: 12, marginBottom: 4 },
-  reasonsWrap: { gap: 2 },
-  reason: { color: '#666', fontSize: 12 },
-  rightCol: { alignItems: 'flex-end', justifyContent: 'space-between' },
-  percentage: { color: colors.accent, fontSize: 24, fontWeight: '700' },
-  meetBtn: { minHeight: 40, paddingHorizontal: 10 },
+  percentageBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: colors.accent,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  percentageText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  infoWrap: {
+    padding: 14,
+    gap: 10,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  name: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  city: {
+    color: '#888',
+    fontSize: 13,
+  },
+  categoryWrap: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF8E1',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  categoryText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  chip: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 0.5,
+    borderColor: '#E0E0E0',
+  },
+  chipText: {
+    color: '#555',
+    fontSize: 12,
+  },
+  tanisBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  tanisBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });

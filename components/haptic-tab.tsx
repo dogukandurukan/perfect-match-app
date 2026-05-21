@@ -1,3 +1,4 @@
+// Screen: Haptic tab bar butonu | Status: stable | Last updated: Mayıs 2026
 import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';

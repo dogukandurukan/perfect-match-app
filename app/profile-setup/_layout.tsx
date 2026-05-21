@@ -1,3 +1,4 @@
+// Screen: Profile setup layout | Status: stable | Last updated: Mayıs 2026
 import { Stack, Redirect, useGlobalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';

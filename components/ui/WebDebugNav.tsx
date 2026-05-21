@@ -1,3 +1,4 @@
+// Screen: Web debug nav | Status: wip | Last updated: Mayıs 2026
 import { useRouter } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 

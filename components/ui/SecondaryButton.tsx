@@ -1,3 +1,4 @@
+// Screen: Secondary buton | Status: stable | Last updated: Mayıs 2026
 import React from 'react';
 import { GestureResponderEvent, Pressable, StyleSheet, ViewStyle } from 'react-native';
 

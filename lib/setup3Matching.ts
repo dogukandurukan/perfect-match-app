@@ -1,3 +1,4 @@
+// Screen: Setup 3 skorlama | Status: stable | Last updated: Mayıs 2026
 type MaybeText = string | null | undefined;
 
 export type Setup3Fields = {

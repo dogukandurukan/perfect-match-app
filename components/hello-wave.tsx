@@ -1,3 +1,4 @@
+// Screen: Hello wave (şablon) | Status: wip | Last updated: Mayıs 2026
 import Animated from 'react-native-reanimated';
 
 export function HelloWave() {

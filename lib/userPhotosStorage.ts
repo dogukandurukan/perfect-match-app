@@ -1,3 +1,4 @@
+// Screen: Profil foto storage yardımcıları | Status: stable | Last updated: Mayıs 2026
 import { supabase } from '@/lib/supabaseClient';
 
 /** Private bucket; RLS allows authenticated read. Paths stored in DB are relative to this bucket. */

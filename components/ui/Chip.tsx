@@ -1,3 +1,4 @@
+// Screen: Chip UI | Status: stable | Last updated: Mayıs 2026
 import React from 'react';
 import { GestureResponderEvent, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 

@@ -1,3 +1,4 @@
+// Screen: Parallax scroll (şablon) | Status: wip | Last updated: Mayıs 2026
 import type { PropsWithChildren, ReactElement } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {

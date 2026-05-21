@@ -1,3 +1,4 @@
+// Screen: Opsiyonel alan reveal | Status: stable | Last updated: Mayıs 2026
 import type { ReactNode } from 'react';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 

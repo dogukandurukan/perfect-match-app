@@ -1,3 +1,4 @@
+// Screen: Root Stack layout | Status: stable | Last updated: Mayıs 2026
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';

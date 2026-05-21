@@ -1,3 +1,4 @@
+// Screen: Setup 4 — buluşma tercihleri | Status: stable | Last updated: Mayıs 2026
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';

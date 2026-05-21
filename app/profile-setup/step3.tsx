@@ -1,3 +1,4 @@
+// Screen: Setup 3 — yaşam tarzı | Status: stable | Last updated: Mayıs 2026
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {

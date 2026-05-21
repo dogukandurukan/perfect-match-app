@@ -1,3 +1,4 @@
+// Screen: Explore (şablon, tab dışı) | Status: wip | Last updated: Mayıs 2026
 import { Image } from 'expo-image';
 import { Platform, StyleSheet } from 'react-native';
 

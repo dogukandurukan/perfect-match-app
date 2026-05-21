@@ -1,3 +1,4 @@
+// Screen: Collapsible | Status: stable | Last updated: Mayıs 2026
 import { PropsWithChildren, useState } from 'react';
 import { StyleSheet, TouchableOpacity } from 'react-native';
 

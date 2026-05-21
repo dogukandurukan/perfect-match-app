@@ -1,3 +1,4 @@
+// Screen: Setup tamamlandı | Status: wip | Last updated: Mayıs 2026
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -233,30 +234,46 @@ export default function ProfileSetupSuccess() {
 
   const handleFindMyMatch = useCallback(async () => {
     setFindingMatches(true);
+    const {
+      data: { session },
+      error: sessionErr,
+    } = await supabase.auth.getSession();
+    const {
+      data: { user: authUser },
+      error: authErr,
+    } = await supabase.auth.getUser();
     try {
+      let finalUserId: string | null = null;
       const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
-      if (userErr || !user) throw new Error(userErr?.message ?? 'Kullanici bulunamadi.');
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        finalUserId = session.user.id;
+      } else {
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser();
+        finalUserId = authUser?.id ?? null;
+      }
+      if (!finalUserId) throw new Error('Oturum bulunamadi. Lutfen cikis yapip tekrar giris yapin.');
 
       const [meProfileRes, meOnboardingRes, candidatesRes, candidateOnboardingRes] = await Promise.all([
         supabase
           .from('profiles')
           .select(
-            'id,first_name,city,district,date_of_birth,gender,meeting_preferences,languages,morning_night,recharge_style,hobbies,drinking,smoking,education,education_detail,religion,availability_days,availability_hours,meeting_environment,preferred_locations,first_date_expectation,bio,photos,setup_completed',
+            'id,first_name,city,district,date_of_birth,gender,meeting_preferences,languages,morning_night,recharge_style,hobbies,drinking,smoking,education,education_detail,religion,availability_days,availability_hours,meeting_environment,first_date_expectation,bio,photos,setup_completed',
           )
-          .eq('id', user.id)
+          .eq('id', finalUserId)
           .maybeSingle(),
-        supabase.from('onboarding_answers').select('*').eq('user_id', user.id).maybeSingle(),
+        supabase.from('onboarding_answers').select('*').eq('user_id', finalUserId).maybeSingle(),
         supabase
           .from('profiles')
           .select(
-            'id,first_name,city,district,date_of_birth,gender,meeting_preferences,languages,morning_night,recharge_style,hobbies,drinking,smoking,education,education_detail,religion,availability_days,availability_hours,meeting_environment,preferred_locations,first_date_expectation,bio,photos,setup_completed',
+            'id,first_name,city,district,date_of_birth,gender,meeting_preferences,languages,morning_night,recharge_style,hobbies,drinking,smoking,education,education_detail,religion,availability_days,availability_hours,meeting_environment,first_date_expectation,bio,photos,setup_completed',
           )
-          .neq('id', user.id)
+          .neq('id', finalUserId)
           .eq('setup_completed', true),
-        supabase.from('onboarding_answers').select('*').neq('user_id', user.id),
+        supabase.from('onboarding_answers').select('*').neq('user_id', finalUserId),
       ]);
 
       if (meProfileRes.error) throw new Error(meProfileRes.error.message);
@@ -299,17 +316,20 @@ export default function ProfileSetupSuccess() {
 
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
       if (top3.length > 0) {
-        const { error: deleteErr } = await supabase.from('matches').delete().eq('user_id', user.id).eq('status', 'pending');
+        const { error: deleteErr } = await supabase
+          .from('matches')
+          .delete()
+          .eq('user_a_id', finalUserId)
+          .eq('status', 'pending');
         if (deleteErr) throw new Error(deleteErr.message);
 
         const rows = top3.map((m) => ({
-          user_id: user.id,
-          matched_user_id: m.user_id,
-          match_percentage: m.match_percentage,
-          match_category: m.match_category,
-          reasons: m.reasons,
+          user_a_id: finalUserId,
+          user_b_id: m.user_id,
+          match_score: m.match_percentage,
           status: 'pending',
           expires_at: expiresAt,
+          algo_version: 'v2',
         }));
         const { error: insertErr } = await supabase.from('matches').insert(rows);
         if (insertErr) throw new Error(insertErr.message);

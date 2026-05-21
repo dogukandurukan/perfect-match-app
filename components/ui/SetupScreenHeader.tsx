@@ -1,3 +1,4 @@
+// Screen: Setup ekran başlığı | Status: stable | Last updated: Mayıs 2026
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';

@@ -1,3 +1,4 @@
+// Screen: Intent tipleri ve normalize | Status: stable | Last updated: Mayıs 2026
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const ONBOARDING_INTENT_STORAGE_KEY = 'onboarding_intent_v1';

@@ -1,3 +1,4 @@
+// Screen: Themed View | Status: stable | Last updated: Mayıs 2026
 import { View, type ViewProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';

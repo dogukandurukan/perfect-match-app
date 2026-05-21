@@ -1,3 +1,4 @@
+// Screen: Profil tamamlanma durumu | Status: stable | Last updated: Mayıs 2026
 import { supabase } from '@/lib/supabaseClient';
 
 export type ProfileSetupState = 'setup1' | 'setup2' | 'setup3' | 'setup4' | 'complete';

@@ -1,3 +1,4 @@
+// Screen: Şifre sıfırlama | Status: stable | Last updated: Mayıs 2026
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, TextInput, View } from 'react-native';

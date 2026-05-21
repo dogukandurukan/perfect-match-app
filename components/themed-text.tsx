@@ -1,3 +1,4 @@
+// Screen: Themed Text | Status: stable | Last updated: Mayıs 2026
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';

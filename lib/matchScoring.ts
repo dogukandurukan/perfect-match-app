@@ -1,3 +1,4 @@
+// Screen: Eşleşme skoru (master) | Status: stable | Last updated: Mayıs 2026
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { IntentKey } from '@/lib/onboardingIntent';
 import { intentsCanMatch } from '@/lib/intentMatching';
@@ -28,7 +29,7 @@ import {
 import { SETUP1_MAX_POSSIBLE } from '@/lib/setup1Matching';
 
 /** Denominator used for matchPercentage. */
-export const MATCH_SCORE_MAX = 360;
+export const MATCH_SCORE_MAX = 300;
 
 export type MatchProfile = Setup1MatchFields &
   Setup3Fields &
@@ -83,6 +84,48 @@ export type MatchResult =
       };
     };
 
+function parseTokens(val: string | null | undefined): string[] {
+  if (!val) return [];
+  return val
+    .split(',')
+    .map((s) => (s ?? '').toLocaleLowerCase('tr-TR').replace(/^[🎵🎤🎬📺📚🏃]\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function overlapCount(a: string[], b: string[]): number {
+  const setB = new Set(b);
+  return a.filter((x) => setB.has(x)).length;
+}
+
+function culturalBonusScore(a: MatchProfile, b: MatchProfile): {
+  score: number;
+  musicOverlap: number;
+  movieOverlap: number;
+  bookOverlap: number;
+} {
+  const BONUS_PER_MATCH = 5;
+  const MAX_BONUS = 30;
+  const musicOverlap = overlapCount(
+    parseTokens((a as any).favorite_music),
+    parseTokens((b as any).favorite_music),
+  );
+  const movieOverlap = overlapCount(
+    parseTokens((a as any).favorite_movie),
+    parseTokens((b as any).favorite_movie),
+  );
+  const bookOverlap = overlapCount(
+    parseTokens((a as any).favorite_book),
+    parseTokens((b as any).favorite_book),
+  );
+  const total = (musicOverlap + movieOverlap + bookOverlap) * BONUS_PER_MATCH;
+  return {
+    score: Math.min(total, MAX_BONUS),
+    musicOverlap,
+    movieOverlap,
+    bookOverlap,
+  };
+}
+
 function normalizeTrText(v: string | null | undefined): string {
   return (v ?? '')
     .toLocaleLowerCase('tr-TR')
@@ -98,12 +141,12 @@ function eqNormalized(a: string | null | undefined, b: string | null | undefined
 }
 
 function matchCategoryFromPercentage(p: number): string {
-  if (p >= 95) return 'Mükemmel uyum';
-  if (p >= 65) return 'Harika eşleşme';
-  if (p >= 50) return 'İyi eşleşme';
-  if (p >= 35) return 'Olası eşleşme';
-  if (p >= 20) return 'Keşfet';
-  return 'Zayıf eşleşme';
+  if (p >= 85) return '🔥 Mükemmel uyum';
+  if (p >= 70) return '✨ Harika eşleşme';
+  if (p >= 55) return '👍 Çok iyi eşleşme';
+  if (p >= 40) return '🤝 İyi eşleşme';
+  if (p >= 25) return '🙂 Olası eşleşme';
+  return '👀 Keşfet';
 }
 
 function buildMatchReasons(params: {
@@ -301,7 +344,8 @@ export function calculateMatchScore(
 
   const setup4Penalty = isSkipped ? 0 : setup4Score < 0 ? setup4Score : rawPenaltySum;
 
-  const rawScore = setup1Score + setup2Score + setup3Score + setup4Score;
+  const cultural = culturalBonusScore(matchA, matchB);
+  const rawScore = setup1Score + setup2Score + setup3Score + setup4Score + cultural.score;
 
   // rawScore < 0 => incompatible lifestyle.
   if (rawScore < 0) {
@@ -328,7 +372,12 @@ export function calculateMatchScore(
   } else {
     matchPercentage = Math.round(s1 * 0.1 + s2 * 0.35 + s3 * 0.3 + s4 * 0.25);
   }
-  matchPercentage = Math.min(100, matchPercentage);
+  // Kültürel bonus — direkt % olarak ekle (max +15)
+  const culturalBonusPct = Math.min(
+    15,
+    (cultural.musicOverlap + cultural.movieOverlap + cultural.bookOverlap) * 3,
+  );
+  matchPercentage = Math.min(100, matchPercentage + culturalBonusPct);
 
   if (matchPercentage >= 95) {
     const maxAltSub = setup2Max - intentPts;

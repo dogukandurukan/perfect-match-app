@@ -1,3 +1,4 @@
+// Screen: Profil / setup1 eşleşme alanları | Status: stable | Last updated: Mayıs 2026
 /**
  * Setup-1 ↔ matching: gender ↔ meeting preferences, city, languages (hard),
  * plus district / age scoring. (No language bonus — overlap is only a hard filter.)

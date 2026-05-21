@@ -1,3 +1,4 @@
+// Screen: Supabase istemci | Status: stable | Last updated: Mayıs 2026
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 
@@ -23,5 +24,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
   });
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+});

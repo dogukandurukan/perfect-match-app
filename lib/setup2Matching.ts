@@ -1,3 +1,4 @@
+// Screen: Setup 2 skorlama | Status: stable | Last updated: Mayıs 2026
 import type { IntentKey } from '@/lib/onboardingIntent';
 
 type MaybeText = string | null | undefined;

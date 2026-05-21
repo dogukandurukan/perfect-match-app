@@ -1,3 +1,4 @@
+// Screen: Örnek modal | Status: wip | Last updated: Mayıs 2026
 import { Link } from 'expo-router';
 import { StyleSheet } from 'react-native';
 

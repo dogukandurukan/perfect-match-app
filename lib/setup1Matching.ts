@@ -1,3 +1,4 @@
+// Screen: Setup 1 skorlama | Status: stable | Last updated: Mayıs 2026
 import { calculateAge } from '@/lib/zodiac';
 
 /** Setup-1 üst sınır: ilçe (30) + yaş en iyi (8) = 38 */

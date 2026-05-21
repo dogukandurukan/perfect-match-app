@@ -1,3 +1,4 @@
+// Screen: Icon symbol | Status: stable | Last updated: Mayıs 2026
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';

@@ -1,3 +1,4 @@
+// Screen: Tasarım tokenları | Status: stable | Last updated: Mayıs 2026
 /** App design tokens (UI spec) */
 export const colors = {
   bgPrimary: '#FFFFFF',

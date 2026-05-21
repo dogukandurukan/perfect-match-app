@@ -1,3 +1,4 @@
+// Screen: Auth deep link oturumu | Status: stable | Last updated: Mayıs 2026
 import * as Linking from 'expo-linking';
 
 import { supabase } from '@/lib/supabaseClient';

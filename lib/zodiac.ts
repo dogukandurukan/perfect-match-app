@@ -1,3 +1,4 @@
+// Screen: Burç ve yaş yardımcıları | Status: stable | Last updated: Mayıs 2026
 export type ZodiacInfo = {
   symbol: string;
   /** English name for DB / profile display */

@@ -1,3 +1,4 @@
+// Screen: Kayıt (Register) | Status: stable | Last updated: Mayıs 2026
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';

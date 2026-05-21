@@ -1,3 +1,4 @@
+// Screen: Ekran konteyneri | Status: stable | Last updated: Mayıs 2026
 import React, { ReactNode } from 'react';
 import { SafeAreaView, StyleSheet, View, ViewStyle } from 'react-native';
 import { colors } from '@/lib/designTokens';
