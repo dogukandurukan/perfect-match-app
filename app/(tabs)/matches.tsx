@@ -24,78 +24,40 @@ import {
   upsertMatchPair,
   type IntroAnswers,
 } from '@/lib/matchInvite';
+import {
+  formatAvailabilityLabel,
+  formatDrinkingLabel,
+  formatIntentLabel,
+  formatSmokingLabel,
+} from '@/lib/labels';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
 const ACCENT = '#B8860B';
 
-const INTENT_LABELS: Record<string, string> = {
-  keeping_it_casual: 'Eğlenceli bir şeyler',
-  open_to_relationship: 'Ciddi bir ilişki',
-  not_sure_yet: 'Ne olursa',
-  just_friends: 'Arkadaşlık',
-};
-
-const DAY_TR: Record<string, string> = {
-  Mon: 'Pzt',
-  Tue: 'Sal',
-  Wed: 'Çar',
-  Thu: 'Per',
-  Fri: 'Cum',
-  Sat: 'Cmt',
-  Sun: 'Paz',
-  Monday: 'Pzt',
-  Tuesday: 'Sal',
-  Wednesday: 'Çar',
-  Thursday: 'Per',
-  Friday: 'Cum',
-  Saturday: 'Cmt',
-  Sunday: 'Paz',
-};
-
 function matchCategory(score: number): string {
-  if (score >= 85) return '🔥 Mükemmel uyum';
-  if (score >= 70) return '✨ Çok iyi eşleşme';
-  if (score >= 55) return '👍 İyi eşleşme';
-  return '🤝 Ortak noktalarınız var';
+  if (score >= 85) return '🔥 Perfect match';
+  if (score >= 70) return '✨ Great match';
+  if (score >= 55) return '👍 Good match';
+  return '🤝 You have things in common';
 }
 
-function formatIntent(intent: string | null): string {
-  if (!intent) return 'Belirtilmemiş';
-  return INTENT_LABELS[intent] ?? intent;
-}
-
-function formatDays(days: string[] | null): string {
-  if (!days?.length) return 'Belirtilmemiş';
-  return days.map((d) => DAY_TR[d] ?? d).join(', ');
-}
-
-function formatHabit(value: string | null): string {
-  if (!value) return '—';
-  const map: Record<string, string> = {
-    Yes: 'Evet',
-    No: 'Hayır',
-    Socially: 'Sosyal',
-  };
-  return map[value] ?? value;
-}
-
-function formatRechargeStyle(value: string | string[] | null): string {
-  if (!value) return 'Belirtilmemiş';
-  if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : 'Belirtilmemiş';
+function formatRechargeStyle(value: string | string[] | null): string | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : null;
   return value;
 }
 
-function formatEducation(education: string | null, detail: string | null): string {
-  if (!education && !detail) return 'Belirtilmemiş';
+function formatEducation(education: string | null, detail: string | null): string | null {
+  if (!education && !detail) return null;
   if (education && detail) return `${education} (${detail})`;
-  return education ?? detail ?? 'Belirtilmemiş';
+  return education ?? detail ?? null;
 }
 
-function InfoLine({ icon, text }: { icon: string; text: string }) {
+function InfoLine({ icon, text }: { icon?: string; text: string }) {
   return (
     <View style={styles.infoLine}>
-      <Text style={styles.infoLineIcon}>{icon}</Text>
+      {icon ? <Text style={styles.infoLineIcon}>{icon}</Text> : null}
       <ThemedText style={styles.infoLineText}>{text}</ThemedText>
     </View>
   );
@@ -289,11 +251,11 @@ function morningNightIcon(value: string | null): string {
   return value.toLowerCase().includes('night') ? '🌙' : '🌅';
 }
 
-function morningNightLabel(value: string | null): string {
-  if (!value) return 'Belirtilmemiş';
+function morningNightLabel(value: string | null): string | null {
+  if (!value) return null;
   const lower = value.toLowerCase();
-  if (lower.includes('morning')) return 'Sabah insanı';
-  if (lower.includes('night')) return 'Gece insanı';
+  if (lower.includes('morning')) return 'Morning person';
+  if (lower.includes('night')) return 'Night owl';
   return value;
 }
 
@@ -331,8 +293,17 @@ function MatchProfileCard({
   const extraPhotos = photos
     .map((uri, index) => ({ uri, index }))
     .filter(({ uri, index }) => index >= 3 && typeof uri === 'string' && uri.trim() !== '');
-  const displayName = match.first_name ?? 'Kullanıcı';
+  const displayName = match.first_name ?? 'Someone';
   const displayAge = safeAge(match.date_of_birth);
+  const intentLabel = formatIntentLabel(match.intent);
+  const availabilityLabel = formatAvailabilityLabel(match.availability_days);
+  const drinkingLabel = formatDrinkingLabel(match.drinking);
+  const smokingLabel = formatSmokingLabel(match.smoking);
+  const scheduleLabel = morningNightLabel(match.morning_night);
+  const rechargeLabel = formatRechargeStyle(match.recharge_style);
+  const educationLabel = formatEducation(match.education, match.education_detail);
+  const locationLabel = match.district ?? match.city ?? null;
+  const languagesLabel = match.languages?.length ? match.languages.join(', ') : null;
 
   return (
     <ScrollView
@@ -357,26 +328,23 @@ function MatchProfileCard({
       </View>
 
       <View style={styles.infoCard}>
-        <InfoLine icon="📍" text={match.district ?? match.city ?? 'Belirtilmemiş'} />
-        <InfoLine icon="🎯" text={formatIntent(match.intent)} />
-        <InfoLine icon="⏰" text={formatDays(match.availability_days)} />
-        <InfoLine icon={morningNightIcon(match.morning_night)} text={morningNightLabel(match.morning_night)} />
-        <InfoLine icon="⚡" text={formatRechargeStyle(match.recharge_style)} />
-        <InfoLine
-          icon="🍺"
-          text={`İçki: ${formatHabit(match.drinking)} · Sigara: ${formatHabit(match.smoking)}`}
-        />
-        <InfoLine icon="🎓" text={formatEducation(match.education, match.education_detail)} />
-        <InfoLine
-          icon="🌍"
-          text={match.languages?.length ? match.languages.join(', ') : 'Belirtilmemiş'}
-        />
+        {locationLabel ? <InfoLine icon="📍" text={locationLabel} /> : null}
+        {intentLabel ? <InfoLine text={intentLabel} /> : null}
+        {availabilityLabel ? <InfoLine text={availabilityLabel} /> : null}
+        {scheduleLabel ? (
+          <InfoLine icon={morningNightIcon(match.morning_night)} text={scheduleLabel} />
+        ) : null}
+        {rechargeLabel ? <InfoLine icon="⚡" text={rechargeLabel} /> : null}
+        {drinkingLabel ? <InfoLine text={drinkingLabel} /> : null}
+        {smokingLabel ? <InfoLine text={smokingLabel} /> : null}
+        {educationLabel ? <InfoLine icon="🎓" text={educationLabel} /> : null}
+        {languagesLabel ? <InfoLine icon="🌍" text={languagesLabel} /> : null}
       </View>
 
       {photoBeforeSim ? <InlinePhoto uri={photoBeforeSim} /> : null}
 
       <View style={styles.simCard}>
-        <ThemedText style={styles.simCardTitle}>Ortak noktalar 🤝</ThemedText>
+        <ThemedText style={styles.simCardTitle}>Things in common 🤝</ThemedText>
         {(match.hobbies ?? []).length > 0 ? (
           <View style={styles.chipRow}>
             {(match.hobbies ?? []).map((hobby) => (
@@ -400,7 +368,7 @@ function MatchProfileCard({
         {timeLeft ? <CountdownText expiresAt={timeLeft} /> : null}
         {inviteState === 'sent' ? (
           <ThemedText style={styles.sentText}>
-            Waiting for {displayName} to accept
+            Waiting for {displayName} to accept ⏳
           </ThemedText>
         ) : inviteState === 'open' ? (
           <TouchableOpacity style={styles.tanisBtn} onPress={onOpenChat} activeOpacity={0.85}>
@@ -409,10 +377,10 @@ function MatchProfileCard({
         ) : (
           <>
             <TouchableOpacity style={styles.tanisBtn} onPress={onLetsMeet} activeOpacity={0.85}>
-              <ThemedText style={styles.tanisBtnText}>Let&apos;s meet</ThemedText>
+              <ThemedText style={styles.tanisBtnText}>☕ Let&apos;s meet</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity style={styles.gecBtn} onPress={onPass} activeOpacity={0.85}>
-              <ThemedText style={styles.gecBtnText}>Pass</ThemedText>
+              <ThemedText style={styles.gecBtnText}>👋 Maybe later</ThemedText>
             </TouchableOpacity>
           </>
         )}
@@ -849,10 +817,10 @@ export default function MatchesTab() {
   }
 
   function handlePass(match: MatchCardData) {
-    Alert.alert('Pass', `Pass on ${match.first_name ?? 'this person'}?`, [
+    Alert.alert('Maybe later', `Pass on ${match.first_name ?? 'this person'}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Pass',
+        text: 'Maybe later',
         onPress: () => {
           void (async () => {
             await supabase.from('matches').update({ status: 'expired' }).eq('id', match.matchId);
@@ -1036,7 +1004,7 @@ export default function MatchesTab() {
                         {invite.firstName ?? 'Someone'}, {invite.age}
                       </ThemedText>
                       <ThemedText style={styles.acceptedStatus}>
-                        Waiting for {invite.firstName ?? 'them'} to accept
+                        Waiting for {invite.firstName ?? 'them'} to accept ⏳
                       </ThemedText>
                     </View>
                   </View>
@@ -1047,8 +1015,9 @@ export default function MatchesTab() {
             <View style={styles.section}>
               {noMatches ? (
                 <View style={styles.emptyWrap}>
-                  <ThemedText style={styles.emptyText}>
-                    No matches yet.{'\n'}Finish your profile and check back soon.
+                  <ThemedText style={styles.emptyText}>No matches yet</ThemedText>
+                  <ThemedText style={styles.emptySubtext}>
+                    Keep exploring — your matches will show up here
                   </ThemedText>
                 </View>
               ) : (
@@ -1322,6 +1291,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  emptyWrap: { marginTop: 20, alignItems: 'center', paddingHorizontal: 32 },
-  emptyText: { color: '#888', fontSize: 15, textAlign: 'center', lineHeight: 24 },
+  emptyWrap: { marginTop: 20, alignItems: 'center', paddingHorizontal: 32, gap: 8 },
+  emptyText: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  emptySubtext: { color: '#888', fontSize: 15, textAlign: 'center', lineHeight: 22 },
 });

@@ -1,7 +1,6 @@
-// Screen: Ayarlar | Status: stable | Last updated: Haziran 2026
+// Screen: Settings | Status: stable | Last updated: Haziran 2026
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
@@ -31,9 +30,9 @@ import {
 import { supabase } from '@/lib/supabaseClient';
 
 const ACCENT = '#B8860B';
-const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 const PRIVACY_URL = 'https://perfectmatch.app/privacy';
 const TERMS_URL = 'https://perfectmatch.app/terms';
+const HELP_URL = 'https://perfectmatch.app/help';
 
 const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_age_min: 18,
@@ -51,52 +50,66 @@ function SectionTitle({ title }: { title: string }) {
   return <ThemedText style={styles.sectionTitle}>{title}</ThemedText>;
 }
 
-function RowLabel({ label, value }: { label: string; value?: string }) {
-  return (
-    <View style={styles.row}>
+function NavRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value?: string;
+  onPress?: () => void;
+}) {
+  const content = (
+    <View style={styles.linkRow}>
       <ThemedText style={styles.rowLabel}>{label}</ThemedText>
-      {value ? <ThemedText style={styles.rowValue}>{value}</ThemedText> : null}
+      <View style={styles.rowRight}>
+        {value ? <ThemedText style={styles.rowValue}>{value}</ThemedText> : null}
+        {onPress ? <Ionicons name="chevron-forward" size={18} color="#888" /> : null}
+      </View>
     </View>
+  );
+  if (!onPress) return content;
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      {content}
+    </TouchableOpacity>
   );
 }
 
 function ToggleRow({
   label,
+  description,
   value,
   onChange,
 }: {
   label: string;
+  description?: string;
   value: boolean;
   onChange: (next: boolean) => void;
 }) {
   return (
-    <View style={styles.toggleRow}>
-      <ThemedText style={styles.rowLabel}>{label}</ThemedText>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ false: '#D0D0D0', true: ACCENT }}
-        thumbColor="#FFFFFF"
-      />
+    <View style={styles.toggleBlock}>
+      <View style={styles.toggleRow}>
+        <ThemedText style={styles.rowLabel}>{label}</ThemedText>
+        <Switch
+          value={value}
+          onValueChange={onChange}
+          trackColor={{ false: '#D0D0D0', true: ACCENT }}
+          thumbColor="#FFFFFF"
+        />
+      </View>
+      {description ? <ThemedText style={styles.hint}>{description}</ThemedText> : null}
     </View>
-  );
-}
-
-function LinkRow({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={styles.linkRow} onPress={onPress} activeOpacity={0.7}>
-      <ThemedText style={styles.rowLabel}>{label}</ThemedText>
-      <Ionicons name="open-outline" size={18} color="#888" />
-    </TouchableOpacity>
   );
 }
 
 export default function SettingsScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState<string | null>(null);
+  const [languages, setLanguages] = useState<string[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [settings, setSettings] = useState<ProfileSettingsRow>(DEFAULT_SETTINGS);
-  const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadSettings = useCallback(async () => {
@@ -111,8 +124,31 @@ export default function SettingsScreen() {
     setUserId(user.id);
     setEmail(user.email ?? '—');
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('phone_number, languages, meeting_preferences')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    setPhone(
+      typeof profile?.phone_number === 'string' && profile.phone_number.trim()
+        ? profile.phone_number.trim()
+        : null,
+    );
+    setLanguages(Array.isArray(profile?.languages) ? (profile.languages as string[]) : []);
+
     const row = await fetchProfileSettings(user.id);
-    if (row) setSettings(row);
+    if (row) {
+      setSettings({
+        ...row,
+        meeting_preferences:
+          row.meeting_preferences?.length
+            ? row.meeting_preferences
+            : Array.isArray(profile?.meeting_preferences)
+              ? (profile.meeting_preferences as string[])
+              : [],
+      });
+    }
     setLoading(false);
   }, [router]);
 
@@ -128,7 +164,7 @@ export default function SettingsScreen() {
       const { error } = await updateProfileSettings(userId, patch);
       if (error) {
         setSettings(rollback);
-        Alert.alert('Kaydedilemedi', error);
+        Alert.alert("Couldn't save", error);
       }
     },
     [userId],
@@ -170,76 +206,89 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Hesabını sil',
-      'Hesabın gizlenecek ve oturumun kapatılacak. Bu işlem geri alınamaz. Devam etmek istiyor musun?',
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Hesabımı sil',
-          style: 'destructive',
-          onPress: async () => {
-            if (!userId) return;
-            const { error } = await softDeleteAccount(userId);
-            if (error) {
-              Alert.alert('Hata', error);
-              return;
-            }
-            router.replace('/(auth)/login');
-          },
+    Alert.alert('Delete your account? This can\'t be undone.', '', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          if (!userId) return;
+          const { error } = await softDeleteAccount(userId);
+          if (error) {
+            Alert.alert('Error', error);
+            return;
+          }
+          router.replace('/(auth)/login');
         },
-      ],
-    );
+      },
+    ]);
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.replace('/(auth)/login');
+  const handleSignOut = () => {
+    Alert.alert('Log out of your account?', '', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.auth.signOut();
+          router.replace('/(auth)/login');
+        },
+      },
+    ]);
   };
 
   if (loading) {
     return (
       <ScreenContainer style={styles.container}>
-        <ThemedText style={styles.loadingText}>Yükleniyor…</ThemedText>
+        <ThemedText style={styles.loadingText}>Loading…</ThemedText>
       </ScreenContainer>
     );
   }
+
+  const distanceLabel =
+    DISCOVERY_DISTANCE_OPTIONS.find((o) => o.value === settings.discovery_max_distance)?.label ??
+    'Whole city';
 
   return (
     <ScreenContainer style={styles.container}>
       <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
         <Ionicons name="chevron-back" size={24} color={ACCENT} />
-        <ThemedText style={styles.backText}>Geri</ThemedText>
+        <ThemedText style={styles.backText}>Back</ThemedText>
       </TouchableOpacity>
 
       <ThemedText type="title" style={styles.pageTitle}>
-        Ayarlar
+        Settings
       </ThemedText>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* HESAP */}
         <View style={styles.card}>
-          <SectionTitle title="Hesap" />
-          <RowLabel label="E-posta" value={email} />
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => router.push('/change-password')}
-            activeOpacity={0.7}>
-            <ThemedText style={styles.rowLabel}>Şifremi değiştir</ThemedText>
-            <Ionicons name="chevron-forward" size={18} color="#888" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.dangerLink} onPress={handleDeleteAccount} activeOpacity={0.7}>
-            <ThemedText style={styles.dangerText}>Hesabımı sil</ThemedText>
-          </TouchableOpacity>
+          <SectionTitle title="Account" />
+          <NavRow label="Edit profile" onPress={() => router.push('/profile-edit')} />
+          <NavRow label="Photos" onPress={() => router.push('/profile-edit')} />
+          <NavRow label="Email" value={email} />
+          <NavRow label="Phone number" value={phone ?? 'Not set'} />
         </View>
 
-        {/* KEŞİF TERCİHLERİ */}
         <View style={styles.card}>
-          <SectionTitle title="Keşif tercihleri" />
+          <SectionTitle title="Discovery preferences" />
+          <ThemedText style={styles.subLabel}>Who you want to meet</ThemedText>
+          <View style={styles.chipRow}>
+            {MEETING_PREF_OPTIONS.map((opt) => (
+              <Chip
+                key={opt}
+                label={opt}
+                selected={(settings.meeting_preferences ?? []).includes(opt)}
+                onPress={() => toggleMeetingPref(opt)}
+                style={styles.chip}
+              />
+            ))}
+          </View>
+
           <ThemedText style={styles.sliderLabel}>
-            Yaş aralığı: {settings.discovery_age_min} – {settings.discovery_age_max}
+            Age range: {settings.discovery_age_min} – {settings.discovery_age_max}
           </ThemedText>
-          <ThemedText style={styles.sliderHint}>Minimum yaş</ThemedText>
+          <ThemedText style={styles.sliderHint}>Minimum age</ThemedText>
           <Slider
             style={styles.slider}
             minimumValue={18}
@@ -257,7 +306,7 @@ export default function SettingsScreen() {
               }));
             }}
           />
-          <ThemedText style={styles.sliderHint}>Maksimum yaş</ThemedText>
+          <ThemedText style={styles.sliderHint}>Maximum age</ThemedText>
           <Slider
             style={styles.slider}
             minimumValue={18}
@@ -276,7 +325,7 @@ export default function SettingsScreen() {
             }}
           />
 
-          <ThemedText style={styles.subLabel}>Maksimum mesafe</ThemedText>
+          <ThemedText style={styles.subLabel}>Distance</ThemedText>
           <View style={styles.chipRow}>
             {DISCOVERY_DISTANCE_OPTIONS.map((opt) => (
               <Chip
@@ -293,72 +342,66 @@ export default function SettingsScreen() {
               />
             ))}
           </View>
+          <ThemedText style={styles.hint}>Current: {distanceLabel}</ThemedText>
 
-          <ThemedText style={styles.subLabel}>Kiminle eşleşeyim</ThemedText>
-          <View style={styles.chipRow}>
-            {MEETING_PREF_OPTIONS.map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={(settings.meeting_preferences ?? []).includes(opt)}
-                onPress={() => toggleMeetingPref(opt)}
-                style={styles.chip}
-              />
-            ))}
-          </View>
+          <NavRow
+            label="Languages"
+            value={languages.length > 0 ? languages.join(', ') : 'Not set'}
+            onPress={() => router.push('/profile-edit')}
+          />
         </View>
 
-        {/* BİLDİRİMLER */}
         <View style={styles.card}>
-          <SectionTitle title="Bildirimler" />
+          <SectionTitle title="Notifications" />
           <ToggleRow
-            label="Yeni eşleşme bildirimi"
+            label="Push notifications"
+            value={settings.notify_meeting_invite}
+            onChange={(v) => applySettings((prev) => ({ ...prev, notify_meeting_invite: v }))}
+          />
+          <ToggleRow
+            label="Match alerts"
             value={settings.notify_new_match}
             onChange={(v) => applySettings((prev) => ({ ...prev, notify_new_match: v }))}
           />
           <ToggleRow
-            label="Mesaj bildirimi"
+            label="Message alerts"
             value={settings.notify_messages}
             onChange={(v) => applySettings((prev) => ({ ...prev, notify_messages: v }))}
           />
-          <ToggleRow
-            label="Buluşma daveti bildirimi"
-            value={settings.notify_meeting_invite}
-            onChange={(v) => applySettings((prev) => ({ ...prev, notify_meeting_invite: v }))}
-          />
         </View>
 
-        {/* GİZLİLİK */}
         <View style={styles.card}>
-          <SectionTitle title="Gizlilik" />
+          <SectionTitle title="Privacy" />
           <ToggleRow
-            label="Profilimi gizle"
+            label="Hide my profile"
+            description="You won't appear in Home"
             value={settings.is_hidden}
             onChange={(v) => applySettings((prev) => ({ ...prev, is_hidden: v }))}
           />
-          <ThemedText style={styles.hint}>
-            Aktifken keşif ve eşleşme önerilerinde görünmezsin.
-          </ThemedText>
           <ToggleRow
-            label="Konumumu gösterme"
+            label="Hide my location"
+            description="Others won't see your neighbourhood"
             value={settings.hide_location}
             onChange={(v) => applySettings((prev) => ({ ...prev, hide_location: v }))}
           />
-          <ThemedText style={styles.hint}>Harita ekranında konumun görünmez.</ThemedText>
+          <NavRow
+            label="Blocked users"
+            onPress={() => Alert.alert('Blocked users', 'Coming soon.')}
+          />
         </View>
 
-        {/* UYGULAMA */}
         <View style={styles.card}>
-          <SectionTitle title="Uygulama" />
-          <ToggleRow label="Karanlık mod" value={darkMode} onChange={setDarkMode} />
-          <RowLabel label="Uygulama versiyonu" value={`v${APP_VERSION}`} />
-          <LinkRow label="Gizlilik politikası" onPress={() => void Linking.openURL(PRIVACY_URL)} />
-          <LinkRow label="Kullanım koşulları" onPress={() => void Linking.openURL(TERMS_URL)} />
+          <SectionTitle title="App" />
+          <NavRow label="Help" onPress={() => void Linking.openURL(HELP_URL)} />
+          <NavRow label="Terms of service" onPress={() => void Linking.openURL(TERMS_URL)} />
+          <NavRow label="Privacy policy" onPress={() => void Linking.openURL(PRIVACY_URL)} />
+          <TouchableOpacity style={styles.linkRow} onPress={handleSignOut} activeOpacity={0.7}>
+            <ThemedText style={styles.rowLabel}>Log out</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.dangerLink} onPress={handleDeleteAccount} activeOpacity={0.7}>
+            <ThemedText style={styles.dangerText}>Delete account</ThemedText>
+          </TouchableOpacity>
         </View>
-
-        <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.85}>
-          <ThemedText style={styles.signOutText}>Çıkış yap</ThemedText>
-        </TouchableOpacity>
       </ScrollView>
     </ScreenContainer>
   );
@@ -385,9 +428,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-  row: { gap: 4 },
-  rowLabel: { fontSize: 15, color: colors.textPrimary },
-  rowValue: { fontSize: 14, color: '#666' },
+  rowLabel: { fontSize: 15, color: colors.textPrimary, flexShrink: 1 },
+  rowValue: { fontSize: 14, color: '#666', maxWidth: 180, textAlign: 'right' },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -396,27 +439,18 @@ const styles = StyleSheet.create({
   },
   dangerLink: { paddingVertical: 6 },
   dangerText: { fontSize: 15, color: '#D32F2F' },
+  toggleBlock: { gap: 2 },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 4,
   },
-  sliderLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: '600' },
+  sliderLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: '600', marginTop: 8 },
   sliderHint: { fontSize: 12, color: '#888', marginTop: 4 },
   slider: { width: '100%', height: 36 },
   subLabel: { fontSize: 14, color: colors.textPrimary, marginTop: 8 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderRadius: 20 },
-  hint: { fontSize: 12, color: '#888', marginTop: -4, marginBottom: 4 },
-  signOutBtn: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E53935',
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  signOutText: { color: '#E53935', fontSize: 16, fontWeight: '600' },
+  hint: { fontSize: 12, color: '#888', marginTop: -2, marginBottom: 4 },
 });

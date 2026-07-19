@@ -17,9 +17,9 @@ export type ProfileSettingsRow = {
 };
 
 export const DISCOVERY_DISTANCE_OPTIONS: { value: DiscoveryDistance; label: string }[] = [
-  { value: 'same_neighborhood', label: 'Aynı semt' },
-  { value: 'same_district', label: 'Aynı ilçe' },
-  { value: 'whole_city', label: 'Tüm şehir' },
+  { value: 'same_neighborhood', label: 'Same neighbourhood' },
+  { value: 'same_district', label: 'Same district' },
+  { value: 'whole_city', label: 'Whole city' },
 ];
 
 export const MEETING_PREF_OPTIONS: MeetingPref[] = ['Women', 'Men', 'Non-binary', 'Everyone'];

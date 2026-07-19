@@ -25,13 +25,9 @@ export function DailyLimitEmptyState({ resetAt }: DailyLimitEmptyStateProps) {
 
   return (
     <View style={styles.wrap}>
-      <ThemedText style={styles.emoji}>⏳</ThemedText>
-      <ThemedText style={styles.title}>Bugünlük bu kadar</ThemedText>
-      <ThemedText style={styles.subtitle}>
-        Algoritman yarın yeni kişileri seçecek.
-      </ThemedText>
-      <ThemedText style={styles.countdown}>Yeni kişiler {countdown} sonra geliyor</ThemedText>
-      <ThemedText style={styles.premiumTeaser}>Premium ile günde 10 kişi gör →</ThemedText>
+      <ThemedText style={styles.title}>That&apos;s everyone for today 🌙</ThemedText>
+      <ThemedText style={styles.subtitle}>Come back tomorrow for new faces</ThemedText>
+      <ThemedText style={styles.countdown}>New people in {countdown}</ThemedText>
     </View>
   );
 }
@@ -43,10 +39,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 36,
     gap: 12,
-  },
-  emoji: {
-    fontSize: 56,
-    marginBottom: 8,
   },
   title: {
     fontSize: 22,
@@ -65,12 +57,6 @@ const styles = StyleSheet.create({
     color: ACCENT,
     fontWeight: '600',
     marginTop: 8,
-    textAlign: 'center',
-  },
-  premiumTeaser: {
-    fontSize: 14,
-    color: '#999999',
-    marginTop: 16,
     textAlign: 'center',
   },
 });

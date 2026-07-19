@@ -1,5 +1,4 @@
 // Screen: Profil sekmesi | Status: stable | Last updated: Mayıs 2026
-import type { IntentKey } from '@/lib/onboardingIntent';
 import { useCallback, useState } from 'react';
 import {
   Alert,
@@ -16,19 +15,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import {
+  formatAvailabilityLabel,
+  formatDrinkingLabel,
+  formatIntentLabel,
+  formatSmokingLabel,
+} from '@/lib/labels';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
 const ACCENT = '#B8860B';
 const PHOTO_HEIGHT = 420;
 const screenWidth = Dimensions.get('window').width;
-
-const INTENT_LABELS: Record<IntentKey, string> = {
-  just_friends: '👋 Just friends',
-  keeping_it_casual: '✨ Something casual',
-  open_to_relationship: '❤️ Open to something real',
-  not_sure_yet: '🤔 Figuring it out',
-};
 
 const MEETING_PREF_LABELS: Record<string, string> = {
   Men: '👨 Men',
@@ -101,8 +99,7 @@ function safeAge(dob: string | null): number {
 }
 
 function intentLabel(intent: string | null): string | null {
-  if (!intent) return null;
-  return INTENT_LABELS[intent as IntentKey] ?? intent;
+  return formatIntentLabel(intent);
 }
 
 function meetingPrefLabel(pref: string): string {
@@ -128,14 +125,6 @@ function zodiacLine(sign: string | null): InfoLine | null {
     label: 'Zodiac',
     value: sign,
   };
-}
-
-function formatDrinkSmoke(drinking: string | null, smoking: string | null): string | null {
-  if (!drinking && !smoking) return null;
-  const parts: string[] = [];
-  if (drinking) parts.push(drinking);
-  if (smoking) parts.push(smoking);
-  return parts.join(' • ');
 }
 
 function parseCommaField(val: string | null): string[] {
@@ -305,8 +294,9 @@ export default function ProfileTab() {
     infoLines.push({ emoji: '⏰', label: 'Schedule', value: profile.morning_night });
   if (profile?.recharge_style)
     infoLines.push({ emoji: '⚡', label: 'Recharge', value: profile.recharge_style });
-  const drinkSmoke = formatDrinkSmoke(profile?.drinking ?? null, profile?.smoking ?? null);
-  if (drinkSmoke) infoLines.push({ emoji: '🍺', label: 'Drinking & Smoking', value: drinkSmoke });
+  const drinkingChip = formatDrinkingLabel(profile?.drinking ?? null);
+  const smokingChip = formatSmokingLabel(profile?.smoking ?? null);
+  const availabilityChip = formatAvailabilityLabel(profile?.availability_days ?? null);
   if (profile?.languages?.length)
     infoLines.push({ emoji: '🌍', label: 'Languages', value: profile.languages.join(', ') });
 
@@ -335,13 +325,16 @@ export default function ProfileTab() {
   const hasInterestsSection = hobbyChips.length > 0 || tasteLines.length > 0;
 
   const hasAvailability =
-    (profile?.availability_days?.length ?? 0) > 0 ||
+    !!availabilityChip ||
     (profile?.availability_hours?.length ?? 0) > 0 ||
     (profile?.preferred_locations?.length ?? 0) > 0 ||
     !!profile?.first_date_expectation;
 
   const showIntentSection =
-    !!intentText || (profile?.meeting_preferences?.length ?? 0) > 0;
+    !!intentText ||
+    !!drinkingChip ||
+    !!smokingChip ||
+    (profile?.meeting_preferences?.length ?? 0) > 0;
 
   return (
     <ScreenContainer style={styles.screenFlush}>
@@ -382,6 +375,8 @@ export default function ProfileTab() {
             <Card>
               <View style={styles.intentRow}>
                 {intentText ? <IntentChip label={intentText} /> : null}
+                {drinkingChip ? <IntentChip label={drinkingChip} /> : null}
+                {smokingChip ? <IntentChip label={smokingChip} /> : null}
                 {profile?.meeting_preferences?.map((pref) => (
                   <IntentChip key={pref} label={meetingPrefLabel(pref)} />
                 ))}
@@ -467,13 +462,10 @@ export default function ProfileTab() {
             <View style={styles.sectionBlock}>
               <SectionHeading title="Availability" />
               <Card style={styles.availCard}>
-                {profile?.availability_days && profile.availability_days.length > 0 ? (
+                {availabilityChip ? (
                   <View style={styles.availGroup}>
-                    <ThemedText style={styles.availSubLabel}>Days</ThemedText>
                     <View style={styles.chipsWrap}>
-                      {profile.availability_days.map((d) => (
-                        <AvailChip key={d} label={d} />
-                      ))}
+                      <AvailChip label={availabilityChip} />
                     </View>
                   </View>
                 ) : null}

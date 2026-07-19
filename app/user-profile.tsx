@@ -8,6 +8,12 @@ import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
+import {
+  formatAvailabilityLabel,
+  formatDrinkingLabel,
+  formatIntentLabel,
+  formatSmokingLabel,
+} from '@/lib/labels';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
@@ -25,24 +31,10 @@ const ZODIAC_EMOJI: Record<string, string> = {
   Aquarius: '♒',
   Pisces: '♓',
 };
-const ZODIAC_TR: Record<string, string> = {
-  Aries: 'Koç',
-  Taurus: 'Boğa',
-  Gemini: 'İkizler',
-  Cancer: 'Yengeç',
-  Leo: 'Aslan',
-  Virgo: 'Başak',
-  Libra: 'Terazi',
-  Scorpio: 'Akrep',
-  Sagittarius: 'Yay',
-  Capricorn: 'Oğlak',
-  Aquarius: 'Kova',
-  Pisces: 'Balık',
-};
 
 function zodiacLabel(sign: string | null) {
   if (!sign) return '';
-  return `${ZODIAC_EMOJI[sign] ?? ''} ${ZODIAC_TR[sign] ?? sign}`;
+  return `${ZODIAC_EMOJI[sign] ?? ''} ${sign}`;
 }
 function safeAge(dob: string | null): number {
   if (!dob) return 0;
@@ -75,6 +67,7 @@ type UserProfile = {
   hobbies: string[] | null;
   drinking: string | null;
   smoking: string | null;
+  intent: string | null;
   education: string | null;
   religion: string | null;
   availability_days: string[] | null;
@@ -142,7 +135,7 @@ export default function UserProfileScreen() {
           `
           first_name, last_name, date_of_birth, zodiac_sign,
           city, district, gender, languages, meeting_preferences, photos,
-          morning_night, recharge_style, hobbies, drinking, smoking,
+          morning_night, recharge_style, hobbies, drinking, smoking, intent,
           education, religion, availability_days, availability_hours,
           meeting_environment, first_date_expectation, bio,
           favorite_music, favorite_movie, favorite_book, favorite_activity,
@@ -208,12 +201,12 @@ export default function UserProfileScreen() {
   async function handleBlock() {
     if (!currentUserId || !userId) return;
     Alert.alert(
-      'Engelle',
-      `${profile?.first_name ?? 'Bu kullanıcıyı'} engellemek istediğine emin misin?`,
+      'Block',
+      `Block ${profile?.first_name ?? 'this person'}?`,
       [
-        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Engelle',
+          text: 'Block',
           style: 'destructive',
           onPress: async () => {
             await supabase.from('blocks').insert({
@@ -221,7 +214,7 @@ export default function UserProfileScreen() {
               blocked_id: userId,
             });
             setBlocked(true);
-            Alert.alert('Engellendi', 'Bu kullanıcı artık sana gösterilmeyecek.');
+            Alert.alert('Blocked', "You won't see this person anymore.");
           },
         },
       ],
@@ -237,7 +230,7 @@ export default function UserProfileScreen() {
     });
     setReportModalVisible(false);
     setReportReason('');
-    Alert.alert('Şikayet İletildi', 'Geri bildiriminiz için teşekkürler.');
+    Alert.alert('Report sent', 'Thanks for letting us know.');
   }
 
   if (loading) {
@@ -280,7 +273,7 @@ export default function UserProfileScreen() {
             <ThemedText style={styles.zodiac}>{zodiacLabel(profile.zodiac_sign)}</ThemedText>
           ) : null}
           <ThemedText style={styles.location}>
-            📍 {profile?.district ?? profile?.city ?? 'Bilinmiyor'}
+            📍 {profile?.district ?? profile?.city ?? 'Unknown'}
           </ThemedText>
         </View>
 
@@ -291,99 +284,106 @@ export default function UserProfileScreen() {
           </View>
         ) : null}
 
-        {/* Hakkında */}
+        {/* About */}
         <View style={styles.section}>
-          <SectionTitle title="👤 Hakkında" />
+          <SectionTitle title="👤 About" />
           <View style={styles.card}>
-            {profile?.gender ? <InfoRow label="Cinsiyet" value={profile.gender} /> : null}
-            {profile?.education ? <InfoRow label="Eğitim" value={profile.education} /> : null}
-            {profile?.religion ? <InfoRow label="Din" value={profile.religion} /> : null}
+            {formatIntentLabel(profile?.intent ?? null) ? (
+              <InfoRow label="Looking for" value={formatIntentLabel(profile?.intent ?? null)!} />
+            ) : null}
+            {profile?.gender ? <InfoRow label="Gender" value={profile.gender} /> : null}
+            {profile?.education ? <InfoRow label="Education" value={profile.education} /> : null}
+            {profile?.religion ? <InfoRow label="Beliefs" value={profile.religion} /> : null}
             {profile?.morning_night ? (
-              <InfoRow label="Sabahçı / Gececi" value={profile.morning_night} />
+              <InfoRow label="Schedule" value={profile.morning_night} />
             ) : null}
             {profile?.recharge_style ? (
-              <InfoRow label="Enerji toplarken" value={profile.recharge_style} />
+              <InfoRow label="Recharge" value={profile.recharge_style} />
             ) : null}
-            {profile?.drinking ? <InfoRow label="İçki" value={profile.drinking} /> : null}
-            {profile?.smoking ? <InfoRow label="Sigara" value={profile.smoking} /> : null}
+            {formatDrinkingLabel(profile?.drinking ?? null) ? (
+              <InfoRow label="Drinking" value={formatDrinkingLabel(profile?.drinking ?? null)!} />
+            ) : null}
+            {formatSmokingLabel(profile?.smoking ?? null) ? (
+              <InfoRow label="Smoking" value={formatSmokingLabel(profile?.smoking ?? null)!} />
+            ) : null}
           </View>
         </View>
 
-        {/* Diller */}
+        {/* Languages */}
         {profile?.languages && profile.languages.length > 0 ? (
           <View style={styles.section}>
-            <SectionTitle title="🌍 Konuştuğu Diller" />
+            <SectionTitle title="🌍 Languages" />
             <ChipList items={profile.languages} />
           </View>
         ) : null}
 
-        {/* Hobiler */}
+        {/* Interests */}
         {profile?.hobbies && profile.hobbies.length > 0 ? (
           <View style={styles.section}>
-            <SectionTitle title="🎯 İlgi Alanları" />
+            <SectionTitle title="🎯 Interests" />
             <ChipList items={profile.hobbies} />
           </View>
         ) : null}
 
-        {/* Seni tanıyalım */}
+        {/* Favorites */}
         {profile?.favorite_music || profile?.favorite_movie || profile?.favorite_book ? (
           <View style={styles.section}>
-            <SectionTitle title="🎯 Seni Tanıyalım" />
+            <SectionTitle title="🎯 Favorites" />
             <View style={styles.card}>
               {profile?.favorite_music ? (
-                <InfoRow label="🎵 Müzik" value={profile.favorite_music} />
+                <InfoRow label="🎵 Music" value={profile.favorite_music} />
               ) : null}
               {profile?.favorite_movie ? (
-                <InfoRow label="🎬 Film" value={profile.favorite_movie} />
+                <InfoRow label="🎬 Movies & shows" value={profile.favorite_movie} />
               ) : null}
               {profile?.favorite_book ? (
-                <InfoRow label="📚 Kitap" value={profile.favorite_book} />
+                <InfoRow label="📚 Books" value={profile.favorite_book} />
               ) : null}
               {profile?.favorite_activity ? (
-                <InfoRow label="🏃 Aktivite" value={profile.favorite_activity} />
+                <InfoRow label="🏃 Activities" value={profile.favorite_activity} />
               ) : null}
             </View>
           </View>
         ) : null}
 
-        {/* Değerler */}
+        {/* Values */}
         {profile?.core_value || profile?.impressed_by || profile?.dealbreaker ? (
           <View style={styles.section}>
-            <SectionTitle title="💬 Değerleri" />
+            <SectionTitle title="💬 Values" />
             <View style={styles.card}>
               {profile?.core_value ? (
-                <InfoRow label="🙏 Değer verdiği" value={profile.core_value} />
+                <InfoRow label="🙏 What matters" value={profile.core_value} />
               ) : null}
               {profile?.impressed_by ? (
-                <InfoRow label="💡 Etkilendiği" value={profile.impressed_by} />
+                <InfoRow label="💡 Impressed by" value={profile.impressed_by} />
               ) : null}
               {profile?.dealbreaker ? (
-                <InfoRow label="🚩 Uyuşamaz" value={profile.dealbreaker} />
+                <InfoRow label="🚩 Dealbreaker" value={profile.dealbreaker} />
               ) : null}
             </View>
           </View>
         ) : null}
 
-        {/* Buluşma tercihleri */}
+        {/* Meeting vibe */}
         {profile?.meeting_environment && profile.meeting_environment.length > 0 ? (
           <View style={styles.section}>
-            <SectionTitle title="☕ Buluşma Ortamı" />
+            <SectionTitle title="☕ Meeting vibe" />
             <ChipList items={profile.meeting_environment} />
           </View>
         ) : null}
 
-        {/* Müsait günler */}
-        {profile?.availability_days && profile.availability_days.length > 0 ? (
+        {/* Availability */}
+        {formatAvailabilityLabel(profile?.availability_days ?? null) ? (
           <View style={styles.section}>
-            <SectionTitle title="📅 Müsait Günler" />
-            <ChipList items={profile.availability_days} />
+            <SectionTitle title="📅 Availability" />
+            <ChipList items={[formatAvailabilityLabel(profile?.availability_days ?? null)!]} />
           </View>
         ) : null}
 
-        {/* İlk buluşma beklentisi */}
+        {/* First date */}
         {profile?.first_date_expectation ? (
           <View style={styles.section}>
-            <SectionTitle title="💬 İlk Buluşmadan Beklentisi" />
+            <SectionTitle title="💬 First meeting" />
             <View style={styles.bioWrap}>
               <ThemedText style={styles.bioText}>{profile.first_date_expectation}</ThemedText>
             </View>
@@ -402,16 +402,16 @@ export default function UserProfileScreen() {
                   userId,
                   userName: profile?.first_name ?? '',
                 },
-              } as any)
+              })
             }>
-            <ThemedText style={styles.messageBtnText}>💬 Mesaj Gönder</ThemedText>
+            <ThemedText style={styles.messageBtnText}>💬 Send message</ThemedText>
           </TouchableOpacity>
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.reportBtn} onPress={() => setReportModalVisible(true)}>
-              <ThemedText style={styles.reportBtnText}>⚠️ Şikayet Et</ThemedText>
+              <ThemedText style={styles.reportBtnText}>⚠️ Report</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity style={styles.blockBtn} onPress={handleBlock}>
-              <ThemedText style={styles.blockBtnText}>🚫 Engelle</ThemedText>
+              <ThemedText style={styles.blockBtnText}>🚫 Block</ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -419,7 +419,7 @@ export default function UserProfileScreen() {
 
       {!blocked && matchStatus === 'pending' && (
         <View style={styles.actionsWrap}>
-          <ThemedText style={styles.pendingText}>⏳ Buluşma isteği gönderildi</ThemedText>
+          <ThemedText style={styles.pendingText}>⏳ Invite sent</ThemedText>
         </View>
       )}
 
@@ -430,10 +430,10 @@ export default function UserProfileScreen() {
         onRequestClose={() => setReportModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <ThemedText style={styles.modalTitle}>Şikayet Sebebi</ThemedText>
+            <ThemedText style={styles.modalTitle}>Why are you reporting?</ThemedText>
             <TextInput
               style={styles.modalInput}
-              placeholder="Ne olduğunu kısaca anlat..."
+              placeholder="Tell us briefly what happened…"
               placeholderTextColor="#AAA"
               value={reportReason}
               onChangeText={setReportReason}
@@ -444,13 +444,13 @@ export default function UserProfileScreen() {
               <TouchableOpacity
                 style={styles.modalCancelBtn}
                 onPress={() => setReportModalVisible(false)}>
-                <ThemedText style={styles.modalCancelText}>Vazgeç</ThemedText>
+                <ThemedText style={styles.modalCancelText}>Cancel</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalSendBtn, !reportReason.trim() && { opacity: 0.4 }]}
                 onPress={handleReport}
                 disabled={!reportReason.trim()}>
-                <ThemedText style={styles.modalSendText}>Gönder</ThemedText>
+                <ThemedText style={styles.modalSendText}>Send</ThemedText>
               </TouchableOpacity>
             </View>
           </View>

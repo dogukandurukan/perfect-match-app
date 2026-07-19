@@ -5,7 +5,6 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 
 const ACCENT = '#B8860B';
 
-/** Profil sekmesi tab bar'dan kaldırıldı; erişim header avatarıyla. */
 export function TabHeaderActions() {
   const router = useRouter();
 
@@ -16,16 +15,8 @@ export function TabHeaderActions() {
         activeOpacity={0.7}
         onPress={() => router.push('/settings' as Parameters<typeof router.push>[0])}
         hitSlop={8}
-        accessibilityLabel="Ayarlar">
+        accessibilityLabel="Settings">
         <Ionicons name="settings-outline" size={24} color={ACCENT} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.iconBtn}
-        activeOpacity={0.7}
-        onPress={() => router.push('/(tabs)/profile' as Parameters<typeof router.push>[0])}
-        hitSlop={8}
-        accessibilityLabel="Profil">
-        <Ionicons name="person-circle-outline" size={28} color={ACCENT} />
       </TouchableOpacity>
     </View>
   );

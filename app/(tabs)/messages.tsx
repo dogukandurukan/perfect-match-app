@@ -112,18 +112,18 @@ export default function MessagesScreen() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <ThemedText style={styles.title}>💬 Mesajlar</ThemedText>
+      <ThemedText style={styles.title}>Messages</ThemedText>
 
       {loading ? (
         <View style={styles.emptyWrap}>
-          <ThemedText style={styles.emptyText}>Yükleniyor...</ThemedText>
+          <ThemedText style={styles.emptyText}>Loading…</ThemedText>
         </View>
       ) : conversations.length === 0 ? (
         <View style={styles.emptyWrap}>
           <ThemedText style={styles.emptyEmoji}>💬</ThemedText>
-          <ThemedText style={styles.emptyText}>Henüz mesajın yok.</ThemedText>
+          <ThemedText style={styles.emptyText}>No messages yet</ThemedText>
           <ThemedText style={styles.emptySubtext}>
-            Eşleşmelerinden birine mesaj gönder!
+            Meet someone and start the conversation
           </ThemedText>
         </View>
       ) : (

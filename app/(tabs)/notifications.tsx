@@ -156,14 +156,14 @@ export default function NotificationsScreen() {
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
       <View style={styles.headerRow}>
-        <ThemedText style={styles.pageTitle}>Bildirimler 🔔</ThemedText>
+        <ThemedText style={styles.pageTitle}>Notifications</ThemedText>
         {hasUnread ? (
           <TouchableOpacity
             onPress={handleMarkAllRead}
             disabled={markingAll}
             activeOpacity={0.8}>
             <ThemedText style={styles.markAllBtn}>
-              {markingAll ? '...' : 'Tümünü okundu işaretle'}
+              {markingAll ? '...' : 'Mark all as read'}
             </ThemedText>
           </TouchableOpacity>
         ) : null}
@@ -173,7 +173,7 @@ export default function NotificationsScreen() {
         <ActivityIndicator color={colors.accent} style={styles.loader} />
       ) : items.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <ThemedText style={styles.emptyText}>Henüz bildirim yok</ThemedText>
+          <ThemedText style={styles.emptyText}>No notifications yet</ThemedText>
         </View>
       ) : (
         <FlatList

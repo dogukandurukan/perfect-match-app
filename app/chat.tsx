@@ -4,6 +4,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -13,6 +14,10 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import {
+  generateIcebreakers,
+  type IcebreakerProfile,
+} from '@/lib/icebreakers';
 import { colors } from '@/lib/designTokens';
 import { orderedPair } from '@/lib/matchInvite';
 import { supabase } from '@/lib/supabaseClient';
@@ -30,6 +35,25 @@ type Message = {
   created_at: string;
 };
 
+const PROFILE_FIELDS =
+  'hobbies, favorite_book, favorite_movie, favorite_music, district' as const;
+
+function toIcebreakerProfile(row: {
+  hobbies?: string[] | null;
+  favorite_book?: string | null;
+  favorite_movie?: string | null;
+  favorite_music?: string | null;
+  district?: string | null;
+} | null): IcebreakerProfile {
+  return {
+    hobbies: row?.hobbies ?? null,
+    favorite_book: row?.favorite_book ?? null,
+    favorite_movie: row?.favorite_movie ?? null,
+    favorite_music: row?.favorite_music ?? null,
+    district: row?.district ?? null,
+  };
+}
+
 export default function ChatScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -40,10 +64,13 @@ export default function ChatScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(matchIdParam || null);
   const [chatOpened, setChatOpened] = useState<boolean | null>(null);
+  const [matchPercentage, setMatchPercentage] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [icebreakers, setIcebreakers] = useState<string[]>([]);
   const flatListRef = useRef<FlatList<Message>>(null);
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
@@ -57,12 +84,13 @@ export default function ChatScreen() {
     if (matchIdParam) {
       const { data } = await supabase
         .from('matches')
-        .select('id, chat_opened')
+        .select('id, chat_opened, match_score, user_a_id, user_b_id')
         .eq('id', matchIdParam)
         .maybeSingle();
       if (data) {
         setMatchId(data.id);
         setChatOpened(data.chat_opened === true);
+        setMatchPercentage(Number(data.match_score) || 0);
         return;
       }
     }
@@ -70,7 +98,7 @@ export default function ChatScreen() {
     const [a, b] = orderedPair(currentUserId, otherUserId);
     const { data } = await supabase
       .from('matches')
-      .select('id, chat_opened')
+      .select('id, chat_opened, match_score')
       .eq('user_a_id', a)
       .eq('user_b_id', b)
       .maybeSingle();
@@ -78,6 +106,7 @@ export default function ChatScreen() {
     if (data) {
       setMatchId(data.id);
       setChatOpened(data.chat_opened === true);
+      setMatchPercentage(Number(data.match_score) || 0);
     } else {
       setChatOpened(false);
     }
@@ -124,6 +153,36 @@ export default function ChatScreen() {
     };
   }, [currentUserId, otherUserId, chatOpened]);
 
+  useEffect(() => {
+    if (!currentUserId || !otherUserId || chatOpened !== true) {
+      setIcebreakers([]);
+      return;
+    }
+    if (messages.length > 0) {
+      setIcebreakers([]);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const [{ data: meRow }, { data: themRow }] = await Promise.all([
+        supabase.from('profiles').select(PROFILE_FIELDS).eq('id', currentUserId).maybeSingle(),
+        supabase.from('profiles').select(PROFILE_FIELDS).eq('id', otherUserId).maybeSingle(),
+      ]);
+      if (cancelled) return;
+      const tips = await generateIcebreakers(
+        toIcebreakerProfile(meRow),
+        toIcebreakerProfile(themRow),
+        matchPercentage,
+      );
+      if (!cancelled) setIcebreakers(tips);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, otherUserId, chatOpened, messages.length, matchPercentage]);
+
   async function fetchMessages() {
     if (!currentUserId || !otherUserId) return;
     const { data } = await supabase
@@ -157,6 +216,13 @@ export default function ChatScreen() {
     setSending(false);
   }
 
+  function applyIcebreaker(tip: string) {
+    setText(tip);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }
+
   function renderMessage({ item }: { item: Message }) {
     const isMine = item.sender_id === currentUserId;
     return (
@@ -171,6 +237,8 @@ export default function ChatScreen() {
   }
 
   const inputLocked = chatOpened !== true;
+  const showIcebreakers =
+    !inputLocked && messages.length === 0 && icebreakers.length > 0;
 
   return (
     <ScreenContainer style={styles.container}>
@@ -212,10 +280,31 @@ export default function ChatScreen() {
           />
         )}
 
+        {showIcebreakers ? (
+          <View style={styles.iceWrap}>
+            <ThemedText style={styles.iceTitle}>Break the ice ✨</ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.iceScroll}>
+              {icebreakers.map((tip) => (
+                <TouchableOpacity
+                  key={tip}
+                  style={styles.iceChip}
+                  onPress={() => applyIcebreaker(tip)}
+                  activeOpacity={0.85}>
+                  <ThemedText style={styles.iceChipText}>{tip}</ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
         <View style={[styles.inputRow, inputLocked && styles.inputRowLocked]}>
           <TextInput
+            ref={inputRef}
             style={[styles.input, inputLocked && styles.inputDisabled]}
-            placeholder={inputLocked ? 'Chat locked' : 'Message…'}
+            placeholder={inputLocked ? 'Chat locked' : `Message ${userName}…`}
             placeholderTextColor="#AAA"
             value={text}
             onChangeText={setText}
@@ -276,6 +365,37 @@ const styles = StyleSheet.create({
   },
   lockedText: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22 },
   lockedHint: { fontSize: 13, color: '#999', textAlign: 'center', marginTop: 8 },
+  iceWrap: {
+    paddingTop: 4,
+    paddingBottom: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EFEFEF',
+  },
+  iceTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.accent,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+  },
+  iceScroll: {
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  iceChip: {
+    maxWidth: 280,
+    backgroundColor: '#FFF8E8',
+    borderWidth: 1,
+    borderColor: '#B8860B',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  iceChipText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textPrimary,
+  },
   msgWrap: { flexDirection: 'row', marginBottom: 6 },
   msgWrapMine: { justifyContent: 'flex-end' },
   msgWrapTheirs: { justifyContent: 'flex-start' },

@@ -37,7 +37,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Ana Sayfa',
+          title: 'Home',
           href: '/(tabs)',
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
         }}
@@ -45,6 +45,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="vibe"
         options={{
+          href: null,
           title: 'Vibe',
           headerTitle: '',
           tabBarIcon: ({ color, size }) => (
@@ -55,7 +56,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="matches"
         options={{
-          title: 'Eşleşmeler',
+          title: 'Matches',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="sparkles-outline" size={size ?? 24} color={color} />
           ),
@@ -65,14 +66,14 @@ export default function TabLayout() {
         name="map"
         options={{
           href: null,
-          title: 'Harita',
+          title: 'Map',
         }}
       />
       <Tabs.Screen
         name="notifications"
         options={{
-          title: 'Bildirimler',
-          headerTitle: 'Bildirimler',
+          title: 'Alerts',
+          headerTitle: 'Notifications',
           tabBarIcon: ({ color, size }) => (
             <TabBarNotificationsIcon color={color} size={size ?? 24} />
           ),
@@ -81,19 +82,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="messages"
         options={{
-          title: 'Mesajlar',
-          headerTitle: 'Mesajlar',
+          title: 'Messages',
+          headerTitle: 'Messages',
           tabBarIcon: ({ color, size }) => <TabBarMessagesIcon color={color} size={size ?? 24} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          href: null,
-          title: 'Profil',
-          headerTitle: 'Profil',
+          title: 'Profile',
+          headerTitle: 'Profile',
           headerTransparent: true,
           headerStyle: { backgroundColor: 'transparent' },
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size ?? 24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen

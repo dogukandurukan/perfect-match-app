@@ -12,6 +12,12 @@ import {
   type DailyViewsState,
 } from '@/lib/dailyViews';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
+import {
+  formatAvailabilityLabel,
+  formatDrinkingLabel,
+  formatIntentLabel,
+  formatSmokingLabel,
+} from '@/lib/labels';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -65,30 +71,6 @@ type FeedUser = {
   photoUrls: string[];
 };
 
-const INTENT_LABELS: Record<string, string> = {
-  keeping_it_casual: 'Eğlenceli bir şeyler',
-  open_to_relationship: 'Ciddi bir ilişki',
-  not_sure_yet: 'Ne olursa',
-  just_friends: 'Arkadaşlık',
-};
-
-const DAY_TR: Record<string, string> = {
-  Mon: 'Pazartesi',
-  Tue: 'Salı',
-  Wed: 'Çarşamba',
-  Thu: 'Perşembe',
-  Fri: 'Cuma',
-  Sat: 'Cumartesi',
-  Sun: 'Pazar',
-  Monday: 'Pazartesi',
-  Tuesday: 'Salı',
-  Wednesday: 'Çarşamba',
-  Thursday: 'Perşembe',
-  Friday: 'Cuma',
-  Saturday: 'Cumartesi',
-  Sunday: 'Pazar',
-};
-
 function safeAge(dob: string | null): number {
   if (!dob) return 0;
   const d = new Date(dob);
@@ -100,30 +82,10 @@ function safeAge(dob: string | null): number {
   return Math.max(0, age);
 }
 
-function formatIntent(intent: string | null): string {
-  if (!intent) return 'Belirtilmemiş';
-  return INTENT_LABELS[intent] ?? intent;
-}
-
-function formatDays(days: string[] | null): string {
-  if (!days?.length) return 'Belirtilmemiş';
-  return days.map((d) => DAY_TR[d] ?? d).join(', ');
-}
-
-function formatHabit(value: string | null): string {
-  if (!value) return '—';
-  const map: Record<string, string> = {
-    Yes: 'Evet',
-    No: 'Hayır',
-    Socially: 'Sosyal',
-  };
-  return map[value] ?? value;
-}
-
-function InfoLine({ icon, text }: { icon: string; text: string }) {
+function InfoLine({ icon, text }: { icon?: string; text: string }) {
   return (
     <View style={styles.infoLine}>
-      <Text style={styles.infoLineIcon}>{icon}</Text>
+      {icon ? <Text style={styles.infoLineIcon}>{icon}</Text> : null}
       <ThemedText style={styles.infoLineText}>{text}</ThemedText>
     </View>
   );
@@ -221,7 +183,7 @@ export default function HomeScreen() {
           const otherProfile = accepted.profiles as { first_name?: string } | null;
           setActiveMatch({
             matchId: accepted.id,
-            firstName: otherProfile?.first_name ?? 'Biri',
+            firstName: otherProfile?.first_name ?? 'Someone',
             status: 'accepted',
             isUserA,
             introAnswers: isUserA ? accepted.user_a_intro_answers : accepted.user_b_intro_answers,
@@ -244,7 +206,7 @@ export default function HomeScreen() {
             const otherProfile = pending.profiles as { first_name?: string } | null;
             setActiveMatch({
               matchId: pending.id,
-              firstName: otherProfile?.first_name ?? 'Biri',
+              firstName: otherProfile?.first_name ?? 'Someone',
               status: 'pending',
               isUserA,
               introAnswers: null,
@@ -406,7 +368,7 @@ export default function HomeScreen() {
   const handleLike = useCallback(
     (userId: string) => {
       void userId;
-      Alert.alert('Beğenildi!', 'Bu kişiyi beğendin.');
+      Alert.alert('Liked', 'You liked this person.');
       setAnimating(true);
       likeOverlayOpacity.value = withSequence(
         withTiming(1, { duration: 300 }),
@@ -475,8 +437,8 @@ export default function HomeScreen() {
         </View>
       ) : !currentUser ? (
         <View style={styles.noMoreWrap}>
-          <ThemedText style={styles.noMoreTitle}>Yeni eşleşme yok</ThemedText>
-          <ThemedText style={styles.noMoreSubtitle}>Daha sonra tekrar kontrol et</ThemedText>
+          <ThemedText style={styles.noMoreTitle}>That&apos;s everyone for today 🌙</ThemedText>
+          <ThemedText style={styles.noMoreSubtitle}>Come back tomorrow for new faces</ThemedText>
         </View>
       ) : (
         <>
@@ -489,7 +451,7 @@ export default function HomeScreen() {
               <Image source={{ uri: currentUser.photoUrls[0] }} style={styles.photo1} contentFit="cover" />
               <View style={styles.nameOverlay}>
                 <ThemedText style={styles.overlayName}>
-                  {currentUser.first_name ?? 'Kullanıcı'}
+                  {currentUser.first_name ?? 'Someone'}
                   {safeAge(currentUser.date_of_birth) > 0 ? `, ${safeAge(currentUser.date_of_birth)}` : ''}
                 </ThemedText>
               </View>
@@ -500,21 +462,27 @@ export default function HomeScreen() {
 
             {/* B. Önemli bilgiler */}
             <View style={styles.card}>
-              <InfoLine icon="📍" text={currentUser.district ?? currentUser.city ?? 'Belirtilmemiş'} />
-              <InfoLine icon="🎯" text={formatIntent(currentUser.intent)} />
-              <InfoLine icon="⏰" text={formatDays(currentUser.availability_days)} />
-              <InfoLine
-                icon="🍺"
-                text={`İçki: ${formatHabit(currentUser.drinking)} · Sigara: ${formatHabit(currentUser.smoking)}`}
-              />
-              <InfoLine
-                icon="🌍"
-                text={
-                  currentUser.languages?.length
-                    ? currentUser.languages.join(', ')
-                    : 'Belirtilmemiş'
-                }
-              />
+              {currentUser.district || currentUser.city ? (
+                <InfoLine
+                  icon="📍"
+                  text={currentUser.district ?? currentUser.city ?? ''}
+                />
+              ) : null}
+              {formatIntentLabel(currentUser.intent) ? (
+                <InfoLine text={formatIntentLabel(currentUser.intent)!} />
+              ) : null}
+              {formatAvailabilityLabel(currentUser.availability_days) ? (
+                <InfoLine text={formatAvailabilityLabel(currentUser.availability_days)!} />
+              ) : null}
+              {formatDrinkingLabel(currentUser.drinking) ? (
+                <InfoLine text={formatDrinkingLabel(currentUser.drinking)!} />
+              ) : null}
+              {formatSmokingLabel(currentUser.smoking) ? (
+                <InfoLine text={formatSmokingLabel(currentUser.smoking)!} />
+              ) : null}
+              {currentUser.languages?.length ? (
+                <InfoLine icon="🌍" text={currentUser.languages.join(', ')} />
+              ) : null}
             </View>
 
             {/* C. Butonlar */}
