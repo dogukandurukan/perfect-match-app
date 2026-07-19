@@ -1,4 +1,4 @@
-// Screen: Micro-intro (buluşma tercihleri) | Status: stable | Last updated: Mayıs 2026
+// Screen: Micro-intro (invite: place + 3 time slots) | Status: stable | Last updated: Temmuz 2026
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -16,6 +16,12 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
+import {
+  formatIntroLines,
+  sendMatchInvite,
+  suggestTimeSlots,
+  type IntroAnswers,
+} from '@/lib/matchInvite';
 import { supabase } from '@/lib/supabaseClient';
 
 function firstParam(val: string | string[] | undefined): string {
@@ -32,7 +38,7 @@ function capitalizeWords(text: string): string {
     .join(' ');
 }
 
-function normalizeCafe(raw: string): string {
+function normalizePlace(raw: string): string {
   const cleaned = raw
     .trim()
     .replace(/\s*([,\-–—])\s*/g, ' $1 ')
@@ -41,33 +47,13 @@ function normalizeCafe(raw: string): string {
   return capitalizeWords(cleaned);
 }
 
-const CUSTOM_CAFE_OPTION = '📍 Başka bir kafe önerelim';
+const CUSTOM_PLACE_OPTION = '📍 Suggest another place';
 
-const FALLBACK_CAFE_OPTIONS = [
+const FALLBACK_PLACE_OPTIONS = [
   '☕ Mandabatmaz — Beyoğlu',
   "☕ Walter's Coffee — Kadıköy",
   '☕ Kronotrop — Nişantaşı',
 ];
-
-const STEP_DAY = {
-  question: 'Hangi gün müsaitsin?',
-  options: [
-    '📅 Bu Cumartesi',
-    '📅 Bu Pazar',
-    '📅 Gelecek hafta sonu',
-    '📅 Alternatif bir gün öner',
-  ],
-};
-
-const STEP_TIME = {
-  question: 'Hangi saat aralığı sana uyar?',
-  options: [
-    '🌅 10:00 – 12:00',
-    '☀️ 12:00 – 14:00',
-    '🌤 14:00 – 17:00',
-    '🕐 Başka bir saat öner',
-  ],
-};
 
 type VenueRow = {
   name: string;
@@ -93,7 +79,6 @@ function pickVenues(venues: VenueRow[], userDistrict: string | null): VenueRow[]
   if (userDistrict) {
     venues.filter((v) => v.district === userDistrict).forEach(addVenue);
   }
-
   venues.forEach((venue) => {
     if (picked.length >= 3) return;
     addVenue(venue);
@@ -102,36 +87,37 @@ function pickVenues(venues: VenueRow[], userDistrict: string | null): VenueRow[]
   return picked;
 }
 
+const MAX_SLOTS = 3;
+
 export default function MicroIntroScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
   const matchUserId = firstParam(params.matchUserId);
-  const matchName = firstParam(params.matchName);
+  const matchName = firstParam(params.matchName) || 'them';
   const matchAge = firstParam(params.matchAge);
   const matchCity = firstParam(params.matchCity);
   const matchPhoto = firstParam(params.matchPhoto);
   const matchPercentage = firstParam(params.matchPercentage);
-  const isAccepting = firstParam(params.isAccepting) === '1';
+  const matchIdParam = firstParam(params.matchId);
 
-  const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<string[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [customCafe, setCustomCafe] = useState('');
-  const [customDay, setCustomDay] = useState('');
-  const [customTime, setCustomTime] = useState('');
+  const [step, setStep] = useState<0 | 1>(0);
+  const [place, setPlace] = useState<string | null>(null);
+  const [customPlace, setCustomPlace] = useState('');
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
+  const [customSlot, setCustomSlot] = useState('');
+  const [slotOptions, setSlotOptions] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
-  const [confirmedDetails, setConfirmedDetails] = useState<{
-    kafe: string;
-    gun: string;
-    saat: string;
-  } | null>(null);
-  const [cafeOptions, setCafeOptions] = useState<string[]>([
-    ...FALLBACK_CAFE_OPTIONS,
-    CUSTOM_CAFE_OPTION,
+  const [chatOpened, setChatOpened] = useState(false);
+  const [savedAnswers, setSavedAnswers] = useState<IntroAnswers | null>(null);
+  const [placeOptions, setPlaceOptions] = useState<string[]>([
+    ...FALLBACK_PLACE_OPTIONS,
+    CUSTOM_PLACE_OPTION,
   ]);
   const [venuesLoading, setVenuesLoading] = useState(true);
+  const [myGender, setMyGender] = useState<string | null>(null);
+  const [otherGender, setOtherGender] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -147,10 +133,27 @@ export default function MicroIntroScreen() {
         if (user) {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('district')
+            .select('district, gender, availability_days, availability_hours')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
+          if (!mounted) return;
           userDistrict = profile?.district ?? null;
+          setMyGender(profile?.gender ?? null);
+          setSlotOptions(
+            suggestTimeSlots(
+              (profile?.availability_days as string[] | null) ?? null,
+              (profile?.availability_hours as string[] | null) ?? null,
+            ),
+          );
+        }
+
+        if (matchUserId) {
+          const { data: other } = await supabase
+            .from('profiles')
+            .select('gender')
+            .eq('id', matchUserId)
+            .maybeSingle();
+          if (mounted) setOtherGender(other?.gender ?? null);
         }
 
         const { data: venues, error } = await supabase
@@ -161,20 +164,21 @@ export default function MicroIntroScreen() {
         if (!mounted) return;
 
         if (error || !venues || venues.length === 0) {
-          setCafeOptions([...FALLBACK_CAFE_OPTIONS, CUSTOM_CAFE_OPTION]);
+          setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
           return;
         }
 
         const picked = pickVenues(venues as VenueRow[], userDistrict);
         if (picked.length === 0) {
-          setCafeOptions([...FALLBACK_CAFE_OPTIONS, CUSTOM_CAFE_OPTION]);
+          setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
           return;
         }
 
-        setCafeOptions([...picked.map(formatVenueOption), CUSTOM_CAFE_OPTION]);
+        setPlaceOptions([...picked.map(formatVenueOption), CUSTOM_PLACE_OPTION]);
       } catch {
         if (mounted) {
-          setCafeOptions([...FALLBACK_CAFE_OPTIONS, CUSTOM_CAFE_OPTION]);
+          setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
+          setSlotOptions(suggestTimeSlots(null, null));
         }
       } finally {
         if (mounted) setVenuesLoading(false);
@@ -184,312 +188,286 @@ export default function MicroIntroScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [matchUserId]);
 
-  const steps = useMemo(
-    () => [
-      {
-        question: 'Hangi kafede buluşalım?',
-        options: cafeOptions,
-      },
-      STEP_DAY,
-      STEP_TIME,
-    ],
-    [cafeOptions],
-  );
+  const resolvedPlace = useMemo(() => {
+    if (!place) return null;
+    if (place === CUSTOM_PLACE_OPTION) {
+      const t = customPlace.trim();
+      return t ? `☕ ${normalizePlace(t)}` : null;
+    }
+    return place;
+  }, [place, customPlace]);
 
-  function handleSelect(option: string) {
-    setSelected(option);
+  function toggleSlot(slot: string) {
+    setSelectedSlots((prev) => {
+      if (prev.includes(slot)) return prev.filter((s) => s !== slot);
+      if (prev.length >= MAX_SLOTS) return prev;
+      return [...prev, slot];
+    });
   }
 
-  async function handleNext() {
-    if (!selected) return;
-    const effectiveSelected =
-      selected === CUSTOM_CAFE_OPTION && customCafe.trim()
-        ? `☕ ${normalizeCafe(customCafe)}`
-        : selected === '📅 Alternatif bir gün öner' && customDay.trim()
-        ? `📅 ${capitalizeWords(customDay)}`
-        : selected === '🕐 Başka bir saat öner' && customTime.trim()
-        ? `🕐 ${customTime.trim()}`
-        : selected;
-    const newAnswers = [...answers, effectiveSelected];
+  function addCustomSlot() {
+    const t = customSlot.trim();
+    if (!t) return;
+    const label = capitalizeWords(t);
+    setSelectedSlots((prev) => {
+      if (prev.includes(label) || prev.length >= MAX_SLOTS) return prev;
+      return [...prev, label];
+    });
+    setCustomSlot('');
+  }
 
-    if (step < steps.length - 1) {
-      setAnswers(newAnswers);
-      setSelected(null);
-      setStep(step + 1);
+  async function handleSendInvite() {
+    if (!resolvedPlace || selectedSlots.length !== MAX_SLOTS) return;
+    if (!matchUserId) {
+      Alert.alert('Missing profile', 'Could not find who to invite.');
       return;
     }
 
-    // Son adım — Supabase'e yaz
     setSending(true);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('Oturum bulunamadı.');
+      if (!user) throw new Error('You need to be signed in.');
 
-      const introAnswers = {
-        kafe: newAnswers[0],
-        gun: newAnswers[1],
-        saat: newAnswers[2],
+      const introAnswers: IntroAnswers = {
+        place: resolvedPlace,
+        slot1: selectedSlots[0],
+        slot2: selectedSlots[1],
+        slot3: selectedSlots[2],
+        // legacy mirrors for older readers
+        kafe: resolvedPlace,
+        gun: selectedSlots[0],
+        saat: selectedSlots[1],
       };
 
-      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      const result = await sendMatchInvite({
+        currentUserId: user.id,
+        otherUserId: matchUserId,
+        matchScore: Number(matchPercentage) || 0,
+        introAnswers,
+        currentUserGender: myGender,
+        otherUserGender: otherGender,
+        matchId: matchIdParam || null,
+      });
 
-      // Match satırını bul veya oluştur
-      const { data: existingMatch } = await supabase
-        .from('matches')
-        .select('id, user_a_id, user_b_id, user_a_intro_answers')
-        .or(
-          `and(user_a_id.eq.${user.id},user_b_id.eq.${matchUserId}),` +
-            `and(user_a_id.eq.${matchUserId},user_b_id.eq.${user.id})`,
-        )
-        .maybeSingle();
-
-      let match = existingMatch;
-
-      if (!match) {
-        // Yeni eşleşme: status her zaman pending (isAccepting olsa bile insert'te accepted yapılmaz)
-        const { data: newMatch, error: insertError } = await supabase
-          .from('matches')
-          .insert({
-            user_a_id: user.id,
-            user_b_id: matchUserId,
-            match_score: Number(matchPercentage) || 0,
-            status: 'pending',
-            expires_at: expiresAt,
-            user_a_accepted: true,
-            user_a_intro_answers: introAnswers,
-          })
-          .select('id, user_a_id, user_b_id, user_a_intro_answers')
-          .single();
-
-        if (insertError) throw new Error(insertError.message);
-        match = newMatch;
-      } else {
-        // Mevcut eşleşme: status yalnızca isAccepting=true iken accepted olur
-        const isUserA = match.user_a_id === user.id;
-        const basePayload = isUserA
-          ? { user_a_accepted: true, user_a_intro_answers: introAnswers }
-          : { user_b_accepted: true, user_b_intro_answers: introAnswers };
-        const updatePayload = isAccepting
-          ? { ...basePayload, status: 'accepted' as const }
-          : basePayload;
-
-        const { error } = await supabase.from('matches').update(updatePayload).eq('id', match.id);
-
-        if (error) throw new Error(error.message);
+      if (!result.ok) {
+        Alert.alert('Invite not sent', result.error ?? 'Something went wrong.');
+        return;
       }
 
-      // Buluşma detaylarını belirle
-      // isAccepting = true ise: Kullanıcı A'nın cevapları referans alınır
-      // isAccepting = false ise: kendi cevaplarımız
-      const details =
-        isAccepting && match.user_a_intro_answers
-          ? {
-              kafe: match.user_a_intro_answers.kafe ?? introAnswers.kafe,
-              gun: match.user_a_intro_answers.gun ?? introAnswers.gun,
-              saat: match.user_a_intro_answers.saat ?? introAnswers.saat,
-            }
-          : introAnswers;
-
-      setConfirmedDetails(details);
+      setSavedAnswers(introAnswers);
+      setChatOpened(result.chatOpened);
       setDone(true);
-    } catch (e: any) {
-      Alert.alert('Hata', e?.message ?? 'Bir hata oluştu.');
+
+      if (result.chatOpened && result.matchId) {
+        // Brief confirmation then chat is available from matches; stay on done screen.
+      }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Something went wrong.';
+      Alert.alert('Invite not sent', message);
     } finally {
       setSending(false);
     }
   }
 
   if (done) {
-    const isConfirmed = isAccepting;
+    const lines = formatIntroLines(savedAnswers);
     return (
       <ScreenContainer style={styles.container}>
         <View style={styles.doneWrap}>
-          <ThemedText style={styles.doneEmoji}>{isConfirmed ? '🎉' : '⏳'}</ThemedText>
+          <ThemedText style={styles.doneEmoji}>{chatOpened ? '💬' : '⏳'}</ThemedText>
           <ThemedText style={styles.doneTitle}>
-            {isConfirmed
-              ? 'Buluşmanız onaylandı!'
-              : `${matchName} ile buluşma isteğin gönderildi!`}
+            {chatOpened ? `Chat with ${matchName} is open` : `Invite sent to ${matchName}`}
+          </ThemedText>
+          <ThemedText style={styles.doneSubtitle}>
+            {chatOpened
+              ? 'You can message them now.'
+              : `Waiting for ${matchName} to accept.`}
           </ThemedText>
 
-          {isConfirmed && confirmedDetails ? (
+          {lines.length > 0 ? (
             <View style={styles.confirmedBox}>
-              <ThemedText style={styles.confirmedLabel}>Buluşma detayları</ThemedText>
-              <View style={styles.confirmedRow}>
-                <ThemedText style={styles.confirmedIcon}>☕</ThemedText>
-                <ThemedText style={styles.confirmedText}>
-                  {confirmedDetails.kafe.replace(/^☕\s*/, '')}
+              {lines.map((line) => (
+                <ThemedText key={line} style={styles.confirmedText}>
+                  {line}
                 </ThemedText>
-              </View>
-              <View style={styles.confirmedRow}>
-                <ThemedText style={styles.confirmedIcon}>📅</ThemedText>
-                <ThemedText style={styles.confirmedText}>
-                  {confirmedDetails.gun.replace(/^📅\s*/, '')}
-                </ThemedText>
-              </View>
-              <View style={styles.confirmedRow}>
-                <ThemedText style={styles.confirmedIcon}>🕐</ThemedText>
-                <ThemedText style={styles.confirmedText}>
-                  {confirmedDetails.saat.replace(/^[🌅☀️🌤]\s*/, '')}
-                </ThemedText>
-              </View>
+              ))}
             </View>
-          ) : (
-            <ThemedText style={styles.doneSubtitle}>
-              {matchName} onayladığında sana bildireceğiz.
-            </ThemedText>
-          )}
+          ) : null}
 
-          <TouchableOpacity
-            style={styles.doneBtn}
-            onPress={() =>
-              router.push({
-                pathname: '/user-profile',
-                params: { userId: matchUserId },
-              } as any)
-            }
-            activeOpacity={0.8}>
-            <ThemedText style={styles.doneBtnText}>{matchName}'in profiline git →</ThemedText>
-          </TouchableOpacity>
+          {chatOpened ? (
+            <TouchableOpacity
+              style={styles.doneBtn}
+              onPress={() =>
+                router.replace({
+                  pathname: '/chat',
+                  params: {
+                    userId: matchUserId,
+                    userName: matchName,
+                    matchId: matchIdParam || '',
+                  },
+                })
+              }
+              activeOpacity={0.85}>
+              <ThemedText style={styles.doneBtnText}>Open chat</ThemedText>
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity
             style={styles.doneBtnSecondary}
-            onPress={() => router.replace('/(tabs)' as any)}
-            activeOpacity={0.8}>
-            <ThemedText style={styles.doneBtnSecondaryText}>Ana sayfaya dön</ThemedText>
+            onPress={() => router.replace('/(tabs)/matches')}
+            activeOpacity={0.85}>
+            <ThemedText style={styles.doneBtnSecondaryText}>Back to matches</ThemedText>
           </TouchableOpacity>
         </View>
       </ScreenContainer>
     );
   }
 
-  const currentStep = steps[step];
-  const nextDisabled =
-    !selected ||
-    (step === 0 && venuesLoading) ||
-    (selected === CUSTOM_CAFE_OPTION && customCafe.trim().length === 0) ||
-    (selected === '📅 Alternatif bir gün öner' && customDay.trim().length === 0) ||
-    (selected === '🕐 Başka bir saat öner' && customTime.trim().length === 0) ||
-    sending;
+  const placeNextDisabled =
+    !resolvedPlace || venuesLoading || (place === CUSTOM_PLACE_OPTION && !customPlace.trim());
+  const slotsReady = selectedSlots.length === MAX_SLOTS;
 
   return (
     <ScreenContainer style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Profil satırı */}
-        <View style={styles.profileRow}>
-          <Image source={{ uri: matchPhoto }} style={styles.profilePhoto} />
-          <View style={styles.profileInfo}>
-            <ThemedText style={styles.profileName}>
-              {matchName}, {matchAge}
-            </ThemedText>
-            <ThemedText style={styles.profileCity}>📍 {matchCity}</ThemedText>
+        style={{ flex: 1 }}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          <View style={styles.profileRow}>
+            {matchPhoto ? (
+              <Image source={{ uri: matchPhoto }} style={styles.profilePhoto} />
+            ) : (
+              <View style={[styles.profilePhoto, styles.photoFallback]} />
+            )}
+            <View style={styles.profileInfo}>
+              <ThemedText style={styles.profileName}>
+                {matchName}
+                {matchAge ? `, ${matchAge}` : ''}
+              </ThemedText>
+              {matchCity ? (
+                <ThemedText style={styles.profileCity}>📍 {matchCity}</ThemedText>
+              ) : null}
+            </View>
+            {matchPercentage ? (
+              <View style={styles.percentBadge}>
+                <ThemedText style={styles.percentText}>%{matchPercentage}</ThemedText>
+              </View>
+            ) : null}
           </View>
-          <View style={styles.percentBadge}>
-            <ThemedText style={styles.percentText}>%{matchPercentage}</ThemedText>
+
+          <View style={styles.dotsRow}>
+            <View style={[styles.dot, step === 0 && styles.dotActive, step > 0 && styles.dotDone]} />
+            <View style={[styles.dot, step === 1 && styles.dotActive]} />
           </View>
-        </View>
 
-        {/* isAccepting ise küçük bilgi notu */}
-        {isAccepting && (
-          <View style={styles.acceptingNote}>
-            <ThemedText style={styles.acceptingNoteText}>
-              {matchName} seni buluşmaya davet etti. Tercihlerini seç ve onaylayalım! ☕
-            </ThemedText>
-          </View>
-        )}
-
-        {/* İlerleme noktaları */}
-        <View style={styles.dotsRow}>
-          {steps.map((_, i) => (
-            <View
-              key={i}
-              style={[styles.dot, i === step && styles.dotActive, i < step && styles.dotDone]}
-            />
-          ))}
-        </View>
-
-        {/* Soru */}
-        <ThemedText style={styles.question}>{currentStep.question}</ThemedText>
-
-        {/* Seçenekler */}
-        <View style={styles.optionsWrap}>
-          {step === 0 && venuesLoading ? (
-            <ThemedText style={styles.loadingText}>Kafeler yükleniyor...</ThemedText>
+          {step === 0 ? (
+            <>
+              <ThemedText style={styles.question}>Where should you meet?</ThemedText>
+              <View style={styles.optionsWrap}>
+                {venuesLoading ? (
+                  <ThemedText style={styles.loadingText}>Loading places…</ThemedText>
+                ) : (
+                  placeOptions.map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.option, place === opt && styles.optionSelected]}
+                      onPress={() => setPlace(opt)}
+                      activeOpacity={0.8}>
+                      <ThemedText
+                        style={[styles.optionText, place === opt && styles.optionTextSelected]}>
+                        {opt}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ))
+                )}
+                {place === CUSTOM_PLACE_OPTION ? (
+                  <TextInput
+                    style={styles.customInput}
+                    placeholder="Place name and area…"
+                    placeholderTextColor="#AAAAAA"
+                    value={customPlace}
+                    onChangeText={setCustomPlace}
+                  />
+                ) : null}
+              </View>
+            </>
           ) : (
-            currentStep.options.map((opt) => (
-              <TouchableOpacity
-                key={opt}
-                style={[styles.option, selected === opt && styles.optionSelected]}
-                onPress={() => handleSelect(opt)}
-                activeOpacity={0.8}>
-                <ThemedText style={[styles.optionText, selected === opt && styles.optionTextSelected]}>
-                  {opt}
-                </ThemedText>
-              </TouchableOpacity>
-            ))
+            <>
+              <ThemedText style={styles.question}>Pick 3 time options</ThemedText>
+              <ThemedText style={styles.hint}>
+                Suggested from your availability. {selectedSlots.length}/{MAX_SLOTS} selected.
+              </ThemedText>
+              <View style={styles.optionsWrap}>
+                {slotOptions.map((opt) => {
+                  const on = selectedSlots.includes(opt);
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.option, on && styles.optionSelected]}
+                      onPress={() => toggleSlot(opt)}
+                      activeOpacity={0.8}>
+                      <ThemedText style={[styles.optionText, on && styles.optionTextSelected]}>
+                        {on ? '✓ ' : ''}
+                        {opt}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
+                <View style={styles.customSlotRow}>
+                  <TextInput
+                    style={[styles.customInput, { flex: 1 }]}
+                    placeholder="Add a custom time…"
+                    placeholderTextColor="#AAAAAA"
+                    value={customSlot}
+                    onChangeText={setCustomSlot}
+                  />
+                  <TouchableOpacity
+                    style={styles.addSlotBtn}
+                    onPress={addCustomSlot}
+                    disabled={!customSlot.trim() || selectedSlots.length >= MAX_SLOTS}
+                    activeOpacity={0.85}>
+                    <ThemedText style={styles.addSlotBtnText}>Add</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </>
           )}
-          {selected === CUSTOM_CAFE_OPTION && step === 0 && (
-            <TextInput
-              style={styles.customInput}
-              placeholder="Kafe adı ve semt yaz..."
-              placeholderTextColor="#AAAAAA"
-              value={customCafe}
-              onChangeText={setCustomCafe}
-              returnKeyType="done"
-            />
-          )}
-          {selected === '📅 Alternatif bir gün öner' && step === 1 && (
-            <TextInput
-              style={styles.customInput}
-              placeholder="Örn: Gelecek Salı, 3 Haziran..."
-              placeholderTextColor="#AAAAAA"
-              value={customDay}
-              onChangeText={setCustomDay}
-              returnKeyType="done"
-            />
-          )}
-          {selected === '🕐 Başka bir saat öner' && step === 2 && (
-            <TextInput
-              style={styles.customInput}
-              placeholder="Örn: 17:00 – 19:00"
-              placeholderTextColor="#AAAAAA"
-              value={customTime}
-              onChangeText={setCustomTime}
-              returnKeyType="done"
-            />
+        </ScrollView>
+
+        <View style={styles.footer}>
+          {step === 1 ? (
+            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(0)} activeOpacity={0.85}>
+              <ThemedText style={styles.secondaryBtnText}>Back</ThemedText>
+            </TouchableOpacity>
+          ) : null}
+          {step === 0 ? (
+            <TouchableOpacity
+              style={[styles.primaryBtn, placeNextDisabled && styles.btnDisabled]}
+              disabled={placeNextDisabled}
+              onPress={() => setStep(1)}
+              activeOpacity={0.85}>
+              <ThemedText style={styles.primaryBtnText}>Next</ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.primaryBtn, (!slotsReady || sending) && styles.btnDisabled]}
+              disabled={!slotsReady || sending}
+              onPress={() => void handleSendInvite()}
+              activeOpacity={0.85}>
+              <ThemedText style={styles.primaryBtnText}>
+                {sending ? 'Sending…' : "Let's meet"}
+              </ThemedText>
+            </TouchableOpacity>
           )}
         </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.nextBtn, nextDisabled && styles.nextBtnDisabled]}
-          onPress={handleNext}
-          disabled={nextDisabled}
-          activeOpacity={0.8}>
-          <ThemedText style={styles.nextBtnText}>
-            {sending
-              ? 'Gönderiliyor…'
-              : step < steps.length - 1
-                ? 'İleri →'
-                : isAccepting
-                  ? 'Onayla ve Buluş! 🎉'
-                  : 'Gönder ✓'}
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
       </KeyboardAvoidingView>
     </ScreenContainer>
   );
@@ -498,183 +476,112 @@ export default function MicroIntroScreen() {
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
   scroll: { flex: 1 },
-  content: { paddingBottom: 16, paddingHorizontal: 4, gap: 20 },
-  footer: {
-    paddingHorizontal: 4,
-    paddingTop: 8,
-    paddingBottom: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    backgroundColor: '#FFF',
-  },
-
+  content: { paddingBottom: 24, gap: 12 },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.bgCard,
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 8,
+    marginBottom: 8,
   },
-  profilePhoto: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#DDD',
-  },
+  profilePhoto: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#DDD' },
+  photoFallback: { backgroundColor: '#E8E8E8' },
   profileInfo: { flex: 1 },
   profileName: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
   profileCity: { fontSize: 13, color: '#888', marginTop: 2 },
   percentBadge: {
     backgroundColor: colors.accent,
-    borderRadius: 20,
+    borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  percentText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-
-  acceptingNote: {
-    backgroundColor: '#FFF8E1',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  acceptingNoteText: {
-    color: colors.accent,
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E0E0E0',
-  },
+  percentText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
+  dotsRow: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginVertical: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E0E0E0' },
   dotActive: { backgroundColor: colors.accent, width: 24 },
   dotDone: { backgroundColor: colors.accent, opacity: 0.4 },
-
   question: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: colors.textPrimary,
-    textAlign: 'center',
+    marginBottom: 4,
   },
-
+  hint: { fontSize: 13, color: '#888', marginBottom: 8 },
   optionsWrap: { gap: 10 },
-  loadingText: {
-    textAlign: 'center',
-    color: '#888',
-    fontSize: 15,
-    paddingVertical: 16,
-  },
   option: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 12,
-    padding: 14,
     backgroundColor: colors.bgCard,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
   },
-  optionSelected: {
-    borderColor: colors.accent,
-    backgroundColor: '#FFF8E1',
-  },
+  optionSelected: { borderColor: colors.accent, backgroundColor: '#FFF8E1' },
   optionText: { fontSize: 15, color: colors.textPrimary },
   optionTextSelected: { color: colors.accent, fontWeight: '500' },
   customInput: {
     backgroundColor: '#F5F5F5',
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     color: colors.textPrimary,
-    fontSize: 14,
     borderWidth: 1,
     borderColor: colors.accent,
-    marginTop: 8,
+    marginTop: 4,
   },
-
-  nextBtn: {
+  customSlotRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  addSlotBtn: {
     backgroundColor: colors.accent,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  addSlotBtnText: { color: '#FFF', fontWeight: '600' },
+  loadingText: { color: '#888', textAlign: 'center', marginTop: 12 },
+  footer: { gap: 10, paddingTop: 8, paddingBottom: 8 },
+  primaryBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
   },
-  nextBtnDisabled: { opacity: 0.4 },
-  nextBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-
-  // Done ekranı
-  doneWrap: {
-    flex: 1,
+  primaryBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  secondaryBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
-  doneEmoji: { fontSize: 56 },
+  secondaryBtnText: { color: colors.textPrimary, fontWeight: '600' },
+  btnDisabled: { opacity: 0.45 },
+  doneWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 12 },
+  doneEmoji: { fontSize: 48 },
   doneTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: colors.textPrimary,
     textAlign: 'center',
   },
-  doneSubtitle: {
-    fontSize: 15,
-    color: '#888',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
+  doneSubtitle: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22 },
   confirmedBox: {
-    backgroundColor: '#FFF8E1',
-    borderRadius: 14,
-    padding: 16,
     width: '100%',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: colors.accent,
+    backgroundColor: colors.bgCard,
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+    marginTop: 8,
   },
-  confirmedLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.accent,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  confirmedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  confirmedIcon: { fontSize: 18 },
-  confirmedText: {
-    fontSize: 15,
-    color: colors.textPrimary,
-    fontWeight: '500',
-  },
+  confirmedText: { fontSize: 14, color: colors.textPrimary },
   doneBtn: {
+    marginTop: 16,
     backgroundColor: colors.accent,
     borderRadius: 12,
     paddingVertical: 14,
-    paddingHorizontal: 32,
-    marginTop: 8,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
   },
-  doneBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  doneBtnSecondary: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    marginTop: 4,
-  },
-  doneBtnSecondaryText: {
-    color: '#888',
-    fontSize: 14,
-  },
+  doneBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  doneBtnSecondary: { marginTop: 8, paddingVertical: 12 },
+  doneBtnSecondaryText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
 });

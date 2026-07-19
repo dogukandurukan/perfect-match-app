@@ -16,6 +16,14 @@ import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
+import {
+  acceptMatchInvite,
+  formatIntroLines,
+  introAnswersForUser,
+  orderedPair,
+  upsertMatchPair,
+  type IntroAnswers,
+} from '@/lib/matchInvite';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
@@ -134,7 +142,24 @@ type IncomingInvite = {
   city: string | null;
   displayPhotoUrl: string;
   matchScore: number;
-  introAnswers: { kafe?: string; gun?: string; saat?: string } | null;
+  introAnswers: IntroAnswers | null;
+  otherGender: string | null;
+};
+
+type OutgoingInvite = {
+  matchId: string;
+  userId: string;
+  firstName: string | null;
+  age: number;
+  displayPhotoUrl: string;
+};
+
+type OpenChatRow = {
+  matchId: string;
+  userId: string;
+  firstName: string | null;
+  age: number;
+  displayPhotoUrl: string;
 };
 
 type AcceptedMatch = {
@@ -285,17 +310,19 @@ function InlinePhoto({ uri }: { uri: string }) {
 type MatchProfileCardProps = {
   match: MatchCardData;
   timeLeft: string | null;
-  requestSent: boolean;
-  onTanis: () => void;
-  onGec: () => void;
+  inviteState: 'none' | 'sent' | 'open';
+  onLetsMeet: () => void;
+  onOpenChat: () => void;
+  onPass: () => void;
 };
 
 function MatchProfileCard({
   match,
   timeLeft,
-  requestSent,
-  onTanis,
-  onGec,
+  inviteState,
+  onLetsMeet,
+  onOpenChat,
+  onPass,
 }: MatchProfileCardProps) {
   const photos = match.photos ?? [];
   const heroPhoto = getPhotoUrl(photos, 0) ?? match.displayPhotoUrl;
@@ -371,15 +398,21 @@ function MatchProfileCard({
 
       <View style={styles.buttonsWrap}>
         {timeLeft ? <CountdownText expiresAt={timeLeft} /> : null}
-        {requestSent ? (
-          <ThemedText style={styles.sentText}>☕ Buluşma isteği gönderildi</ThemedText>
+        {inviteState === 'sent' ? (
+          <ThemedText style={styles.sentText}>
+            Waiting for {displayName} to accept
+          </ThemedText>
+        ) : inviteState === 'open' ? (
+          <TouchableOpacity style={styles.tanisBtn} onPress={onOpenChat} activeOpacity={0.85}>
+            <ThemedText style={styles.tanisBtnText}>Open chat</ThemedText>
+          </TouchableOpacity>
         ) : (
           <>
-            <TouchableOpacity style={styles.tanisBtn} onPress={onTanis} activeOpacity={0.85}>
-              <ThemedText style={styles.tanisBtnText}>Tanış</ThemedText>
+            <TouchableOpacity style={styles.tanisBtn} onPress={onLetsMeet} activeOpacity={0.85}>
+              <ThemedText style={styles.tanisBtnText}>Let&apos;s meet</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.gecBtn} onPress={onGec} activeOpacity={0.85}>
-              <ThemedText style={styles.gecBtnText}>Geç</ThemedText>
+            <TouchableOpacity style={styles.gecBtn} onPress={onPass} activeOpacity={0.85}>
+              <ThemedText style={styles.gecBtnText}>Pass</ThemedText>
             </TouchableOpacity>
           </>
         )}
@@ -403,9 +436,16 @@ export default function MatchesTab() {
   const router = useRouter();
   const [cards, setCards] = useState<MatchCardData[]>([]);
   const [incoming, setIncoming] = useState<IncomingInvite[]>([]);
+  const [outgoing, setOutgoing] = useState<OutgoingInvite[]>([]);
+  const [openChats, setOpenChats] = useState<OpenChatRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [noMatches, setNoMatches] = useState(false);
   const [acceptedMatches, setAcceptedMatches] = useState<AcceptedMatch[]>([]);
+  const [inviteByOtherId, setInviteByOtherId] = useState<
+    Record<string, { matchId: string; invitedBy: string | null; chatOpened: boolean }>
+  >({});
+  const [myGender, setMyGender] = useState<string | null>(null);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -415,7 +455,9 @@ export default function MatchesTab() {
         setLoading(true);
         setNoMatches(false);
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user || !mounted) {
           setLoading(false);
           return;
@@ -423,96 +465,162 @@ export default function MatchesTab() {
 
         const userId = user.id;
 
-        // 1. Gelen davetleri çek
-        // (user_b = ben, user_a kabul etti ama ben henüz kabul etmedim)
-        const { data: incomingRaw } = await supabase
+        const { data: meProfile } = await supabase
+          .from('profiles')
+          .select('gender')
+          .eq('id', userId)
+          .maybeSingle();
+        if (mounted) setMyGender(meProfile?.gender ?? null);
+
+        // All matches involving me (invite / chat state)
+        const { data: myMatches } = await supabase
           .from('matches')
           .select(
             `
             id,
             user_a_id,
+            user_b_id,
             match_score,
+            status,
+            invited_by,
+            chat_opened,
             user_a_intro_answers,
-            profiles!matches_user_a_id_fkey (
-              id, first_name, date_of_birth, city, photos
-            )
+            user_b_intro_answers,
+            checkin_a,
+            checkin_b
           `,
           )
-          .eq('user_b_id', userId)
-          .eq('user_a_accepted', true)
-          .eq('user_b_accepted', false)
-          .eq('status', 'pending');
+          .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+          .neq('status', 'expired');
 
-        if (mounted && incomingRaw) {
-          const mappedIncoming: IncomingInvite[] = await Promise.all(
-            incomingRaw.map(async (row: any) => {
-              const p = row.profiles;
-              const firstPhoto = p?.photos?.[0];
-              const signed = firstPhoto ? await resolveProfilePhotoUrl(firstPhoto, 3600) : null;
-              return {
-                matchId: row.id,
-                userId: row.user_a_id,
-                firstName: p?.first_name ?? null,
-                age: safeAge(p?.date_of_birth ?? null),
-                city: p?.city ?? null,
-                displayPhotoUrl: signed ?? `https://i.pravatar.cc/300?u=${row.user_a_id}`,
-                matchScore: Math.round(row.match_score),
-                introAnswers: row.user_a_intro_answers,
-              };
-            }),
-          );
-          if (mounted) setIncoming(mappedIncoming);
+        const rows = myMatches ?? [];
+        const otherIds = [
+          ...new Set(
+            rows.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id) as string),
+          ),
+        ];
+
+        const profileById = new Map<
+          string,
+          {
+            id: string;
+            first_name: string | null;
+            date_of_birth: string | null;
+            city: string | null;
+            photos: string[] | null;
+            gender: string | null;
+          }
+        >();
+
+        if (otherIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, first_name, date_of_birth, city, photos, gender')
+            .in('id', otherIds);
+          for (const p of profiles ?? []) {
+            profileById.set(p.id, p);
+          }
         }
 
-        // 1.5 Accepted buluşmaları çek
-        const { data: acceptedRaw } = await supabase
-          .from('matches')
-          .select('id, user_a_id, user_b_id, checkin_a, checkin_b')
-          .eq('status', 'accepted')
-          .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`);
-
-        if (mounted && acceptedRaw) {
-          const mappedAccepted: AcceptedMatch[] = await Promise.all(
-            acceptedRaw.map(async (row: any) => {
-              const isUserA = row.user_a_id === userId;
-              const otherId = isUserA ? row.user_b_id : row.user_a_id;
-
-              const { data: otherProfile } = await supabase
-                .from('profiles')
-                .select('first_name, date_of_birth, photos')
-                .eq('id', otherId)
-                .single();
-
-              const firstPhoto = otherProfile?.photos?.[0];
-              const signed = firstPhoto
-                ? await resolveProfilePhotoUrl(firstPhoto, 3600)
-                : null;
-              const checkinDone = isUserA
-                ? row.checkin_a !== null
-                : row.checkin_b !== null;
-
-              return {
-                matchId: row.id,
-                userId: otherId,
-                firstName: otherProfile?.first_name ?? null,
-                age: safeAge(otherProfile?.date_of_birth ?? null),
-                displayPhotoUrl: signed ?? `https://i.pravatar.cc/300?u=${otherId}`,
-                isUserA,
-                checkinDone,
-              };
-            }),
-          );
-          if (mounted) setAcceptedMatches(mappedAccepted);
+        async function photoFor(uid: string, photos: string[] | null | undefined): Promise<string> {
+          const first = photos?.[0];
+          const signed = first ? await resolveProfilePhotoUrl(first, 3600) : null;
+          return signed ?? `https://i.pravatar.cc/300?u=${uid}`;
         }
 
-        // 2. Kendi eşleşmelerini çek — önce matches tablosu, eksikse RPC ile doldur
+        const nextIncoming: IncomingInvite[] = [];
+        const nextOutgoing: OutgoingInvite[] = [];
+        const nextOpen: OpenChatRow[] = [];
+        const nextAccepted: AcceptedMatch[] = [];
+        const inviteMap: Record<
+          string,
+          { matchId: string; invitedBy: string | null; chatOpened: boolean }
+        > = {};
+
+        for (const row of rows) {
+          const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
+          const profile = profileById.get(otherId);
+          const displayPhotoUrl = await photoFor(otherId, profile?.photos);
+          const firstName = profile?.first_name ?? null;
+          const age = safeAge(profile?.date_of_birth ?? null);
+          const invitedBy = (row.invited_by as string | null) ?? null;
+          const chatOpened = row.chat_opened === true;
+
+          inviteMap[otherId] = {
+            matchId: row.id,
+            invitedBy,
+            chatOpened,
+          };
+
+          if (chatOpened) {
+            nextOpen.push({
+              matchId: row.id,
+              userId: otherId,
+              firstName,
+              age,
+              displayPhotoUrl,
+            });
+          } else if (invitedBy && invitedBy !== userId) {
+            const inviterAnswers = introAnswersForUser(
+              {
+                user_a_id: row.user_a_id,
+                user_b_id: row.user_b_id,
+                user_a_intro_answers: row.user_a_intro_answers as IntroAnswers | null,
+                user_b_intro_answers: row.user_b_intro_answers as IntroAnswers | null,
+              },
+              invitedBy,
+            );
+            nextIncoming.push({
+              matchId: row.id,
+              userId: otherId,
+              firstName,
+              age,
+              city: profile?.city ?? null,
+              displayPhotoUrl,
+              matchScore: Math.round(Number(row.match_score) || 0),
+              introAnswers: inviterAnswers,
+              otherGender: profile?.gender ?? null,
+            });
+          } else if (invitedBy === userId) {
+            nextOutgoing.push({
+              matchId: row.id,
+              userId: otherId,
+              firstName,
+              age,
+              displayPhotoUrl,
+            });
+          }
+
+          if (row.status === 'accepted') {
+            const isUserA = row.user_a_id === userId;
+            const checkinDone = isUserA ? row.checkin_a !== null : row.checkin_b !== null;
+            nextAccepted.push({
+              matchId: row.id,
+              userId: otherId,
+              firstName,
+              age,
+              displayPhotoUrl,
+              isUserA,
+              checkinDone,
+            });
+          }
+        }
+
+        if (!mounted) return;
+        setIncoming(nextIncoming);
+        setOutgoing(nextOutgoing);
+        setOpenChats(nextOpen);
+        setAcceptedMatches(nextAccepted);
+        setInviteByOtherId(inviteMap);
+
+        // Candidate cards — pending slots for discovery
         const nowIso = new Date().toISOString();
-
         const { data: pendingRows, error: pendingError } = await supabase
           .from('matches')
-          .select('id, user_b_id, match_score, expires_at, status')
-          .eq('user_a_id', userId)
+          .select('id, user_a_id, user_b_id, match_score, expires_at, status, invited_by, chat_opened')
+          .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
           .eq('status', 'pending')
+          .is('invited_by', null)
           .gt('expires_at', nowIso)
           .order('created_at', { ascending: true })
           .limit(MATCH_SLOT_COUNT);
@@ -520,13 +628,24 @@ export default function MatchesTab() {
         if (!mounted) return;
 
         if (pendingError) {
-          Alert.alert('Hata', pendingError.message);
+          Alert.alert('Error', pendingError.message);
           setLoading(false);
           return;
         }
 
-        let activePending: PendingMatchRow[] = (pendingRows ?? []) as PendingMatchRow[];
-        const existingOtherIds = new Set(activePending.map((r) => r.user_b_id));
+        type PendingRow = {
+          id: string;
+          user_a_id: string;
+          user_b_id: string;
+          match_score: number;
+          expires_at: string;
+          status: string;
+        };
+
+        let activePending: PendingRow[] = (pendingRows ?? []) as PendingRow[];
+        const existingOtherIds = new Set(
+          activePending.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id)),
+        );
 
         const missingCount = MATCH_SLOT_COUNT - activePending.length;
         if (missingCount > 0) {
@@ -538,34 +657,40 @@ export default function MatchesTab() {
           if (!mounted) return;
 
           if (rpcError) {
-            Alert.alert('Hata', rpcError.message);
+            Alert.alert('Error', rpcError.message);
             setLoading(false);
             return;
           }
 
           const candidates = ((rpcData ?? []) as MatchResultItem[]).filter(
-            (c) => !existingOtherIds.has(c.user_id),
+            (c) => !existingOtherIds.has(c.user_id) && !inviteMap[c.user_id],
           );
 
           for (const candidate of candidates.slice(0, missingCount)) {
-            const expiresAt = new Date(Date.now() + MATCH_TTL_MS).toISOString();
-            const { data: inserted, error: insertError } = await supabase
-              .from('matches')
-              .insert({
-                user_a_id: userId,
-                user_b_id: candidate.user_id,
-                match_score: candidate.match_percentage,
-                status: 'pending',
-                expires_at: expiresAt,
-                algo_version: 'v1',
-              })
-              .select('id, user_b_id, match_score, expires_at, status')
-              .single();
+            const upserted = await upsertMatchPair(
+              userId,
+              candidate.user_id,
+              candidate.match_percentage,
+            );
+            if (!upserted.matchId) continue;
 
-            if (!insertError && inserted) {
-              activePending.push(inserted as PendingMatchRow);
-              existingOtherIds.add(candidate.user_id);
-            }
+            const expiresAt = new Date(Date.now() + MATCH_TTL_MS).toISOString();
+            await supabase
+              .from('matches')
+              .update({ expires_at: expiresAt, status: 'pending', algo_version: 'v1' })
+              .eq('id', upserted.matchId)
+              .is('invited_by', null);
+
+            const [a, b] = orderedPair(userId, candidate.user_id);
+            activePending.push({
+              id: upserted.matchId,
+              user_a_id: a,
+              user_b_id: b,
+              match_score: candidate.match_percentage,
+              expires_at: expiresAt,
+              status: 'pending',
+            });
+            existingOtherIds.add(candidate.user_id);
           }
         }
 
@@ -578,18 +703,20 @@ export default function MatchesTab() {
           return;
         }
 
-        const otherIds = activePending.map((r) => r.user_b_id);
+        const cardOtherIds = activePending.map((r) =>
+          r.user_a_id === userId ? r.user_b_id : r.user_a_id,
+        );
         const { data: profileRows, error: profileError } = await supabase
           .from('profiles')
           .select(
             'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style',
           )
-          .in('id', otherIds);
+          .in('id', cardOtherIds);
 
         if (!mounted) return;
 
         if (profileError) {
-          Alert.alert('Hata', profileError.message);
+          Alert.alert('Error', profileError.message);
           setLoading(false);
           return;
         }
@@ -597,7 +724,7 @@ export default function MatchesTab() {
         const { data: intentRows } = await supabase
           .from('onboarding_answers')
           .select('user_id, intent')
-          .in('user_id', otherIds);
+          .in('user_id', cardOtherIds);
 
         if (!mounted) return;
 
@@ -608,16 +735,28 @@ export default function MatchesTab() {
           ]),
         );
 
-        const profileById = new Map(
+        const cardProfileById = new Map(
           (profileRows ?? []).map((p) => [p.id as string, p as ProfileForCard]),
         );
 
         const mappedCards = (
           await Promise.all(
             activePending.map(async (row) => {
-              const profile = profileById.get(row.user_b_id);
+              const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
+              const profile = cardProfileById.get(otherId);
               if (!profile) return null;
-              return buildCardFromPending(row, profile, intentMap.get(profile.id) ?? null);
+              const pendingForCard: PendingMatchRow = {
+                id: row.id,
+                user_b_id: otherId,
+                match_score: row.match_score,
+                expires_at: row.expires_at,
+                status: row.status,
+              };
+              return buildCardFromPending(
+                pendingForCard,
+                profile,
+                intentMap.get(profile.id) ?? null,
+              );
             }),
           )
         ).filter((card): card is MatchCardData => card !== null);
@@ -641,90 +780,148 @@ export default function MatchesTab() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    router.push({
-      pathname: '/micro-intro',
-      params: {
-        matchUserId: invite.userId,
-        matchName: invite.firstName ?? 'Kullanıcı',
-        matchAge: String(invite.age),
-        matchCity: invite.city ?? '',
-        matchPhoto: invite.displayPhotoUrl,
-        matchPercentage: String(invite.matchScore),
-        isAccepting: '1',
-      },
-    } as unknown as Parameters<typeof router.push>[0]);
-  }
+    setAcceptingId(invite.matchId);
+    const result = await acceptMatchInvite({
+      matchId: invite.matchId,
+      currentUserId: user.id,
+      currentUserGender: myGender,
+      otherUserGender: invite.otherGender,
+    });
+    setAcceptingId(null);
 
-  async function handleReject(invite: IncomingInvite) {
-    Alert.alert(
-      'Reddet',
-      `${invite.firstName ?? 'Bu kişi'} ile eşleşmeyi reddetmek istiyor musun?`,
-      [
-        { text: 'İptal', style: 'cancel' },
+    if (!result.ok) {
+      Alert.alert('Could not accept', result.error ?? 'Something went wrong.');
+      return;
+    }
+
+    setIncoming((prev) => prev.filter((i) => i.matchId !== invite.matchId));
+
+    if (result.chatOpened) {
+      setOpenChats((prev) => [
         {
-          text: 'Reddet',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.from('matches').update({ status: 'expired' }).eq('id', invite.matchId);
-            setIncoming((prev) => prev.filter((i) => i.matchId !== invite.matchId));
-          },
+          matchId: invite.matchId,
+          userId: invite.userId,
+          firstName: invite.firstName,
+          age: invite.age,
+          displayPhotoUrl: invite.displayPhotoUrl,
         },
-      ],
-    );
+        ...prev.filter((c) => c.matchId !== invite.matchId),
+      ]);
+      router.push({
+        pathname: '/chat',
+        params: {
+          userId: invite.userId,
+          userName: invite.firstName ?? 'Chat',
+          matchId: invite.matchId,
+        },
+      });
+    }
   }
 
-  function handleTanis(match: MatchCardData) {
+  async function handleMaybeLater(invite: IncomingInvite) {
+    setIncoming((prev) => prev.filter((i) => i.matchId !== invite.matchId));
+  }
+
+  function handleLetsMeet(match: MatchCardData) {
     router.push({
       pathname: '/micro-intro',
       params: {
         matchUserId: match.user_id,
-        matchName: match.first_name ?? 'Kullanıcı',
+        matchName: match.first_name ?? 'them',
         matchAge: String(safeAge(match.date_of_birth)),
         matchCity: match.city ?? '',
         matchPhoto: match.displayPhotoUrl,
         matchPercentage: String(match.match_percentage),
-        isAccepting: '0',
+        matchId: match.matchId,
       },
-    } as unknown as Parameters<typeof router.push>[0]);
+    });
   }
 
-  function handleGec(match: MatchCardData) {
-    Alert.alert(
-      'Geç',
-      `${match.first_name ?? 'Bu kişiyi'} geçmek istiyor musun?`,
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Geç',
-          onPress: async () => {
+  function handleOpenChat(match: MatchCardData) {
+    router.push({
+      pathname: '/chat',
+      params: {
+        userId: match.user_id,
+        userName: match.first_name ?? 'Chat',
+        matchId: match.matchId,
+      },
+    });
+  }
+
+  function handlePass(match: MatchCardData) {
+    Alert.alert('Pass', `Pass on ${match.first_name ?? 'this person'}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Pass',
+        onPress: () => {
+          void (async () => {
             await supabase.from('matches').update({ status: 'expired' }).eq('id', match.matchId);
             setCards((prev) => {
               const next = prev.filter((c) => c.matchId !== match.matchId);
               if (next.length === 0) setNoMatches(true);
               return next;
             });
-          },
+          })();
         },
-      ],
-    );
+      },
+    ]);
   }
 
-  const acceptedUserIds = new Set(acceptedMatches.map((am) => am.userId));
+  function cardInviteState(match: MatchCardData): 'none' | 'sent' | 'open' {
+    const info = inviteByOtherId[match.user_id];
+    if (!info) return 'none';
+    if (info.chatOpened) return 'open';
+    if (info.invitedBy) return 'sent';
+    return 'none';
+  }
 
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ThemedText style={styles.pageTitle}>Eşleşmeler</ThemedText>
+        <ThemedText style={styles.pageTitle}>Matches</ThemedText>
 
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
         ) : (
           <>
-            {/* Onaylanan Buluşmalar */}
-            {acceptedMatches.length > 0 && (
+            {openChats.length > 0 ? (
               <View style={styles.section}>
-                <ThemedText style={styles.sectionTitle}>☕ Onaylanan Buluşmalar</ThemedText>
+                <ThemedText style={styles.sectionTitle}>Open chats</ThemedText>
+                {openChats.map((chat) => (
+                  <TouchableOpacity
+                    key={chat.matchId}
+                    style={styles.acceptedCard}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/chat',
+                        params: {
+                          userId: chat.userId,
+                          userName: chat.firstName ?? 'Chat',
+                          matchId: chat.matchId,
+                        },
+                      })
+                    }>
+                    <Image
+                      source={{ uri: chat.displayPhotoUrl }}
+                      style={styles.acceptedPhoto}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.acceptedInfo}>
+                      <ThemedText style={styles.acceptedName}>
+                        {chat.firstName ?? 'Someone'}, {chat.age}
+                      </ThemedText>
+                      <ThemedText style={styles.acceptedStatus}>Tap to open chat</ThemedText>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+
+            {acceptedMatches.length > 0 ? (
+              <View style={styles.section}>
+                <ThemedText style={styles.sectionTitle}>Confirmed meetups</ThemedText>
                 {acceptedMatches.map((am) => (
                   <View key={am.matchId} style={styles.acceptedCard}>
                     <Image
@@ -734,13 +931,13 @@ export default function MatchesTab() {
                     />
                     <View style={styles.acceptedInfo}>
                       <ThemedText style={styles.acceptedName}>
-                        {am.firstName ?? 'Kullanıcı'}, {am.age}
+                        {am.firstName ?? 'Someone'}, {am.age}
                       </ThemedText>
                       <ThemedText style={styles.acceptedStatus}>
-                        {am.checkinDone ? '✅ Check-in yapıldı' : '⏳ Buluşma bekleniyor'}
+                        {am.checkinDone ? 'Check-in done' : 'Meetup pending'}
                       </ThemedText>
                     </View>
-                    {!am.checkinDone && (
+                    {!am.checkinDone ? (
                       <TouchableOpacity
                         style={styles.checkinBtn}
                         onPress={() =>
@@ -748,106 +945,130 @@ export default function MatchesTab() {
                             pathname: '/checkin',
                             params: {
                               matchId: am.matchId,
-                              matchName: am.firstName ?? 'Kullanıcı',
+                              matchName: am.firstName ?? 'Someone',
                               isUserA: am.isUserA ? '1' : '0',
                             },
-                          } as any)
+                          })
                         }
-                        activeOpacity={0.8}
-                      >
-                        <ThemedText style={styles.checkinBtnText}>Check-in Yap</ThemedText>
+                        activeOpacity={0.8}>
+                        <ThemedText style={styles.checkinBtnText}>Check in</ThemedText>
                       </TouchableOpacity>
-                    )}
+                    ) : null}
                   </View>
                 ))}
               </View>
-            )}
+            ) : null}
 
-            {/* Gelen davetler */}
-            {incoming.length > 0 && (
+            {incoming.length > 0 ? (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <ThemedText style={styles.sectionTitle}>📬 Seni Davet Etti</ThemedText>
+                  <ThemedText style={styles.sectionTitle}>Invites for you</ThemedText>
                   <View style={styles.badge}>
                     <ThemedText style={styles.badgeText}>{incoming.length}</ThemedText>
                   </View>
                 </View>
-                {incoming.map((invite) => (
-                  <View key={invite.matchId} style={styles.inviteCard}>
+                {incoming.map((invite) => {
+                  const lines = formatIntroLines(invite.introAnswers);
+                  return (
+                    <View key={invite.matchId} style={styles.inviteCard}>
+                      <Image
+                        source={{ uri: invite.displayPhotoUrl }}
+                        style={styles.invitePhoto}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.inviteInfo}>
+                        <ThemedText style={styles.inviteName}>
+                          {invite.firstName ?? 'Someone'}, {invite.age}
+                        </ThemedText>
+                        <ThemedText style={styles.inviteCity}>
+                          📍 {invite.city ?? 'Unknown'}
+                        </ThemedText>
+                        {lines.length > 0 ? (
+                          <View style={styles.inviteAnswers}>
+                            {lines.map((line) => (
+                              <ThemedText key={line} style={styles.inviteAnswer}>
+                                {line}
+                              </ThemedText>
+                            ))}
+                          </View>
+                        ) : null}
+                      </View>
+                      <View style={styles.inviteScoreBadge}>
+                        <ThemedText style={styles.inviteScore}>%{invite.matchScore}</ThemedText>
+                      </View>
+                      <View style={styles.inviteActions}>
+                        <TouchableOpacity
+                          style={styles.acceptBtn}
+                          onPress={() => void handleAccept(invite)}
+                          disabled={acceptingId === invite.matchId}
+                          activeOpacity={0.8}>
+                          <ThemedText style={styles.acceptBtnText}>
+                            {acceptingId === invite.matchId
+                              ? 'Opening…'
+                              : 'Accept & open chat'}
+                          </ThemedText>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.rejectBtn}
+                          onPress={() => void handleMaybeLater(invite)}
+                          activeOpacity={0.8}>
+                          <ThemedText style={styles.rejectBtnText}>Maybe later</ThemedText>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+
+            {outgoing.length > 0 ? (
+              <View style={styles.section}>
+                <ThemedText style={styles.sectionTitle}>Waiting on them</ThemedText>
+                {outgoing.map((invite) => (
+                  <View key={invite.matchId} style={styles.acceptedCard}>
                     <Image
                       source={{ uri: invite.displayPhotoUrl }}
-                      style={styles.invitePhoto}
+                      style={styles.acceptedPhoto}
                       resizeMode="cover"
                     />
-                    <View style={styles.inviteInfo}>
-                      <ThemedText style={styles.inviteName}>
-                        {invite.firstName ?? 'Kullanıcı'}, {invite.age}
+                    <View style={styles.acceptedInfo}>
+                      <ThemedText style={styles.acceptedName}>
+                        {invite.firstName ?? 'Someone'}, {invite.age}
                       </ThemedText>
-                      <ThemedText style={styles.inviteCity}>📍 {invite.city ?? 'Bilinmiyor'}</ThemedText>
-                      {invite.introAnswers && (
-                        <View style={styles.inviteAnswers}>
-                          {invite.introAnswers.kafe && (
-                            <ThemedText style={styles.inviteAnswer}>{invite.introAnswers.kafe}</ThemedText>
-                          )}
-                          {invite.introAnswers.gun && (
-                            <ThemedText style={styles.inviteAnswer}>{invite.introAnswers.gun}</ThemedText>
-                          )}
-                          {invite.introAnswers.saat && (
-                            <ThemedText style={styles.inviteAnswer}>{invite.introAnswers.saat}</ThemedText>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.inviteScoreBadge}>
-                      <ThemedText style={styles.inviteScore}>%{invite.matchScore}</ThemedText>
-                    </View>
-                    <View style={styles.inviteActions}>
-                      <TouchableOpacity
-                        style={styles.acceptBtn}
-                        onPress={() => handleAccept(invite)}
-                        activeOpacity={0.8}>
-                        <ThemedText style={styles.acceptBtnText}>Kabul Et ✓</ThemedText>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.rejectBtn}
-                        onPress={() => handleReject(invite)}
-                        activeOpacity={0.8}>
-                        <ThemedText style={styles.rejectBtnText}>Reddet</ThemedText>
-                      </TouchableOpacity>
+                      <ThemedText style={styles.acceptedStatus}>
+                        Waiting for {invite.firstName ?? 'them'} to accept
+                      </ThemedText>
                     </View>
                   </View>
                 ))}
               </View>
-            )}
+            ) : null}
 
-            {/* Kendi eşleşmelerin */}
             <View style={styles.section}>
               {noMatches ? (
                 <View style={styles.emptyWrap}>
                   <ThemedText style={styles.emptyText}>
-                    Henüz eşleşme bulunamadı.{'\n'}Profil bilgilerini tamamladıktan sonra tekrar dene.
+                    No matches yet.{'\n'}Finish your profile and check back soon.
                   </ThemedText>
                 </View>
               ) : (
                 cards.map((match) => {
                   const now = new Date();
-                  const isExpired =
-                    match.expires_at && new Date(match.expires_at) < now;
+                  const isExpired = match.expires_at && new Date(match.expires_at) < now;
                   if (isExpired) return null;
 
                   const timeLeft =
-                    match.status === 'pending' && match.expires_at
-                      ? match.expires_at
-                      : null;
+                    match.status === 'pending' && match.expires_at ? match.expires_at : null;
 
                   return (
                     <MatchProfileCard
                       key={match.matchId}
                       match={match}
                       timeLeft={timeLeft}
-                      requestSent={acceptedUserIds.has(match.user_id)}
-                      onTanis={() => handleTanis(match)}
-                      onGec={() => handleGec(match)}
+                      inviteState={cardInviteState(match)}
+                      onLetsMeet={() => handleLetsMeet(match)}
+                      onOpenChat={() => handleOpenChat(match)}
+                      onPass={() => handlePass(match)}
                     />
                   );
                 })

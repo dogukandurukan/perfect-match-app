@@ -90,7 +90,7 @@ export default function MessagesScreen() {
           router.push({
             pathname: '/chat',
             params: { userId: item.userId, userName: item.userName },
-          } as any)
+          })
         }
         activeOpacity={0.8}
       >
