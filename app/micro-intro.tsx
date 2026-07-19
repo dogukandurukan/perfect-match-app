@@ -1,9 +1,11 @@
 // Screen: Micro-intro (buluşma tercihleri) | Status: stable | Last updated: Mayıs 2026
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -21,33 +23,84 @@ function firstParam(val: string | string[] | undefined): string {
   return val ?? '';
 }
 
-const STEPS = [
-  {
-    question: 'Hangi kafede buluşalım?',
-    options: [
-      '☕ Mandabatmaz — Beyoğlu',
-      '☕ Walter\'s Coffee — Kadıköy',
-      '☕ Kronotrop — Nişantaşı',
-      '📍 Başka bir kafe önerelim',
-    ],
-  },
-  {
-    question: 'Hangi gün müsaitsin?',
-    options: [
-      '📅 Bu Cumartesi',
-      '📅 Bu Pazar',
-      '📅 Gelecek hafta sonu',
-    ],
-  },
-  {
-    question: 'Hangi saat aralığı sana uyar?',
-    options: [
-      '🌅 10:00 – 12:00',
-      '☀️ 12:00 – 14:00',
-      '🌤 14:00 – 17:00',
-    ],
-  },
+function capitalizeWords(text: string): string {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function normalizeCafe(raw: string): string {
+  const cleaned = raw
+    .trim()
+    .replace(/\s*([,\-–—])\s*/g, ' $1 ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return capitalizeWords(cleaned);
+}
+
+const CUSTOM_CAFE_OPTION = '📍 Başka bir kafe önerelim';
+
+const FALLBACK_CAFE_OPTIONS = [
+  '☕ Mandabatmaz — Beyoğlu',
+  "☕ Walter's Coffee — Kadıköy",
+  '☕ Kronotrop — Nişantaşı',
 ];
+
+const STEP_DAY = {
+  question: 'Hangi gün müsaitsin?',
+  options: [
+    '📅 Bu Cumartesi',
+    '📅 Bu Pazar',
+    '📅 Gelecek hafta sonu',
+    '📅 Alternatif bir gün öner',
+  ],
+};
+
+const STEP_TIME = {
+  question: 'Hangi saat aralığı sana uyar?',
+  options: [
+    '🌅 10:00 – 12:00',
+    '☀️ 12:00 – 14:00',
+    '🌤 14:00 – 17:00',
+    '🕐 Başka bir saat öner',
+  ],
+};
+
+type VenueRow = {
+  name: string;
+  district: string;
+  emoji: string | null;
+};
+
+function formatVenueOption(venue: VenueRow): string {
+  return `${venue.emoji ?? '☕'} ${venue.name} — ${venue.district}`;
+}
+
+function pickVenues(venues: VenueRow[], userDistrict: string | null): VenueRow[] {
+  const picked: VenueRow[] = [];
+  const seen = new Set<string>();
+
+  const addVenue = (venue: VenueRow) => {
+    const key = `${venue.name}|${venue.district}`;
+    if (seen.has(key) || picked.length >= 3) return;
+    seen.add(key);
+    picked.push(venue);
+  };
+
+  if (userDistrict) {
+    venues.filter((v) => v.district === userDistrict).forEach(addVenue);
+  }
+
+  venues.forEach((venue) => {
+    if (picked.length >= 3) return;
+    addVenue(venue);
+  });
+
+  return picked;
+}
 
 export default function MicroIntroScreen() {
   const router = useRouter();
@@ -65,6 +118,8 @@ export default function MicroIntroScreen() {
   const [answers, setAnswers] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [customCafe, setCustomCafe] = useState('');
+  const [customDay, setCustomDay] = useState('');
+  const [customTime, setCustomTime] = useState('');
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [confirmedDetails, setConfirmedDetails] = useState<{
@@ -72,6 +127,76 @@ export default function MicroIntroScreen() {
     gun: string;
     saat: string;
   } | null>(null);
+  const [cafeOptions, setCafeOptions] = useState<string[]>([
+    ...FALLBACK_CAFE_OPTIONS,
+    CUSTOM_CAFE_OPTION,
+  ]);
+  const [venuesLoading, setVenuesLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      setVenuesLoading(true);
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        let userDistrict: string | null = null;
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('district')
+            .eq('id', user.id)
+            .single();
+          userDistrict = profile?.district ?? null;
+        }
+
+        const { data: venues, error } = await supabase
+          .from('venues')
+          .select('name, district, emoji')
+          .eq('is_active', true);
+
+        if (!mounted) return;
+
+        if (error || !venues || venues.length === 0) {
+          setCafeOptions([...FALLBACK_CAFE_OPTIONS, CUSTOM_CAFE_OPTION]);
+          return;
+        }
+
+        const picked = pickVenues(venues as VenueRow[], userDistrict);
+        if (picked.length === 0) {
+          setCafeOptions([...FALLBACK_CAFE_OPTIONS, CUSTOM_CAFE_OPTION]);
+          return;
+        }
+
+        setCafeOptions([...picked.map(formatVenueOption), CUSTOM_CAFE_OPTION]);
+      } catch {
+        if (mounted) {
+          setCafeOptions([...FALLBACK_CAFE_OPTIONS, CUSTOM_CAFE_OPTION]);
+        }
+      } finally {
+        if (mounted) setVenuesLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const steps = useMemo(
+    () => [
+      {
+        question: 'Hangi kafede buluşalım?',
+        options: cafeOptions,
+      },
+      STEP_DAY,
+      STEP_TIME,
+    ],
+    [cafeOptions],
+  );
 
   function handleSelect(option: string) {
     setSelected(option);
@@ -80,12 +205,16 @@ export default function MicroIntroScreen() {
   async function handleNext() {
     if (!selected) return;
     const effectiveSelected =
-      selected === '📍 Başka bir kafe önerelim' && customCafe.trim()
-        ? `☕ ${customCafe.trim()}`
+      selected === CUSTOM_CAFE_OPTION && customCafe.trim()
+        ? `☕ ${normalizeCafe(customCafe)}`
+        : selected === '📅 Alternatif bir gün öner' && customDay.trim()
+        ? `📅 ${capitalizeWords(customDay)}`
+        : selected === '🕐 Başka bir saat öner' && customTime.trim()
+        ? `🕐 ${customTime.trim()}`
         : selected;
     const newAnswers = [...answers, effectiveSelected];
 
-    if (step < STEPS.length - 1) {
+    if (step < steps.length - 1) {
       setAnswers(newAnswers);
       setSelected(null);
       setStep(step + 1);
@@ -106,27 +235,52 @@ export default function MicroIntroScreen() {
         saat: newAnswers[2],
       };
 
-      // Match satırını bul
-      const { data: match } = await supabase
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+      // Match satırını bul veya oluştur
+      const { data: existingMatch } = await supabase
         .from('matches')
         .select('id, user_a_id, user_b_id, user_a_intro_answers')
         .or(
           `and(user_a_id.eq.${user.id},user_b_id.eq.${matchUserId}),` +
             `and(user_a_id.eq.${matchUserId},user_b_id.eq.${user.id})`,
         )
-        .single();
+        .maybeSingle();
 
-      if (!match) throw new Error('Eşleşme bulunamadı.');
+      let match = existingMatch;
 
-      const isUserA = match.user_a_id === user.id;
+      if (!match) {
+        // Yeni eşleşme: status her zaman pending (isAccepting olsa bile insert'te accepted yapılmaz)
+        const { data: newMatch, error: insertError } = await supabase
+          .from('matches')
+          .insert({
+            user_a_id: user.id,
+            user_b_id: matchUserId,
+            match_score: Number(matchPercentage) || 0,
+            status: 'pending',
+            expires_at: expiresAt,
+            user_a_accepted: true,
+            user_a_intro_answers: introAnswers,
+          })
+          .select('id, user_a_id, user_b_id, user_a_intro_answers')
+          .single();
 
-      const updatePayload = isUserA
-        ? { user_a_accepted: true, user_a_intro_answers: introAnswers }
-        : { user_b_accepted: true, user_b_intro_answers: introAnswers };
+        if (insertError) throw new Error(insertError.message);
+        match = newMatch;
+      } else {
+        // Mevcut eşleşme: status yalnızca isAccepting=true iken accepted olur
+        const isUserA = match.user_a_id === user.id;
+        const basePayload = isUserA
+          ? { user_a_accepted: true, user_a_intro_answers: introAnswers }
+          : { user_b_accepted: true, user_b_intro_answers: introAnswers };
+        const updatePayload = isAccepting
+          ? { ...basePayload, status: 'accepted' as const }
+          : basePayload;
 
-      const { error } = await supabase.from('matches').update(updatePayload).eq('id', match.id);
+        const { error } = await supabase.from('matches').update(updatePayload).eq('id', match.id);
 
-      if (error) throw new Error(error.message);
+        if (error) throw new Error(error.message);
+      }
 
       // Buluşma detaylarını belirle
       // isAccepting = true ise: Kullanıcı A'nın cevapları referans alınır
@@ -212,11 +366,27 @@ export default function MicroIntroScreen() {
     );
   }
 
-  const currentStep = STEPS[step];
+  const currentStep = steps[step];
+  const nextDisabled =
+    !selected ||
+    (step === 0 && venuesLoading) ||
+    (selected === CUSTOM_CAFE_OPTION && customCafe.trim().length === 0) ||
+    (selected === '📅 Alternatif bir gün öner' && customDay.trim().length === 0) ||
+    (selected === '🕐 Başka bir saat öner' && customTime.trim().length === 0) ||
+    sending;
 
   return (
     <ScreenContainer style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Profil satırı */}
         <View style={styles.profileRow}>
           <Image source={{ uri: matchPhoto }} style={styles.profilePhoto} />
@@ -242,7 +412,7 @@ export default function MicroIntroScreen() {
 
         {/* İlerleme noktaları */}
         <View style={styles.dotsRow}>
-          {STEPS.map((_, i) => (
+          {steps.map((_, i) => (
             <View
               key={i}
               style={[styles.dot, i === step && styles.dotActive, i < step && styles.dotDone]}
@@ -255,62 +425,88 @@ export default function MicroIntroScreen() {
 
         {/* Seçenekler */}
         <View style={styles.optionsWrap}>
-          {currentStep.options.map((opt) => (
-            <TouchableOpacity
-              key={opt}
-              style={[styles.option, selected === opt && styles.optionSelected]}
-              onPress={() => handleSelect(opt)}
-              activeOpacity={0.8}>
-              <ThemedText style={[styles.optionText, selected === opt && styles.optionTextSelected]}>
-                {opt}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-          {selected === '📍 Başka bir kafe önerelim' && step === 0 && (
+          {step === 0 && venuesLoading ? (
+            <ThemedText style={styles.loadingText}>Kafeler yükleniyor...</ThemedText>
+          ) : (
+            currentStep.options.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.option, selected === opt && styles.optionSelected]}
+                onPress={() => handleSelect(opt)}
+                activeOpacity={0.8}>
+                <ThemedText style={[styles.optionText, selected === opt && styles.optionTextSelected]}>
+                  {opt}
+                </ThemedText>
+              </TouchableOpacity>
+            ))
+          )}
+          {selected === CUSTOM_CAFE_OPTION && step === 0 && (
             <TextInput
               style={styles.customInput}
               placeholder="Kafe adı ve semt yaz..."
               placeholderTextColor="#AAAAAA"
               value={customCafe}
               onChangeText={setCustomCafe}
-              autoFocus
+              returnKeyType="done"
+            />
+          )}
+          {selected === '📅 Alternatif bir gün öner' && step === 1 && (
+            <TextInput
+              style={styles.customInput}
+              placeholder="Örn: Gelecek Salı, 3 Haziran..."
+              placeholderTextColor="#AAAAAA"
+              value={customDay}
+              onChangeText={setCustomDay}
+              returnKeyType="done"
+            />
+          )}
+          {selected === '🕐 Başka bir saat öner' && step === 2 && (
+            <TextInput
+              style={styles.customInput}
+              placeholder="Örn: 17:00 – 19:00"
+              placeholderTextColor="#AAAAAA"
+              value={customTime}
+              onChangeText={setCustomTime}
+              returnKeyType="done"
             />
           )}
         </View>
+      </ScrollView>
 
-        {/* İleri / Onayla butonu */}
+      <View style={styles.footer}>
         <TouchableOpacity
-          style={[
-            styles.nextBtn,
-            (!selected ||
-              (selected === '📍 Başka bir kafe önerelim' && customCafe.trim().length === 0)) &&
-              styles.nextBtnDisabled,
-          ]}
+          style={[styles.nextBtn, nextDisabled && styles.nextBtnDisabled]}
           onPress={handleNext}
-          disabled={
-            !selected ||
-            (selected === '📍 Başka bir kafe önerelim' && customCafe.trim().length === 0) ||
-            sending
-          }
+          disabled={nextDisabled}
           activeOpacity={0.8}>
           <ThemedText style={styles.nextBtnText}>
             {sending
               ? 'Gönderiliyor…'
-              : step < STEPS.length - 1
+              : step < steps.length - 1
                 ? 'İleri →'
                 : isAccepting
                   ? 'Onayla ve Buluş! 🎉'
                   : 'Gönder ✓'}
           </ThemedText>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
-  content: { paddingBottom: 40, paddingHorizontal: 4, gap: 20 },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 16, paddingHorizontal: 4, gap: 20 },
+  footer: {
+    paddingHorizontal: 4,
+    paddingTop: 8,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    backgroundColor: '#FFF',
+  },
 
   profileRow: {
     flexDirection: 'row',
@@ -374,6 +570,12 @@ const styles = StyleSheet.create({
   },
 
   optionsWrap: { gap: 10 },
+  loadingText: {
+    textAlign: 'center',
+    color: '#888',
+    fontSize: 15,
+    paddingVertical: 16,
+  },
   option: {
     borderWidth: 1,
     borderColor: '#E0E0E0',
@@ -403,7 +605,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 8,
   },
   nextBtnDisabled: { opacity: 0.4 },
   nextBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },

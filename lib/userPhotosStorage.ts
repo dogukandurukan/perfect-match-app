@@ -9,11 +9,17 @@ export function profilePhotoObjectPath(userId: string, slotIndex: number) {
   return `${userId}/photo_${slotIndex}.jpg`;
 }
 
+import { resolveProfilePhotoUrl as resolveProfilePhotoUrlCore } from './resolveProfilePhotoUrl';
+
 /** Signed URL for private bucket objects (e.g. match UI). External https URLs pass through. */
 export async function resolveProfilePhotoUrl(
   ref: string,
   expiresInSec = 3600,
 ): Promise<string | null> {
+  if (expiresInSec === 3600) {
+    const url = await resolveProfilePhotoUrlCore(ref);
+    return url || null;
+  }
   if (ref.startsWith('https://') || ref.startsWith('http://')) {
     return ref;
   }

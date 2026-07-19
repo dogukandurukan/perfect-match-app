@@ -1,9 +1,7 @@
-// Screen: Üst ikon | Status: stable | Last updated: Mayıs 2026
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { colors } from '@/lib/designTokens';
 
 type HomeTopIconProps = {
   /**
@@ -19,10 +17,10 @@ export function HomeTopIcon({ to = '/(tabs)' }: HomeTopIconProps) {
   return (
     <View style={styles.wrap}>
       <Pressable
-        onPress={() => router.replace({ pathname: to as any })}
+        onPress={() => router.replace(to)}
         hitSlop={12}
-        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-        <Ionicons name="home-outline" size={22} color={colors.accent} />
+        style={styles.button}>
+        <Ionicons name="home-outline" size={22} color="#C9A96E" />
       </Pressable>
     </View>
   );
@@ -40,13 +38,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: colors.bgCard,
-    borderWidth: 0.5,
-    borderColor: '#E5E5E5',
-  },
-  buttonPressed: {
-    transform: [{ scale: 0.96 }],
-    opacity: 0.9,
+    backgroundColor: '#1C2030',
   },
 });
 

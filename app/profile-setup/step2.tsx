@@ -22,10 +22,9 @@ export type Setup2Answers = {
   casualness_expectation?: string;
   exclusivity_view?: string;
   connection_style?: string;
-  marriage_view?: string;
-  children_view?: string;
   relationship_pace?: string;
   life_priority?: string;
+  relationship_vision?: string;
   excitement_factor?: string;
   commitment_view?: string;
   connection_energy?: string;
@@ -33,10 +32,9 @@ export type Setup2Answers = {
 
 const INTENT_OPTIONS: { label: string; key: IntentKey }[] = [
   { label: 'Just friends', key: 'just_friends' },
-  { label: 'Keeping it casual', key: 'keeping_it_casual' },
-  { label: 'Open to a relationship', key: 'open_to_relationship' },
-  { label: 'Not sure yet', key: 'not_sure_yet' },
-  { label: 'Spor partneri', key: 'sports_partner' },
+  { label: 'Something casual', key: 'keeping_it_casual' },
+  { label: 'Open to something real', key: 'open_to_relationship' },
+  { label: 'Figuring it out', key: 'not_sure_yet' },
 ];
 
 function ChipRow({
@@ -189,7 +187,6 @@ export default function ProfileSetupStep2() {
 
   const canProceed = useMemo(() => {
     if (!intent) return false;
-    if (intent === 'sports_partner') return true;
     if (intent === 'keeping_it_casual') {
       return !!(answers.casualness_expectation && answers.exclusivity_view && answers.connection_style);
     }
@@ -198,10 +195,9 @@ export default function ProfileSetupStep2() {
     }
     if (intent === 'open_to_relationship') {
       return !!(
-        answers.marriage_view &&
-        answers.children_view &&
         answers.relationship_pace &&
-        answers.life_priority
+        answers.life_priority &&
+        answers.relationship_vision
       );
     }
     if (intent === 'not_sure_yet') {
@@ -213,11 +209,6 @@ export default function ProfileSetupStep2() {
   const handleNext = async () => {
     if (!intent || !canProceed) {
       Alert.alert('Eksik bilgi', 'Lütfen tüm soruları yanıtla.');
-      return;
-    }
-
-    if (intent === 'sports_partner') {
-      router.replace('/coming-soon');
       return;
     }
 
@@ -242,10 +233,9 @@ export default function ProfileSetupStep2() {
         casualness_expectation: answers.casualness_expectation ?? null,
         exclusivity_view: answers.exclusivity_view ?? null,
         connection_style: answers.connection_style ?? null,
-        marriage_view: answers.marriage_view ?? null,
-        children_view: answers.children_view ?? null,
         relationship_pace: answers.relationship_pace ?? null,
         life_priority: answers.life_priority ?? null,
+        relationship_vision: answers.relationship_vision ?? null,
         excitement_factor: answers.excitement_factor ?? null,
         commitment_view: answers.commitment_view ?? null,
         connection_energy: answers.connection_energy ?? null,
@@ -296,7 +286,7 @@ export default function ProfileSetupStep2() {
             <SetupScreenHeader step={2} />
 
             <View style={styles.section}>
-              <ThemedText style={styles.sectionLabel}>What kind of connection are you looking for?</ThemedText>
+              <ThemedText style={styles.sectionLabel}>What brings you here?</ThemedText>
               <View style={styles.chipRow}>
                 {INTENT_OPTIONS.map(({ label, key }) =>
                   key === 'not_sure_yet' ? (
@@ -332,7 +322,7 @@ export default function ProfileSetupStep2() {
               </View>
             </View>
 
-            {intent && intent !== 'sports_partner' ? (
+            {intent ? (
               <>
                 <OptionalFieldReveal show={!!dynamicTitle} animationKey={dynamicTitle}>
                   <ThemedText style={styles.title}>{dynamicTitle}</ThemedText>
@@ -357,7 +347,7 @@ export default function ProfileSetupStep2() {
                       />
                     </View>
                     <View style={styles.section}>
-                      <ThemedText style={styles.sectionLabel}>How do you usually connect with someone?</ThemedText>
+                      <ThemedText style={styles.sectionLabel}>You know there&apos;s a vibe when...</ThemedText>
                       <ChipRow
                         options={[
                           'Physical chemistry first',
@@ -375,7 +365,7 @@ export default function ProfileSetupStep2() {
                 {showJustFriends && (
                   <OptionalFieldReveal show animationKey="friends-block">
                     <View style={styles.section}>
-                      <ThemedText style={styles.sectionLabel}>What do you value most in a friendship?</ThemedText>
+                      <ThemedText style={styles.sectionLabel}>What makes a friendship last for you?</ThemedText>
                       <ChipRow
                         options={[
                           'Loyalty & trust',
@@ -388,7 +378,7 @@ export default function ProfileSetupStep2() {
                       />
                     </View>
                     <View style={styles.section}>
-                      <ThemedText style={styles.sectionLabel}>How often do you like to hang out?</ThemedText>
+                      <ThemedText style={styles.sectionLabel}>How often do you see your close friends?</ThemedText>
                       <ChipRow
                         options={[
                           'A few times a week',
@@ -401,7 +391,7 @@ export default function ProfileSetupStep2() {
                       />
                     </View>
                     <View style={styles.section}>
-                      <ThemedText style={styles.sectionLabel}>What kind of social settings do you prefer?</ThemedText>
+                      <ThemedText style={styles.sectionLabel}>Your ideal hangout looks like...</ThemedText>
                       <ChipRow
                         options={['One-on-one', 'Small groups', 'Big groups', 'Mix of everything'] as const}
                         selected={answers.social_preference ?? null}
@@ -413,22 +403,6 @@ export default function ProfileSetupStep2() {
 
                 {showOpenRelationship && (
                   <OptionalFieldReveal show animationKey="relationship-block">
-                    <View style={styles.section}>
-                      <ThemedText style={styles.sectionLabel}>Do you see yourself getting married?</ThemedText>
-                      <ChipRow
-                        options={['Yes, definitely', 'Open to it', 'Not sure', 'No'] as const}
-                        selected={answers.marriage_view ?? null}
-                        onSelect={(v) => setAnswer('marriage_view', v)}
-                      />
-                    </View>
-                    <View style={styles.section}>
-                      <ThemedText style={styles.sectionLabel}>Do you want children?</ThemedText>
-                      <ChipRow
-                        options={['Yes', 'Maybe someday', 'No', 'Already have kids'] as const}
-                        selected={answers.children_view ?? null}
-                        onSelect={(v) => setAnswer('children_view', v)}
-                      />
-                    </View>
                     <View style={styles.section}>
                       <ThemedText style={styles.sectionLabel}>What&apos;s your relationship pace?</ThemedText>
                       <ChipRow
@@ -443,7 +417,7 @@ export default function ProfileSetupStep2() {
                       />
                     </View>
                     <View style={styles.section}>
-                      <ThemedText style={styles.sectionLabel}>What takes priority in your life right now?</ThemedText>
+                      <ThemedText style={styles.sectionLabel}>What takes priority right now?</ThemedText>
                       <ChipRow
                         options={[
                           'Career & ambition',
@@ -453,6 +427,21 @@ export default function ProfileSetupStep2() {
                         ] as const}
                         selected={answers.life_priority ?? null}
                         onSelect={(v) => setAnswer('life_priority', v)}
+                      />
+                    </View>
+                    <View style={styles.section}>
+                      <ThemedText style={styles.sectionLabel}>
+                        What does a healthy relationship look like to you?
+                      </ThemedText>
+                      <ChipRow
+                        options={[
+                          "We support each other's independence",
+                          "We're each other's priority",
+                          'We grow together',
+                          'A balance of both',
+                        ] as const}
+                        selected={answers.relationship_vision ?? null}
+                        onSelect={(v) => setAnswer('relationship_vision', v)}
                       />
                     </View>
                   </OptionalFieldReveal>

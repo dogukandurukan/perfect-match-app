@@ -14,6 +14,7 @@ export type Setup2AnswersFields = {
   children_view?: MaybeText;
   relationship_pace?: MaybeText;
   life_priority?: MaybeText;
+  relationship_vision?: MaybeText;
   excitement_factor?: MaybeText;
   commitment_view?: MaybeText;
   connection_energy?: MaybeText;
@@ -30,6 +31,7 @@ const SETUP2_KEYS: (keyof Setup2AnswersFields)[] = [
   'children_view',
   'relationship_pace',
   'life_priority',
+  'relationship_vision',
   'excitement_factor',
   'commitment_view',
   'connection_energy',
@@ -92,9 +94,6 @@ export function setup2PairScore(
 }
 
 export function intentScore(a: IntentKey, b: IntentKey): number {
-  if (a === 'sports_partner' || b === 'sports_partner') {
-    return a === 'sports_partner' && b === 'sports_partner' ? 45 : 0;
-  }
   if (a === 'not_sure_yet' && b === 'not_sure_yet') return 28;
   if (a === b) return 45;
   if (a === 'not_sure_yet' || b === 'not_sure_yet') return 20;
@@ -107,12 +106,11 @@ export function intentScore(a: IntentKey, b: IntentKey): number {
  * not_sure_yet×not_sure_yet 64, not_sure_yet×diğer 56.
  */
 export function setup2MaxPossible(intentA: IntentKey, intentB: IntentKey): number {
-  if (intentA === 'sports_partner' && intentB === 'sports_partner') return 45;
   if (intentA === 'not_sure_yet' && intentB === 'not_sure_yet') return 64;
   if (intentA === 'not_sure_yet' || intentB === 'not_sure_yet') return 56;
   if (intentA === 'just_friends' && intentB === 'just_friends') return 81;
   if (intentA === 'keeping_it_casual' && intentB === 'keeping_it_casual') return 81;
-  if (intentA === 'open_to_relationship' && intentB === 'open_to_relationship') return 93;
+  if (intentA === 'open_to_relationship' && intentB === 'open_to_relationship') return 81;
   return 0;
 }
 
@@ -139,10 +137,9 @@ export function setup2AnswersScore(
   }
 
   if (intentA === 'open_to_relationship' && intentB === 'open_to_relationship') {
-    score += setup2PairScore(answersA.marriage_view, answersB.marriage_view, []);
-    score += setup2PairScore(answersA.children_view, answersB.children_view, []);
     score += setup2PairScore(answersA.relationship_pace, answersB.relationship_pace, ['Not sure yet']);
     score += setup2PairScore(answersA.life_priority, answersB.life_priority, ['Balance of everything']);
+    score += setup2PairScore(answersA.relationship_vision, answersB.relationship_vision, ['A balance of both']);
   }
 
   if (intentA === 'not_sure_yet' && intentB === 'not_sure_yet') {

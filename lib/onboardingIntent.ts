@@ -7,17 +7,19 @@ export type IntentKey =
   | 'just_friends'
   | 'keeping_it_casual'
   | 'open_to_relationship'
-  | 'not_sure_yet'
-  | 'sports_partner';
+  | 'not_sure_yet';
 
 /** Maps UI labels to persisted intent keys */
 export function mapOnboardingLabelToIntent(label: string): IntentKey {
   const map: Record<string, IntentKey> = {
     'Just friends': 'just_friends',
+    'Something casual': 'keeping_it_casual',
+    'Open to something real': 'open_to_relationship',
+    'Figuring it out': 'not_sure_yet',
+    // legacy labels
     'Keeping it casual': 'keeping_it_casual',
     'Open to a relationship': 'open_to_relationship',
     'Not sure yet': 'not_sure_yet',
-    'Spor partneri': 'sports_partner',
   };
   return map[label] ?? 'not_sure_yet';
 }
@@ -29,8 +31,7 @@ export function normalizeIntentKey(v: string): IntentKey | null {
     v === 'just_friends' ||
     v === 'keeping_it_casual' ||
     v === 'open_to_relationship' ||
-    v === 'not_sure_yet' ||
-    v === 'sports_partner'
+    v === 'not_sure_yet'
   ) {
     return v;
   }

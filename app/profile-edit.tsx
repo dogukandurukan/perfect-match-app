@@ -1,7 +1,9 @@
 // Screen: Profil düzenleme | Status: stable | Last updated: Mayıs 2026
 import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -10,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
@@ -18,6 +21,10 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Chip } from '@/components/ui/Chip';
 import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
+import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
+
+const MAX_PHOTOS = 3;
+const PHOTOS_BUCKET = 'user-photos';
 
 const DAY_OPTIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 const HOUR_OPTIONS = ['Morning (9-12)', 'Afternoon (12-18)', 'Evening (18-21)', 'Always'] as const;
@@ -98,6 +105,21 @@ function parseField(val: string | string[] | null): string[] {
     .filter(Boolean);
 }
 
+async function resolvePhotoUrls(refs: string[]): Promise<string[]> {
+  const urls = await Promise.all(
+    refs.map(async (ref) => {
+      console.log('[resolvePhotoUrls] ref:', ref);
+      if (ref.startsWith('http://') || ref.startsWith('https://')) {
+        return ref;
+      }
+      const signed = await resolveProfilePhotoUrl(ref);
+      console.log('[resolvePhotoUrls] signed:', signed);
+      return signed || ref;
+    }),
+  );
+  return urls;
+}
+
 export default function ProfileEditScreen() {
   const router = useRouter();
 
@@ -106,17 +128,17 @@ export default function ProfileEditScreen() {
   const [availHours, setAvailHours] = useState<string[]>([]);
   const [meetingEnv, setMeetingEnv] = useState<string[]>([]);
 
-  // Ayrı alanlar
   const [musicItems, setMusicItems] = useState<string[]>([]);
-  const [artistItems, setArtistItems] = useState<string[]>([]);
   const [movieItems, setMovieItems] = useState<string[]>([]);
-  const [seriesItems, setSeriesItems] = useState<string[]>([]);
   const [bookItems, setBookItems] = useState<string[]>([]);
   const [activityItems, setActivityItems] = useState<string[]>([]);
   const [coreValueItems, setCoreValueItems] = useState<string[]>([]);
   const [impressedByItems, setImpressedByItems] = useState<string[]>([]);
   const [dealbreakerItems, setDealbreakerItems] = useState<string[]>([]);
 
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [photoStorageRefs, setPhotoStorageRefs] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useFocusEffect(
@@ -130,7 +152,7 @@ export default function ProfileEditScreen() {
           .from('profiles')
           .select(
             `
-            bio, availability_days, availability_hours, meeting_environment,
+            bio, photos, availability_days, availability_hours, meeting_environment,
             favorite_music, favorite_movie, favorite_book, favorite_activity,
             core_value, impressed_by, dealbreaker
           `,
@@ -140,22 +162,18 @@ export default function ProfileEditScreen() {
 
         if (!mounted || !data) return;
 
+        const refs = data.photos ?? [];
+        setPhotoStorageRefs(refs);
+        setPhotoUrls(await resolvePhotoUrls(refs));
+
         setBio(data.bio ?? '');
         setAvailDays(data.availability_days ?? []);
         setAvailHours(data.availability_hours ?? []);
         setMeetingEnv(data.meeting_environment ?? []);
 
-        // favorite_music → müzik + sanatçı ayrımı (| ile ayrılmış)
-        const musicRaw = parseField(data.favorite_music);
-        const artistRaw = parseField(data.favorite_activity); // geçici — aşağıda açıklandı
-        setMusicItems(musicRaw);
-        setArtistItems(artistRaw);
-
+        setMusicItems(parseField(data.favorite_music));
         setMovieItems(parseField(data.favorite_movie));
-        // favorite_book → kitap + dizi ayrımı için favorite_book'u ikiye böldük
-        const bookRaw = parseField(data.favorite_book);
-        setBookItems(bookRaw);
-        setSeriesItems([]);
+        setBookItems(parseField(data.favorite_book));
         setActivityItems(parseField(data.favorite_activity));
         setCoreValueItems(parseField(data.core_value));
         setImpressedByItems(parseField(data.impressed_by));
@@ -181,14 +199,78 @@ export default function ProfileEditScreen() {
     setter(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
   }
 
+  async function persistPhotosOnly(refs: string[]) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase
+      .from('profiles')
+      .update({ photos: refs.length ? refs : null })
+      .eq('id', user.id);
+  }
+
+  async function handlePickPhoto() {
+    if (photoStorageRefs.length >= MAX_PHOTOS) return;
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Fotoğraf erişimine izin vermeniz gerekiyor');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || result.assets.length === 0) return;
+
+    setUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Oturum bulunamadı.');
+
+      const uri = result.assets[0].uri;
+      const storagePath = `${user.id}/${Date.now()}.jpg`;
+
+      const response = await fetch(uri);
+      if (!response.ok) throw new Error('Fotoğraf okunamadı.');
+
+      const arrayBuffer = await response.arrayBuffer();
+      const { error: uploadError } = await supabase.storage
+        .from(PHOTOS_BUCKET)
+        .upload(storagePath, arrayBuffer, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const nextRefs = [...photoStorageRefs, storagePath];
+      setPhotoStorageRefs(nextRefs);
+      setPhotoUrls(await resolvePhotoUrls(nextRefs));
+      await persistPhotosOnly(nextRefs);
+    } catch {
+      Alert.alert('Fotoğraf yüklenemedi, tekrar dene');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleRemovePhoto(index: number) {
+    const nextRefs = photoStorageRefs.filter((_, i) => i !== index);
+    setPhotoStorageRefs(nextRefs);
+    setPhotoUrls(await resolvePhotoUrls(nextRefs));
+    await persistPhotosOnly(nextRefs);
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Oturum bulunamadı.');
-
-      const allMusic = [...musicItems, ...artistItems];
-      const allMovie = [...movieItems, ...seriesItems];
 
       const { error } = await supabase
         .from('profiles')
@@ -197,13 +279,14 @@ export default function ProfileEditScreen() {
           availability_days: availDays.length ? availDays : null,
           availability_hours: availHours.length ? availHours : null,
           meeting_environment: meetingEnv.length ? meetingEnv : null,
-          favorite_music: allMusic.length ? allMusic.join(', ') : null,
-          favorite_movie: allMovie.length ? allMovie.join(', ') : null,
+          favorite_music: musicItems.length ? musicItems.join(', ') : null,
+          favorite_movie: movieItems.length ? movieItems.join(', ') : null,
           favorite_book: bookItems.length ? bookItems.join(', ') : null,
           favorite_activity: activityItems.length ? activityItems.join(', ') : null,
           core_value: coreValueItems.length ? coreValueItems.join(', ') : null,
           impressed_by: impressedByItems.length ? impressedByItems.join(', ') : null,
           dealbreaker: dealbreakerItems.length ? dealbreakerItems.join(', ') : null,
+          photos: photoStorageRefs.length ? photoStorageRefs : null,
         })
         .eq('id', user.id);
 
@@ -215,8 +298,9 @@ export default function ProfileEditScreen() {
           onPress: () => router.back(),
         },
       ]);
-    } catch (e: any) {
-      Alert.alert('Hata', e?.message ?? 'Bir hata oluştu.');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Bir hata oluştu.';
+      Alert.alert('Hata', message);
     } finally {
       setSaving(false);
     }
@@ -234,6 +318,40 @@ export default function ProfileEditScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
           <ThemedText style={styles.pageTitle}>Profilini Düzenle ✏️</ThemedText>
+
+          {/* Fotoğraflar */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>📷 Fotoğraflar</ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.photosRow}>
+              {photoUrls.map((url, index) => (
+                <View key={`${url}-${index}`} style={styles.photoSlot}>
+                  <Image source={{ uri: url }} style={styles.photoImage} />
+                  <TouchableOpacity
+                    style={styles.photoRemoveBtn}
+                    onPress={() => handleRemovePhoto(index)}
+                    activeOpacity={0.8}>
+                    <ThemedText style={styles.photoRemoveText}>✕</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {photoUrls.length < MAX_PHOTOS && (
+                <TouchableOpacity
+                  style={styles.photoAddSlot}
+                  onPress={handlePickPhoto}
+                  disabled={uploading}
+                  activeOpacity={0.8}>
+                  {uploading ? (
+                    <ActivityIndicator color={colors.accent} />
+                  ) : (
+                    <ThemedText style={styles.photoAddText}>+</ThemedText>
+                  )}
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
 
           {/* Bio */}
           <View style={styles.section}>
@@ -297,51 +415,36 @@ export default function ProfileEditScreen() {
             </View>
           </View>
 
-          {/* Seni tanıyalım */}
+          {/* Interests & Taste */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>🎯 Seni Tanıyalım</ThemedText>
+            <ThemedText style={styles.sectionTitle}>Interests & Taste</ThemedText>
             <ThemedText style={styles.sectionSubtitle}>
               Her alan eşleşme puanını artırır ✨
             </ThemedText>
 
             <ChipInput
-              label="🎵 Müzik türleri"
-              placeholder="ör. Jazz, alternatif rock..."
+              label="Favori müzik (tür veya sanatçı)"
+              placeholder="örn. Jazz, Radiohead, Daft Punk"
               items={musicItems}
               onAdd={addTo(setMusicItems)}
               onRemove={removeFrom(setMusicItems)}
             />
             <ChipInput
-              label="🎤 Sanatçılar"
-              placeholder="ör. Radiohead, Sezen Aksu..."
-              items={artistItems}
-              onAdd={addTo(setArtistItems)}
-              onRemove={removeFrom(setArtistItems)}
-            />
-            <ChipInput
-              label="🎬 Filmler"
-              placeholder="ör. Eternal Sunshine, Inception..."
+              label="🎬 Movies & Shows"
+              placeholder="ör. Eternal Sunshine, Breaking Bad..."
               items={movieItems}
               onAdd={addTo(setMovieItems)}
               onRemove={removeFrom(setMovieItems)}
             />
-            <View style={styles.divider} />
             <ChipInput
-              label="📺 Diziler"
-              placeholder="ör. Breaking Bad, Çukur..."
-              items={seriesItems}
-              onAdd={addTo(setSeriesItems)}
-              onRemove={removeFrom(setSeriesItems)}
-            />
-            <ChipInput
-              label="📚 Kitaplar"
+              label="📚 Books"
               placeholder="ör. Küçük Prens, Suç ve Ceza..."
               items={bookItems}
               onAdd={addTo(setBookItems)}
               onRemove={removeFrom(setBookItems)}
             />
             <ChipInput
-              label="🎯 Hobiler"
+              label="🎯 Hobbies"
               placeholder="ör. Yürüyüş, fotoğrafçılık, okuma..."
               items={activityItems}
               onAdd={addTo(setActivityItems)}
@@ -479,4 +582,38 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.5 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+  photosRow: { flexDirection: 'row', gap: 12, paddingVertical: 4 },
+  photoSlot: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#DDD',
+  },
+  photoImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  photoRemoveBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoRemoveText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  photoAddSlot: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#CCC',
+    backgroundColor: colors.bgCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoAddText: { fontSize: 32, color: '#AAA', fontWeight: '300' },
 });

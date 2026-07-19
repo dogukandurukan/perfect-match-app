@@ -128,9 +128,14 @@ export default function RegisterScreen() {
 
     if (!signInError && signInData.session) {
       router.replace('/profile-setup/step1');
-    } else {
-      router.replace('/profile-setup/step1');
+      return;
     }
+
+    Alert.alert(
+      'Verify your email',
+      'We sent you a confirmation link. Please verify your email, then log in to continue setup.',
+    );
+    router.replace('/(auth)/login?verify=1');
   };
 
   return (

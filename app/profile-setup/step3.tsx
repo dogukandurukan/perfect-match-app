@@ -24,7 +24,7 @@ import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
 import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 
-const PRESET_HOBBIES = ['Travel', 'Music', 'Fitness'] as const;
+const PRESET_HOBBIES = ['Travel', 'Music', 'Fitness', 'Reading', 'Gaming', 'Cooking', 'Art', 'Sports'] as const;
 const HOBBY_SUGGESTIONS = [
   'Running',
   'Reading',
@@ -42,16 +42,25 @@ const HOBBY_SUGGESTIONS = [
 ] as const;
 const MAX_HOBBIES = 5;
 
-type RechargeOption = 'Alone time' | 'With people' | 'With my pet' | 'Mix of everything';
+type RechargeOption =
+  | 'Some quiet alone time'
+  | 'Hanging out with people'
+  | 'Quality time with my pet'
+  | 'Depends on the day';
 type DrinkingSmoking = 'Both' | 'Only drinking' | 'Only smoking' | 'When socializing' | 'Neither';
 
-const RECHARGE_OPTIONS: readonly RechargeOption[] = ['Alone time', 'With people', 'With my pet', 'Mix of everything'];
-const DRINK_SMOKE_OPTIONS: readonly DrinkingSmoking[] = [
-  'Both',
-  'Only drinking',
-  'Only smoking',
-  'When socializing',
-  'Neither',
+const RECHARGE_OPTIONS: readonly RechargeOption[] = [
+  'Some quiet alone time',
+  'Hanging out with people',
+  'Quality time with my pet',
+  'Depends on the day',
+];
+const DRINK_SMOKE_OPTIONS: { label: string; value: DrinkingSmoking }[] = [
+  { label: 'I enjoy both', value: 'Both' },
+  { label: 'Just drinks for me', value: 'Only drinking' },
+  { label: 'Just smoking for me', value: 'Only smoking' },
+  { label: 'Only when socializing', value: 'When socializing' },
+  { label: 'Neither, not my thing', value: 'Neither' },
 ];
 
 export default function ProfileSetupStep3() {
@@ -102,17 +111,18 @@ export default function ProfileSetupStep3() {
   }, [isDemoMode, router]);
 
   useEffect(() => {
-    if (education === 'Other' || education === null) {
+    if (education === null) {
       setEducationDetail('');
     }
   }, [education]);
 
   const educationFollowupMeta = useMemo(() => {
-    if (!education || education === 'Other') return null;
+    if (!education) return null;
     const meta: Record<string, { placeholder: string }> = {
       'High school': { placeholder: 'Which high school? (optional)' },
       University: { placeholder: 'Which university? (optional)' },
       "Master's": { placeholder: 'Which university / field? (optional)' },
+      Other: { placeholder: "Any details you'd like to share? (optional)" },
     };
     return meta[education] ?? null;
   }, [education]);
@@ -174,7 +184,7 @@ export default function ProfileSetupStep3() {
     setSaving(true);
     try {
       const educationDetailOut =
-        !skip && education && education !== 'Other' ? educationDetail.trim() || null : null;
+        !skip && education ? educationDetail.trim() || null : null;
       const drinkingValue =
         skip || !drinkingSmoking
           ? null
@@ -235,7 +245,7 @@ export default function ProfileSetupStep3() {
         <ThemedText style={styles.title}>A little more about you</ThemedText>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Morning or night person?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>Are you a morning person or a night owl?</ThemedText>
           <View style={styles.chipRow}>
             {(['Morning person', 'Night owl', 'Depends on the day'] as const).map((opt) => (
               <Chip
@@ -250,7 +260,7 @@ export default function ProfileSetupStep3() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>How do you recharge?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>How do you recharge after a long day?</ThemedText>
           <View style={styles.chipRow}>
             {RECHARGE_OPTIONS.map((opt) => (
               <Chip
@@ -265,7 +275,7 @@ export default function ProfileSetupStep3() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>What do you enjoy doing?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>What do you love doing in your free time?</ThemedText>
           <View style={styles.chipRow}>
             {PRESET_HOBBIES.map((opt) => (
               <Chip
@@ -312,14 +322,14 @@ export default function ProfileSetupStep3() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Do you drink or smoke?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>What&apos;s your take on drinking and smoking?</ThemedText>
           <View style={styles.chipRow}>
-            {DRINK_SMOKE_OPTIONS.map((opt) => (
+            {DRINK_SMOKE_OPTIONS.map(({ label, value }) => (
               <Chip
-                key={opt}
-                label={opt}
-                selected={drinkingSmoking === opt}
-                onPress={() => setDrinkingSmoking(opt)}
+                key={value}
+                label={label}
+                selected={drinkingSmoking === value}
+                onPress={() => setDrinkingSmoking(value)}
                 style={styles.profileChip}
               />
             ))}
@@ -327,7 +337,7 @@ export default function ProfileSetupStep3() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>What is your education level?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>What&apos;s your education background?</ThemedText>
           <View style={styles.chipRow}>
             {(['High school', 'University', "Master's", 'Other'] as const).map((opt) => (
               <Chip
@@ -351,7 +361,7 @@ export default function ProfileSetupStep3() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Which word best describes your religion?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>How would you describe your beliefs?</ThemedText>
           <View style={styles.chipRow}>
             {(['Spiritual', 'Religious', 'Agnostic', 'Atheist', 'Prefer not to say'] as const).map((opt) => (
               <Chip

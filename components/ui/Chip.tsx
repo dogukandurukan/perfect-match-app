@@ -1,6 +1,4 @@
-// Screen: Chip UI | Status: stable | Last updated: Mayıs 2026
-import React from 'react';
-import { GestureResponderEvent, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/lib/designTokens';
@@ -8,41 +6,44 @@ import { colors } from '@/lib/designTokens';
 type ChipProps = {
   label: string;
   selected?: boolean;
-  onPress?: (event: GestureResponderEvent) => void;
-  style?: ViewStyle;
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 };
 
-export function Chip({ label, selected, onPress, style }: ChipProps) {
+export function Chip({ label, selected = false, onPress, style }: ChipProps) {
   return (
-    <TouchableOpacity
+    <Pressable
+      onPress={onPress}
       style={[styles.chip, selected && styles.chipSelected, style]}
-      activeOpacity={0.85}
-      onPress={onPress}>
+      accessibilityRole="button"
+      accessibilityState={{ selected }}>
       <ThemedText style={[styles.label, selected && styles.labelSelected]}>{label}</ThemedText>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   chip: {
     backgroundColor: colors.bgCard,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
     borderWidth: 0.5,
     borderColor: '#E0E0E0',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 36,
+    justifyContent: 'center',
   },
   chipSelected: {
     backgroundColor: colors.accent,
-    borderWidth: 0,
+    borderColor: colors.accent,
   },
   label: {
     color: colors.textPrimary,
     fontSize: 13,
+    fontWeight: '500',
   },
   labelSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
   },
 });
-

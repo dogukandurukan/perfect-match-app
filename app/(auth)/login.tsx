@@ -1,46 +1,22 @@
-// Screen: Giriş (Login) | Status: stable | Last updated: Mayıs 2026
-import * as Linking from 'expo-linking';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Modal,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { supabase } from '@/lib/supabaseClient';
-import { colors } from '@/lib/designTokens';
-import { getProfileSetupState } from '@/lib/profileCompletion';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { verify } = useLocalSearchParams<{ verify?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [forgotOpen, setForgotOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotLoading, setForgotLoading] = useState(false);
-
-  useEffect(() => {
-    if (verify === '1') {
-      Alert.alert(
-        'Verify your email',
-        'Please confirm your email from the link we sent before continuing to profile setup.',
-      );
-    }
-  }, [verify]);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password.');
+      Alert.alert('Hata', 'Lütfen e‑posta ve şifre gir.');
       return;
     }
     setLoading(true);
@@ -48,70 +24,25 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Login failed', error.message);
+      Alert.alert('Giriş başarısız', error.message);
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.replace('/(tabs)');
-      return;
-    }
-
-    if (!user.is_anonymous && user.email && !user.email_confirmed_at) {
-      await supabase.auth.signOut();
-      Alert.alert(
-        'Verify your email',
-        'Check your inbox and tap the confirmation link before signing in.',
-      );
-      return;
-    }
-
-    const state = await getProfileSetupState(user.id);
-
-    if (state === 'setup1') router.replace('/profile-setup/step1');
-    else if (state === 'setup2') router.replace('/profile-setup/step2');
-    else if (state === 'setup3') router.replace('/profile-setup/step3');
-    else if (state === 'setup4') router.replace('/profile-setup/step4');
-    else router.replace('/(tabs)');
-  };
-
-  const handleSendReset = async () => {
-    const trimmed = forgotEmail.trim();
-    if (!trimmed) {
-      Alert.alert('Error', 'Please enter your email address.');
-      return;
-    }
-    setForgotLoading(true);
-    const redirectTo = Linking.createURL('/reset-password');
-    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, { redirectTo });
-    setForgotLoading(false);
-
-    if (error) {
-      Alert.alert('Error', 'No account found with this email.');
-      return;
-    }
-
-    setForgotOpen(false);
-    setForgotEmail('');
-    Alert.alert('Password reset', 'Password reset link sent! Check your email.');
+    router.replace('/(tabs)');
   };
 
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
       <ThemedText type="title" style={styles.title}>
-        Welcome back
+        Log in
       </ThemedText>
 
       <View style={styles.form}>
         <TextInput
           style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#AAAAAA"
+          placeholder="E‑posta"
+          placeholderTextColor="#9CA3AF"
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
@@ -119,48 +50,19 @@ export default function LoginScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#AAAAAA"
+          placeholder="Şifre"
+          placeholderTextColor="#9CA3AF"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
 
-        <PrimaryButton label={loading ? 'Signing in…' : 'Log in'} onPress={handleLogin} loading={loading} />
+        <PrimaryButton label={loading ? 'Giriş yapılıyor…' : 'Log in'} onPress={handleLogin} loading={loading} />
 
-        <Pressable onPress={() => setForgotOpen(true)} style={styles.forgotWrap}>
-          <ThemedText style={styles.forgotText}>Forgot password?</ThemedText>
-        </Pressable>
-
-        <ThemedText style={styles.signUpLink} onPress={() => router.push('/(auth)/register')}>
-          Don&apos;t have an account? Sign up
+        <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/register')}>
+          Hesabın yok mu? Create account
         </ThemedText>
       </View>
-
-      <Modal visible={forgotOpen} transparent animationType="fade" onRequestClose={() => setForgotOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setForgotOpen(false)}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <ThemedText style={styles.modalTitle}>Reset your password</ThemedText>
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor="#AAAAAA"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={forgotEmail}
-              onChangeText={setForgotEmail}
-            />
-            <PrimaryButton
-              label={forgotLoading ? 'Sending…' : 'Send reset link'}
-              onPress={handleSendReset}
-              loading={forgotLoading}
-            />
-            <Pressable onPress={() => setForgotOpen(false)} style={styles.modalCancel}>
-              <ThemedText style={styles.modalCancelText}>Cancel</ThemedText>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </ScreenContainer>
   );
 }
@@ -172,7 +74,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: colors.accent,
+    color: '#FFFFFF',
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -181,55 +83,16 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   input: {
-    backgroundColor: '#F5F5F5',
-    borderWidth: 0.5,
-    borderColor: '#E8E8E8',
+    backgroundColor: '#1C2030',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    color: '#1A1A1A',
+    color: '#FFFFFF',
   },
-  forgotWrap: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  forgotText: {
-    fontSize: 14,
-    color: colors.accent,
-    textAlign: 'center',
-  },
-  signUpLink: {
+  linkText: {
     marginTop: 16,
     textAlign: 'center',
-    color: colors.accent,
-    fontSize: 14,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    backgroundColor: '#F5F5F5',
-    borderWidth: 0.5,
-    borderColor: '#E5E5E5',
-    borderRadius: 16,
-    padding: 20,
-    gap: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 4,
-  },
-  modalCancel: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  modalCancelText: {
-    color: '#AAAAAA',
-    fontSize: 15,
+    color: '#9CA3AF',
   },
 });
+

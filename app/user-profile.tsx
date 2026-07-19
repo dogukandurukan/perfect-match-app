@@ -1,6 +1,6 @@
 // Screen: Kullanıcı profili (karşı taraf) | Status: stable | Last updated: Mayıs 2026
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -116,11 +116,17 @@ function ChipList({ items }: { items: string[] }) {
 
 export default function UserProfileScreen() {
   const params = useLocalSearchParams();
+  const router = useRouter();
   const userId = firstParam(params.userId);
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [blocked, setBlocked] = useState(false);
+  const [matchStatus, setMatchStatus] = useState<'pending' | 'accepted' | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -171,6 +177,68 @@ export default function UserProfileScreen() {
       mounted = false;
     };
   }, [userId]);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!currentUserId || !userId) return;
+    let mounted = true;
+    (async () => {
+      const { data: matchData } = await supabase
+        .from('matches')
+        .select('status')
+        .or(
+          `and(user_a_id.eq.${currentUserId},user_b_id.eq.${userId}),` +
+            `and(user_a_id.eq.${userId},user_b_id.eq.${currentUserId})`,
+        )
+        .in('status', ['pending', 'accepted'])
+        .maybeSingle();
+
+      if (mounted) setMatchStatus((matchData?.status as 'pending' | 'accepted') ?? null);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [currentUserId, userId]);
+
+  async function handleBlock() {
+    if (!currentUserId || !userId) return;
+    Alert.alert(
+      'Engelle',
+      `${profile?.first_name ?? 'Bu kullanıcıyı'} engellemek istediğine emin misin?`,
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Engelle',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('blocks').insert({
+              blocker_id: currentUserId,
+              blocked_id: userId,
+            });
+            setBlocked(true);
+            Alert.alert('Engellendi', 'Bu kullanıcı artık sana gösterilmeyecek.');
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleReport() {
+    if (!currentUserId || !userId || !reportReason.trim()) return;
+    await supabase.from('reports').insert({
+      reporter_id: currentUserId,
+      reported_id: userId,
+      reason: reportReason.trim(),
+    });
+    setReportModalVisible(false);
+    setReportReason('');
+    Alert.alert('Şikayet İletildi', 'Geri bildiriminiz için teşekkürler.');
+  }
 
   if (loading) {
     return (
@@ -322,6 +390,72 @@ export default function UserProfileScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {!blocked && matchStatus === 'accepted' && (
+        <View style={styles.actionsWrap}>
+          <TouchableOpacity
+            style={styles.messageBtn}
+            onPress={() =>
+              router.push({
+                pathname: '/chat',
+                params: {
+                  userId,
+                  userName: profile?.first_name ?? '',
+                },
+              } as any)
+            }>
+            <ThemedText style={styles.messageBtnText}>💬 Mesaj Gönder</ThemedText>
+          </TouchableOpacity>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.reportBtn} onPress={() => setReportModalVisible(true)}>
+              <ThemedText style={styles.reportBtnText}>⚠️ Şikayet Et</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.blockBtn} onPress={handleBlock}>
+              <ThemedText style={styles.blockBtnText}>🚫 Engelle</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {!blocked && matchStatus === 'pending' && (
+        <View style={styles.actionsWrap}>
+          <ThemedText style={styles.pendingText}>⏳ Buluşma isteği gönderildi</ThemedText>
+        </View>
+      )}
+
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReportModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <ThemedText style={styles.modalTitle}>Şikayet Sebebi</ThemedText>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Ne olduğunu kısaca anlat..."
+              placeholderTextColor="#AAA"
+              value={reportReason}
+              onChangeText={setReportReason}
+              multiline
+              numberOfLines={4}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setReportModalVisible(false)}>
+                <ThemedText style={styles.modalCancelText}>Vazgeç</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSendBtn, !reportReason.trim() && { opacity: 0.4 }]}
+                onPress={handleReport}
+                disabled={!reportReason.trim()}>
+                <ThemedText style={styles.modalSendText}>Gönder</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -408,4 +542,87 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
   },
   chipText: { color: colors.accent, fontSize: 13, fontWeight: '500' },
+
+  actionsWrap: {
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 32,
+  },
+  pendingText: {
+    textAlign: 'center',
+    color: '#888',
+    fontSize: 14,
+    paddingVertical: 12,
+  },
+  messageBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  messageBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  reportBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#E8A000',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  reportBtnText: { color: '#E8A000', fontWeight: '600', fontSize: 14 },
+  blockBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#E05555',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  blockBtnText: { color: '#E05555', fontWeight: '600', fontSize: 14 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    gap: 16,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 15,
+    color: colors.textPrimary,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  modalActions: { flexDirection: 'row', gap: 12 },
+  modalCancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: { color: '#888', fontWeight: '600' },
+  modalSendBtn: {
+    flex: 1,
+    backgroundColor: '#E05555',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalSendText: { color: '#FFF', fontWeight: '700' },
 });

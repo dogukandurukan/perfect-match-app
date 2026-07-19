@@ -63,30 +63,10 @@ function randomDob(ageMin = 20, ageMax = 42): string { const now = new Date(); c
 function zodiacSign(month: number, day: number): string { const md = month * 100 + day; if (md >= 1222 || md <= 119) return 'Capricorn'; if (md <= 218) return 'Aquarius'; if (md <= 320) return 'Pisces'; if (md <= 419) return 'Aries'; if (md <= 520) return 'Taurus'; if (md <= 620) return 'Gemini'; if (md <= 722) return 'Cancer'; if (md <= 822) return 'Leo'; if (md <= 922) return 'Virgo'; if (md <= 1022) return 'Libra'; if (md <= 1121) return 'Scorpio'; return 'Sagittarius'; }
 
 function setup2Answers(intent: IntentKey) {
-  if (intent === 'just_friends')
-    return {
-      friendship_value: pickOne(['Loyalty & trust', 'Shared adventures', 'Deep conversations', 'Just having fun']),
-      hangout_frequency: pickOne(['A few times a week', 'Once a week', 'A few times a month', 'Whenever it happens']),
-      social_preference: pickOne(['One-on-one', 'Small groups', 'Big groups', 'Mix of everything']),
-    };
-  if (intent === 'keeping_it_casual')
-    return {
-      casualness_expectation: pickOne(['Fun & good vibes', 'New experiences', 'See where it goes', 'All of the above']),
-      exclusivity_view: pickOne(['Not important right now', 'Open to it eventually', 'Prefer to keep it open']),
-      connection_style: pickOne(['Physical chemistry first', 'Good conversations', 'Shared experiences', 'A bit of everything']),
-    };
-  if (intent === 'open_to_relationship')
-    return {
-      marriage_view: pickOne(['Yes, definitely', 'Open to it', 'Not sure', 'No']),
-      children_view: pickOne(['Yes', 'Maybe someday', 'No', 'Already have kids']),
-      relationship_pace: pickOne(['Taking it slow', 'Going with the flow', 'Ready to commit', 'Not sure yet']),
-      life_priority: pickOne(['Career & ambition', 'Family & relationships', 'Personal growth', 'Balance of everything']),
-    };
-  return {
-    excitement_factor: pickOne(['A great friendship', 'A romantic spark', 'An adventure buddy', 'Just seeing what happens']),
-    commitment_view: pickOne(['Taking it slow', 'Open to whatever feels right', 'Not thinking about it yet']),
-    connection_energy: pickOne(['Laid back & easy going', 'Curious & open minded', 'Fun & spontaneous', 'Still figuring it out']),
-  };
+  if (intent === 'just_friends') return { friendship_type: pickOne(['Activity buddy', 'Someone to talk to', 'Both']), shared_interests_importance: pickOne(['Very important', 'Somewhat important', 'Not that important']), social_preference: pickOne(['Group', 'One-on-one', 'Both']) };
+  if (intent === 'keeping_it_casual') return { casualness_expectation: pickOne(['Fun & good vibes', 'New experiences', 'See where it goes', 'All of the above']), exclusivity_view: pickOne(['Not important right now', 'Open to it eventually', 'Prefer to keep it open']) };
+  if (intent === 'open_to_relationship') return { marriage_view: pickOne(['Yes, definitely', 'Open to it', 'Not sure', 'No']), children_view: pickOne(['Yes', 'Maybe someday', 'No', 'Already have kids']), living_preference: pickOne(['Same city', 'Open to moving', 'Want to move abroad']), life_priority: pickOne(['Career', 'Family', 'Balance of both', 'Still figuring it out']) };
+  return { sub_intent: pickOne(['Friendship', 'Something romantic', 'Both']), commitment_view: pickOne(['Taking it slow', 'Open to it', 'Not thinking about it']), friendship_type: pickOne(['Activity buddy', 'Someone to talk to', 'Both']), social_preference: pickOne(['Group', 'One-on-one', 'Both']) };
 }
 
 async function main() {
@@ -115,10 +95,7 @@ async function main() {
       id: userId, first_name: first, last_name: last, date_of_birth: iso, zodiac_sign: z,
       city, district, lat: lat + (Math.random() - 0.5) * 0.02, lng: lng + (Math.random() - 0.5) * 0.02,
       full_address: `${district}, ${city}`, gender, meeting_preferences: meetingPrefsFor(gender),
-      languages,
-      photos: [`https://i.pravatar.cc/300?u=${userId}`],
-      current_step: 4,
-      setup_completed: true,
+      languages, photos: [`https://i.pravatar.cc/300?u=${userId}`], setup_completed: true,
       morning_night: setup3Filled ? pickOne(['Morning person', 'Night owl', 'Depends on the day']) : null,
       recharge_style: setup3Filled ? pickOne(RECHARGE) : null,
       hobbies: setup3Filled ? pickSome(['Travel', 'Music', 'Fitness', 'Reading', 'Gaming', 'Cooking'], 2, 5) : null,

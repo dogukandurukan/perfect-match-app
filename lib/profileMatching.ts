@@ -19,11 +19,9 @@ function normalizeLangList(l: string | string[] | null | undefined): string[] {
   return [...new Set(arr.map((x) => x.trim().toLowerCase()).filter(Boolean))];
 }
 
-/** Map profile `gender` to meeting-preference chip (free-text → Non-binary bucket). */
+/** Map profile `gender` to meeting-preference chip. */
 function meetingLabelForGender(otherGender: string): 'Men' | 'Women' | 'Non-binary' | undefined {
-  const label = GENDER_TO_MEETING_LABEL[otherGender];
-  if (label) return label;
-  return 'Non-binary';
+  return GENDER_TO_MEETING_LABEL[otherGender];
 }
 
 export function meetingPrefAcceptsGender(

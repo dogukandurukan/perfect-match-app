@@ -21,15 +21,15 @@ const TIME_ALWAYS = 'Always' as const;
 const TIME_CHIPS = [...TIME_OPTIONS, TIME_ALWAYS] as const;
 
 const VENUE_DEFS = [
-  { label: 'Coffee' as const, spotKey: 'coffee', placeholder: "What's your favorite coffee place? (optional)" },
-  { label: 'Walk in the park' as const, spotKey: 'park', placeholder: "What's your favorite park or area? (optional)" },
-  { label: 'Dinner' as const, spotKey: 'dinner', placeholder: 'Any favorite restaurant or cuisine? (optional)' },
-  { label: 'Drinks' as const, spotKey: 'drinks', placeholder: 'Any favorite bar or spot? (optional)' },
-  { label: 'Something active' as const, spotKey: 'active', placeholder: 'What kind of activity do you enjoy? (optional)' },
+  { label: 'A coffee date ☕' as const, spotKey: 'coffee', placeholder: "What's your favorite coffee place? (optional)" },
+  { label: 'A walk outside 🌿' as const, spotKey: 'park', placeholder: "What's your favorite park or area? (optional)" },
+  { label: 'Dinner somewhere nice 🍽' as const, spotKey: 'dinner', placeholder: 'Any favorite restaurant or cuisine? (optional)' },
+  { label: 'Drinks at a bar 🍸' as const, spotKey: 'drinks', placeholder: 'Any favorite bar or spot? (optional)' },
+  { label: 'Something active & fun 🎯' as const, spotKey: 'active', placeholder: 'What kind of activity do you enjoy? (optional)' },
 ];
 
 const FIRST_MEETING_OPTIONS = [
-  "See if there's a vibe",
+  "See if there's a spark",
   'Have a real conversation',
   'Have fun and laugh',
   'All of the above',
@@ -243,6 +243,7 @@ export default function ProfileSetupStep4() {
             availability_hours: null,
             meeting_environment: null,
             favorite_spots: null,
+            preferred_locations: null,
             first_date_expectation: null,
             bio: null,
             current_step: 4,
@@ -258,6 +259,7 @@ export default function ProfileSetupStep4() {
                     Object.entries(favoriteSpots).filter(([, v]) => String(v).trim().length > 0),
                   )
                 : null,
+            preferred_locations: preferredLocations.length ? preferredLocations : null,
             first_date_expectation: firstDateExpectation,
             bio: bio.trim() || null,
             current_step: 4,
@@ -296,7 +298,7 @@ export default function ProfileSetupStep4() {
         <ThemedText style={styles.title}>Last few things</ThemedText>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Which days are you usually free to meet?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>Which days are you usually free?</ThemedText>
           <View style={styles.chipRow}>
             {DAY_LABELS.map((d) => (
               <Chip
@@ -312,7 +314,7 @@ export default function ProfileSetupStep4() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>What time of day works best?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>What time of day works best for you?</ThemedText>
           <View style={styles.chipRow}>
             {TIME_CHIPS.map((opt) => (
               <Chip
@@ -327,7 +329,7 @@ export default function ProfileSetupStep4() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Where do you feel most comfortable on a first date?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>What kind of first date sounds fun to you?</ThemedText>
           <View style={styles.chipRow}>
             {VENUE_DEFS.map(({ label }) => (
               <Chip
@@ -355,7 +357,7 @@ export default function ProfileSetupStep4() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Which neighborhoods do you prefer to meet in?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>Which neighborhoods work best for you?</ThemedText>
 
           <View style={styles.neighborhoodInputWrap}>
             <View style={styles.neighborhoodPresetChips}>
@@ -431,7 +433,7 @@ export default function ProfileSetupStep4() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>What do you hope to get out of a first meeting?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>What are you hoping to get out of a first meeting?</ThemedText>
           <View style={styles.chipRow}>
             {FIRST_MEETING_OPTIONS.map((opt) => (
               <Chip
@@ -446,7 +448,7 @@ export default function ProfileSetupStep4() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText style={styles.sectionLabel}>Anything you&apos;d like people to know?</ThemedText>
+          <ThemedText style={styles.sectionLabel}>Anything you&apos;d like people to know about you?</ThemedText>
           <View style={styles.bioWrap}>
             <TextInput
               style={styles.bioInput}

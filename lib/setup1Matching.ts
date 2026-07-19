@@ -1,42 +1,54 @@
-// Screen: Setup 1 skorlama | Status: stable | Last updated: Mayıs 2026
-import { calculateAge } from '@/lib/zodiac';
+// Screen: Setup 1 yaş skorlama | Status: stable | Last updated: Mayıs 2026
+/**
+ * Age-gap helpers for Setup-1 soft scoring (used by `profileMatching.setup1ScoreTotal`).
+ * District bonus lives in profileMatching (+30); age uses the tiers below.
+ */
 
-/** Setup-1 üst sınır: ilçe (30) + yaş en iyi (8) = 38 */
-export const SETUP1_MAX_POSSIBLE = 38 as const;
+type DobInput = string | null | undefined;
 
-function parseDob(iso: string | null | undefined): Date | null {
-  if (!iso) return null;
-  const d = new Date(iso.length <= 10 ? `${iso}T12:00:00` : iso);
-  return Number.isNaN(d.getTime()) ? null : d;
+function parseDob(dob: DobInput): Date | null {
+  if (!dob) return null;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
 }
 
-export function absAgeGapYears(
-  dateOfBirthA: string | null | undefined,
-  dateOfBirthB: string | null | undefined,
-  ref: Date = new Date(),
-): number | null {
-  const da = parseDob(dateOfBirthA);
-  const db = parseDob(dateOfBirthB);
-  if (!da || !db) return null;
-  return Math.abs(calculateAge(da, ref) - calculateAge(db, ref));
+/** Whole years of age on `ref` (same calendar logic as feed `safeAge`). */
+function ageOnDate(dob: Date, ref: Date): number {
+  let age = ref.getFullYear() - dob.getFullYear();
+  const m = ref.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && ref.getDate() < dob.getDate())) age -= 1;
+  return Math.max(0, age);
 }
 
 /**
- * Yaş eğrisi (10+ yaş farkı calculateMatchScore’da sert filtre).
- * 0–1:+8, 2–3:+5, 4–5:0, 6–7:-5, 8–9:-10; 10+ için burada 0 (eşleşme zaten elenir).
+ * Absolute difference in whole years between two dates of birth.
+ * Returns `null` if either DOB is missing/invalid.
+ */
+export function absAgeGapYears(
+  dobA: DobInput,
+  dobB: DobInput,
+  ref: Date = new Date(),
+): number | null {
+  const a = parseDob(dobA);
+  const b = parseDob(dobB);
+  if (!a || !b) return null;
+  return Math.abs(ageOnDate(a, ref) - ageOnDate(b, ref));
+}
+
+/**
+ * Soft score from age proximity (both DOBs required).
+ * 0–1y → +20; 2–3y → +12; 4–5y → +6; else / missing → 0.
  */
 export function ageDifferenceScore(
-  dateOfBirthA: string | null | undefined,
-  dateOfBirthB: string | null | undefined,
+  dobA: DobInput,
+  dobB: DobInput,
   ref: Date = new Date(),
 ): number {
-  const diff = absAgeGapYears(dateOfBirthA, dateOfBirthB, ref);
-  if (diff == null) return 0;
-  if (diff >= 10) return 0;
-  if (diff <= 1) return 8;
-  if (diff <= 3) return 5;
-  if (diff <= 5) return 0;
-  if (diff <= 7) return -5;
-  if (diff <= 9) return -10;
+  const gap = absAgeGapYears(dobA, dobB, ref);
+  if (gap == null) return 0;
+  if (gap <= 1) return 20;
+  if (gap <= 3) return 12;
+  if (gap <= 5) return 6;
   return 0;
 }

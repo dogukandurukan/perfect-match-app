@@ -1,33 +1,15 @@
-// Screen: Supabase istemci | Status: stable | Last updated: Mayıs 2026
+import 'react-native-url-polyfill/auto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
-import Constants from 'expo-constants';
 
-type ExtraConfig = {
-  EXPO_PUBLIC_SUPABASE_URL?: string;
-  EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
-};
-
-const extra: ExtraConfig =
-  (Constants.expoConfig?.extra as ExtraConfig | undefined) ??
-  ((Constants as any).manifestExtra as ExtraConfig | undefined) ??
-  {};
-
-const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ?? extra.EXPO_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? extra.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase environment variables are not set or empty.', {
-    hasUrl: !!supabaseUrl,
-    hasKey: !!supabaseAnonKey,
-  });
-}
+const supabaseUrl = 'https://fyqwjduzpnjuxqsloxih.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5cXdqZHV6cG5qdXhxc2xveGloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNjQ2NjgsImV4cCI6MjA4ODc0MDY2OH0.Ko1MMTYTFnI4HW7ZMLqJnVKTg7-GjQOhfSx4kSQBm8k';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
     detectSessionInUrl: false,
   },
 });

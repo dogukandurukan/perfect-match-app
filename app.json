@@ -9,9 +9,14 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.dogukandurukan.perfectmatch",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.dogukandurukan.perfectmatch",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -19,7 +24,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "output": "static",
@@ -39,7 +48,19 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Yakındaki eşleşmeleri göstermek için konumunuza ihtiyacımız var."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#B8860B"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -47,7 +68,11 @@
     },
     "extra": {
       "EXPO_PUBLIC_SUPABASE_URL": "https://fyqwjduzpnjuxqsloxih.supabase.co",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_dz2pDyJmxHJLWh71aX1mZg_Arpqr-nq"
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_dz2pDyJmxHJLWh71aX1mZg_Arpqr-nq",
+      "router": {},
+      "eas": {
+        "projectId": "12122915-174b-4864-b5f0-0cec73bbc444"
+      }
     }
   }
 }

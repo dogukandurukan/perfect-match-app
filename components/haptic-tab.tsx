@@ -1,16 +1,17 @@
-// Screen: Haptic tab bar butonu | Status: stable | Last updated: Mayıs 2026
-import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
+import type { GestureResponderEvent } from 'react-native';
+import { Platform } from 'react-native';
 
+/** Tab bar button that fires a light haptic on iOS press-in. */
 export function HapticTab(props: BottomTabBarButtonProps) {
   return (
     <PlatformPressable
       {...props}
-      onPressIn={(ev) => {
-        if (process.env.EXPO_OS === 'ios') {
-          // Add a soft haptic feedback when pressing down on the tabs.
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onPressIn={(ev: GestureResponderEvent) => {
+        if (Platform.OS === 'ios') {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
         props.onPressIn?.(ev);
       }}

@@ -27,9 +27,12 @@ import { supabase } from '@/lib/supabaseClient';
 import { USER_PHOTOS_BUCKET, profilePhotoObjectPath } from '@/lib/userPhotosStorage';
 import { calculateAge, formatZodiacTooltip, getZodiacFromDate } from '@/lib/zodiac';
 
-const GENDER_CHIPS = ['Man', 'Woman', 'Non-binary', 'Other'] as const;
+const GENDER_CHIPS = ['Man', 'Woman', 'Non-binary'] as const;
 type GenderChip = (typeof GENDER_CHIPS)[number];
 type MeetingPref = 'Men' | 'Women' | 'Non-binary' | 'Everyone';
+
+const CITY_OPTIONS = ['Istanbul', 'Ankara', 'Izmir', 'Bursa', 'Antalya'] as const;
+type CityOption = (typeof CITY_OPTIONS)[number];
 
 const PRESET_LANGUAGES = ['Turkish', 'English', 'German'] as const;
 const LANGUAGE_SUGGESTIONS = [
@@ -142,31 +145,27 @@ export default function ProfileSetupStep1() {
   const [dobMonth, setDobMonth] = useState('');
   const [dobYear, setDobYear] = useState('');
 
-  const [location, setLocation] = useState('Kadikoy, Istanbul');
-  const [city, setCity] = useState('Istanbul');
+  const [city, setCity] = useState<CityOption>('Istanbul');
   const [district, setDistrict] = useState('Kadikoy');
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [genderSelection, setGenderSelection] = useState<GenderChip | null>(null);
-  const [genderOther, setGenderOther] = useState('');
   const [meetingPreferences, setMeetingPreferences] = useState<MeetingPref[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
   const [langInput, setLangInput] = useState('');
 
   const [saving, setSaving] = useState(false);
 
+  const fullAddress = useMemo(() => {
+    const d = district.trim();
+    return d ? `${d}, ${city}` : city;
+  }, [city, district]);
+
   const effectiveDob = useMemo(() => parseDob(dobDay, dobMonth, dobYear), [dobDay, dobMonth, dobYear]);
   const zodiacInfo = useMemo(() => (effectiveDob ? getZodiacFromDate(effectiveDob) : null), [effectiveDob]);
   const ageYears = useMemo(() => (effectiveDob ? calculateAge(effectiveDob) : null), [effectiveDob]);
 
-  const resolvedGender = useMemo(() => {
-    if (genderSelection === null) return null;
-    if (genderSelection === 'Other') {
-      const t = genderOther.trim();
-      return t.length > 0 ? t : null;
-    }
-    return genderSelection;
-  }, [genderSelection, genderOther]);
+  const resolvedGender = useMemo(() => genderSelection, [genderSelection]);
 
   const langSuggestionsFiltered = useMemo(() => {
     const q = langInput.trim().toLowerCase();
@@ -226,12 +225,12 @@ export default function ProfileSetupStep1() {
       photoOk &&
       firstName.trim().length > 0 &&
       lastName.trim().length > 0 &&
-      location.trim().length > 0 &&
+      district.trim().length > 0 &&
       resolvedGender !== null &&
       meetingOk &&
       dobOk
     );
-  }, [ageYears, effectiveDob, firstName, lastName, location, meetingPreferences.length, photoCount, resolvedGender]);
+  }, [ageYears, district, effectiveDob, firstName, lastName, meetingPreferences.length, photoCount, resolvedGender]);
 
   const toggleMeetingPref = (value: MeetingPref) => {
     setMeetingPreferences((prev) => {
@@ -344,7 +343,9 @@ export default function ProfileSetupStep1() {
         typeof authUser?.user_metadata?.phone_number === 'string'
           ? authUser.user_metadata.phone_number.trim()
           : '';
-      const phoneOnlyPayload = phoneFromSignup.length > 0 ? { phone_number: phoneFromSignup } : {};
+      /** profiles.phone_number is text nullable — always send string | null (no optional spread). */
+      const phone_number: string | null =
+        phoneFromSignup.length > 0 ? phoneFromSignup : null;
 
       const photosForDb = uploadedPhotoPaths.length > 0 ? uploadedPhotoPaths : [];
 
@@ -352,9 +353,9 @@ export default function ProfileSetupStep1() {
         id: userId,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        full_address: location.trim(),
+        full_address: fullAddress,
         city,
-        district,
+        district: district.trim(),
         lat,
         lng,
         gender: resolvedGender,
@@ -364,16 +365,16 @@ export default function ProfileSetupStep1() {
         zodiac_sign: zodiacInfo.sign,
         current_step: 2,
         photos: photosForDb,
-        ...phoneOnlyPayload,
+        phone_number,
       };
 
       const minimalProfile = {
         id: userId,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        full_address: location.trim(),
+        full_address: fullAddress,
         city,
-        district,
+        district: district.trim(),
         gender: resolvedGender,
         meeting_preferences: meetingPreferences,
         languages: languages.length ? languages : null,
@@ -381,7 +382,7 @@ export default function ProfileSetupStep1() {
         zodiac_sign: zodiacInfo.sign,
         current_step: 2,
         photos: photosForDb,
-        ...phoneOnlyPayload,
+        phone_number,
       };
 
       const payloadWithPhotos = {
@@ -529,22 +530,34 @@ export default function ProfileSetupStep1() {
           </View>
 
           <ThemedText style={styles.sectionLabel}>Where are you based?</ThemedText>
-          <TextInput
-            style={[styles.input, { marginBottom: GAP }]}
-            placeholder="Kadikoy, Istanbul"
-            placeholderTextColor="#AAAAAA"
-            value={location}
-            onChangeText={(value) => {
-              setLocation(value);
-              const parts = value.split(',').map((x) => x.trim());
-              if (parts[0]) setDistrict(parts[0]);
-              if (parts[1]) setCity(parts[1]);
-            }}
-          />
+          <View style={{ marginBottom: GAP }}>
+            <ThemedText style={styles.blockLabel}>Şehir</ThemedText>
+            <View style={styles.chipRow}>
+              {CITY_OPTIONS.map((opt) => (
+                <Chip
+                  key={opt}
+                  label={opt}
+                  selected={city === opt}
+                  onPress={() => setCity(opt)}
+                  style={styles.profileChip}
+                />
+              ))}
+            </View>
+          </View>
+          <View style={{ marginBottom: GAP }}>
+            <ThemedText style={styles.blockLabel}>Semt / Mahalle</ThemedText>
+            <TextInput
+              style={styles.input}
+              placeholder="örn. Kadıköy, Moda, Beşiktaş"
+              placeholderTextColor="#AAAAAA"
+              autoCapitalize="words"
+              value={district}
+              onChangeText={setDistrict}
+            />
+          </View>
           <TouchableOpacity
             style={[styles.locationBtn, { marginBottom: GAP }]}
             onPress={() => {
-              setLocation('Kadikoy, Istanbul');
               setDistrict('Kadikoy');
               setCity('Istanbul');
               setLat(40.9917);
@@ -561,30 +574,15 @@ export default function ProfileSetupStep1() {
                   key={opt}
                   label={opt}
                   selected={genderSelection === opt}
-                  onPress={() => {
-                    setGenderSelection(opt);
-                    if (opt !== 'Other') setGenderOther('');
-                  }}
+                  onPress={() => setGenderSelection(opt)}
                   style={styles.profileChip}
                 />
               ))}
             </View>
-            {genderSelection === 'Other' ? (
-              <Animated.View entering={FadeIn.duration(220)} style={styles.genderOtherWrap}>
-                <TextInput
-                  style={styles.genderOtherInput}
-                  placeholder="How do you identify?"
-                  placeholderTextColor="#AAAAAA"
-                  value={genderOther}
-                  onChangeText={setGenderOther}
-                  autoCapitalize="sentences"
-                />
-              </Animated.View>
-            ) : null}
           </View>
 
           <View style={{ marginBottom: GAP }}>
-            <ThemedText style={styles.sectionLabel}>Which gender(s) are you open to meeting?</ThemedText>
+            <ThemedText style={styles.sectionLabel}>Who would you like to meet?</ThemedText>
             <View style={styles.chipRow}>
               {(['Men', 'Women', 'Non-binary', 'Everyone'] as const).map((opt) => (
                 <Chip
@@ -756,17 +754,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: colors.accent,
     fontSize: 12,
-  },
-  genderOtherWrap: {
-    marginTop: 10,
-  },
-  genderOtherInput: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 12,
-    height: 44,
-    paddingHorizontal: 12,
-    color: colors.textPrimary,
-    fontSize: 15,
   },
   locationBtn: {
     backgroundColor: colors.bgCard,
