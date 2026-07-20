@@ -36,7 +36,7 @@ type Message = {
 };
 
 const PROFILE_FIELDS =
-  'hobbies, favorite_book, favorite_movie, favorite_music, district' as const;
+  'hobbies, favorite_book, favorite_movie, favorite_music, district, languages' as const;
 
 function toIcebreakerProfile(row: {
   hobbies?: string[] | null;
@@ -44,6 +44,7 @@ function toIcebreakerProfile(row: {
   favorite_movie?: string | null;
   favorite_music?: string | null;
   district?: string | null;
+  languages?: string[] | null;
 } | null): IcebreakerProfile {
   return {
     hobbies: row?.hobbies ?? null,
@@ -51,6 +52,7 @@ function toIcebreakerProfile(row: {
     favorite_movie: row?.favorite_movie ?? null,
     favorite_music: row?.favorite_music ?? null,
     district: row?.district ?? null,
+    languages: row?.languages ?? null,
   };
 }
 

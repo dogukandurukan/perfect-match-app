@@ -9,18 +9,30 @@ export type IcebreakerProfile = {
   favorite_movie: string | null | undefined;
   favorite_music: string | null | undefined;
   district: string | null | undefined;
+  languages: string[] | null | undefined;
 };
+
+type IcebreakerLocale = 'en' | 'tr';
 
 const HOBBY_PRIORITY = ['Gaming', 'Reading', 'Cooking', 'Fitness', 'Travel'] as const;
 
 type HobbyKey = (typeof HOBBY_PRIORITY)[number];
 
-const HOBBY_LINES: Record<HobbyKey, string> = {
-  Gaming: 'Fellow gamer 🎮 what are you playing right now?',
-  Cooking: 'Fellow cook 🍳 what\'s the one dish you actually nail?',
-  Fitness: 'Both into fitness 💪 gym, run, or something else?',
-  Travel: 'Both travel people ✈️ last trip that was actually worth it?',
-  Reading: 'You read a lot too 📚 last book you couldn\'t put down?',
+const HOBBY_LINES: Record<IcebreakerLocale, Record<HobbyKey, string>> = {
+  en: {
+    Gaming: 'Fellow gamer 🎮 what are you playing right now?',
+    Cooking: "Fellow cook 🍳 what's the one dish you actually nail?",
+    Fitness: 'Both into fitness 💪 gym, run, or something else?',
+    Travel: 'Both travel people ✈️ last trip that was actually worth it?',
+    Reading: "You read a lot too 📚 last book you couldn't put down?",
+  },
+  tr: {
+    Gaming: 'Oyuncu kardeşim 🎮 şu sıralar ne oynuyorsun?',
+    Cooking: 'Mutfak işi bende de var 🍳 en iyi yaptığın yemek ne?',
+    Fitness: 'İkimiz de spora varız 💪 gym mi, koşu mu, başka mı?',
+    Travel: 'İkimiz de gezginiz ✈️ son gittiğin yer nasıldı?',
+    Reading: 'Sen de çok okuyorsun 📚 son bırakamadığın kitap neydi?',
+  },
 };
 
 /** Split free-text lists like "Jazz, Radiohead, Daft Punk" into normalized tokens. */
@@ -34,6 +46,29 @@ export function parseFreeTextList(raw: string | null | undefined): string[] {
 
 function normKey(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function languageSet(languages: string[] | null | undefined): Set<string> {
+  return new Set(
+    (languages ?? [])
+      .map((l) => (typeof l === 'string' ? normKey(l) : ''))
+      .filter((l) => l.length > 0),
+  );
+}
+
+/**
+ * Shared-language pick: Turkish if both have it, else English if both have it,
+ * else English default.
+ */
+export function resolveIcebreakerLocale(
+  me: IcebreakerProfile,
+  them: IcebreakerProfile,
+): IcebreakerLocale {
+  const mine = languageSet(me.languages);
+  const theirs = languageSet(them.languages);
+  if (mine.has('turkish') && theirs.has('turkish')) return 'tr';
+  if (mine.has('english') && theirs.has('english')) return 'en';
+  return 'en';
 }
 
 function sharedTitles(a: string | null | undefined, b: string | null | undefined): string[] {
@@ -99,6 +134,7 @@ export async function generateIcebreakers(
   // Keep async for the future Claude Edge Function swap.
   await Promise.resolve();
 
+  const locale = resolveIcebreakerLocale(me, them);
   const picked: { category: Category; text: string }[] = [];
   const usedText = new Set<string>();
 
@@ -113,12 +149,22 @@ export async function generateIcebreakers(
 
   const sharedBooks = sharedTitles(me.favorite_book, them.favorite_book);
   if (sharedBooks[0]) {
-    push('book', `Wait — you also put ${sharedBooks[0]}? Which one stayed with you? 📖`);
+    push(
+      'book',
+      locale === 'tr'
+        ? `Sen de ${sharedBooks[0]} yazmışsın 📖 hangisi daha çok etkiledi seni?`
+        : `Wait — you also put ${sharedBooks[0]}? Which one stayed with you? 📖`,
+    );
   }
 
   const sharedMovies = sharedTitles(me.favorite_movie, them.favorite_movie);
   if (sharedMovies[0]) {
-    push('movie', `You're into ${sharedMovies[0]} too — what did you make of it? 🎬`);
+    push(
+      'movie',
+      locale === 'tr'
+        ? `${sharedMovies[0]} seni de mi yakalamış 🎬 nasıl buldun?`
+        : `You're into ${sharedMovies[0]} too — what did you make of it? 🎬`,
+    );
   }
 
   const myMusic = parseFreeTextList(me.favorite_music);
@@ -126,38 +172,58 @@ export async function generateIcebreakers(
   if (myMusic.length && theirMusic.length) {
     const sharedMusic = sharedTitles(me.favorite_music, them.favorite_music);
     if (sharedMusic[0]) {
-      push('music', `Another ${sharedMusic[0]} fan 🎵 what's on repeat?`);
+      push(
+        'music',
+        locale === 'tr'
+          ? `Bir ${sharedMusic[0]} hayranı daha 🎵 sürekli çaldığın ne var şu an?`
+          : `Another ${sharedMusic[0]} fan 🎵 what's on repeat?`,
+      );
     } else {
       push(
         'music',
-        `${theirMusic[0]} ↔ ${myMusic[0]}... our playlists would get along 🎵 what's on repeat?`,
+        locale === 'tr'
+          ? `${theirMusic[0]} ↔ ${myMusic[0]}... çalma listelerimiz iyi anlaşırdı 🎵 bugünlerde ne dinliyorsun?`
+          : `${theirMusic[0]} ↔ ${myMusic[0]}... our playlists would get along 🎵 what's on repeat?`,
       );
     }
   }
 
   const hobbies = sharedHobbies(me, them);
   if (hobbies[0]) {
-    push('hobby', HOBBY_LINES[hobbies[0]]);
+    push('hobby', HOBBY_LINES[locale][hobbies[0]]);
   }
 
   const myDistrict = me.district?.trim() ?? '';
   const theirDistrict = them.district?.trim() ?? '';
   if (myDistrict && theirDistrict) {
     if (normKey(myDistrict) === normKey(theirDistrict)) {
-      push('district', `We're both around ${theirDistrict} — got a favourite spot? ☕`);
+      push(
+        'district',
+        locale === 'tr'
+          ? `İkimiz de ${theirDistrict} taraflıyız — favori mekanın var mı? ☕`
+          : `We're both around ${theirDistrict} — got a favourite spot? ☕`,
+      );
     } else {
       push(
         'district',
-        `You're ${theirDistrict}, I'm ${myDistrict} — which side wins? 😏`,
+        locale === 'tr'
+          ? `Sen ${theirDistrict}, ben ${myDistrict} — hangi taraf daha iyi? 😏`
+          : `You're ${theirDistrict}, I'm ${myDistrict} — which side wins? 😏`,
       );
     }
   }
 
   const pct = Number.isFinite(matchPercentage) ? Math.round(matchPercentage) : 0;
-  const fallbacks = [
-    `You came up as a ${pct}% match 👀 let's find out why`,
-    "Curious what stood out on your profile — what's a good place to start?",
-  ];
+  const fallbacks =
+    locale === 'tr'
+      ? [
+          `%${pct} uyum çıkmışız 👀 bakalım neden`,
+          'Profilinde öne çıkan bir şey vardı — nereden başlasak?',
+        ]
+      : [
+          `You came up as a ${pct}% match 👀 let's find out why`,
+          "Curious what stood out on your profile — what's a good place to start?",
+        ];
 
   for (const line of fallbacks) {
     if (picked.length >= 2) break;

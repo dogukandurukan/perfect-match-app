@@ -22,7 +22,6 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   ScrollView,
   StyleSheet,
@@ -349,7 +348,11 @@ export default function HomeScreen() {
     likeOverlayOpacity.value = 0;
   }, [likeOverlayOpacity, passOverlayOpacity]);
 
-  const completeFeedAction = useCallback(() => {
+  const completePass = useCallback(() => {
+    advanceIndex();
+  }, [advanceIndex]);
+
+  const completeLike = useCallback(() => {
     void (async () => {
       if (authUserId) {
         const nextViews = await incrementDailyViews(authUserId);
@@ -368,30 +371,29 @@ export default function HomeScreen() {
         withDelay(
           800,
           withTiming(0, { duration: 200 }, (finished) => {
-            if (finished) runOnJS(completeFeedAction)();
+            if (finished) runOnJS(completePass)();
           }),
         ),
       );
     },
-    [completeFeedAction, passOverlayOpacity],
+    [completePass, passOverlayOpacity],
   );
 
   const handleLike = useCallback(
     (userId: string) => {
       void userId;
-      Alert.alert('Liked', 'You liked this person.');
       setAnimating(true);
       likeOverlayOpacity.value = withSequence(
         withTiming(1, { duration: 300 }),
         withDelay(
           800,
           withTiming(0, { duration: 200 }, (finished) => {
-            if (finished) runOnJS(completeFeedAction)();
+            if (finished) runOnJS(completeLike)();
           }),
         ),
       );
     },
-    [completeFeedAction, likeOverlayOpacity],
+    [completeLike, likeOverlayOpacity],
   );
 
   const currentUser = feedUsers[currentIndex] ?? null;
@@ -737,7 +739,7 @@ const styles = StyleSheet.create({
 
   likeOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 0, 0, 0.15)',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 100,

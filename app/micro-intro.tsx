@@ -254,6 +254,13 @@ export default function MicroIntroScreen() {
       });
 
       if (!result.ok) {
+        if (result.limitReached) {
+          Alert.alert(
+            "You've used your invite for today",
+            'Come back tomorrow, or go Premium for 3/day ✨',
+          );
+          return;
+        }
         Alert.alert('Invite not sent', result.error ?? 'Something went wrong.');
         return;
       }

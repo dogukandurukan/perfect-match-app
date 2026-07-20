@@ -25,6 +25,11 @@ import {
   type IntroAnswers,
 } from '@/lib/matchInvite';
 import {
+  getDailyInvitesState,
+  remainingInvitesLabel,
+  type DailyInvitesState,
+} from '@/lib/dailyInvites';
+import {
   formatAvailabilityLabel,
   formatDrinkingLabel,
   formatIntentLabel,
@@ -414,6 +419,7 @@ export default function MatchesTab() {
   >({});
   const [myGender, setMyGender] = useState<string | null>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [dailyInvites, setDailyInvites] = useState<DailyInvitesState | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -433,12 +439,13 @@ export default function MatchesTab() {
 
         const userId = user.id;
 
-        const { data: meProfile } = await supabase
-          .from('profiles')
-          .select('gender')
-          .eq('id', userId)
-          .maybeSingle();
-        if (mounted) setMyGender(meProfile?.gender ?? null);
+        const [{ data: meProfile }, invitesState] = await Promise.all([
+          supabase.from('profiles').select('gender').eq('id', userId).maybeSingle(),
+          getDailyInvitesState(userId, false),
+        ]);
+        if (!mounted) return;
+        setMyGender(meProfile?.gender ?? null);
+        setDailyInvites(invitesState);
 
         // All matches involving me (invite / chat state)
         const { data: myMatches } = await supabase
@@ -791,6 +798,13 @@ export default function MatchesTab() {
   }
 
   function handleLetsMeet(match: MatchCardData) {
+    if (dailyInvites?.limitReached) {
+      Alert.alert(
+        "You've used your invite for today",
+        'Come back tomorrow, or go Premium for 3/day ✨',
+      );
+      return;
+    }
     router.push({
       pathname: '/micro-intro',
       params: {
@@ -848,6 +862,11 @@ export default function MatchesTab() {
       <HomeTopIcon />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ThemedText style={styles.pageTitle}>Matches</ThemedText>
+        {dailyInvites ? (
+          <ThemedText style={styles.invitesLeftText}>
+            {remainingInvitesLabel(dailyInvites)}
+          </ThemedText>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
@@ -1060,6 +1079,13 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: 4,
+  },
+  invitesLeftText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: ACCENT,
+    textAlign: 'center',
+    marginBottom: 12,
   },
 
   section: { gap: 12 },

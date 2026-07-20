@@ -74,9 +74,13 @@ export function formatIntroLines(answers: IntroAnswers | null | undefined): stri
   return lines;
 }
 
-export type TrySendInviteResult = { allowed: boolean; error: string | null };
+export type TrySendInviteResult = {
+  allowed: boolean;
+  limitReached: boolean;
+  error: string | null;
+};
 
-/** Rate-limit gate before writing an invite. */
+/** Rate-limit gate before writing an invite. Fail-open if RPC is missing/errors. */
 export async function trySendInvite(
   userId: string,
   isPremium = false,
@@ -85,8 +89,10 @@ export async function trySendInvite(
     p_user: userId,
     p_is_premium: isPremium,
   });
-  if (error) return { allowed: false, error: error.message };
-  return { allowed: data === true, error: null };
+  // Defensive: don't lock the invite flow if the RPC is unavailable.
+  if (error) return { allowed: true, limitReached: false, error: null };
+  if (data === true) return { allowed: true, limitReached: false, error: null };
+  return { allowed: false, limitReached: true, error: null };
 }
 
 export type UpsertMatchResult = { matchId: string | null; error: string | null };
@@ -137,6 +143,7 @@ export type SendInviteResult = {
   matchId: string | null;
   chatOpened: boolean;
   error: string | null;
+  limitReached: boolean;
 };
 
 export async function sendMatchInvite(params: SendInviteParams): Promise<SendInviteResult> {
@@ -146,7 +153,8 @@ export async function sendMatchInvite(params: SendInviteParams): Promise<SendInv
       ok: false,
       matchId: null,
       chatOpened: false,
-      error: limit.error ?? 'Invite limit reached. Try again later.',
+      error: null,
+      limitReached: true,
     };
   }
 
@@ -158,7 +166,13 @@ export async function sendMatchInvite(params: SendInviteParams): Promise<SendInv
       params.matchScore,
     );
     if (!upserted.matchId) {
-      return { ok: false, matchId: null, chatOpened: false, error: upserted.error };
+      return {
+        ok: false,
+        matchId: null,
+        chatOpened: false,
+        error: upserted.error,
+        limitReached: false,
+      };
     }
     matchId = upserted.matchId;
   }
@@ -175,6 +189,7 @@ export async function sendMatchInvite(params: SendInviteParams): Promise<SendInv
       matchId,
       chatOpened: false,
       error: fetchError?.message ?? 'Match not found',
+      limitReached: false,
     };
   }
 
@@ -182,7 +197,13 @@ export async function sendMatchInvite(params: SendInviteParams): Promise<SendInv
   const isUserA = match.user_a_id === params.currentUserId;
   const isUserB = match.user_b_id === params.currentUserId;
   if (!isUserA && !isUserB) {
-    return { ok: false, matchId, chatOpened: false, error: 'You are not part of this match' };
+    return {
+      ok: false,
+      matchId,
+      chatOpened: false,
+      error: 'You are not part of this match',
+      limitReached: false,
+    };
   }
 
   const patch: Record<string, unknown> = {
@@ -198,10 +219,16 @@ export async function sendMatchInvite(params: SendInviteParams): Promise<SendInv
 
   const { error: updateError } = await supabase.from('matches').update(patch).eq('id', matchId);
   if (updateError) {
-    return { ok: false, matchId, chatOpened: false, error: updateError.message };
+    return {
+      ok: false,
+      matchId,
+      chatOpened: false,
+      error: updateError.message,
+      limitReached: false,
+    };
   }
 
-  return { ok: true, matchId, chatOpened: openNow, error: null };
+  return { ok: true, matchId, chatOpened: openNow, error: null, limitReached: false };
 }
 
 export type AcceptInviteResult = {
