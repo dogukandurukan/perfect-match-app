@@ -55,18 +55,13 @@ function LocationBridge() {
 
 function NotificationBridge() {
   useEffect(() => {
-    const notificationListener = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        console.log('Bildirim alındı:', notification);
-      },
-    );
+    const notificationListener = Notifications.addNotificationReceivedListener(() => {
+      // handled by OS banner / in-app list
+    });
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const data = response.notification.request.content.data;
-        console.log('Bildirime tıklandı:', data);
-      },
-    );
+    const responseListener = Notifications.addNotificationResponseReceivedListener(() => {
+      // navigation handled elsewhere when needed
+    });
 
     return () => {
       notificationListener.remove();

@@ -206,7 +206,7 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert('Delete your account? This can\'t be undone.', '', [
+    Alert.alert('Delete your account?', "This can't be undone.", [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

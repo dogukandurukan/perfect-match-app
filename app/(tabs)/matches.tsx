@@ -139,7 +139,7 @@ const MATCH_TTL_MS = 24 * 60 * 60 * 1000;
 
 function formatCountdown(expiresAt: string): string | null {
   const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return 'Süre doldu';
+  if (diff <= 0) return 'Expired';
 
   const totalMinutes = Math.floor(diff / (1000 * 60));
   const totalHours = Math.floor(diff / (1000 * 60 * 60));
@@ -149,10 +149,10 @@ function formatCountdown(expiresAt: string): string | null {
   if (totalMinutes >= 60) {
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    return `⏳ ${hours}s ${minutes}dk kaldı`;
+    return `⏳ ${hours}h ${minutes}m left`;
   }
 
-  return `⏳ ${totalMinutes} dk kaldı`;
+  return `⏳ ${totalMinutes}m left`;
 }
 
 function CountdownText({ expiresAt }: { expiresAt: string }) {

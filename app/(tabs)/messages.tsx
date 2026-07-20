@@ -1,20 +1,22 @@
-// Screen: Mesajlar tab | Status: test | Last updated: Mayıs 2026
-import { useEffect, useState } from 'react';
+// Screen: Messages tab | Status: test | Last updated: Mayıs 2026
+import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
+import { formatRelativeTime } from '@/lib/labels';
 import { supabase } from '@/lib/supabaseClient';
+
+const EMPTY_CHAT_PREVIEW = 'You matched — say hi 👋';
 
 type Conversation = {
   userId: string;
   userName: string;
   lastMessage: string;
-  lastTime: string;
+  lastAt: string;
+  matchId: string | null;
 };
 
 export default function MessagesScreen() {
@@ -24,76 +26,117 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    void supabase.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id ?? null);
     });
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (currentUserId) fetchConversations();
-    }, [currentUserId]),
-  );
-
-  async function fetchConversations() {
+  const fetchConversations = useCallback(async () => {
     if (!currentUserId) return;
     setLoading(true);
 
-    const { data: msgs } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
-      .order('created_at', { ascending: false });
+    const [{ data: msgs }, { data: openMatches }] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('id, sender_id, receiver_id, content, created_at')
+        .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('matches')
+        .select('id, user_a_id, user_b_id, chat_opened, created_at, expires_at')
+        .or(`user_a_id.eq.${currentUserId},user_b_id.eq.${currentUserId}`)
+        .eq('chat_opened', true),
+    ]);
 
-    if (!msgs) {
-      setLoading(false);
-      return;
-    }
+    const byOther = new Map<string, Conversation>();
 
-    // Her kullanıcıyla son mesajı bul
-    const seen = new Set<string>();
-    const convMap: Conversation[] = [];
-
-    for (const msg of msgs) {
+    for (const msg of msgs ?? []) {
       const otherId =
         msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
-      if (seen.has(otherId)) continue;
-      seen.add(otherId);
+      if (typeof otherId !== 'string' || byOther.has(otherId)) continue;
 
-      // Karşı tarafın adını çek
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('first_name')
-        .eq('id', otherId)
-        .single();
-
-      convMap.push({
+      byOther.set(otherId, {
         userId: otherId,
-        userName: profile?.first_name ?? 'Kullanıcı',
-        lastMessage: msg.content,
-        lastTime: new Date(msg.created_at).toLocaleTimeString('tr-TR', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        userName: 'Someone',
+        lastMessage: typeof msg.content === 'string' ? msg.content : '',
+        lastAt: String(msg.created_at),
+        matchId: null,
       });
     }
 
-    setConversations(convMap);
+    for (const row of openMatches ?? []) {
+      const otherId =
+        row.user_a_id === currentUserId ? row.user_b_id : row.user_a_id;
+      if (typeof otherId !== 'string') continue;
+
+      const existing = byOther.get(otherId);
+      if (existing) {
+        existing.matchId = typeof row.id === 'string' ? row.id : existing.matchId;
+        continue;
+      }
+
+      const stamp =
+        (typeof row.created_at === 'string' && row.created_at) ||
+        (typeof row.expires_at === 'string' && row.expires_at) ||
+        new Date().toISOString();
+
+      byOther.set(otherId, {
+        userId: otherId,
+        userName: 'Someone',
+        lastMessage: EMPTY_CHAT_PREVIEW,
+        lastAt: stamp,
+        matchId: typeof row.id === 'string' ? row.id : null,
+      });
+    }
+
+    const otherIds = [...byOther.keys()];
+    if (otherIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name')
+        .in('id', otherIds);
+
+      for (const p of profiles ?? []) {
+        if (typeof p.id !== 'string') continue;
+        const conv = byOther.get(p.id);
+        if (conv && typeof p.first_name === 'string' && p.first_name.trim()) {
+          conv.userName = p.first_name.trim();
+        }
+      }
+    }
+
+    const sorted = [...byOther.values()].sort(
+      (a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime(),
+    );
+
+    setConversations(sorted);
     setLoading(false);
-  }
+  }, [currentUserId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUserId) void fetchConversations();
+    }, [currentUserId, fetchConversations]),
+  );
 
   function renderItem({ item }: { item: Conversation }) {
+    const preview =
+      item.lastMessage.trim().length > 0 ? item.lastMessage : EMPTY_CHAT_PREVIEW;
+
     return (
       <TouchableOpacity
         style={styles.convRow}
         onPress={() =>
           router.push({
             pathname: '/chat',
-            params: { userId: item.userId, userName: item.userName },
+            params: {
+              userId: item.userId,
+              userName: item.userName,
+              ...(item.matchId ? { matchId: item.matchId } : {}),
+            },
           })
         }
-        activeOpacity={0.8}
-      >
+        activeOpacity={0.8}>
         <View style={styles.avatar}>
           <ThemedText style={styles.avatarText}>
             {item.userName.charAt(0).toUpperCase()}
@@ -102,10 +145,10 @@ export default function MessagesScreen() {
         <View style={styles.convInfo}>
           <ThemedText style={styles.convName}>{item.userName}</ThemedText>
           <ThemedText style={styles.convLast} numberOfLines={1}>
-            {item.lastMessage}
+            {preview}
           </ThemedText>
         </View>
-        <ThemedText style={styles.convTime}>{item.lastTime}</ThemedText>
+        <ThemedText style={styles.convTime}>{formatRelativeTime(item.lastAt)}</ThemedText>
       </TouchableOpacity>
     );
   }

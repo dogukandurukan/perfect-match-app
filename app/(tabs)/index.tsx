@@ -401,7 +401,7 @@ export default function HomeScreen() {
             <ThemedText type="title" style={styles.title}>
               Dating App
             </ThemedText>
-            <ThemedText style={styles.subtitle}>Az swipe, direkt buluşma.</ThemedText>
+            <ThemedText style={styles.subtitle}>Fewer swipes. Real meetups.</ThemedText>
           </View>
 
           <View style={styles.landingActions}>
@@ -460,29 +460,27 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* B. Önemli bilgiler */}
+            {/* B. Key info */}
             <View style={styles.card}>
-              {currentUser.district || currentUser.city ? (
-                <InfoLine
-                  icon="📍"
-                  text={currentUser.district ?? currentUser.city ?? ''}
-                />
-              ) : null}
-              {formatIntentLabel(currentUser.intent) ? (
-                <InfoLine text={formatIntentLabel(currentUser.intent)!} />
-              ) : null}
-              {formatAvailabilityLabel(currentUser.availability_days) ? (
-                <InfoLine text={formatAvailabilityLabel(currentUser.availability_days)!} />
-              ) : null}
-              {formatDrinkingLabel(currentUser.drinking) ? (
-                <InfoLine text={formatDrinkingLabel(currentUser.drinking)!} />
-              ) : null}
-              {formatSmokingLabel(currentUser.smoking) ? (
-                <InfoLine text={formatSmokingLabel(currentUser.smoking)!} />
-              ) : null}
-              {currentUser.languages?.length ? (
-                <InfoLine icon="🌍" text={currentUser.languages.join(', ')} />
-              ) : null}
+              {(() => {
+                const locationLabel = currentUser.district ?? currentUser.city ?? null;
+                const intentLabel = formatIntentLabel(currentUser.intent);
+                const availabilityLabel = formatAvailabilityLabel(currentUser.availability_days);
+                const drinkingLabel = formatDrinkingLabel(currentUser.drinking);
+                const smokingLabel = formatSmokingLabel(currentUser.smoking);
+                return (
+                  <>
+                    {locationLabel ? <InfoLine icon="📍" text={locationLabel} /> : null}
+                    {intentLabel ? <InfoLine text={intentLabel} /> : null}
+                    {availabilityLabel ? <InfoLine text={availabilityLabel} /> : null}
+                    {drinkingLabel ? <InfoLine text={drinkingLabel} /> : null}
+                    {smokingLabel ? <InfoLine text={smokingLabel} /> : null}
+                    {currentUser.languages?.length ? (
+                      <InfoLine icon="🌍" text={currentUser.languages.join(', ')} />
+                    ) : null}
+                  </>
+                );
+              })()}
             </View>
 
             {/* C. Butonlar */}

@@ -274,7 +274,7 @@ export default function ChatScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
-                <ThemedText style={styles.emptyText}>No messages yet. Say hi.</ThemedText>
+                <ThemedText style={styles.emptyText}>You matched — say hi 👋</ThemedText>
               </View>
             }
           />

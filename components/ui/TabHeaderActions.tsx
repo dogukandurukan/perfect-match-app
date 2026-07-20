@@ -18,6 +18,14 @@ export function TabHeaderActions() {
         accessibilityLabel="Settings">
         <Ionicons name="settings-outline" size={24} color={ACCENT} />
       </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.iconBtn}
+        activeOpacity={0.7}
+        onPress={() => router.push('/(tabs)/profile' as Parameters<typeof router.push>[0])}
+        hitSlop={8}
+        accessibilityLabel="Profile">
+        <Ionicons name="person-circle-outline" size={28} color={ACCENT} />
+      </TouchableOpacity>
     </View>
   );
 }

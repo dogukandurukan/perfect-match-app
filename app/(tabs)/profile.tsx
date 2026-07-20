@@ -510,7 +510,7 @@ export default function ProfileTab() {
               style={styles.editBtn}
               activeOpacity={0.85}
               onPress={() => router.push('/profile-edit' as any)}>
-              <ThemedText style={styles.editBtnText}>Edit Profile</ThemedText>
+              <ThemedText style={styles.editBtnText}>Edit profile</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.signOutBtn}

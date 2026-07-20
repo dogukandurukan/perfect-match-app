@@ -114,3 +114,139 @@ export function formatLifestyleLine(
   if (parts.length === 0) return null;
   return parts.join(' · ');
 }
+
+/** Relative time for alerts / messages rows. */
+export function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+  if (date >= startOfYesterday && date < startOfToday) return 'yesterday';
+
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+export type NotificationKind =
+  | 'new_invite'
+  | 'invite_accepted'
+  | 'like'
+  | 'new_like'
+  | 'new_message'
+  | 'message'
+  | 'checkin'
+  | 'check_in'
+  | 'match_expiring'
+  | 'match_expiry'
+  | 'new_match'
+  | string;
+
+/** English notification copy from type + optional name. */
+export function formatNotificationText(
+  type: NotificationKind,
+  name: string | null | undefined,
+): string {
+  const displayName = name?.trim() || 'Someone';
+
+  switch (type) {
+    case 'new_invite':
+    case 'meeting_invite':
+      return `${displayName} wants to meet ☕`;
+    case 'invite_accepted':
+      return `${displayName} said yes 🎉 Pick a time`;
+    case 'like':
+    case 'new_like':
+    case 'someone_liked':
+      return 'Someone likes you 👀';
+    case 'new_message':
+    case 'message':
+      return `${displayName} sent you a message 💬`;
+    case 'checkin':
+    case 'check_in':
+    case 'post_date':
+      return `How did it go with ${displayName}?`;
+    case 'match_expiring':
+    case 'match_expiry':
+    case 'expires_soon':
+      return `Your match with ${displayName} expires soon ⏳`;
+    case 'new_match':
+      return 'Someone likes you 👀';
+    default:
+      return 'New notification';
+  }
+}
+
+/**
+ * Prefer type-based English copy; fall back to translating known Turkish
+ * system strings so old rows never show Turkish.
+ */
+export function resolveNotificationDisplayText(
+  type: string,
+  name: string | null | undefined,
+  storedText: string | null | undefined,
+): string {
+  const knownTypes = new Set([
+    'new_invite',
+    'meeting_invite',
+    'invite_accepted',
+    'like',
+    'new_like',
+    'someone_liked',
+    'new_message',
+    'message',
+    'checkin',
+    'check_in',
+    'post_date',
+    'match_expiring',
+    'match_expiry',
+    'expires_soon',
+    'new_match',
+  ]);
+
+  if (knownTypes.has(type)) {
+    return formatNotificationText(type, name);
+  }
+
+  const raw = storedText?.trim() ?? '';
+  if (!raw) return formatNotificationText(type, name);
+
+  const lower = raw.toLowerCase();
+  const displayName = name?.trim() || 'Someone';
+
+  if (lower.includes('kabul') || lower.includes('said yes')) {
+    return formatNotificationText('invite_accepted', displayName);
+  }
+  if (lower.includes('davet') || lower.includes('buluşmak') || lower.includes('wants to meet')) {
+    return formatNotificationText('new_invite', displayName);
+  }
+  if (lower.includes('beğen') || lower.includes('likes you')) {
+    return formatNotificationText('like', displayName);
+  }
+  if (lower.includes('mesaj') || lower.includes('message')) {
+    return formatNotificationText('new_message', displayName);
+  }
+  if (lower.includes('nasıl geçti') || lower.includes('check-in') || lower.includes('checkin')) {
+    return formatNotificationText('checkin', displayName);
+  }
+  if (lower.includes('süre') || lower.includes('bitiyor') || lower.includes('expires')) {
+    return formatNotificationText('match_expiring', displayName);
+  }
+
+  // Avoid showing leftover Turkish; use generic English.
+  if (/[ğüşıöçĞÜŞİÖÇ]/.test(raw)) {
+    return 'New notification';
+  }
+
+  return raw;
+}

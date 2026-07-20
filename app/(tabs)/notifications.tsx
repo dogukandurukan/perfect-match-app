@@ -1,4 +1,4 @@
-// Screen: Bildirimler tab | Status: test | Last updated: Mayıs 2026
+// Screen: Alerts tab | Status: test | Last updated: Mayıs 2026
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -14,10 +14,14 @@ import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
+import {
+  formatRelativeTime,
+  resolveNotificationDisplayText,
+} from '@/lib/labels';
 import { emitUnreadNotificationCount } from '@/lib/unreadNotificationCount';
 import { supabase } from '@/lib/supabaseClient';
 
-type NotificationType = 'new_match' | 'new_invite' | 'invite_accepted';
+type NotificationType = string;
 
 type NotificationRow = {
   id: string;
@@ -26,28 +30,32 @@ type NotificationRow = {
   is_read: boolean;
   related_user_id: string | null;
   created_at: string;
+  relatedName: string | null;
 };
-
-function timeAgo(dateStr: string): string {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diffMs / (1000 * 60));
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (minutes < 5) return 'Az önce';
-  if (hours < 1) return `${minutes} dakika önce`;
-  if (hours < 24) return `${hours} saat önce`;
-  return `${days} gün önce`;
-}
 
 function typeIcon(type: NotificationType): string {
   switch (type) {
     case 'new_match':
-      return '✨';
+    case 'like':
+    case 'new_like':
+    case 'someone_liked':
+      return '👀';
     case 'new_invite':
+    case 'meeting_invite':
       return '☕';
     case 'invite_accepted':
       return '🎉';
+    case 'new_message':
+    case 'message':
+      return '💬';
+    case 'checkin':
+    case 'check_in':
+    case 'post_date':
+      return '📍';
+    case 'match_expiring':
+    case 'match_expiry':
+    case 'expires_soon':
+      return '⏳';
     default:
       return '🔔';
   }
@@ -57,9 +65,22 @@ function routeForType(type: NotificationType): string {
   switch (type) {
     case 'new_match':
     case 'new_invite':
+    case 'meeting_invite':
+    case 'like':
+    case 'new_like':
+    case 'someone_liked':
+    case 'match_expiring':
+    case 'match_expiry':
+    case 'expires_soon':
       return '/(tabs)/matches';
     case 'invite_accepted':
+    case 'new_message':
+    case 'message':
       return '/(tabs)/messages';
+    case 'checkin':
+    case 'check_in':
+    case 'post_date':
+      return '/(tabs)/matches';
     default:
       return '/(tabs)/notifications';
   }
@@ -90,11 +111,47 @@ export default function NotificationsScreen() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setItems(data as NotificationRow[]);
-    } else {
+    if (error || !data) {
       setItems([]);
+      setLoading(false);
+      await emitUnreadNotificationCount();
+      return;
     }
+
+    const relatedIds = [
+      ...new Set(
+        data
+          .map((row) => row.related_user_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+
+    const nameById = new Map<string, string>();
+    if (relatedIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name')
+        .in('id', relatedIds);
+      for (const p of profiles ?? []) {
+        if (typeof p.id === 'string' && typeof p.first_name === 'string') {
+          nameById.set(p.id, p.first_name);
+        }
+      }
+    }
+
+    setItems(
+      data.map((row) => ({
+        id: row.id as string,
+        type: String(row.type ?? ''),
+        text: typeof row.text === 'string' ? row.text : '',
+        is_read: row.is_read === true,
+        related_user_id: typeof row.related_user_id === 'string' ? row.related_user_id : null,
+        created_at: String(row.created_at),
+        relatedName: row.related_user_id
+          ? (nameById.get(row.related_user_id as string) ?? null)
+          : null,
+      })),
+    );
 
     setLoading(false);
     await emitUnreadNotificationCount();
@@ -102,7 +159,7 @@ export default function NotificationsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchNotifications();
+      void fetchNotifications();
     }, [fetchNotifications]),
   );
 
@@ -136,15 +193,16 @@ export default function NotificationsScreen() {
   }
 
   function renderItem({ item }: { item: NotificationRow }) {
+    const body = resolveNotificationDisplayText(item.type, item.relatedName, item.text);
     return (
       <TouchableOpacity
         style={[styles.row, !item.is_read && styles.rowUnread]}
-        onPress={() => handlePress(item)}
+        onPress={() => void handlePress(item)}
         activeOpacity={0.8}>
         <ThemedText style={styles.rowIcon}>{typeIcon(item.type)}</ThemedText>
         <View style={styles.rowContent}>
-          <ThemedText style={styles.rowText}>{item.text}</ThemedText>
-          <ThemedText style={styles.rowTime}>{timeAgo(item.created_at)}</ThemedText>
+          <ThemedText style={styles.rowText}>{body}</ThemedText>
+          <ThemedText style={styles.rowTime}>{formatRelativeTime(item.created_at)}</ThemedText>
         </View>
       </TouchableOpacity>
     );
@@ -159,7 +217,7 @@ export default function NotificationsScreen() {
         <ThemedText style={styles.pageTitle}>Notifications</ThemedText>
         {hasUnread ? (
           <TouchableOpacity
-            onPress={handleMarkAllRead}
+            onPress={() => void handleMarkAllRead()}
             disabled={markingAll}
             activeOpacity={0.8}>
             <ThemedText style={styles.markAllBtn}>
@@ -174,6 +232,9 @@ export default function NotificationsScreen() {
       ) : items.length === 0 ? (
         <View style={styles.emptyWrap}>
           <ThemedText style={styles.emptyText}>No notifications yet</ThemedText>
+          <ThemedText style={styles.emptySubtext}>
+            When someone wants to meet, it&apos;ll show up here
+          </ThemedText>
         </View>
       ) : (
         <FlatList
@@ -249,9 +310,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 48,
+    paddingHorizontal: 32,
+    gap: 8,
   },
   emptyText: {
     fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
     color: '#888',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
