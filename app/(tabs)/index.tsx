@@ -84,7 +84,16 @@ type FeedUser = {
   favorite_music: string | null;
   favorite_movie: string | null;
   favorite_book: string | null;
+  bio: string | null;
+  first_date_expectation: string | null;
+  favorite_spots: Record<string, string> | null;
   photoUrls: string[];
+};
+
+type PromptCard = {
+  id: string;
+  title: string;
+  answer: string;
 };
 
 function safeAge(dob: string | null): number {
@@ -98,11 +107,92 @@ function safeAge(dob: string | null): number {
   return Math.max(0, age);
 }
 
+function formatFavoriteSpots(spots: Record<string, string> | null | undefined): string | null {
+  if (!spots || typeof spots !== 'object') return null;
+  const values = Object.values(spots)
+    .map((v) => (typeof v === 'string' ? v.trim() : ''))
+    .filter((v) => v.length > 0);
+  if (values.length === 0) return null;
+  return values.join(' · ');
+}
+
+function isBogusLocationToken(raw: string): boolean {
+  const lower = raw.toLowerCase();
+  return /\d+\s*km/.test(lower) || lower.includes('fazla') || lower.includes('away');
+}
+
+/** Readable pin line — no raw distance junk. */
+function formatFeedLocation(
+  district: string | null | undefined,
+  city: string | null | undefined,
+  viewerCity: string | null | undefined,
+): string | null {
+  const dRaw = district?.trim() ?? '';
+  const cRaw = city?.trim() ?? '';
+  const d = dRaw && !isBogusLocationToken(dRaw) ? dRaw : '';
+  const c = cRaw && !isBogusLocationToken(cRaw) ? cRaw : '';
+  if (!d && !c) return null;
+
+  const sameCity =
+    !!viewerCity?.trim() &&
+    !!c &&
+    viewerCity.trim().toLowerCase() === c.toLowerCase();
+
+  if (d && sameCity) return `📍 ${d} · nearby`;
+  if (d && c) return `📍 ${d}, ${c}`;
+  if (d) return `📍 ${d}`;
+  return `📍 ${c}`;
+}
+
+/** Fixed prompt set — only filled profile fields become cards. */
+function buildPromptCards(user: FeedUser): PromptCard[] {
+  const cards: PromptCard[] = [];
+
+  const idealDate = user.first_date_expectation?.trim() ?? '';
+  if (idealDate) {
+    cards.push({ id: 'ideal_date', title: 'My ideal date', answer: idealDate });
+  }
+
+  const about = user.bio?.trim() ?? '';
+  if (about) {
+    cards.push({ id: 'about', title: 'A little about me', answer: about });
+  }
+
+  const spot = formatFavoriteSpots(user.favorite_spots);
+  if (spot) {
+    cards.push({ id: 'spot', title: 'My go-to spot', answer: spot });
+  }
+
+  const hangout = user.district?.trim() ?? '';
+  if (hangout && !isBogusLocationToken(hangout)) {
+    cards.push({ id: 'hangout', title: 'Where I hang out', answer: hangout });
+  }
+
+  return cards;
+}
+
 function InfoLine({ icon, text }: { icon?: string; text: string }) {
   return (
     <View style={styles.infoLine}>
       {icon ? <Text style={styles.infoLineIcon}>{icon}</Text> : null}
       <ThemedText style={styles.infoLineText}>{text}</ThemedText>
+    </View>
+  );
+}
+
+function LifestyleChip({ label }: { label: string }) {
+  return (
+    <View style={styles.lifestyleChip}>
+      <ThemedText style={styles.lifestyleChipText}>{label}</ThemedText>
+    </View>
+  );
+}
+
+function PromptBlock({ title, answer }: { title: string; answer: string }) {
+  return (
+    <View style={styles.promptCard}>
+      <ThemedText style={styles.promptTitle}>{title}</ThemedText>
+      <ThemedText style={styles.promptAnswer}>{answer}</ThemedText>
     </View>
   );
 }
@@ -118,6 +208,7 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [myCity, setMyCity] = useState<string | null>(null);
   const [dailyViews, setDailyViews] = useState<DailyViewsState | null>(null);
 
   const hasLoadedFeedRef = useRef(false);
@@ -220,27 +311,62 @@ export default function HomeScreen() {
           favorite_music: row.favorite_music,
           favorite_movie: row.favorite_movie,
           favorite_book: row.favorite_book,
+          bio: null,
+          first_date_expectation: null,
+          favorite_spots: null,
           photoUrls,
         };
       }),
     );
 
-    const { data: langRows } = await supabase
+    const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
-      .select('id, languages')
+      .select('id, languages, bio, first_date_expectation, favorite_spots')
       .in('id', userIds);
 
-    const langMap = new Map(
-      (langRows ?? []).map((row: { id: string; languages: string[] | null }) => [
-        row.id,
-        row.languages,
-      ]),
-    );
+    type ProfileExtraRow = {
+      id: string;
+      languages: string[] | null;
+      bio: string | null;
+      first_date_expectation: string | null;
+      favorite_spots: Record<string, string> | null;
+    };
 
-    return mapped.map((u) => ({
-      ...u,
-      languages: langMap.get(u.user_id) ?? null,
-    }));
+    let extras: ProfileExtraRow[] = [];
+
+    if (!profileError && profileRows) {
+      extras = profileRows as ProfileExtraRow[];
+    } else {
+      const { data: langRows } = await supabase
+        .from('profiles')
+        .select('id, languages')
+        .in('id', userIds);
+      extras = (langRows ?? []).map((row: { id: string; languages: string[] | null }) => ({
+        id: row.id,
+        languages: row.languages,
+        bio: null,
+        first_date_expectation: null,
+        favorite_spots: null,
+      }));
+    }
+
+    const profileMap = new Map(extras.map((row) => [row.id, row]));
+
+    return mapped.map((u) => {
+      const extra = profileMap.get(u.user_id);
+      const spots = extra?.favorite_spots;
+      const favoriteSpots =
+        spots && typeof spots === 'object' && !Array.isArray(spots)
+          ? (spots as Record<string, string>)
+          : null;
+      return {
+        ...u,
+        languages: extra?.languages ?? null,
+        bio: extra?.bio ?? null,
+        first_date_expectation: extra?.first_date_expectation ?? null,
+        favorite_spots: favoriteSpots,
+      };
+    });
   }, []);
 
   useFocusEffect(
@@ -257,8 +383,12 @@ export default function HomeScreen() {
 
         setAuthUserId(user.id);
 
-        const viewsState = await getDailyViewsState(user.id);
+        const [{ data: meRow }, viewsState] = await Promise.all([
+          supabase.from('profiles').select('city').eq('id', user.id).maybeSingle(),
+          getDailyViewsState(user.id),
+        ]);
         if (!mounted) return;
+        setMyCity(typeof meRow?.city === 'string' ? meRow.city : null);
         setDailyViews(viewsState);
 
         const { data: accepted } = await supabase
@@ -399,6 +529,47 @@ export default function HomeScreen() {
   const currentUser = feedUsers[currentIndex] ?? null;
   const likesLeft = remainingDailyViews(dailyViews);
   const likesLeftLabel = `${likesLeft} ${likesLeft === 1 ? 'like' : 'likes'} left today`;
+  const prompts = currentUser ? buildPromptCards(currentUser) : [];
+  const intentLabel = currentUser ? formatIntentLabel(currentUser.intent) : null;
+  const availabilityLabel = currentUser
+    ? formatAvailabilityLabel(currentUser.availability_days)
+    : null;
+  const drinkingLabel = currentUser ? formatDrinkingLabel(currentUser.drinking) : null;
+  const smokingLabel = currentUser ? formatSmokingLabel(currentUser.smoking) : null;
+  const locationLabel = currentUser
+    ? formatFeedLocation(currentUser.district, currentUser.city, myCity)
+    : null;
+  const lifestyleChips = [availabilityLabel, drinkingLabel, smokingLabel].filter(
+    (x): x is string => !!x,
+  );
+  const hasThingsInCommon = currentUser
+    ? (currentUser.hobbies ?? []).length > 0 ||
+      !!currentUser.favorite_music ||
+      !!currentUser.favorite_movie ||
+      !!currentUser.favorite_book
+    : false;
+  const extraPhotos = currentUser ? currentUser.photoUrls.slice(1) : [];
+  const interleavedBlocks: { type: 'prompt' | 'photo'; key: string; prompt?: PromptCard; uri?: string }[] =
+    [];
+  if (currentUser) {
+    const pairCount = Math.max(prompts.length, extraPhotos.length);
+    for (let i = 0; i < pairCount; i += 1) {
+      if (prompts[i]) {
+        interleavedBlocks.push({
+          type: 'prompt',
+          key: `prompt-${prompts[i].id}`,
+          prompt: prompts[i],
+        });
+      }
+      if (extraPhotos[i]) {
+        interleavedBlocks.push({
+          type: 'photo',
+          key: `photo-${i + 1}`,
+          uri: extraPhotos[i],
+        });
+      }
+    }
+  }
 
   if (checking) {
     return (
@@ -464,44 +635,73 @@ export default function HomeScreen() {
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}>
-            {/* A. Fotoğraf 1 */}
+            {/* 1. Hero photo + name / intent */}
             <View style={styles.photo1Wrap}>
-              <Image source={{ uri: currentUser.photoUrls[0] }} style={styles.photo1} contentFit="cover" />
+              <Image
+                source={{ uri: currentUser.photoUrls[0] }}
+                style={styles.photo1}
+                contentFit="cover"
+              />
               <View style={styles.nameOverlay}>
                 <ThemedText style={styles.overlayName}>
                   {currentUser.first_name ?? 'Someone'}
-                  {safeAge(currentUser.date_of_birth) > 0 ? `, ${safeAge(currentUser.date_of_birth)}` : ''}
+                  {safeAge(currentUser.date_of_birth) > 0
+                    ? `, ${safeAge(currentUser.date_of_birth)}`
+                    : ''}
                 </ThemedText>
+                {intentLabel ? (
+                  <ThemedText style={styles.intentHero}>{intentLabel}</ThemedText>
+                ) : null}
               </View>
               <View style={styles.matchBadge}>
-                <ThemedText style={styles.matchBadgeText}>%{currentUser.match_percentage}</ThemedText>
+                <ThemedText style={styles.matchBadgeText}>
+                  %{currentUser.match_percentage}
+                </ThemedText>
               </View>
             </View>
 
-            {/* B. Key info */}
-            <View style={styles.card}>
-              {(() => {
-                const locationLabel = currentUser.district ?? currentUser.city ?? null;
-                const intentLabel = formatIntentLabel(currentUser.intent);
-                const availabilityLabel = formatAvailabilityLabel(currentUser.availability_days);
-                const drinkingLabel = formatDrinkingLabel(currentUser.drinking);
-                const smokingLabel = formatSmokingLabel(currentUser.smoking);
-                return (
-                  <>
-                    {locationLabel ? <InfoLine icon="📍" text={locationLabel} /> : null}
-                    {intentLabel ? <InfoLine text={intentLabel} /> : null}
-                    {availabilityLabel ? <InfoLine text={availabilityLabel} /> : null}
-                    {drinkingLabel ? <InfoLine text={drinkingLabel} /> : null}
-                    {smokingLabel ? <InfoLine text={smokingLabel} /> : null}
-                    {currentUser.languages?.length ? (
-                      <InfoLine icon="🌍" text={currentUser.languages.join(', ')} />
-                    ) : null}
-                  </>
-                );
-              })()}
-            </View>
+            {/* 2. Things in common — top */}
+            {hasThingsInCommon ? (
+              <View style={styles.simCard}>
+                <ThemedText style={styles.simCardTitle}>Things in common 🤝</ThemedText>
+                {(currentUser.hobbies ?? []).length > 0 ? (
+                  <View style={styles.chipRow}>
+                    {(currentUser.hobbies ?? []).map((hobby) => (
+                      <View key={hobby} style={styles.hobbyChip}>
+                        <ThemedText style={styles.hobbyChipText}>{hobby}</ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+                {currentUser.favorite_music ? (
+                  <InfoLine icon="🎵" text={currentUser.favorite_music} />
+                ) : null}
+                {currentUser.favorite_movie ? (
+                  <InfoLine icon="🎬" text={currentUser.favorite_movie} />
+                ) : null}
+                {currentUser.favorite_book ? (
+                  <InfoLine icon="📚" text={currentUser.favorite_book} />
+                ) : null}
+              </View>
+            ) : null}
 
-            {/* C. Butonlar */}
+            {/* 3. Lifestyle + location */}
+            {lifestyleChips.length > 0 || locationLabel ? (
+              <View style={styles.infoCard}>
+                {lifestyleChips.length > 0 ? (
+                  <View style={styles.chipRow}>
+                    {lifestyleChips.map((label) => (
+                      <LifestyleChip key={label} label={label} />
+                    ))}
+                  </View>
+                ) : null}
+                {locationLabel ? (
+                  <ThemedText style={styles.locationText}>{locationLabel}</ThemedText>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* Actions */}
             <View style={styles.actionRow}>
               <TouchableOpacity
                 style={styles.passBtn}
@@ -522,37 +722,23 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* D. Fotoğraf 2 */}
-            {currentUser.photoUrls[1] ? (
-              <Image
-                source={{ uri: currentUser.photoUrls[1] }}
-                style={styles.photo2}
-                contentFit="cover"
-              />
-            ) : null}
-
-            {/* E. Benzerlikler */}
-            <View style={styles.card}>
-              <ThemedText style={styles.cardTitle}>Ortak noktalar</ThemedText>
-              {(currentUser.hobbies ?? []).length > 0 ? (
-                <View style={styles.chipRow}>
-                  {(currentUser.hobbies ?? []).map((hobby) => (
-                    <View key={hobby} style={styles.chip}>
-                      <ThemedText style={styles.chipText}>🎯 {hobby}</ThemedText>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-              {currentUser.favorite_music ? (
-                <InfoLine icon="🎵" text={currentUser.favorite_music} />
-              ) : null}
-              {currentUser.favorite_movie ? (
-                <InfoLine icon="🎬" text={currentUser.favorite_movie} />
-              ) : null}
-              {currentUser.favorite_book ? (
-                <InfoLine icon="📚" text={currentUser.favorite_book} />
-              ) : null}
-            </View>
+            {/* 4+. Prompt ↔ photo interleave */}
+            {interleavedBlocks.map((block) =>
+              block.type === 'prompt' && block.prompt ? (
+                <PromptBlock
+                  key={block.key}
+                  title={block.prompt.title}
+                  answer={block.prompt.answer}
+                />
+              ) : block.uri ? (
+                <Image
+                  key={block.key}
+                  source={{ uri: block.uri }}
+                  style={styles.inlinePhoto}
+                  contentFit="cover"
+                />
+              ) : null,
+            )}
           </ScrollView>
 
           {/* Pass animasyon overlay */}
@@ -572,7 +758,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
-  feedRoot: { flex: 1, backgroundColor: '#F5F5F5' },
+  feedRoot: { flex: 1, backgroundColor: '#FAFAFA' },
   likesLeftBar: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -632,15 +818,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    gap: 6,
   },
   overlayName: {
     color: '#FFFFFF',
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
-    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowColor: 'rgba(0,0,0,0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
+  },
+  intentHero: {
+    color: ACCENT,
+    fontSize: 17,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   matchBadge: {
     position: 'absolute',
@@ -653,7 +848,64 @@ const styles = StyleSheet.create({
   },
   matchBadgeText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
-  card: {
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    marginHorizontal: 14,
+    marginTop: 14,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  lifestyleChip: {
+    backgroundColor: '#F7F3EB',
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  lifestyleChipText: { fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
+  locationText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    lineHeight: 22,
+  },
+  infoLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  infoLineIcon: { fontSize: 16, width: 24 },
+  infoLineText: { flex: 1, fontSize: 14, color: colors.textPrimary, lineHeight: 20 },
+
+  promptCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 14,
+    marginTop: 14,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  promptTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#888888',
+    letterSpacing: 0.2,
+  },
+  promptAnswer: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    lineHeight: 26,
+  },
+
+  simCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 16,
@@ -666,22 +918,27 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  cardTitle: {
+  simCardTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.textPrimary,
     marginBottom: 4,
   },
-  infoLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  infoLineIcon: { fontSize: 16, width: 24 },
-  infoLineText: { flex: 1, fontSize: 14, color: colors.textPrimary, lineHeight: 20 },
+  hobbyChip: {
+    borderWidth: 1,
+    borderColor: ACCENT,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  hobbyChipText: { color: ACCENT, fontSize: 13 },
 
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 24,
-    paddingVertical: 16,
+    paddingVertical: 18,
     marginHorizontal: 12,
   },
   passBtn: {
@@ -712,21 +969,12 @@ const styles = StyleSheet.create({
   },
   starIcon: { fontSize: 26 },
 
-  photo2: {
+  inlinePhoto: {
     width: '100%',
     height: 300,
-    marginTop: 12,
+    marginTop: 14,
     backgroundColor: '#DDDDDD',
   },
-
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    backgroundColor: '#F5F0E8',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  chipText: { fontSize: 13, color: ACCENT },
 
   passOverlay: {
     ...StyleSheet.absoluteFillObject,

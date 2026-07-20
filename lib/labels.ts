@@ -30,10 +30,10 @@ const DAY_SHORT: Record<string, string> = {
 };
 
 const INTENT_LABELS: Record<string, string> = {
-  keeping_it_casual: '😎 Just casual',
-  open_to_relationship: '🤍 Open to something real',
-  not_sure_yet: '✨ Still figuring it out',
-  just_friends: '🤝 Just friends',
+  keeping_it_casual: 'Here for a good time 😎',
+  open_to_relationship: 'Looking for something real 🤍',
+  not_sure_yet: 'Open to see where it goes ✨',
+  just_friends: 'New friends only 🤝',
 };
 
 const DRINKING_LABELS: Record<string, string> = {
