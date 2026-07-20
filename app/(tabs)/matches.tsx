@@ -1,4 +1,4 @@
-// Screen: Eşleşmeler sekmesi | Status: stable | Last updated: Mayıs 2026
+// Screen: Eşleşmeler sekmesi | Status: stable | Last updated: Temmuz 2026
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -6,12 +6,14 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -30,11 +32,12 @@ import {
   type DailyInvitesState,
 } from '@/lib/dailyInvites';
 import {
-  formatAvailabilityLabel,
-  formatDrinkingLabel,
-  formatIntentLabel,
-  formatSmokingLabel,
-} from '@/lib/labels';
+  hingeSafeAge,
+  parseFavoriteSpots,
+  strongestCommonLine,
+  type CommonSelf,
+  type HingeProfilePerson,
+} from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
@@ -45,27 +48,6 @@ function matchCategory(score: number): string {
   if (score >= 70) return '✨ Great match';
   if (score >= 55) return '👍 Good match';
   return '🤝 You have things in common';
-}
-
-function formatRechargeStyle(value: string | string[] | null): string | null {
-  if (!value) return null;
-  if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : null;
-  return value;
-}
-
-function formatEducation(education: string | null, detail: string | null): string | null {
-  if (!education && !detail) return null;
-  if (education && detail) return `${education} (${detail})`;
-  return education ?? detail ?? null;
-}
-
-function InfoLine({ icon, text }: { icon?: string; text: string }) {
-  return (
-    <View style={styles.infoLine}>
-      {icon ? <Text style={styles.infoLineIcon}>{icon}</Text> : null}
-      <ThemedText style={styles.infoLineText}>{text}</ThemedText>
-    </View>
-  );
 }
 
 type MatchResultItem = {
@@ -99,6 +81,9 @@ type MatchCardData = MatchResultItem & {
   intent: string | null;
   languages: string[] | null;
   recharge_style: string | string[] | null;
+  bio: string | null;
+  first_date_expectation: string | null;
+  favorite_spots: Record<string, string> | null;
 };
 
 type IncomingInvite = {
@@ -202,6 +187,9 @@ type ProfileForCard = {
   morning_night: string | null;
   languages: string[] | null;
   recharge_style: string | string[] | null;
+  bio: string | null;
+  first_date_expectation: string | null;
+  favorite_spots: Record<string, string> | null;
 };
 
 async function buildCardFromPending(
@@ -248,165 +236,121 @@ async function buildCardFromPending(
     languages: profile.languages,
     recharge_style: profile.recharge_style,
     displayPhotoUrl,
+    bio: profile.bio,
+    first_date_expectation: profile.first_date_expectation,
+    favorite_spots: parseFavoriteSpots(profile.favorite_spots),
   };
 }
 
-function morningNightIcon(value: string | null): string {
-  if (!value) return '🌅';
-  return value.toLowerCase().includes('night') ? '🌙' : '🌅';
+function matchToHingePerson(match: MatchCardData): HingeProfilePerson {
+  const photos = (match.photos ?? []).filter((u) => typeof u === 'string' && u.trim().length > 0);
+  return {
+    first_name: match.first_name,
+    date_of_birth: match.date_of_birth,
+    district: match.district,
+    city: match.city,
+    match_percentage: match.match_percentage,
+    intent: match.intent,
+    availability_days: match.availability_days,
+    drinking: match.drinking,
+    smoking: match.smoking,
+    hobbies: match.hobbies,
+    favorite_music: match.favorite_music,
+    favorite_movie: match.favorite_movie,
+    favorite_book: match.favorite_book,
+    bio: match.bio,
+    first_date_expectation: match.first_date_expectation,
+    favorite_spots: match.favorite_spots,
+    photoUrls: photos.length > 0 ? photos : [match.displayPhotoUrl],
+  };
 }
 
-function morningNightLabel(value: string | null): string | null {
-  if (!value) return null;
-  const lower = value.toLowerCase();
-  if (lower.includes('morning')) return 'Morning person';
-  if (lower.includes('night')) return 'Night owl';
-  return value;
-}
-
-function getPhotoUrl(photos: string[] | null | undefined, index: number): string | null {
-  const url = photos?.[index];
-  if (typeof url !== 'string' || url.trim() === '') return null;
-  return url;
-}
-
-function InlinePhoto({ uri }: { uri: string }) {
-  return <Image source={{ uri }} style={styles.inlinePhoto} resizeMode="cover" />;
-}
-
-type MatchProfileCardProps = {
+type CompactMatchCardProps = {
   match: MatchCardData;
-  timeLeft: string | null;
+  commonLine: string | null;
   inviteState: 'none' | 'sent' | 'open';
+  timeLeft: string | null;
+  onOpenDetail: () => void;
   onLetsMeet: () => void;
   onOpenChat: () => void;
   onPass: () => void;
 };
 
-function MatchProfileCard({
+function CompactMatchCard({
   match,
-  timeLeft,
+  commonLine,
   inviteState,
+  timeLeft,
+  onOpenDetail,
   onLetsMeet,
   onOpenChat,
   onPass,
-}: MatchProfileCardProps) {
-  const photos = match.photos ?? [];
-  const heroPhoto = getPhotoUrl(photos, 0) ?? match.displayPhotoUrl;
-  const photoBeforeSim = getPhotoUrl(photos, 1);
-  const photoAfterSim = getPhotoUrl(photos, 2);
-  const extraPhotos = photos
-    .map((uri, index) => ({ uri, index }))
-    .filter(({ uri, index }) => index >= 3 && typeof uri === 'string' && uri.trim() !== '');
+}: CompactMatchCardProps) {
   const displayName = match.first_name ?? 'Someone';
   const displayAge = safeAge(match.date_of_birth);
-  const intentLabel = formatIntentLabel(match.intent);
-  const availabilityLabel = formatAvailabilityLabel(match.availability_days);
-  const drinkingLabel = formatDrinkingLabel(match.drinking);
-  const smokingLabel = formatSmokingLabel(match.smoking);
-  const scheduleLabel = morningNightLabel(match.morning_night);
-  const rechargeLabel = formatRechargeStyle(match.recharge_style);
-  const educationLabel = formatEducation(match.education, match.education_detail);
-  const locationLabel = match.district ?? match.city ?? null;
-  const languagesLabel = match.languages?.length ? match.languages.join(', ') : null;
 
   return (
-    <ScrollView
-      style={styles.matchScroll}
-      contentContainerStyle={styles.matchScrollContent}
-      nestedScrollEnabled
-      scrollEnabled={false}
-      showsVerticalScrollIndicator={false}>
-      <View style={styles.heroWrap}>
-        <Image source={{ uri: heroPhoto }} style={styles.heroPhoto} resizeMode="cover" />
-        <View style={styles.heroNameOverlay}>
-          <ThemedText style={styles.heroName}>
+    <View style={styles.compactCard}>
+      <TouchableOpacity
+        style={styles.compactMain}
+        activeOpacity={0.85}
+        onPress={onOpenDetail}>
+        <Image
+          source={{ uri: match.displayPhotoUrl }}
+          style={styles.compactPhoto}
+          resizeMode="cover"
+        />
+        <View style={styles.compactInfo}>
+          <ThemedText style={styles.compactName}>
             {displayName}, {displayAge}
           </ThemedText>
-        </View>
-        <View style={styles.heroPctBadge}>
-          <ThemedText style={styles.heroPctText}>%{match.match_percentage}</ThemedText>
-        </View>
-        <View style={styles.heroCategoryBadge}>
-          <ThemedText style={styles.heroCategoryText}>{match.match_category}</ThemedText>
-        </View>
-      </View>
-
-      <View style={styles.infoCard}>
-        {locationLabel ? <InfoLine icon="📍" text={locationLabel} /> : null}
-        {intentLabel ? <InfoLine text={intentLabel} /> : null}
-        {availabilityLabel ? <InfoLine text={availabilityLabel} /> : null}
-        {scheduleLabel ? (
-          <InfoLine icon={morningNightIcon(match.morning_night)} text={scheduleLabel} />
-        ) : null}
-        {rechargeLabel ? <InfoLine icon="⚡" text={rechargeLabel} /> : null}
-        {drinkingLabel ? <InfoLine text={drinkingLabel} /> : null}
-        {smokingLabel ? <InfoLine text={smokingLabel} /> : null}
-        {educationLabel ? <InfoLine icon="🎓" text={educationLabel} /> : null}
-        {languagesLabel ? <InfoLine icon="🌍" text={languagesLabel} /> : null}
-      </View>
-
-      {photoBeforeSim ? <InlinePhoto uri={photoBeforeSim} /> : null}
-
-      <View style={styles.simCard}>
-        <ThemedText style={styles.simCardTitle}>Things in common 🤝</ThemedText>
-        {(match.hobbies ?? []).length > 0 ? (
-          <View style={styles.chipRow}>
-            {(match.hobbies ?? []).map((hobby) => (
-              <View key={hobby} style={styles.hobbyChip}>
-                <ThemedText style={styles.hobbyChipText}>{hobby}</ThemedText>
-              </View>
-            ))}
+          <View style={styles.compactPctBadge}>
+            <ThemedText style={styles.compactPctText}>%{match.match_percentage}</ThemedText>
           </View>
-        ) : null}
-        {match.favorite_music ? <InfoLine icon="🎵" text={match.favorite_music} /> : null}
-        {match.favorite_movie ? <InfoLine icon="🎬" text={match.favorite_movie} /> : null}
-        {match.favorite_book ? <InfoLine icon="📚" text={match.favorite_book} /> : null}
-      </View>
+          {commonLine ? (
+            <ThemedText style={styles.compactCommon} numberOfLines={1}>
+              {commonLine}
+            </ThemedText>
+          ) : null}
+          {timeLeft ? <CountdownText expiresAt={timeLeft} /> : null}
+        </View>
+      </TouchableOpacity>
 
-      {photoAfterSim ? <InlinePhoto uri={photoAfterSim} /> : null}
-      {extraPhotos.map(({ uri, index }) => (
-        <InlinePhoto key={`photo-${index}`} uri={uri} />
-      ))}
-
-      <View style={styles.buttonsWrap}>
-        {timeLeft ? <CountdownText expiresAt={timeLeft} /> : null}
+      <View style={styles.compactActions}>
         {inviteState === 'sent' ? (
-          <ThemedText style={styles.sentText}>
-            Waiting for {displayName} to accept ⏳
+          <ThemedText style={styles.compactWaiting}>
+            Waiting for {displayName} ⏳
           </ThemedText>
         ) : inviteState === 'open' ? (
-          <TouchableOpacity style={styles.tanisBtn} onPress={onOpenChat} activeOpacity={0.85}>
-            <ThemedText style={styles.tanisBtnText}>Open chat</ThemedText>
+          <TouchableOpacity style={styles.compactMeetBtn} onPress={onOpenChat} activeOpacity={0.85}>
+            <ThemedText style={styles.compactMeetText}>💬 Message</ThemedText>
           </TouchableOpacity>
         ) : (
           <>
-            <TouchableOpacity style={styles.tanisBtn} onPress={onLetsMeet} activeOpacity={0.85}>
-              <ThemedText style={styles.tanisBtnText}>☕ Let&apos;s meet</ThemedText>
+            <TouchableOpacity
+              style={styles.compactMeetBtn}
+              onPress={onLetsMeet}
+              activeOpacity={0.85}>
+              <ThemedText style={styles.compactMeetText}>☕ Let&apos;s meet</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.gecBtn} onPress={onPass} activeOpacity={0.85}>
-              <ThemedText style={styles.gecBtnText}>👋 Maybe later</ThemedText>
+            <TouchableOpacity style={styles.compactPassBtn} onPress={onPass} activeOpacity={0.85}>
+              <ThemedText style={styles.compactPassText}>👋</ThemedText>
             </TouchableOpacity>
           </>
         )}
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 function safeAge(dob: string | null): number {
-  if (!dob) return 28;
-  const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return 28;
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  const m = now.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age -= 1;
-  return Math.max(18, age);
+  const age = hingeSafeAge(dob);
+  return age > 0 ? age : 28;
 }
 
 export default function MatchesTab() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [cards, setCards] = useState<MatchCardData[]>([]);
   const [incoming, setIncoming] = useState<IncomingInvite[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingInvite[]>([]);
@@ -418,12 +362,16 @@ export default function MatchesTab() {
     Record<string, { matchId: string; invitedBy: string | null; chatOpened: boolean }>
   >({});
   const [myGender, setMyGender] = useState<string | null>(null);
+  const [myCity, setMyCity] = useState<string | null>(null);
+  const [commonSelf, setCommonSelf] = useState<CommonSelf | null>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [dailyInvites, setDailyInvites] = useState<DailyInvitesState | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<MatchCardData | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
+      setSelectedMatch(null);
 
       (async () => {
         setLoading(true);
@@ -440,11 +388,26 @@ export default function MatchesTab() {
         const userId = user.id;
 
         const [{ data: meProfile }, invitesState] = await Promise.all([
-          supabase.from('profiles').select('gender').eq('id', userId).maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('gender, city, district, hobbies, favorite_music, favorite_movie, favorite_book')
+            .eq('id', userId)
+            .maybeSingle(),
           getDailyInvitesState(userId, false),
         ]);
         if (!mounted) return;
         setMyGender(meProfile?.gender ?? null);
+        setMyCity(typeof meProfile?.city === 'string' ? meProfile.city : null);
+        setCommonSelf({
+          hobbies: Array.isArray(meProfile?.hobbies) ? (meProfile.hobbies as string[]) : null,
+          favorite_music:
+            typeof meProfile?.favorite_music === 'string' ? meProfile.favorite_music : null,
+          favorite_movie:
+            typeof meProfile?.favorite_movie === 'string' ? meProfile.favorite_movie : null,
+          favorite_book:
+            typeof meProfile?.favorite_book === 'string' ? meProfile.favorite_book : null,
+          district: typeof meProfile?.district === 'string' ? meProfile.district : null,
+        });
         setDailyInvites(invitesState);
 
         // All matches involving me (invite / chat state)
@@ -684,16 +647,36 @@ export default function MatchesTab() {
         const { data: profileRows, error: profileError } = await supabase
           .from('profiles')
           .select(
-            'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style',
+            'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots',
           )
           .in('id', cardOtherIds);
 
         if (!mounted) return;
 
+        let profilesForCards: ProfileForCard[] = [];
         if (profileError) {
-          Alert.alert('Error', profileError.message);
-          setLoading(false);
-          return;
+          const { data: fallbackRows, error: fallbackError } = await supabase
+            .from('profiles')
+            .select(
+              'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style',
+            )
+            .in('id', cardOtherIds);
+          if (fallbackError) {
+            Alert.alert('Error', fallbackError.message);
+            setLoading(false);
+            return;
+          }
+          profilesForCards = (fallbackRows ?? []).map((p) => ({
+            ...(p as Omit<ProfileForCard, 'bio' | 'first_date_expectation' | 'favorite_spots'>),
+            bio: null,
+            first_date_expectation: null,
+            favorite_spots: null,
+          }));
+        } else {
+          profilesForCards = (profileRows ?? []).map((p) => ({
+            ...(p as ProfileForCard),
+            favorite_spots: parseFavoriteSpots((p as ProfileForCard).favorite_spots),
+          }));
         }
 
         const { data: intentRows } = await supabase
@@ -710,9 +693,7 @@ export default function MatchesTab() {
           ]),
         );
 
-        const cardProfileById = new Map(
-          (profileRows ?? []).map((p) => [p.id as string, p as ProfileForCard]),
-        );
+        const cardProfileById = new Map(profilesForCards.map((p) => [p.id, p]));
 
         const mappedCards = (
           await Promise.all(
@@ -838,6 +819,7 @@ export default function MatchesTab() {
         onPress: () => {
           void (async () => {
             await supabase.from('matches').update({ status: 'expired' }).eq('id', match.matchId);
+            setSelectedMatch(null);
             setCards((prev) => {
               const next = prev.filter((c) => c.matchId !== match.matchId);
               if (next.length === 0) setNoMatches(true);
@@ -855,6 +837,66 @@ export default function MatchesTab() {
     if (info.chatOpened) return 'open';
     if (info.invitedBy) return 'sent';
     return 'none';
+  }
+
+  if (selectedMatch) {
+    const inviteState = cardInviteState(selectedMatch);
+    const displayName = selectedMatch.first_name ?? 'Someone';
+    return (
+      <View style={[styles.detailRoot, { paddingTop: insets.top }]}>
+        <View style={styles.detailHeader}>
+          <TouchableOpacity
+            onPress={() => setSelectedMatch(null)}
+            hitSlop={12}
+            style={styles.detailBackBtn}
+            accessibilityLabel="Back to matches">
+            <Ionicons name="chevron-back" size={28} color={ACCENT} />
+          </TouchableOpacity>
+          <ThemedText style={styles.detailHeaderTitle}>Profile</ThemedText>
+          <View style={styles.detailHeaderSpacer} />
+        </View>
+        <ScrollView
+          style={styles.detailScroll}
+          contentContainerStyle={styles.detailScrollContent}
+          showsVerticalScrollIndicator={false}>
+          <HingeProfileCard
+            person={matchToHingePerson(selectedMatch)}
+            viewerCity={myCity}
+            footer={
+              <View style={styles.detailFooter}>
+                {inviteState === 'sent' ? (
+                  <ThemedText style={styles.compactWaiting}>
+                    Waiting for {displayName} ⏳
+                  </ThemedText>
+                ) : inviteState === 'open' ? (
+                  <TouchableOpacity
+                    style={styles.detailPrimaryBtn}
+                    onPress={() => handleOpenChat(selectedMatch)}
+                    activeOpacity={0.85}>
+                    <ThemedText style={styles.detailPrimaryText}>💬 Message</ThemedText>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.detailPrimaryBtn}
+                      onPress={() => handleLetsMeet(selectedMatch)}
+                      activeOpacity={0.85}>
+                      <ThemedText style={styles.detailPrimaryText}>☕ Let&apos;s meet</ThemedText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.detailSecondaryBtn}
+                      onPress={() => handlePass(selectedMatch)}
+                      activeOpacity={0.85}>
+                      <ThemedText style={styles.detailSecondaryText}>👋 Maybe later</ThemedText>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            }
+          />
+        </ScrollView>
+      </View>
+    );
   }
 
   return (
@@ -1036,7 +1078,7 @@ export default function MatchesTab() {
                 <View style={styles.emptyWrap}>
                   <ThemedText style={styles.emptyText}>No matches yet</ThemedText>
                   <ThemedText style={styles.emptySubtext}>
-                    Keep exploring — your matches will show up here
+                    Keep exploring — they&apos;ll show up here
                   </ThemedText>
                 </View>
               ) : (
@@ -1049,11 +1091,13 @@ export default function MatchesTab() {
                     match.status === 'pending' && match.expires_at ? match.expires_at : null;
 
                   return (
-                    <MatchProfileCard
+                    <CompactMatchCard
                       key={match.matchId}
                       match={match}
+                      commonLine={strongestCommonLine(commonSelf, match)}
                       timeLeft={timeLeft}
                       inviteState={cardInviteState(match)}
+                      onOpenDetail={() => setSelectedMatch(match)}
                       onLetsMeet={() => handleLetsMeet(match)}
                       onOpenChat={() => handleOpenChat(match)}
                       onPass={() => handlePass(match)}
@@ -1183,138 +1227,125 @@ const styles = StyleSheet.create({
   },
   rejectBtnText: { color: '#888', fontSize: 14 },
 
-  matchScroll: { marginBottom: 24 },
-  matchScrollContent: { gap: 0 },
-
-  heroWrap: {
-    position: 'relative',
-    width: '100%',
-    height: 380,
-    backgroundColor: '#DDDDDD',
-  },
-  heroPhoto: { width: '100%', height: '100%' },
-  heroNameOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-  },
-  heroName: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
-  },
-  heroPctBadge: {
-    position: 'absolute',
-    bottom: 14,
-    right: 16,
-    backgroundColor: ACCENT,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  heroPctText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  heroCategoryBadge: {
-    position: 'absolute',
-    top: 14,
-    right: 16,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  heroCategoryText: { color: ACCENT, fontSize: 12, fontWeight: '600' },
-
-  infoCard: {
+  compactCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    marginHorizontal: 12,
-    marginTop: 12,
-    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EDEDED',
+    padding: 12,
+    gap: 12,
     shadowColor: '#000',
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    elevation: 1,
   },
-  infoLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  infoLineIcon: { fontSize: 16, width: 24 },
-  infoLineText: { flex: 1, fontSize: 14, color: colors.textPrimary, lineHeight: 20 },
-
-  inlinePhoto: {
-    width: '100%',
-    height: 280,
-    marginTop: 12,
-    backgroundColor: '#DDDDDD',
+  compactMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-
-  simCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    marginHorizontal: 12,
-    marginTop: 12,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+  compactPhoto: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    backgroundColor: '#DDD',
   },
-  simCardTitle: {
-    fontSize: 16,
+  compactInfo: { flex: 1, gap: 6 },
+  compactName: {
+    fontSize: 18,
     fontWeight: '700',
     color: colors.textPrimary,
-    marginBottom: 4,
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  hobbyChip: {
-    borderWidth: 1,
-    borderColor: ACCENT,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  hobbyChipText: { color: ACCENT, fontSize: 13 },
-
-  buttonsWrap: {
-    marginHorizontal: 12,
-    marginTop: 12,
-    marginBottom: 8,
-    gap: 10,
-  },
-  tanisBtn: {
+  compactPctBadge: {
+    alignSelf: 'flex-start',
     backgroundColor: ACCENT,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  compactPctText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  compactCommon: {
+    fontSize: 13,
+    color: '#666666',
+    lineHeight: 18,
+  },
+  compactActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactMeetBtn: {
+    flex: 1,
+    backgroundColor: ACCENT,
+    borderRadius: 12,
+    paddingVertical: 11,
     alignItems: 'center',
   },
-  tanisBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  gecBtn: {
-    backgroundColor: 'transparent',
+  compactMeetText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  compactPassBtn: {
+    width: 48,
+    height: 44,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactPassText: { fontSize: 18 },
+  compactWaiting: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#888',
+    fontSize: 14,
+    paddingVertical: 8,
+  },
+
+  detailRoot: { flex: 1, backgroundColor: '#FAFAFA' },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E8E8E8',
+  },
+  detailBackBtn: { padding: 8 },
+  detailHeaderTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  detailHeaderSpacer: { width: 44 },
+  detailScroll: { flex: 1 },
+  detailScrollContent: { paddingBottom: 40 },
+  detailFooter: {
+    marginHorizontal: 14,
+    marginTop: 18,
+    gap: 10,
+  },
+  detailPrimaryBtn: {
+    backgroundColor: ACCENT,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  detailPrimaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  detailSecondaryBtn: {
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E0E0E0',
     paddingVertical: 14,
     alignItems: 'center',
   },
-  gecBtnText: { color: '#888888', fontSize: 16, fontWeight: '500' },
-  sentText: {
-    textAlign: 'center',
-    color: '#888',
-    fontSize: 14,
-    paddingVertical: 12,
-  },
+  detailSecondaryText: { color: '#666666', fontSize: 15, fontWeight: '500' },
+
   timeLeftText: {
-    textAlign: 'center',
     color: '#888',
-    fontSize: 13,
-    marginBottom: 4,
+    fontSize: 12,
   },
 
   emptyWrap: { marginTop: 20, alignItems: 'center', paddingHorizontal: 32, gap: 8 },
