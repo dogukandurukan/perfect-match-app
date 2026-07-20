@@ -1,5 +1,4 @@
 // Screen: Ana sayfa sekmesi | Status: stable | Last updated: Mayıs 2026
-import { Ionicons } from '@expo/vector-icons';
 import { DailyLimitEmptyState } from '@/components/DailyLimitEmptyState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -9,6 +8,7 @@ import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompl
 import {
   getDailyViewsState,
   incrementDailyViews,
+  remainingDailyViews,
   type DailyViewsState,
 } from '@/lib/dailyViews';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
@@ -19,7 +19,7 @@ import {
   formatSmokingLabel,
 } from '@/lib/labels';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -43,6 +43,23 @@ import Animated, {
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PHOTO1_HEIGHT = SCREEN_HEIGHT * 0.55;
 const ACCENT = '#B8860B';
+
+type TopMatchRow = {
+  user_id: string;
+  first_name: string | null;
+  date_of_birth: string | null;
+  district: string | null;
+  city: string | null;
+  match_percentage: number;
+  availability_days: string[] | null;
+  drinking: string | null;
+  smoking: string | null;
+  hobbies: string[] | null;
+  favorite_music: string | null;
+  favorite_movie: string | null;
+  favorite_book: string | null;
+  photos: string[] | null;
+};
 
 type ActiveMatch = {
   matchId: string;
@@ -104,6 +121,9 @@ export default function HomeScreen() {
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [dailyViews, setDailyViews] = useState<DailyViewsState | null>(null);
 
+  const hasLoadedFeedRef = useRef(false);
+  const feedResetAtRef = useRef<string | null>(null);
+
   const passOverlayOpacity = useSharedValue(0);
   const likeOverlayOpacity = useSharedValue(0);
 
@@ -147,6 +167,82 @@ export default function HomeScreen() {
     });
     return () => subscription.unsubscribe();
   }, [refreshProfileState]);
+
+  const loadFeed = useCallback(async (userId: string): Promise<FeedUser[]> => {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_matches', {
+      p_user_id: userId,
+      p_limit: 10,
+    });
+
+    if (rpcError || !rpcData || !Array.isArray(rpcData) || rpcData.length === 0) {
+      return [];
+    }
+
+    const rows = rpcData as TopMatchRow[];
+    const userIds = rows.map((r) => r.user_id);
+
+    const { data: intentRows } = await supabase
+      .from('onboarding_answers')
+      .select('user_id, intent')
+      .in('user_id', userIds);
+
+    const intentMap = new Map(
+      (intentRows ?? []).map((row: { user_id: string; intent: string | null }) => [
+        row.user_id,
+        row.intent,
+      ]),
+    );
+
+    const mapped: FeedUser[] = await Promise.all(
+      rows.map(async (row) => {
+        const photoUrls =
+          row.photos && row.photos.length > 0
+            ? await Promise.all(
+                row.photos.map(async (path, i) => {
+                  const url = await resolveProfilePhotoUrl(path, 3600);
+                  return url ?? `https://i.pravatar.cc/300?u=${row.user_id}&n=${i}`;
+                }),
+              )
+            : [`https://i.pravatar.cc/300?u=${row.user_id}`];
+
+        return {
+          user_id: row.user_id,
+          first_name: row.first_name,
+          date_of_birth: row.date_of_birth,
+          district: row.district,
+          city: row.city,
+          match_percentage: row.match_percentage,
+          intent: intentMap.get(row.user_id) ?? null,
+          availability_days: row.availability_days,
+          drinking: row.drinking,
+          smoking: row.smoking,
+          languages: null,
+          hobbies: row.hobbies,
+          favorite_music: row.favorite_music,
+          favorite_movie: row.favorite_movie,
+          favorite_book: row.favorite_book,
+          photoUrls,
+        };
+      }),
+    );
+
+    const { data: langRows } = await supabase
+      .from('profiles')
+      .select('id, languages')
+      .in('id', userIds);
+
+    const langMap = new Map(
+      (langRows ?? []).map((row: { id: string; languages: string[] | null }) => [
+        row.id,
+        row.languages,
+      ]),
+    );
+
+    return mapped.map((u) => ({
+      ...u,
+      languages: langMap.get(u.user_id) ?? null,
+    }));
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -217,118 +313,33 @@ export default function HomeScreen() {
         }
 
         if (viewsState?.limitReached) {
-          setFeedUsers([]);
-          setCurrentIndex(0);
           setFeedLoading(false);
           return;
         }
+
+        const resetKey = viewsState?.resetAt ?? null;
+        const dailyWindowChanged =
+          feedResetAtRef.current !== null &&
+          resetKey !== null &&
+          feedResetAtRef.current !== resetKey;
+        const shouldLoadFeed = !hasLoadedFeedRef.current || dailyWindowChanged;
+
+        if (!shouldLoadFeed) return;
 
         setFeedLoading(true);
-
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_matches', {
-          p_user_id: user.id,
-          p_limit: 10,
-        });
-
+        const nextUsers = await loadFeed(user.id);
         if (!mounted) return;
 
-        if (rpcError || !rpcData || (rpcData as FeedUser[]).length === 0) {
-          setFeedUsers([]);
-          setCurrentIndex(0);
-          setFeedLoading(false);
-          return;
-        }
-
-        const rows = rpcData as Array<{
-          user_id: string;
-          first_name: string | null;
-          date_of_birth: string | null;
-          district: string | null;
-          city: string | null;
-          match_percentage: number;
-          availability_days: string[] | null;
-          drinking: string | null;
-          smoking: string | null;
-          hobbies: string[] | null;
-          favorite_music: string | null;
-          favorite_movie: string | null;
-          favorite_book: string | null;
-          photos: string[] | null;
-        }>;
-
-        const userIds = rows.map((r) => r.user_id);
-        const { data: intentRows } = await supabase
-          .from('onboarding_answers')
-          .select('user_id, intent')
-          .in('user_id', userIds);
-
-        const intentMap = new Map(
-          (intentRows ?? []).map((row: { user_id: string; intent: string | null }) => [
-            row.user_id,
-            row.intent,
-          ]),
-        );
-
-        const mapped: FeedUser[] = await Promise.all(
-          rows.map(async (row) => {
-            const photoUrls =
-              row.photos && row.photos.length > 0
-                ? await Promise.all(
-                    row.photos.map(async (path, i) => {
-                      const url = await resolveProfilePhotoUrl(path, 3600);
-                      return url ?? `https://i.pravatar.cc/300?u=${row.user_id}&n=${i}`;
-                    }),
-                  )
-                : [`https://i.pravatar.cc/300?u=${row.user_id}`];
-
-            return {
-              user_id: row.user_id,
-              first_name: row.first_name,
-              date_of_birth: row.date_of_birth,
-              district: row.district,
-              city: row.city,
-              match_percentage: row.match_percentage,
-              intent: intentMap.get(row.user_id) ?? null,
-              availability_days: row.availability_days,
-              drinking: row.drinking,
-              smoking: row.smoking,
-              languages: null,
-              hobbies: row.hobbies,
-              favorite_music: row.favorite_music,
-              favorite_movie: row.favorite_movie,
-              favorite_book: row.favorite_book,
-              photoUrls,
-            };
-          }),
-        );
-
-        const { data: langRows } = await supabase
-          .from('profiles')
-          .select('id, languages')
-          .in('id', userIds);
-
-        const langMap = new Map(
-          (langRows ?? []).map((row: { id: string; languages: string[] | null }) => [
-            row.id,
-            row.languages,
-          ]),
-        );
-
-        const withLangs = mapped.map((u) => ({
-          ...u,
-          languages: langMap.get(u.user_id) ?? null,
-        }));
-
-        if (mounted) {
-          setFeedUsers(withLangs);
-          setCurrentIndex(0);
-          setFeedLoading(false);
-        }
+        setFeedUsers(nextUsers);
+        setCurrentIndex(0);
+        setFeedLoading(false);
+        hasLoadedFeedRef.current = true;
+        feedResetAtRef.current = resetKey;
       })();
       return () => {
         mounted = false;
       };
-    }, [refreshProfileState]),
+    }, [refreshProfileState, loadFeed]),
   );
 
   const advanceIndex = useCallback(() => {
@@ -384,6 +395,8 @@ export default function HomeScreen() {
   );
 
   const currentUser = feedUsers[currentIndex] ?? null;
+  const likesLeft = remainingDailyViews(dailyViews);
+  const likesLeftLabel = `${likesLeft} ${likesLeft === 1 ? 'like' : 'likes'} left today`;
 
   if (checking) {
     return (
@@ -442,6 +455,9 @@ export default function HomeScreen() {
         </View>
       ) : (
         <>
+          <View style={styles.likesLeftBar}>
+            <ThemedText style={styles.likesLeftText}>{likesLeftLabel}</ThemedText>
+          </View>
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
@@ -555,6 +571,19 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
   feedRoot: { flex: 1, backgroundColor: '#F5F5F5' },
+  likesLeftBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E8E8E8',
+  },
+  likesLeftText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: ACCENT,
+    textAlign: 'center',
+  },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 120 },
 

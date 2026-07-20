@@ -1,5 +1,5 @@
-// Screen: Tab header actions | Status: stable | Last updated: Haziran 2026
-import { Ionicons } from '@expo/vector-icons';
+// Screen: Tab header actions | Status: stable | Last updated: Temmuz 2026
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 
@@ -10,6 +10,14 @@ export function TabHeaderActions() {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity
+        style={styles.iconBtn}
+        activeOpacity={0.7}
+        onPress={() => router.push('/premium' as Parameters<typeof router.push>[0])}
+        hitSlop={8}
+        accessibilityLabel="Premium">
+        <MaterialCommunityIcons name="crown-outline" size={24} color={ACCENT} />
+      </TouchableOpacity>
       <TouchableOpacity
         style={styles.iconBtn}
         activeOpacity={0.7}
