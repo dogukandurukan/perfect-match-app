@@ -453,7 +453,7 @@ export default function MatchesTab() {
         if (otherIds.length > 0) {
           const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, first_name, date_of_birth, city, photos, gender')
+            .select('id, first_name, date_of_birth, city, district, photos, gender')
             .in('id', otherIds);
           for (const p of profiles ?? []) {
             profileById.set(p.id, p);
