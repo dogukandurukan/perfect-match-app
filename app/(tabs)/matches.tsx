@@ -209,7 +209,6 @@ async function buildCardFromPending(
   const displayPhotoUrl = signedPhotos[0]
     ? getProfilePhotoPublicUrl(signedPhotos[0])
     : `https://i.pravatar.cc/300?u=${profile.id}`;
-  console.log('CARD PHOTO:', profile.first_name, '→', displayPhotoUrl);
 
   return {
     user_id: profile.id,
@@ -432,7 +431,7 @@ export default function MatchesTab() {
           `,
           )
           .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
-          .neq('status', 'expired');
+          .not('status', 'in', '(expired,passed)');
 
         const rows = myMatches ?? [];
         const otherIds = [
@@ -466,10 +465,8 @@ export default function MatchesTab() {
         function photoFor(uid: string, photos: string[] | null | undefined): string {
           const first = photos?.[0];
           if (!first?.trim()) {
-            console.log('CARD PHOTO (photoFor):', uid, '→', `https://i.pravatar.cc/300?u=${uid}`);
             return `https://i.pravatar.cc/300?u=${uid}`;
           }
-          console.log('CARD PHOTO (photoFor):', uid, '→', getProfilePhotoPublicUrl(first));
           return getProfilePhotoPublicUrl(first);
         }
 
@@ -825,7 +822,7 @@ export default function MatchesTab() {
         text: 'Maybe later',
         onPress: () => {
           void (async () => {
-            await supabase.from('matches').update({ status: 'expired' }).eq('id', match.matchId);
+            await supabase.from('matches').update({ status: 'passed' }).eq('id', match.matchId);
             setSelectedMatch(null);
             setCards((prev) => {
               const next = prev.filter((c) => c.matchId !== match.matchId);
