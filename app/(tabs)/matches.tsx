@@ -39,7 +39,7 @@ import {
   type HingeProfilePerson,
 } from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
-import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
+import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 
 const ACCENT = '#B8860B';
 
@@ -199,14 +199,17 @@ async function buildCardFromPending(
 ): Promise<MatchCardData> {
   const signedPhotos =
     profile.photos && profile.photos.length > 0
-      ? await Promise.all(
-          profile.photos.map(async (path, i) => {
-            const url = await resolveProfilePhotoUrl(path, 3600);
-            return url ?? `https://i.pravatar.cc/300?u=${profile.id}&n=${i}`;
-          }),
-        )
+      ? profile.photos.map((path, i) => {
+          if (!path?.trim()) {
+            return `https://i.pravatar.cc/300?u=${profile.id}&n=${i}`;
+          }
+          return getProfilePhotoPublicUrl(path);
+        })
       : [];
-  const displayPhotoUrl = signedPhotos[0] ?? `https://i.pravatar.cc/300?u=${profile.id}`;
+  const displayPhotoUrl = signedPhotos[0]
+    ? getProfilePhotoPublicUrl(signedPhotos[0])
+    : `https://i.pravatar.cc/300?u=${profile.id}`;
+  console.log('CARD PHOTO:', profile.first_name, '→', displayPhotoUrl);
 
   return {
     user_id: profile.id,
@@ -460,10 +463,14 @@ export default function MatchesTab() {
           }
         }
 
-        async function photoFor(uid: string, photos: string[] | null | undefined): Promise<string> {
+        function photoFor(uid: string, photos: string[] | null | undefined): string {
           const first = photos?.[0];
-          const signed = first ? await resolveProfilePhotoUrl(first, 3600) : null;
-          return signed ?? `https://i.pravatar.cc/300?u=${uid}`;
+          if (!first?.trim()) {
+            console.log('CARD PHOTO (photoFor):', uid, '→', `https://i.pravatar.cc/300?u=${uid}`);
+            return `https://i.pravatar.cc/300?u=${uid}`;
+          }
+          console.log('CARD PHOTO (photoFor):', uid, '→', getProfilePhotoPublicUrl(first));
+          return getProfilePhotoPublicUrl(first);
         }
 
         const nextIncoming: IncomingInvite[] = [];
@@ -478,7 +485,7 @@ export default function MatchesTab() {
         for (const row of rows) {
           const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
           const profile = profileById.get(otherId);
-          const displayPhotoUrl = await photoFor(otherId, profile?.photos);
+          const displayPhotoUrl = photoFor(otherId, profile?.photos);
           const firstName = profile?.first_name ?? null;
           const age = safeAge(profile?.date_of_birth ?? null);
           const invitedBy = (row.invited_by as string | null) ?? null;

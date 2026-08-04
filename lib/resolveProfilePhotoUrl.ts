@@ -1,13 +1,16 @@
 import { supabase } from './supabaseClient';
 
+const USER_PHOTOS_BUCKET = 'user-photos';
+
+/** Storage path or full URL → renderable image URL. */
+export function getProfilePhotoPublicUrl(ref: string): string {
+  if (ref.startsWith('http://') || ref.startsWith('https://')) {
+    return ref;
+  }
+  const { data } = supabase.storage.from(USER_PHOTOS_BUCKET).getPublicUrl(ref);
+  return data.publicUrl;
+}
+
 export async function resolveProfilePhotoUrl(path: string): Promise<string> {
-  // Eğer zaten http ile başlıyorsa direkt döndür (eski pravatar URL'leri)
-  if (path.startsWith('http')) return path;
-
-  const { data, error } = await supabase.storage
-    .from('user-photos')
-    .createSignedUrl(path, 60 * 60); // 1 saat geçerli
-
-  if (error || !data?.signedUrl) return '';
-  return data.signedUrl;
+  return getProfilePhotoPublicUrl(path);
 }

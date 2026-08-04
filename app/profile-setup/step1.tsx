@@ -101,8 +101,8 @@ async function uploadPhotosToSupabase(userId: string, uris: string[]): Promise<s
         throw new Error(`Fotoğraf okunamadı (${response.status}) — ${path}`);
       }
 
-      const blob = await response.blob();
-      const uploadRes = await storage.upload(path, blob, {
+      const arrayBuffer = await response.arrayBuffer();
+      const uploadRes = await storage.upload(path, arrayBuffer, {
         contentType,
         upsert: true,
       });
