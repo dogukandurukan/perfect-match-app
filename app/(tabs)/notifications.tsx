@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -90,10 +91,12 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
+    setError(false);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -113,6 +116,7 @@ export default function NotificationsScreen() {
 
     if (error || !data) {
       setItems([]);
+      setError(true);
       setLoading(false);
       await emitUnreadNotificationCount();
       return;
@@ -229,6 +233,8 @@ export default function NotificationsScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.accent} style={styles.loader} />
+      ) : error ? (
+        <ErrorState onRetry={() => void fetchNotifications()} />
       ) : items.length === 0 ? (
         <View style={styles.emptyWrap}>
           <ThemedText style={styles.emptyText}>No notifications yet</ThemedText>

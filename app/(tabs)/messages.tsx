@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
+import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
@@ -24,6 +25,7 @@ export default function MessagesScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
@@ -34,19 +36,27 @@ export default function MessagesScreen() {
   const fetchConversations = useCallback(async () => {
     if (!currentUserId) return;
     setLoading(true);
+    setError(false);
 
-    const [{ data: msgs }, { data: openMatches }] = await Promise.all([
-      supabase
-        .from('messages')
-        .select('id, sender_id, receiver_id, content, created_at')
-        .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('matches')
-        .select('id, user_a_id, user_b_id, chat_opened, created_at, expires_at')
-        .or(`user_a_id.eq.${currentUserId},user_b_id.eq.${currentUserId}`)
-        .eq('chat_opened', true),
-    ]);
+    const [{ data: msgs, error: msgsError }, { data: openMatches, error: matchesError }] =
+      await Promise.all([
+        supabase
+          .from('messages')
+          .select('id, sender_id, receiver_id, content, created_at')
+          .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('matches')
+          .select('id, user_a_id, user_b_id, chat_opened, created_at, expires_at')
+          .or(`user_a_id.eq.${currentUserId},user_b_id.eq.${currentUserId}`)
+          .eq('chat_opened', true),
+      ]);
+
+    if (msgsError || matchesError) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
 
     const byOther = new Map<string, Conversation>();
 
@@ -161,6 +171,8 @@ export default function MessagesScreen() {
         <View style={styles.emptyWrap}>
           <ThemedText style={styles.emptyText}>Loading…</ThemedText>
         </View>
+      ) : error ? (
+        <ErrorState onRetry={() => void fetchConversations()} />
       ) : conversations.length === 0 ? (
         <View style={styles.emptyWrap}>
           <ThemedText style={styles.emptyEmoji}>💬</ThemedText>

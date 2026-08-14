@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 
+import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { getDistrictCenter } from '@/lib/districtCenters';
 import { colors } from '@/lib/designTokens';
@@ -150,6 +151,8 @@ function ClusterUserCard({
 export default function MapScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [users, setUsers] = useState<MapUser[]>([]);
   const [selectedCluster, setSelectedCluster] = useState<DistrictCluster | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string | null>>({});
@@ -180,6 +183,8 @@ export default function MapScreen() {
 
   useEffect(() => {
     let mounted = true;
+    setLoading(true);
+    setError(false);
 
     (async () => {
       const {
@@ -203,7 +208,13 @@ export default function MapScreen() {
 
       if (!mounted) return;
 
-      if (!error && data) {
+      if (error) {
+        setError(true);
+        setLoading(false);
+        return;
+      }
+
+      if (data) {
         const withDistrict = data
           .map((row) => {
             if (!getDistrictCenter(row.district)) return null;
@@ -230,7 +241,7 @@ export default function MapScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   useEffect(() => {
     if (!selectedCluster) {
@@ -311,6 +322,10 @@ export default function MapScreen() {
         <ThemedText style={styles.loadingText}>Harita yükleniyor...</ThemedText>
       </View>
     );
+  }
+
+  if (error) {
+    return <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />;
   }
 
   return (

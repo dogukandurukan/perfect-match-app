@@ -1,5 +1,6 @@
 // Screen: Ana sayfa sekmesi | Status: stable | Last updated: Mayıs 2026
 import { DailyLimitEmptyState } from '@/components/DailyLimitEmptyState';
+import { ErrorState } from '@/components/ErrorState';
 import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -73,6 +74,8 @@ export default function HomeScreen() {
   const [activeMatch, setActiveMatch] = useState<ActiveMatch | null>(null);
   const [feedUsers, setFeedUsers] = useState<FeedUser[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
+  const [feedError, setFeedError] = useState(false);
+  const [feedReloadKey, setFeedReloadKey] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [authUserId, setAuthUserId] = useState<string | null>(null);
@@ -132,7 +135,11 @@ export default function HomeScreen() {
       p_limit: 10,
     });
 
-    if (rpcError || !rpcData || !Array.isArray(rpcData) || rpcData.length === 0) {
+    if (rpcError) {
+      throw rpcError;
+    }
+
+    if (!rpcData || !Array.isArray(rpcData) || rpcData.length === 0) {
       return [];
     }
 
@@ -319,20 +326,33 @@ export default function HomeScreen() {
         if (!shouldLoadFeed) return;
 
         setFeedLoading(true);
-        const nextUsers = await loadFeed(user.id);
-        if (!mounted) return;
+        setFeedError(false);
+        try {
+          const nextUsers = await loadFeed(user.id);
+          if (!mounted) return;
 
-        setFeedUsers(nextUsers);
-        setCurrentIndex(0);
-        setFeedLoading(false);
-        hasLoadedFeedRef.current = true;
-        feedResetAtRef.current = resetKey;
+          setFeedUsers(nextUsers);
+          setCurrentIndex(0);
+          setFeedLoading(false);
+          hasLoadedFeedRef.current = true;
+          feedResetAtRef.current = resetKey;
+        } catch {
+          if (!mounted) return;
+          setFeedError(true);
+          setFeedLoading(false);
+        }
       })();
       return () => {
         mounted = false;
       };
-    }, [refreshProfileState, loadFeed]),
+    }, [refreshProfileState, loadFeed, feedReloadKey]),
   );
+
+  const retryFeed = useCallback(() => {
+    hasLoadedFeedRef.current = false;
+    setFeedError(false);
+    setFeedReloadKey((k) => k + 1);
+  }, []);
 
   const advanceIndex = useCallback(() => {
     setCurrentIndex((i) => i + 1);
@@ -439,6 +459,8 @@ export default function HomeScreen() {
     <View style={styles.feedRoot}>
       {dailyViews?.limitReached ? (
         <DailyLimitEmptyState resetAt={dailyViews.resetAt} />
+      ) : feedError && feedUsers.length === 0 ? (
+        <ErrorState onRetry={retryFeed} />
       ) : feedLoading && feedUsers.length === 0 ? (
         <View style={styles.loadingFeed}>
           <ActivityIndicator color={ACCENT} size="large" />

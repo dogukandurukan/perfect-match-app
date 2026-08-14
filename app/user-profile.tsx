@@ -135,7 +135,7 @@ export default function UserProfileScreen() {
           `
           first_name, last_name, date_of_birth, zodiac_sign,
           city, district, gender, languages, meeting_preferences, photos,
-          morning_night, recharge_style, hobbies, drinking, smoking, intent,
+          morning_night, recharge_style, hobbies, drinking, smoking,
           education, religion, availability_days, availability_hours,
           meeting_environment, first_date_expectation, bio,
           favorite_music, favorite_movie, favorite_book, favorite_activity,
@@ -150,7 +150,16 @@ export default function UserProfileScreen() {
         setLoading(false);
         return;
       }
-      setProfile(data as UserProfile);
+
+      // `intent` lives on onboarding_answers, not profiles (see index/profile screens)
+      const { data: intentData } = await supabase
+        .from('onboarding_answers')
+        .select('intent')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!mounted) return;
+      setProfile({ ...(data as UserProfile), intent: intentData?.intent ?? null });
 
       if (data.photos && data.photos.length > 0) {
         const urls = await Promise.all(
@@ -391,21 +400,25 @@ export default function UserProfileScreen() {
         ) : null}
       </ScrollView>
 
-      {!blocked && matchStatus === 'accepted' && (
+      {!blocked && (matchStatus === 'accepted' || matchStatus === 'pending') && (
         <View style={styles.actionsWrap}>
-          <TouchableOpacity
-            style={styles.messageBtn}
-            onPress={() =>
-              router.push({
-                pathname: '/chat',
-                params: {
-                  userId,
-                  userName: profile?.first_name ?? '',
-                },
-              })
-            }>
-            <ThemedText style={styles.messageBtnText}>💬 Send message</ThemedText>
-          </TouchableOpacity>
+          {matchStatus === 'accepted' ? (
+            <TouchableOpacity
+              style={styles.messageBtn}
+              onPress={() =>
+                router.push({
+                  pathname: '/chat',
+                  params: {
+                    userId,
+                    userName: profile?.first_name ?? '',
+                  },
+                })
+              }>
+              <ThemedText style={styles.messageBtnText}>💬 Send message</ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <ThemedText style={styles.pendingText}>⏳ Invite sent</ThemedText>
+          )}
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.reportBtn} onPress={() => setReportModalVisible(true)}>
               <ThemedText style={styles.reportBtnText}>⚠️ Report</ThemedText>
@@ -414,12 +427,6 @@ export default function UserProfileScreen() {
               <ThemedText style={styles.blockBtnText}>🚫 Block</ThemedText>
             </TouchableOpacity>
           </View>
-        </View>
-      )}
-
-      {!blocked && matchStatus === 'pending' && (
-        <View style={styles.actionsWrap}>
-          <ThemedText style={styles.pendingText}>⏳ Invite sent</ThemedText>
         </View>
       )}
 

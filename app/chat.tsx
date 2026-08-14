@@ -1,6 +1,7 @@
 // Screen: Chat | Status: stable | Last updated: Temmuz 2026
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -10,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
@@ -20,6 +22,7 @@ import {
 } from '@/lib/icebreakers';
 import { colors } from '@/lib/designTokens';
 import { orderedPair } from '@/lib/matchInvite';
+import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 
 function firstParam(val: string | string[] | undefined): string {
@@ -70,7 +73,9 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState(false);
   const [icebreakers, setIcebreakers] = useState<string[]>([]);
+  const [headerPhotoUrl, setHeaderPhotoUrl] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -79,6 +84,24 @@ export default function ChatScreen() {
       setCurrentUserId(data.user?.id ?? null);
     });
   }, []);
+
+  useEffect(() => {
+    if (!otherUserId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('photos')
+        .eq('id', otherUserId)
+        .maybeSingle();
+      if (cancelled) return;
+      const first = data?.photos?.[0];
+      setHeaderPhotoUrl(first?.trim() ? getProfilePhotoPublicUrl(first) : null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [otherUserId]);
 
   const resolveMatchAndGate = useCallback(async () => {
     if (!currentUserId || !otherUserId) return;
@@ -205,6 +228,7 @@ export default function ChatScreen() {
   async function handleSend() {
     if (!text.trim() || !currentUserId || !otherUserId || chatOpened !== true) return;
     setSending(true);
+    setSendError(false);
     const content = text.trim();
     setText('');
     const { error } = await supabase.from('messages').insert({
@@ -214,6 +238,7 @@ export default function ChatScreen() {
     });
     if (error) {
       setText(content);
+      setSendError(true);
     }
     setSending(false);
   }
@@ -225,10 +250,38 @@ export default function ChatScreen() {
     });
   }
 
-  function renderMessage({ item }: { item: Message }) {
+  function openUserProfile() {
+    if (!otherUserId) return;
+    const activeMatchId = matchId ?? matchIdParam;
+    router.push({
+      pathname: '/user-profile',
+      params: {
+        userId: otherUserId,
+        ...(activeMatchId ? { matchId: activeMatchId } : {}),
+      },
+    });
+  }
+
+  function renderMessage({ item, index }: { item: Message; index: number }) {
     const isMine = item.sender_id === currentUserId;
+    const isLastOfGroup =
+      index === messages.length - 1 ||
+      messages[index + 1]?.sender_id !== item.sender_id;
     return (
       <View style={[styles.msgWrap, isMine ? styles.msgWrapMine : styles.msgWrapTheirs]}>
+        {!isMine ? (
+          isLastOfGroup ? (
+            headerPhotoUrl ? (
+              <Image source={{ uri: headerPhotoUrl }} style={styles.msgAvatar} contentFit="cover" />
+            ) : (
+              <View style={styles.msgAvatarPlaceholder}>
+                <ThemedText style={styles.msgAvatarInitial}>{headerInitial}</ThemedText>
+              </View>
+            )
+          ) : (
+            <View style={styles.msgAvatar} />
+          )
+        ) : null}
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
           <ThemedText style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
             {item.content}
@@ -238,9 +291,12 @@ export default function ChatScreen() {
     );
   }
 
-  const inputLocked = chatOpened !== true;
+  const chatLoading = chatOpened === null;
+  const inputLocked = chatOpened === false;
+  const inputDisabled = chatLoading || inputLocked;
   const showIcebreakers =
-    !inputLocked && messages.length === 0 && icebreakers.length > 0;
+    !inputDisabled && messages.length === 0 && icebreakers.length > 0;
+  const headerInitial = (userName.trim()[0] ?? '?').toUpperCase();
 
   return (
     <ScreenContainer style={styles.container}>
@@ -248,7 +304,19 @@ export default function ChatScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ThemedText style={styles.backText}>←</ThemedText>
         </TouchableOpacity>
-        <ThemedText style={styles.headerName}>{userName}</ThemedText>
+        <TouchableOpacity
+          onPress={openUserProfile}
+          style={styles.headerCenter}
+          activeOpacity={0.7}>
+          {headerPhotoUrl ? (
+            <Image source={{ uri: headerPhotoUrl }} style={styles.headerAvatar} contentFit="cover" />
+          ) : (
+            <View style={styles.headerAvatarPlaceholder}>
+              <ThemedText style={styles.headerAvatarInitial}>{headerInitial}</ThemedText>
+            </View>
+          )}
+          <ThemedText style={styles.headerName}>{userName}</ThemedText>
+        </TouchableOpacity>
         <View style={{ width: 40 }} />
       </View>
 
@@ -256,7 +324,11 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
         keyboardVerticalOffset={90}>
-        {inputLocked ? (
+        {chatLoading ? (
+          <View style={styles.lockedWrap}>
+            <ActivityIndicator color={colors.accent} size="large" />
+          </View>
+        ) : inputLocked ? (
           <View style={styles.lockedWrap}>
             <ThemedText style={styles.lockedTitle}>Chat is locked</ThemedText>
             <ThemedText style={styles.lockedText}>
@@ -302,26 +374,34 @@ export default function ChatScreen() {
           </View>
         ) : null}
 
+        {sendError ? (
+          <ThemedText style={styles.sendErrorText}>
+            Message didn’t send. Tap ↑ to try again.
+          </ThemedText>
+        ) : null}
         <View style={[styles.inputRow, inputLocked && styles.inputRowLocked]}>
           <TextInput
             ref={inputRef}
-            style={[styles.input, inputLocked && styles.inputDisabled]}
+            style={[styles.input, inputDisabled && styles.inputDisabled]}
             placeholder={inputLocked ? 'Chat locked' : `Message ${userName}…`}
             placeholderTextColor="#AAA"
             value={text}
-            onChangeText={setText}
+            onChangeText={(v) => {
+              setText(v);
+              if (sendError) setSendError(false);
+            }}
             multiline
-            editable={!inputLocked && !sending}
+            editable={!inputDisabled && !sending}
             returnKeyType="send"
             onSubmitEditing={() => void handleSend()}
           />
           <TouchableOpacity
             style={[
               styles.sendBtn,
-              (inputLocked || !text.trim() || sending) && { opacity: 0.4 },
+              (inputDisabled || !text.trim() || sending) && { opacity: 0.4 },
             ]}
             onPress={() => void handleSend()}
-            disabled={inputLocked || !text.trim() || sending}>
+            disabled={inputDisabled || !text.trim() || sending}>
             <ThemedText style={styles.sendBtnText}>↑</ThemedText>
           </TouchableOpacity>
         </View>
@@ -343,6 +423,23 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, alignItems: 'flex-start' },
   backText: { fontSize: 24, color: colors.accent },
+  headerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  headerAvatar: { width: 32, height: 32, borderRadius: 16 },
+  headerAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E8E8E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerAvatarInitial: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
   headerName: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
   messagesList: { padding: 16, gap: 8, flexGrow: 1 },
   emptyWrap: {
@@ -366,6 +463,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   lockedText: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22 },
+  sendErrorText: {
+    fontSize: 13,
+    color: '#C0392B',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+  },
   lockedHint: { fontSize: 13, color: '#999', textAlign: 'center', marginTop: 8 },
   iceWrap: {
     paddingTop: 4,
@@ -398,9 +502,20 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.textPrimary,
   },
-  msgWrap: { flexDirection: 'row', marginBottom: 6 },
+  msgWrap: { flexDirection: 'row', marginBottom: 6, alignItems: 'flex-end' },
   msgWrapMine: { justifyContent: 'flex-end' },
   msgWrapTheirs: { justifyContent: 'flex-start' },
+  msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+  msgAvatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
+    backgroundColor: '#E8E8E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  msgAvatarInitial: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
   bubble: {
     maxWidth: '75%',
     borderRadius: 16,
