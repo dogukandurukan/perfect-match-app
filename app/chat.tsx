@@ -14,6 +14,7 @@ import {
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
+import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import {
@@ -69,6 +70,7 @@ export default function ChatScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(matchIdParam || null);
   const [chatOpened, setChatOpened] = useState<boolean | null>(null);
+  const [gateError, setGateError] = useState(false);
   const [matchPercentage, setMatchPercentage] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
@@ -127,12 +129,18 @@ export default function ChatScreen() {
   const resolveMatchAndGate = useCallback(async () => {
     if (!currentUserId || !otherUserId) return;
 
+    setGateError(false);
+
     if (matchIdParam) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('matches')
         .select('id, chat_opened, match_score, user_a_id, user_b_id')
         .eq('id', matchIdParam)
         .maybeSingle();
+      if (error) {
+        setGateError(true);
+        return;
+      }
       if (data) {
         setMatchId(data.id);
         setChatOpened(data.chat_opened === true);
@@ -142,14 +150,16 @@ export default function ChatScreen() {
     }
 
     const [a, b] = orderedPair(currentUserId, otherUserId);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('matches')
       .select('id, chat_opened, match_score')
       .eq('user_a_id', a)
       .eq('user_b_id', b)
       .maybeSingle();
 
-    if (data) {
+    if (error) {
+      setGateError(true);
+    } else if (data) {
       setMatchId(data.id);
       setChatOpened(data.chat_opened === true);
       setMatchPercentage(Number(data.match_score) || 0);
@@ -360,7 +370,9 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
         keyboardVerticalOffset={90}>
-        {chatLoading ? (
+        {gateError ? (
+          <ErrorState onRetry={() => void resolveMatchAndGate()} />
+        ) : chatLoading ? (
           <View style={styles.lockedWrap}>
             <ActivityIndicator color={colors.accent} size="large" />
           </View>
