@@ -142,9 +142,14 @@ Pencere `created_at`'e bakıyor (pass anına değil); kesin "pass'ten N gün" is
 - **Ortak `ErrorState` bileşeni** (`components/ErrorState.tsx`) — index/messages/notifications/map ekranlarına retry ile bağlandı (gerçek hata artık boş listeden ayırt ediliyor).
 - **chat.tsx** — `chatOpened===null` iken spinner (kilit-ekranı flaş'ı giderildi); gönderme hatası artık görünür (inline uyarı + metin geri konur).
 
+**Bitmiş (2026-08-15):**
+- ✅ **Sağ (kendi) mesaj avatarı** — `chat.tsx`'e `myPhotoUrl` + `myInitial` state + `profiles(photos, first_name)` fetch eklendi; `renderMessage`'ın `isMine` dalı balonun sağında avatar gösteriyor (sol tarafın simetriği). Commit `fa060e1`.
+- ✅ **Balon avatarına tıklayınca profile git** — sol (theirs) son-balon avatarı `TouchableOpacity` ile header'ın `openUserProfile()`'ına bağlandı. Commit `2481e30`.
+- ✅ **Error state audit TAMAMLANDI** — ortak `ErrorState` retry'lı olarak tüm ana ekranlara bağlandı: `vibe` (`77def58`), `user-profile` (`35faf25`), `matches` (`77b9cec`), `chat` gate (`a944308`). Desen: `error`+`reloadKey` state, fetch `try/catch`, kısmi içerik varsa korunur (`error && !hasContent`). Daha önce index/messages/notifications/map zaten bağlıydı. rn-ui-reviewer (built-in `claude`+sonnet ile) vibe & matches'i review etti; matches'te kritik bir bulgu (myMatches error yutulması) düzeltildi.
+
 **Açık:**
-- 🟡 **Sağ (kendi) mesaj avatarı** — `chat.tsx` kendi fotomu hiç çekmiyor. Fix: `currentUserId` için `myPhotoUrl` + `myInitial` state'i ekle (`profiles.photos[0]` + `first_name`), `renderMessage`'ın `isMine` dalında balonun sağına avatar koy (grup son-balonu mantığıyla, sol tarafın simetriği).
-- Tema token seti genişletme; dev-build (EAS) göçü + push; ölü kod/seed temizliği; contextual `likes`; analytics + beta.
+- Kalan sessiz-yutulan hatalar (düşük öncelik): matches `profiles`(by id) + `intentRows` select error'ları hâlâ yok sayılıyor (reviewer #2); chat `fetchMessages` error'ı.
+- Tema token seti genişletme (`border/textMuted/bgSubtle`; ErrorState retry butonu ~42pt <44pt); dev-build (EAS) göçü + push; ölü kod/seed temizliği; contextual `likes`; analytics + beta.
 
 ---
 
