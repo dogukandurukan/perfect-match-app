@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ErrorState } from '@/components/ErrorState';
 import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
@@ -358,6 +359,8 @@ export default function MatchesTab() {
   const [outgoing, setOutgoing] = useState<OutgoingInvite[]>([]);
   const [openChats, setOpenChats] = useState<OpenChatRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [noMatches, setNoMatches] = useState(false);
   const [acceptedMatches, setAcceptedMatches] = useState<AcceptedMatch[]>([]);
   const [inviteByOtherId, setInviteByOtherId] = useState<
@@ -378,7 +381,9 @@ export default function MatchesTab() {
       (async () => {
         setLoading(true);
         setNoMatches(false);
+        setError(false);
 
+        try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
@@ -413,7 +418,7 @@ export default function MatchesTab() {
         setDailyInvites(invitesState);
 
         // All matches involving me (invite / chat state)
-        const { data: myMatches } = await supabase
+        const { data: myMatches, error: myMatchesError } = await supabase
           .from('matches')
           .select(
             `
@@ -432,6 +437,13 @@ export default function MatchesTab() {
           )
           .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
           .not('status', 'in', '(expired,passed)');
+
+        if (!mounted) return;
+        if (myMatchesError) {
+          setError(true);
+          setLoading(false);
+          return;
+        }
 
         const rows = myMatches ?? [];
         const otherIds = [
@@ -570,7 +582,7 @@ export default function MatchesTab() {
         if (!mounted) return;
 
         if (pendingError) {
-          Alert.alert('Error', pendingError.message);
+          setError(true);
           setLoading(false);
           return;
         }
@@ -599,7 +611,7 @@ export default function MatchesTab() {
           if (!mounted) return;
 
           if (rpcError) {
-            Alert.alert('Error', rpcError.message);
+            setError(true);
             setLoading(false);
             return;
           }
@@ -666,7 +678,7 @@ export default function MatchesTab() {
             )
             .in('id', cardOtherIds);
           if (fallbackError) {
-            Alert.alert('Error', fallbackError.message);
+            setError(true);
             setLoading(false);
             return;
           }
@@ -726,12 +738,18 @@ export default function MatchesTab() {
           setNoMatches(mappedCards.length === 0);
           setLoading(false);
         }
+        } catch {
+          if (mounted) {
+            setError(true);
+            setLoading(false);
+          }
+        }
       })();
 
       return () => {
         mounted = false;
       };
-    }, []),
+    }, [reloadKey]),
   );
 
   async function handleAccept(invite: IncomingInvite) {
@@ -903,6 +921,13 @@ export default function MatchesTab() {
     );
   }
 
+  const hasAnyContent =
+    openChats.length > 0 ||
+    incoming.length > 0 ||
+    outgoing.length > 0 ||
+    acceptedMatches.length > 0 ||
+    cards.length > 0;
+
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
@@ -916,6 +941,8 @@ export default function MatchesTab() {
 
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+        ) : error && !hasAnyContent ? (
+          <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
         ) : (
           <>
             {openChats.length > 0 ? (
