@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -81,6 +83,9 @@ export default function ChatScreen() {
   const [headerPhotoUrl, setHeaderPhotoUrl] = useState<string | null>(null);
   const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
   const [myInitial, setMyInitial] = useState('?');
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [keyboardShown, setKeyboardShown] = useState(false);
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -88,6 +93,17 @@ export default function ChatScreen() {
     void supabase.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id ?? null);
     });
+  }, []);
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvt, () => setKeyboardShown(true));
+    const hideSub = Keyboard.addListener(hideEvt, () => setKeyboardShown(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -353,8 +369,10 @@ export default function ChatScreen() {
   const headerInitial = (userName.trim()[0] ?? '?').toUpperCase();
 
   return (
-    <ScreenContainer style={styles.container}>
-      <View style={styles.header}>
+    <ScreenContainer style={[styles.container, { paddingBottom: 0 }]}>
+      <View
+        style={styles.header}
+        onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ThemedText style={styles.backText}>←</ThemedText>
         </TouchableOpacity>
@@ -377,7 +395,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={90}>
+        keyboardVerticalOffset={insets.top + 12 + headerHeight}>
         {gateError ? (
           <ErrorState onRetry={() => void resolveMatchAndGate()} />
         ) : chatLoading ? (
@@ -437,7 +455,12 @@ export default function ChatScreen() {
             Message didn’t send. Tap ↑ to try again.
           </ThemedText>
         ) : null}
-        <View style={[styles.inputRow, inputLocked && styles.inputRowLocked]}>
+        <View
+          style={[
+            styles.inputRow,
+            inputLocked && styles.inputRowLocked,
+            { paddingBottom: keyboardShown ? 12 : insets.bottom + 12 },
+          ]}>
           <TextInput
             ref={inputRef}
             style={[styles.input, inputDisabled && styles.inputDisabled]}
