@@ -465,10 +465,16 @@ export default function MatchesTab() {
         >();
 
         if (otherIds.length > 0) {
-          const { data: profiles } = await supabase
+          const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('id, first_name, date_of_birth, city, district, photos, gender')
             .in('id', otherIds);
+          if (!mounted) return;
+          if (profilesError) {
+            setError(true);
+            setLoading(false);
+            return;
+          }
           for (const p of profiles ?? []) {
             profileById.set(p.id, p);
           }
@@ -695,10 +701,14 @@ export default function MatchesTab() {
           }));
         }
 
-        const { data: intentRows } = await supabase
+        const { data: intentRows, error: intentError } = await supabase
           .from('onboarding_answers')
           .select('user_id, intent')
           .in('user_id', cardOtherIds);
+
+        if (intentError) {
+          console.warn('[Matches] intent fetch failed', intentError);
+        }
 
         if (!mounted) return;
 
