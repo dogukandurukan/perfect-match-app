@@ -73,6 +73,7 @@ export default function ChatScreen() {
   const [gateError, setGateError] = useState(false);
   const [matchPercentage, setMatchPercentage] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesError, setMessagesError] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(false);
@@ -241,7 +242,7 @@ export default function ChatScreen() {
 
   async function fetchMessages() {
     if (!currentUserId || !otherUserId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .select('id, sender_id, receiver_id, content, created_at')
       .or(
@@ -250,6 +251,13 @@ export default function ChatScreen() {
       )
       .order('created_at', { ascending: true });
 
+    if (error) {
+      console.warn('[Chat] fetchMessages failed', error);
+      setMessagesError(true);
+      return;
+    }
+
+    setMessagesError(false);
     if (data) {
       setMessages(data as Message[]);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
@@ -386,6 +394,8 @@ export default function ChatScreen() {
               <ThemedText style={styles.lockedHint}>You can go back to Matches to wait.</ThemedText>
             ) : null}
           </View>
+        ) : messagesError && messages.length === 0 ? (
+          <ErrorState onRetry={() => void fetchMessages()} />
         ) : (
           <FlatList
             ref={flatListRef}
