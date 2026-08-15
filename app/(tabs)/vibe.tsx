@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
+import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
@@ -131,6 +132,8 @@ function VibeStripSkeleton() {
 export default function VibeTab() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [strips, setStrips] = useState<VibeStripData[]>([]);
 
   useFocusEffect(
@@ -139,39 +142,47 @@ export default function VibeTab() {
 
       (async () => {
         setLoading(true);
+        setError(false);
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user || !mounted) {
-          setLoading(false);
-          return;
-        }
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (!user || !mounted) {
+            setLoading(false);
+            return;
+          }
 
-        const [me, blockedIds] = await Promise.all([
-          fetchMyVibeContext(user.id),
-          fetchBlockedUserIds(user.id),
-        ]);
+          const [me, blockedIds] = await Promise.all([
+            fetchMyVibeContext(user.id),
+            fetchBlockedUserIds(user.id),
+          ]);
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        if (!me) {
-          setStrips([]);
-          setLoading(false);
-          return;
-        }
+          if (!me) {
+            setStrips([]);
+            setLoading(false);
+            return;
+          }
 
-        const loadedStrips = await fetchAllVibeStrips(me, blockedIds);
-        if (mounted) {
-          setStrips(loadedStrips);
-          setLoading(false);
+          const loadedStrips = await fetchAllVibeStrips(me, blockedIds);
+          if (mounted) {
+            setStrips(loadedStrips);
+            setLoading(false);
+          }
+        } catch {
+          if (mounted) {
+            setError(true);
+            setLoading(false);
+          }
         }
       })();
 
       return () => {
         mounted = false;
       };
-    }, []),
+    }, [reloadKey]),
   );
 
   function handleUserPress(userId: string) {
@@ -192,6 +203,8 @@ export default function VibeTab() {
               <VibeStripSkeleton key={category.id} />
             ))}
           </View>
+        ) : error && strips.length === 0 ? (
+          <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
         ) : strips.length === 0 ? (
           <View style={styles.emptyWrap}>
             <ThemedText style={styles.emptyText}>
