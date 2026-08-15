@@ -76,6 +76,8 @@ export default function ChatScreen() {
   const [sendError, setSendError] = useState(false);
   const [icebreakers, setIcebreakers] = useState<string[]>([]);
   const [headerPhotoUrl, setHeaderPhotoUrl] = useState<string | null>(null);
+  const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
+  const [myInitial, setMyInitial] = useState('?');
   const flatListRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -102,6 +104,25 @@ export default function ChatScreen() {
       cancelled = true;
     };
   }, [otherUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('photos, first_name')
+        .eq('id', currentUserId)
+        .maybeSingle();
+      if (cancelled) return;
+      const first = data?.photos?.[0];
+      setMyPhotoUrl(first?.trim() ? getProfilePhotoPublicUrl(first) : null);
+      setMyInitial((data?.first_name?.trim()[0] ?? '?').toUpperCase());
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
 
   const resolveMatchAndGate = useCallback(async () => {
     if (!currentUserId || !otherUserId) return;
@@ -287,6 +308,19 @@ export default function ChatScreen() {
             {item.content}
           </ThemedText>
         </View>
+        {isMine ? (
+          isLastOfGroup ? (
+            myPhotoUrl ? (
+              <Image source={{ uri: myPhotoUrl }} style={styles.msgAvatarMine} contentFit="cover" />
+            ) : (
+              <View style={styles.msgAvatarPlaceholderMine}>
+                <ThemedText style={styles.msgAvatarInitial}>{myInitial}</ThemedText>
+              </View>
+            )
+          ) : (
+            <View style={styles.msgAvatarMine} />
+          )
+        ) : null}
       </View>
     );
   }
@@ -506,11 +540,21 @@ const styles = StyleSheet.create({
   msgWrapMine: { justifyContent: 'flex-end' },
   msgWrapTheirs: { justifyContent: 'flex-start' },
   msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+  msgAvatarMine: { width: 28, height: 28, borderRadius: 14, marginLeft: 8 },
   msgAvatarPlaceholder: {
     width: 28,
     height: 28,
     borderRadius: 14,
     marginRight: 8,
+    backgroundColor: '#E8E8E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  msgAvatarPlaceholderMine: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginLeft: 8,
     backgroundColor: '#E8E8E8',
     alignItems: 'center',
     justifyContent: 'center',
