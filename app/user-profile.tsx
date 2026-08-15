@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
+import { ErrorState } from '@/components/ErrorState';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
@@ -115,6 +116,8 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -129,56 +132,67 @@ export default function UserProfileScreen() {
         return;
       }
 
-      const { data } = await supabase
-        .from('profiles')
-        .select(
-          `
-          first_name, last_name, date_of_birth, zodiac_sign,
-          city, district, gender, languages, meeting_preferences, photos,
-          morning_night, recharge_style, hobbies, drinking, smoking,
-          education, religion, availability_days, availability_hours,
-          meeting_environment, first_date_expectation, bio,
-          favorite_music, favorite_movie, favorite_book, favorite_activity,
-          core_value, impressed_by, dealbreaker
-        `,
-        )
-        .eq('id', userId)
-        .single();
+      setLoading(true);
+      setError(false);
 
-      if (!mounted) return;
-      if (!data) {
-        setLoading(false);
-        return;
+      try {
+        const { data, error: profileError } = await supabase
+          .from('profiles')
+          .select(
+            `
+            first_name, last_name, date_of_birth, zodiac_sign,
+            city, district, gender, languages, meeting_preferences, photos,
+            morning_night, recharge_style, hobbies, drinking, smoking,
+            education, religion, availability_days, availability_hours,
+            meeting_environment, first_date_expectation, bio,
+            favorite_music, favorite_movie, favorite_book, favorite_activity,
+            core_value, impressed_by, dealbreaker
+          `,
+          )
+          .eq('id', userId)
+          .single();
+
+        if (!mounted) return;
+        if (profileError || !data) {
+          setError(true);
+          setLoading(false);
+          return;
+        }
+
+        // `intent` lives on onboarding_answers, not profiles (see index/profile screens)
+        const { data: intentData } = await supabase
+          .from('onboarding_answers')
+          .select('intent')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!mounted) return;
+        setProfile({ ...(data as UserProfile), intent: intentData?.intent ?? null });
+
+        if (data.photos && data.photos.length > 0) {
+          const urls = await Promise.all(
+            data.photos.map(async (path: string) => {
+              const signed = await resolveProfilePhotoUrl(path, 3600);
+              return signed ?? `https://i.pravatar.cc/300?u=${userId}`;
+            }),
+          );
+          if (mounted) setPhotoUrls(urls);
+        } else {
+          if (mounted) setPhotoUrls([`https://i.pravatar.cc/300?u=${userId}`]);
+        }
+
+        if (mounted) setLoading(false);
+      } catch {
+        if (mounted) {
+          setError(true);
+          setLoading(false);
+        }
       }
-
-      // `intent` lives on onboarding_answers, not profiles (see index/profile screens)
-      const { data: intentData } = await supabase
-        .from('onboarding_answers')
-        .select('intent')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (!mounted) return;
-      setProfile({ ...(data as UserProfile), intent: intentData?.intent ?? null });
-
-      if (data.photos && data.photos.length > 0) {
-        const urls = await Promise.all(
-          data.photos.map(async (path: string) => {
-            const signed = await resolveProfilePhotoUrl(path, 3600);
-            return signed ?? `https://i.pravatar.cc/300?u=${userId}`;
-          }),
-        );
-        if (mounted) setPhotoUrls(urls);
-      } else {
-        if (mounted) setPhotoUrls([`https://i.pravatar.cc/300?u=${userId}`]);
-      }
-
-      if (mounted) setLoading(false);
     })();
     return () => {
       mounted = false;
     };
-  }, [userId]);
+  }, [userId, reloadKey]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -246,6 +260,15 @@ export default function UserProfileScreen() {
     return (
       <ScreenContainer style={styles.container}>
         <HomeTopIcon />
+      </ScreenContainer>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <ScreenContainer style={styles.container}>
+        <HomeTopIcon />
+        <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
       </ScreenContainer>
     );
   }
