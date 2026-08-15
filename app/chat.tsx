@@ -292,13 +292,15 @@ export default function ChatScreen() {
       <View style={[styles.msgWrap, isMine ? styles.msgWrapMine : styles.msgWrapTheirs]}>
         {!isMine ? (
           isLastOfGroup ? (
-            headerPhotoUrl ? (
-              <Image source={{ uri: headerPhotoUrl }} style={styles.msgAvatar} contentFit="cover" />
-            ) : (
-              <View style={styles.msgAvatarPlaceholder}>
-                <ThemedText style={styles.msgAvatarInitial}>{headerInitial}</ThemedText>
-              </View>
-            )
+            <TouchableOpacity onPress={openUserProfile} activeOpacity={0.7}>
+              {headerPhotoUrl ? (
+                <Image source={{ uri: headerPhotoUrl }} style={styles.msgAvatar} contentFit="cover" />
+              ) : (
+                <View style={styles.msgAvatarPlaceholder}>
+                  <ThemedText style={styles.msgAvatarInitial}>{headerInitial}</ThemedText>
+                </View>
+              )}
+            </TouchableOpacity>
           ) : (
             <View style={styles.msgAvatar} />
           )
