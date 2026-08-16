@@ -4,7 +4,10 @@ export const colors = {
   accent: '#B8860B',
   bgPrimary: '#F5F5F5',
   bgCard: '#FFFFFF',
+  bgSubtle: '#F5F5F5', // input / disabled fill
+  border: '#EEEEEE', // hairline separators
   textPrimary: '#1A1A1A',
+  textMuted: '#8E8E93', // iOS system gray — placeholders, secondary text
 } as const;
 
 export const spacing = {

@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -23,7 +24,7 @@ import {
   generateIcebreakers,
   type IcebreakerProfile,
 } from '@/lib/icebreakers';
-import { colors } from '@/lib/designTokens';
+import { colors, radius } from '@/lib/designTokens';
 import { orderedPair } from '@/lib/matchInvite';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
@@ -370,7 +371,11 @@ export default function ChatScreen() {
   return (
     <ScreenContainer style={[styles.container, { paddingBottom: 0 }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back">
           <ThemedText style={styles.backText}>←</ThemedText>
         </TouchableOpacity>
         <TouchableOpacity
@@ -462,7 +467,7 @@ export default function ChatScreen() {
             ref={inputRef}
             style={[styles.input, inputDisabled && styles.inputDisabled]}
             placeholder={inputLocked ? 'Chat locked' : `Message ${userName}…`}
-            placeholderTextColor="#AAA"
+            placeholderTextColor={colors.textMuted}
             value={text}
             onChangeText={(v) => {
               setText(v);
@@ -479,8 +484,15 @@ export default function ChatScreen() {
               (inputDisabled || !text.trim() || sending) && { opacity: 0.4 },
             ]}
             onPress={() => void handleSend()}
-            disabled={inputDisabled || !text.trim() || sending}>
-            <ThemedText style={styles.sendBtnText}>↑</ThemedText>
+            disabled={inputDisabled || !text.trim() || sending}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+            accessibilityState={{ disabled: inputDisabled || !text.trim() || sending }}>
+            {sending ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <Ionicons name="arrow-up" size={22} color="#FFF" />
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -626,28 +638,27 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    backgroundColor: '#FFF',
+    borderTopColor: colors.border,
+    backgroundColor: colors.bgCard,
   },
   inputRowLocked: { opacity: 0.85 },
   input: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 20,
+    backgroundColor: colors.bgSubtle,
+    borderRadius: radius.pill,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
     color: colors.textPrimary,
     maxHeight: 100,
   },
-  inputDisabled: { backgroundColor: '#EEEEEE', color: '#999' },
+  inputDisabled: { backgroundColor: colors.bgSubtle, color: colors.textMuted },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnText: { color: '#FFF', fontSize: 20, fontWeight: '700' },
 });
