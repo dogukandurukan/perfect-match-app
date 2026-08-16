@@ -83,7 +83,6 @@ export default function ChatScreen() {
   const [headerPhotoUrl, setHeaderPhotoUrl] = useState<string | null>(null);
   const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
   const [myInitial, setMyInitial] = useState('?');
-  const [headerHeight, setHeaderHeight] = useState(0);
   const [keyboardShown, setKeyboardShown] = useState(false);
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<Message>>(null);
@@ -370,9 +369,7 @@ export default function ChatScreen() {
 
   return (
     <ScreenContainer style={[styles.container, { paddingBottom: 0 }]}>
-      <View
-        style={styles.header}
-        onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ThemedText style={styles.backText}>←</ThemedText>
         </TouchableOpacity>
@@ -395,7 +392,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={insets.top + 12 + headerHeight}>
+        keyboardVerticalOffset={0}>
         {gateError ? (
           <ErrorState onRetry={() => void resolveMatchAndGate()} />
         ) : chatLoading ? (
