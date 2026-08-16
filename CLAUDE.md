@@ -147,9 +147,16 @@ Pencere `created_at`'e bakıyor (pass anına değil); kesin "pass'ten N gün" is
 - ✅ **Balon avatarına tıklayınca profile git** — sol (theirs) son-balon avatarı `TouchableOpacity` ile header'ın `openUserProfile()`'ına bağlandı. Commit `2481e30`.
 - ✅ **Error state audit TAMAMLANDI** — ortak `ErrorState` retry'lı olarak tüm ana ekranlara bağlandı: `vibe` (`77def58`), `user-profile` (`35faf25`), `matches` (`77b9cec`), `chat` gate (`a944308`). Desen: `error`+`reloadKey` state, fetch `try/catch`, kısmi içerik varsa korunur (`error && !hasContent`). Daha önce index/messages/notifications/map zaten bağlıydı. rn-ui-reviewer (built-in `claude`+sonnet ile) vibe & matches'i review etti; matches'te kritik bir bulgu (myMatches error yutulması) düzeltildi.
 
+**Bitmiş (2026-08-16):**
+- ✅ **Kalan sessiz-yutulan select hataları kapandı** — matches `profiles`(by id) davet/sohbet listesi hatası artık error state'e taşınıyor; `intentRows` (yardımcı veri) `console.warn` ile loglanıp bloklamadan degrade oluyor (`52984bf`). chat `fetchMessages` hatası → `messagesError` state + `ErrorState` retry, kısmi içerik korunur (`a468d59`). **Error-state serisi tamamen bitti.**
+- ✅ **chat klavye boşluğu giderildi (cihazda doğrulandı)** — `ScreenContainer` alt safe-area padding'i chat'te 0'landı, alt inset input satırına taşındı (klavye kapalıyken `insets.bottom`, açıkken 12; `Keyboard` show/hide listener). `keyboardVerticalOffset` sabit 90 → `0` (bu düzende `behavior='padding'` offset'i düz boşluk olarak koyuyor; boşluk ≈ offset). Commits `3c9418f`+`3ca3602`.
+- ✅ **chat input bar cila** — send butonu 40→44pt; `'↑'` glyph → `Ionicons arrow-up` + gönderirken `ActivityIndicator`; send+back butonuna `accessibilityRole/Label/State`; `designTokens`'e `bgSubtle/border/textMuted` eklendi ve chat input hardcode grileri + `radius.pill` token'a geçti (`33cd58d`). Setleri `phosphor` yerine mevcut `@expo/vector-icons`/`Ionicons` ile yaptık.
+- ✅ **chat foto ekleme butonu — UI iskeleti (P2 Katman 1)** — `expo-image-picker` eklendi; input solunda kamera butonu (44pt, nötr dolgu, `camera-outline`, a11y) → Alert sheet (Take Photo / Choose from Library) → izin + picker açılıyor; seçim sonrası şimdilik **"Coming soon"** (upload YOK, bilinçli) (`95ab34e`).
+
 **Açık:**
-- Kalan sessiz-yutulan hatalar (düşük öncelik): matches `profiles`(by id) + `intentRows` select error'ları hâlâ yok sayılıyor (reviewer #2); chat `fetchMessages` error'ı.
-- Tema token seti genişletme (`border/textMuted/bgSubtle`; ErrorState retry butonu ~42pt <44pt); dev-build (EAS) göçü + push; ölü kod/seed temizliği; contextual `likes`; analytics + beta.
+- **P2 Katman 2 — gerçek foto gönderimi (DB'ye dokunur, büyük iş):** `messages.media_url` kolonu (+ `content` nullable), özel storage bucket + RLS (accepted-match kontrolü), `renderMessage` foto balonu, signed URL upload. `openPhotoPicker` içinde `TODO(P2 Katman 2)` işaretli. Önce **ürün/KVKK kararı** (foto akışı "yavaş dating" tezine uyuyor mu, moderasyon). `supabase-expert` ajanını hak eder. **Ses notu bilinçli olarak EKLENMEYECEK** (dwell-time artırır, buluşma tezinin tersi).
+- Tema token seti **kısmen** uygulandı (token'lar eklendi ama sadece chat input'ta kullanıldı; diğer ekranlar hâlâ gri/accent hardcode ediyor — token sweep açık). ErrorState retry butonu ~42pt <44pt hâlâ açık.
+- dev-build (EAS) göçü + push; ölü kod/seed temizliği; contextual `likes`; analytics + beta.
 
 ---
 
