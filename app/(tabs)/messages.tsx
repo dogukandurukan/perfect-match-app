@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
@@ -11,6 +12,7 @@ import { formatRelativeTime } from '@/lib/labels';
 import { supabase } from '@/lib/supabaseClient';
 
 const EMPTY_CHAT_PREVIEW = 'You matched — say hi 👋';
+const VISIBLE_COUNT = 3;
 
 type Conversation = {
   userId: string;
@@ -26,6 +28,7 @@ export default function MessagesScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
@@ -183,11 +186,34 @@ export default function MessagesScreen() {
         </View>
       ) : (
         <FlatList
-          data={conversations}
+          data={expanded ? conversations : conversations.slice(0, VISIBLE_COUNT)}
           keyExtractor={(item) => item.userId}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          ListFooterComponent={
+            conversations.length > VISIBLE_COUNT ? (
+              <TouchableOpacity
+                style={styles.toggleRow}
+                onPress={() => setExpanded((v) => !v)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  expanded ? 'Show fewer conversations' : 'Show older conversations'
+                }>
+                <ThemedText style={styles.toggleText}>
+                  {expanded
+                    ? 'Show less'
+                    : `Show ${conversations.length - VISIBLE_COUNT} older`}
+                </ThemedText>
+                <Ionicons
+                  name={expanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={colors.accent}
+                />
+              </TouchableOpacity>
+            ) : null
+          }
         />
       )}
     </ScreenContainer>
@@ -227,6 +253,15 @@ const styles = StyleSheet.create({
   convName: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
   convLast: { fontSize: 13, color: '#888', marginTop: 2 },
   convTime: { fontSize: 12, color: '#AAA' },
+
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+  },
+  toggleText: { fontSize: 14, fontWeight: '600', color: colors.accent },
 
   emptyWrap: {
     flex: 1,
