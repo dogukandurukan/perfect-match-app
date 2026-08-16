@@ -3,12 +3,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 
 import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
+import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 
 const EMPTY_CHAT_PREVIEW = 'You matched — say hi 👋';
@@ -20,6 +22,7 @@ type Conversation = {
   lastMessage: string;
   lastAt: string;
   matchId: string | null;
+  photoUrl: string | null;
 };
 
 export default function MessagesScreen() {
@@ -74,6 +77,7 @@ export default function MessagesScreen() {
         lastMessage: typeof msg.content === 'string' ? msg.content : '',
         lastAt: String(msg.created_at),
         matchId: null,
+        photoUrl: null,
       });
     }
 
@@ -99,6 +103,7 @@ export default function MessagesScreen() {
         lastMessage: EMPTY_CHAT_PREVIEW,
         lastAt: stamp,
         matchId: typeof row.id === 'string' ? row.id : null,
+        photoUrl: null,
       });
     }
 
@@ -106,14 +111,19 @@ export default function MessagesScreen() {
     if (otherIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, first_name')
+        .select('id, first_name, photos')
         .in('id', otherIds);
 
       for (const p of profiles ?? []) {
         if (typeof p.id !== 'string') continue;
         const conv = byOther.get(p.id);
-        if (conv && typeof p.first_name === 'string' && p.first_name.trim()) {
+        if (!conv) continue;
+        if (typeof p.first_name === 'string' && p.first_name.trim()) {
           conv.userName = p.first_name.trim();
+        }
+        const first = Array.isArray(p.photos) ? p.photos[0] : null;
+        if (typeof first === 'string' && first.trim()) {
+          conv.photoUrl = getProfilePhotoPublicUrl(first);
         }
       }
     }
@@ -150,11 +160,15 @@ export default function MessagesScreen() {
           })
         }
         activeOpacity={0.8}>
-        <View style={styles.avatar}>
-          <ThemedText style={styles.avatarText}>
-            {item.userName.charAt(0).toUpperCase()}
-          </ThemedText>
-        </View>
+        {item.photoUrl ? (
+          <Image source={{ uri: item.photoUrl }} style={styles.avatar} contentFit="cover" />
+        ) : (
+          <View style={styles.avatar}>
+            <ThemedText style={styles.avatarText}>
+              {item.userName.charAt(0).toUpperCase()}
+            </ThemedText>
+          </View>
+        )}
         <View style={styles.convInfo}>
           <ThemedText style={styles.convName}>{item.userName}</ThemedText>
           <ThemedText style={styles.convLast} numberOfLines={1}>
