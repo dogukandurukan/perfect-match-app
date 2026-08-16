@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -15,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ErrorState } from '@/components/ErrorState';
@@ -298,6 +300,37 @@ export default function ChatScreen() {
     setSending(false);
   }
 
+  function handleAddPhoto() {
+    if (inputDisabled) return;
+    Alert.alert('Add a photo', undefined, [
+      { text: 'Take Photo', onPress: () => void openPhotoPicker('camera') },
+      { text: 'Choose from Library', onPress: () => void openPhotoPicker('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  async function openPhotoPicker(source: 'camera' | 'library') {
+    try {
+      const result =
+        source === 'camera'
+          ? await (async () => {
+              const perm = await ImagePicker.requestCameraPermissionsAsync();
+              if (!perm.granted) {
+                Alert.alert('Camera access needed', 'Enable camera access in Settings to take a photo.');
+                return null;
+              }
+              return ImagePicker.launchCameraAsync({ quality: 0.7 });
+            })()
+          : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+      if (result && !result.canceled) {
+        // TODO(P2 Katman 2): media_url kolonu + storage bucket + upload gelince gerçek gönderim.
+        Alert.alert('Coming soon', 'Photo sharing is on the way.');
+      }
+    } catch (e) {
+      console.warn('[Chat] photo picker failed', e);
+    }
+  }
+
   function applyIcebreaker(tip: string) {
     setText(tip);
     requestAnimationFrame(() => {
@@ -463,6 +496,14 @@ export default function ChatScreen() {
             inputLocked && styles.inputRowLocked,
             { paddingBottom: keyboardShown ? 12 : insets.bottom + 12 },
           ]}>
+          <TouchableOpacity
+            style={[styles.attachBtn, inputDisabled && { opacity: 0.4 }]}
+            onPress={handleAddPhoto}
+            disabled={inputDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="Add a photo">
+            <Ionicons name="camera-outline" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
           <TextInput
             ref={inputRef}
             style={[styles.input, inputDisabled && styles.inputDisabled]}
@@ -635,13 +676,21 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 10,
+    gap: 8,
     padding: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.bgCard,
   },
   inputRowLocked: { opacity: 0.85 },
+  attachBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.bgSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   input: {
     flex: 1,
     backgroundColor: colors.bgSubtle,
