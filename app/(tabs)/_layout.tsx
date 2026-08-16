@@ -72,8 +72,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          title: 'Alerts',
-          headerTitle: 'Notifications',
+          title: 'Buzz',
+          headerTitle: 'Buzz',
           tabBarIcon: ({ color, size }) => (
             <TabBarNotificationsIcon color={color} size={size ?? 24} />
           ),
@@ -82,8 +82,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="messages"
         options={{
-          title: 'Messages',
-          headerTitle: 'Messages',
+          title: 'Chats',
+          headerTitle: 'Chats',
           tabBarIcon: ({ color, size }) => <TabBarMessagesIcon color={color} size={size ?? 24} />,
         }}
       />
