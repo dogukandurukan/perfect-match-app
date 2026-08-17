@@ -1,6 +1,7 @@
 /**
  * Shared Hinge-style profile helpers (Home + Matches).
  */
+import { formatDrinkingLabel, formatIntentLabel, formatSmokingLabel } from './labels';
 
 export type HingeProfilePerson = {
   first_name: string | null;
@@ -19,8 +20,25 @@ export type HingeProfilePerson = {
   bio: string | null;
   first_date_expectation: string | null;
   favorite_spots: Record<string, string> | null;
+  // Bumble "About me" / "Looking for" / "Interests" bölümleri için (mevcut profiles kolonları).
+  // Opsiyonel — Matches detay kartı bunları sağlamayabilir; Home besler.
+  education?: string | null;
+  zodiac_sign?: string | null;
+  gender?: string | null;
+  pets?: string | null;
+  religion?: string | null;
+  morning_night?: string | null;
+  core_value?: string | null;
+  impressed_by?: string | null;
+  favorite_activity?: string | null;
+  vibe?: string | null;
+  languages?: string[] | null;
+  photo_verified?: boolean | null;
   photoUrls: string[];
 };
+
+/** Bir "About me" / interest chip'i: ikon (emoji) + etiket. */
+export type ProfileChip = { key: string; label: string };
 
 export type CommonSelf = {
   hobbies: string[] | null | undefined;
@@ -102,6 +120,76 @@ export function buildPromptCards(person: HingeProfilePerson): PromptCard[] {
   }
 
   return cards;
+}
+
+function cap(s: string): string {
+  const t = s.trim().replace(/_/g, ' ');
+  return t.length ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+}
+
+const ZODIAC_EMOJI: Record<string, string> = {
+  aries: '♈', taurus: '♉', gemini: '♊', cancer: '♋', leo: '♌', virgo: '♍',
+  libra: '♎', scorpio: '♏', sagittarius: '♐', capricorn: '♑', aquarius: '♒', pisces: '♓',
+  koc: '♈', boga: '♉', ikizler: '♊', yengec: '♋', aslan: '♌', basak: '♍',
+  terazi: '♎', akrep: '♏', yay: '♐', oglak: '♑', kova: '♒', balik: '♓',
+};
+
+function zodiacChip(sign: string | null | undefined): ProfileChip | null {
+  const v = sign?.trim();
+  if (!v) return null;
+  return { key: 'zodiac', label: `${ZODIAC_EMOJI[normKey(v)] ?? '🔮'} ${cap(v)}` };
+}
+
+function morningNightChip(value: string | null | undefined): ProfileChip | null {
+  const v = value?.trim();
+  if (!v) return null;
+  const k = normKey(v);
+  if (k.includes('night')) return { key: 'mn', label: '🌙 Night owl' };
+  if (k.includes('morning')) return { key: 'mn', label: '🌅 Morning person' };
+  return { key: 'mn', label: `🌓 ${cap(v)}` };
+}
+
+/** Bumble "About me" chip grid — yalnızca dolu alanlar (ikon + etiket). */
+export function buildAboutMeChips(person: HingeProfilePerson): ProfileChip[] {
+  const chips: ProfileChip[] = [];
+  const push = (c: ProfileChip | null) => {
+    if (c) chips.push(c);
+  };
+  if (person.gender?.trim()) push({ key: 'gender', label: `👤 ${cap(person.gender)}` });
+  push(zodiacChip(person.zodiac_sign));
+  if (person.education?.trim()) push({ key: 'edu', label: `🎓 ${cap(person.education)}` });
+  push(morningNightChip(person.morning_night));
+  const drink = formatDrinkingLabel(person.drinking);
+  if (drink) push({ key: 'drink', label: drink });
+  const smoke = formatSmokingLabel(person.smoking);
+  if (smoke) push({ key: 'smoke', label: smoke });
+  if (person.pets?.trim()) push({ key: 'pets', label: `🐾 ${cap(person.pets)}` });
+  if (person.religion?.trim()) push({ key: 'rel', label: `🕊️ ${cap(person.religion)}` });
+  return chips;
+}
+
+/** Bumble "I'm looking for" — niyet + değerler. */
+export function buildLookingForChips(person: HingeProfilePerson): ProfileChip[] {
+  const chips: ProfileChip[] = [];
+  const intent = formatIntentLabel(person.intent);
+  if (intent) chips.push({ key: 'intent', label: intent });
+  if (person.core_value?.trim()) chips.push({ key: 'core', label: `💎 ${cap(person.core_value)}` });
+  if (person.impressed_by?.trim())
+    chips.push({ key: 'impr', label: `✨ ${cap(person.impressed_by)}` });
+  return chips;
+}
+
+/** Bumble "My interests" — hobiler + favori aktivite + vibe. */
+export function buildInterestChips(person: HingeProfilePerson): ProfileChip[] {
+  const chips: ProfileChip[] = [];
+  for (const h of person.hobbies ?? []) {
+    const t = h?.trim();
+    if (t) chips.push({ key: `hobby-${t}`, label: `${hobbyEmoji(t)} ${cap(t)}` });
+  }
+  if (person.favorite_activity?.trim())
+    chips.push({ key: 'fav', label: `⭐ ${cap(person.favorite_activity)}` });
+  if (person.vibe?.trim()) chips.push({ key: 'vibe', label: `🌈 ${cap(person.vibe)}` });
+  return chips;
 }
 
 const HOBBY_EMOJI: Record<string, string> = {

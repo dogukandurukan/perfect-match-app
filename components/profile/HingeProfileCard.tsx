@@ -1,23 +1,23 @@
 // Component: Hinge-style profile body (Home + Matches detail)
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { type ReactNode } from 'react';
-import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/lib/designTokens';
 import {
+  buildAboutMeChips,
+  buildInterestChips,
+  buildLookingForChips,
   buildPromptCards,
   formatFeedLocation,
   hingeSafeAge,
   type HingeProfilePerson,
+  type ProfileChip,
   type PromptCard,
 } from '@/lib/hingeProfile';
-import {
-  formatAvailabilityLabel,
-  formatDrinkingLabel,
-  formatIntentLabel,
-  formatSmokingLabel,
-} from '@/lib/labels';
+import { formatAvailabilityLabel, formatIntentLabel } from '@/lib/labels';
 
 const ACCENT = '#B8860B';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -32,19 +32,76 @@ function InfoLine({ icon, text }: { icon?: string; text: string }) {
   );
 }
 
-function LifestyleChip({ label }: { label: string }) {
+/** Bumble bölüm kartı — kalın başlık + içerik. */
+function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <View style={styles.lifestyleChip}>
-      <ThemedText style={styles.lifestyleChipText}>{label}</ThemedText>
+    <View style={styles.sectionCard}>
+      <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
+      {children}
     </View>
   );
 }
 
-function PromptBlock({ title, answer }: { title: string; answer: string }) {
+/** İkon+etiket chip grid'i (About me / Looking for / Interests). */
+function ChipGrid({ chips }: { chips: ProfileChip[] }) {
+  return (
+    <View style={styles.chipRow}>
+      {chips.map((c) => (
+        <View key={c.key} style={styles.aboutChip}>
+          <ThemedText style={styles.aboutChipText}>{c.label}</ThemedText>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Bağlamlı beğeni hedefi — Home Note etkileşimi + Buzz Faz B aynı `likes` şemasını besler (bkz CLAUDE.md §3/§5). */
+export type NoteTarget = {
+  type: 'photo' | 'prompt';
+  /** likes.target_key olacak: 'photo-0' (hero), 'photo-1'… veya prompt.id */
+  key: string;
+  /** Composer'da bağlam metni (ör. prompt başlığı / 'this photo'). */
+  label: string;
+};
+
+/** Foto üstüne bindirilen Bumble tarzı "Note" pill'i (bottom-right). */
+function PhotoNoteButton({ onPress, a11yLabel }: { onPress: () => void; a11yLabel: string }) {
+  return (
+    <TouchableOpacity
+      style={styles.photoNoteBtn}
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel}>
+      <Ionicons name="chatbubble-ellipses-outline" size={16} color="#FFFFFF" />
+      <ThemedText style={styles.photoNoteText}>Note</ThemedText>
+    </TouchableOpacity>
+  );
+}
+
+function PromptBlock({
+  title,
+  answer,
+  onNote,
+}: {
+  title: string;
+  answer: string;
+  onNote?: () => void;
+}) {
   return (
     <View style={styles.promptCard}>
       <ThemedText style={styles.promptTitle}>{title}</ThemedText>
       <ThemedText style={styles.promptAnswer}>{answer}</ThemedText>
+      {onNote ? (
+        <TouchableOpacity
+          style={styles.promptNoteBtn}
+          onPress={onNote}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Like and add a note: ${title}`}>
+          <Ionicons name="chatbubble-ellipses-outline" size={18} color={ACCENT} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -56,6 +113,8 @@ export type HingeProfileCardProps = {
   midActions?: ReactNode;
   /** Bottom actions (e.g. Let's meet). */
   footer?: ReactNode;
+  /** Verildiğinde her foto & prompt'a "Note" (bağlamlı beğeni) affordance'ı gösterilir. */
+  onNoteTarget?: (target: NoteTarget) => void;
 };
 
 export function HingeProfileCard({
@@ -63,21 +122,25 @@ export function HingeProfileCard({
   viewerCity = null,
   midActions,
   footer,
+  onNoteTarget,
 }: HingeProfileCardProps) {
   const prompts = buildPromptCards(person);
   const intentLabel = formatIntentLabel(person.intent);
   const availabilityLabel = formatAvailabilityLabel(person.availability_days);
-  const drinkingLabel = formatDrinkingLabel(person.drinking);
-  const smokingLabel = formatSmokingLabel(person.smoking);
   const locationLabel = formatFeedLocation(person.district, person.city, viewerCity);
-  const lifestyleChips = [availabilityLabel, drinkingLabel, smokingLabel].filter(
-    (x): x is string => !!x,
-  );
-  const hasThingsInCommon =
-    (person.hobbies ?? []).length > 0 ||
-    !!person.favorite_music ||
-    !!person.favorite_movie ||
-    !!person.favorite_book;
+
+  // Bumble bölümleri (yalnızca dolu alanlar).
+  const aboutMeChips: ProfileChip[] = [];
+  if (availabilityLabel) aboutMeChips.push({ key: 'avail', label: availabilityLabel });
+  aboutMeChips.push(...buildAboutMeChips(person));
+  const lookingForChips = buildLookingForChips(person);
+  const interestChips = buildInterestChips(person);
+  const languages = (person.languages ?? []).filter((l) => !!l && l.trim().length > 0);
+  const livesInCity = person.city?.trim() && !/^\s*$/.test(person.city) ? person.city.trim() : null;
+  const verified = person.photo_verified === true;
+
+  const hasCommonMedia =
+    !!person.favorite_music || !!person.favorite_movie || !!person.favorite_book;
 
   const photoUrls = person.photoUrls.filter((u) => typeof u === 'string' && u.trim().length > 0);
   const heroUri = photoUrls[0] ?? null;
@@ -118,6 +181,12 @@ export function HingeProfileCard({
         <View style={styles.photo1Wrap}>
           <Image source={{ uri: heroUri }} style={styles.photo1} contentFit="cover" />
           <View style={styles.nameOverlay}>
+            {verified ? (
+              <View style={styles.verifiedPill}>
+                <Ionicons name="checkmark-circle" size={14} color="#2E7D32" />
+                <ThemedText style={styles.verifiedText}>Photo verified</ThemedText>
+              </View>
+            ) : null}
             <ThemedText style={styles.overlayName}>
               {person.first_name ?? 'Someone'}
               {age > 0 ? `, ${age}` : ''}
@@ -129,12 +198,23 @@ export function HingeProfileCard({
               <ThemedText style={styles.matchBadgeText}>%{pct}</ThemedText>
             </View>
           ) : null}
+          {onNoteTarget ? (
+            <PhotoNoteButton
+              onPress={() => onNoteTarget({ type: 'photo', key: 'photo-0', label: 'this photo' })}
+              a11yLabel="Like this photo and add a note"
+            />
+          ) : null}
         </View>
       ) : null}
 
-      {hasThingsInCommon ? (
-        <View style={styles.simCard}>
-          <ThemedText style={styles.simCardTitle}>Things in common 🤝</ThemedText>
+      {aboutMeChips.length > 0 ? (
+        <SectionCard title="About me">
+          <ChipGrid chips={aboutMeChips} />
+        </SectionCard>
+      ) : null}
+
+      {(person.hobbies ?? []).length > 0 || hasCommonMedia ? (
+        <SectionCard title="Things in common 🤝">
           {(person.hobbies ?? []).length > 0 ? (
             <View style={styles.chipRow}>
               {(person.hobbies ?? []).map((hobby) => (
@@ -147,38 +227,73 @@ export function HingeProfileCard({
           {person.favorite_music ? <InfoLine icon="🎵" text={person.favorite_music} /> : null}
           {person.favorite_movie ? <InfoLine icon="🎬" text={person.favorite_movie} /> : null}
           {person.favorite_book ? <InfoLine icon="📚" text={person.favorite_book} /> : null}
-        </View>
+        </SectionCard>
       ) : null}
 
-      {lifestyleChips.length > 0 || locationLabel ? (
-        <View style={styles.infoCard}>
-          {lifestyleChips.length > 0 ? (
-            <View style={styles.chipRow}>
-              {lifestyleChips.map((label) => (
-                <LifestyleChip key={label} label={label} />
-              ))}
-            </View>
-          ) : null}
-          {locationLabel ? (
-            <ThemedText style={styles.locationText}>{locationLabel}</ThemedText>
-          ) : null}
-        </View>
+      {lookingForChips.length > 0 ? (
+        <SectionCard title="I'm looking for">
+          <ChipGrid chips={lookingForChips} />
+        </SectionCard>
+      ) : null}
+
+      {interestChips.length > 0 ? (
+        <SectionCard title="My interests">
+          <ChipGrid chips={interestChips} />
+        </SectionCard>
       ) : null}
 
       {midActions ?? null}
 
       {interleavedBlocks.map((block) =>
         block.type === 'prompt' && block.prompt ? (
-          <PromptBlock key={block.key} title={block.prompt.title} answer={block.prompt.answer} />
-        ) : block.uri ? (
-          <Image
+          <PromptBlock
             key={block.key}
-            source={{ uri: block.uri }}
-            style={styles.inlinePhoto}
-            contentFit="cover"
+            title={block.prompt.title}
+            answer={block.prompt.answer}
+            onNote={
+              onNoteTarget && block.prompt
+                ? () =>
+                    onNoteTarget({
+                      type: 'prompt',
+                      key: block.prompt!.id,
+                      label: block.prompt!.title,
+                    })
+                : undefined
+            }
           />
+        ) : block.uri ? (
+          <View key={block.key} style={styles.inlinePhotoWrap}>
+            <Image source={{ uri: block.uri }} style={styles.inlinePhoto} contentFit="cover" />
+            {onNoteTarget ? (
+              <PhotoNoteButton
+                onPress={() => onNoteTarget({ type: 'photo', key: block.key, label: 'this photo' })}
+                a11yLabel="Like this photo and add a note"
+              />
+            ) : null}
+          </View>
         ) : null,
       )}
+
+      {languages.length > 0 ? (
+        <SectionCard title="Languages">
+          <ChipGrid chips={languages.map((l) => ({ key: `lang-${l}`, label: `💬 ${l}` }))} />
+        </SectionCard>
+      ) : null}
+
+      {locationLabel || livesInCity ? (
+        <SectionCard title="My location">
+          {locationLabel ? (
+            <ThemedText style={styles.locationText}>📍 {locationLabel}</ThemedText>
+          ) : null}
+          {livesInCity ? (
+            <View style={styles.chipRow}>
+              <View style={styles.aboutChip}>
+                <ThemedText style={styles.aboutChipText}>Lives in {livesInCity}</ThemedText>
+              </View>
+            </View>
+          ) : null}
+        </SectionCard>
+      ) : null}
 
       {footer ?? null}
     </View>
@@ -187,12 +302,48 @@ export function HingeProfileCard({
 
 const styles = StyleSheet.create({
   photo1Wrap: {
-    width: '100%',
     height: PHOTO1_HEIGHT,
+    marginHorizontal: 14,
+    marginTop: 12,
+    borderRadius: 18,
+    overflow: 'hidden',
     backgroundColor: '#DDDDDD',
     position: 'relative',
   },
   photo1: { width: '100%', height: '100%' },
+  verifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 2,
+  },
+  verifiedText: { color: '#1a1a1a', fontSize: 12, fontWeight: '600' },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    marginHorizontal: 14,
+    marginTop: 14,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
+  aboutChip: {
+    backgroundColor: '#F2EFE7',
+    borderRadius: 20,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+  },
+  aboutChipText: { fontSize: 14, color: colors.textPrimary, fontWeight: '500' },
   nameOverlay: {
     position: 'absolute',
     bottom: 0,
@@ -261,9 +412,11 @@ const styles = StyleSheet.create({
   infoLineText: { flex: 1, fontSize: 14, color: colors.textPrimary, lineHeight: 20 },
 
   promptCard: {
+    position: 'relative',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
+    paddingRight: 56,
     marginHorizontal: 14,
     marginTop: 14,
     gap: 10,
@@ -272,6 +425,17 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+  },
+  promptNoteBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F7F3EB',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   promptTitle: {
     fontSize: 13,
@@ -314,10 +478,29 @@ const styles = StyleSheet.create({
   },
   hobbyChipText: { color: ACCENT, fontSize: 13 },
 
+  inlinePhotoWrap: {
+    position: 'relative',
+    marginTop: 14,
+    marginHorizontal: 14,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
   inlinePhoto: {
     width: '100%',
     height: 300,
-    marginTop: 14,
     backgroundColor: '#DDDDDD',
   },
+  photoNoteBtn: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  photoNoteText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
 });

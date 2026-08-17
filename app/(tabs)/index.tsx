@@ -1,7 +1,7 @@
 // Screen: Ana sayfa sekmesi | Status: stable | Last updated: Mayıs 2026
 import { DailyLimitEmptyState } from '@/components/DailyLimitEmptyState';
 import { ErrorState } from '@/components/ErrorState';
-import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
+import { HingeProfileCard, type NoteTarget } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
@@ -17,10 +17,15 @@ import { parseFavoriteSpots, type HingeProfilePerson } from '@/lib/hingeProfile'
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ScrollView,
@@ -81,6 +86,10 @@ export default function HomeScreen() {
   const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [myCity, setMyCity] = useState<string | null>(null);
   const [dailyViews, setDailyViews] = useState<DailyViewsState | null>(null);
+  // Bağlamlı beğeni (Bumble "Note") — UI-1 skeleton; DB yazımı Faz B'de `likes` tablosuna.
+  const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null);
+  const [noteText, setNoteText] = useState('');
+  const [noteBanner, setNoteBanner] = useState<string | null>(null);
 
   const hasLoadedFeedRef = useRef(false);
   const feedResetAtRef = useRef<string | null>(null);
@@ -189,6 +198,17 @@ export default function HomeScreen() {
           bio: null,
           first_date_expectation: null,
           favorite_spots: null,
+          education: null,
+          zodiac_sign: null,
+          gender: null,
+          pets: null,
+          religion: null,
+          morning_night: null,
+          core_value: null,
+          impressed_by: null,
+          favorite_activity: null,
+          vibe: null,
+          photo_verified: null,
           photoUrls,
         };
       }),
@@ -196,7 +216,9 @@ export default function HomeScreen() {
 
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
-      .select('id, languages, bio, first_date_expectation, favorite_spots')
+      .select(
+        'id, languages, bio, first_date_expectation, favorite_spots, education, zodiac_sign, gender, pets, religion, morning_night, core_value, impressed_by, favorite_activity, vibe, photo_verified',
+      )
       .in('id', userIds);
 
     type ProfileExtraRow = {
@@ -205,6 +227,17 @@ export default function HomeScreen() {
       bio: string | null;
       first_date_expectation: string | null;
       favorite_spots: Record<string, string> | null;
+      education: string | null;
+      zodiac_sign: string | null;
+      gender: string | null;
+      pets: string | null;
+      religion: string | null;
+      morning_night: string | null;
+      core_value: string | null;
+      impressed_by: string | null;
+      favorite_activity: string | null;
+      vibe: string | null;
+      photo_verified: boolean | null;
     };
 
     let extras: ProfileExtraRow[] = [];
@@ -222,6 +255,17 @@ export default function HomeScreen() {
         bio: null,
         first_date_expectation: null,
         favorite_spots: null,
+        education: null,
+        zodiac_sign: null,
+        gender: null,
+        pets: null,
+        religion: null,
+        morning_night: null,
+        core_value: null,
+        impressed_by: null,
+        favorite_activity: null,
+        vibe: null,
+        photo_verified: null,
       }));
     }
 
@@ -235,6 +279,17 @@ export default function HomeScreen() {
         bio: extra?.bio ?? null,
         first_date_expectation: extra?.first_date_expectation ?? null,
         favorite_spots: parseFavoriteSpots(extra?.favorite_spots),
+        education: extra?.education ?? null,
+        zodiac_sign: extra?.zodiac_sign ?? null,
+        gender: extra?.gender ?? null,
+        pets: extra?.pets ?? null,
+        religion: extra?.religion ?? null,
+        morning_night: extra?.morning_night ?? null,
+        core_value: extra?.core_value ?? null,
+        impressed_by: extra?.impressed_by ?? null,
+        favorite_activity: extra?.favorite_activity ?? null,
+        vibe: extra?.vibe ?? null,
+        photo_verified: extra?.photo_verified ?? null,
       };
     });
   }, []);
@@ -361,6 +416,34 @@ export default function HomeScreen() {
     likeOverlayOpacity.value = 0;
   }, [likeOverlayOpacity, passOverlayOpacity]);
 
+  // Tek beğeni modeli — ❤ (profil) ve foto/prompt Note aynı `likes` satırını besler (§3/§5).
+  // Kişi başına tek satır: upsert onConflict(liker_id,likee_id) → Note, ❤'in satırına hedef+not yazar.
+  const recordLike = useCallback(
+    async (
+      likeeId: string,
+      target: { type: 'photo' | 'prompt' | 'profile'; key: string | null; note?: string | null },
+    ): Promise<boolean> => {
+      if (!authUserId || !likeeId) return false;
+      const { error } = await supabase.from('likes').upsert(
+        {
+          liker_id: authUserId,
+          likee_id: likeeId,
+          target_type: target.type,
+          target_key: target.key,
+          note: target.note?.trim() ? target.note.trim() : null,
+          status: 'sent',
+        },
+        { onConflict: 'liker_id,likee_id' },
+      );
+      if (error) {
+        console.warn('recordLike failed', error.message);
+        return false;
+      }
+      return true;
+    },
+    [authUserId],
+  );
+
   const completePass = useCallback(() => {
     advanceIndex();
   }, [advanceIndex]);
@@ -394,7 +477,7 @@ export default function HomeScreen() {
 
   const handleLike = useCallback(
     (userId: string) => {
-      void userId;
+      void recordLike(userId, { type: 'profile', key: null });
       setAnimating(true);
       likeOverlayOpacity.value = withSequence(
         withTiming(1, { duration: 300 }),
@@ -406,12 +489,32 @@ export default function HomeScreen() {
         ),
       );
     },
-    [completeLike, likeOverlayOpacity],
+    [completeLike, likeOverlayOpacity, recordLike],
   );
 
   const currentUser = feedUsers[currentIndex] ?? null;
   const likesLeft = remainingDailyViews(dailyViews);
   const likesLeftLabel = `${likesLeft} ${likesLeft === 1 ? 'like' : 'likes'} left today`;
+
+  const handleOpenNote = useCallback((target: NoteTarget) => {
+    setNoteText('');
+    setNoteTarget(target);
+  }, []);
+
+  const handleSendNote = useCallback(() => {
+    const target = noteTarget;
+    const likeeId = currentUser?.user_id;
+    const text = noteText;
+    setNoteTarget(null);
+    setNoteText('');
+    if (!target || !likeeId) return;
+    void (async () => {
+      const ok = await recordLike(likeeId, { type: target.type, key: target.key, note: text });
+      setNoteBanner(ok ? 'Like sent ✨' : 'Couldn’t send your like — try again');
+      setTimeout(() => setNoteBanner(null), 2600);
+    })();
+    completeLike(); // Note de günlük kotayı düşürür + feed ilerler (❤ ile aynı).
+  }, [noteTarget, currentUser, noteText, recordLike, completeLike]);
 
   if (checking) {
     return (
@@ -482,6 +585,7 @@ export default function HomeScreen() {
             <HingeProfileCard
               person={currentUser}
               viewerCity={myCity}
+              onNoteTarget={handleOpenNote}
               midActions={
                 <View style={styles.actionRow}>
                   <TouchableOpacity
@@ -498,12 +602,6 @@ export default function HomeScreen() {
                     onPress={() => handleLike(currentUser.user_id)}>
                     <Text style={styles.likeIcon}>❤️</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.starBtn}
-                    activeOpacity={0.85}
-                    disabled={animating}>
-                    <Text style={styles.starIcon}>⭐</Text>
-                  </TouchableOpacity>
                 </View>
               }
             />
@@ -518,8 +616,68 @@ export default function HomeScreen() {
           <Animated.View style={[styles.likeOverlay, likeOverlayStyle]} pointerEvents="none">
             <Text style={styles.likeOverlayIcon}>❤️</Text>
           </Animated.View>
+
+          {/* Bağlamlı beğeni (Note) skeleton toast */}
+          {noteBanner ? (
+            <View style={styles.noteToast} pointerEvents="none">
+              <ThemedText style={styles.noteToastText}>{noteBanner}</ThemedText>
+            </View>
+          ) : null}
         </>
       )}
+
+      {/* Note composer — foto/prompt beğen + opsiyonel yorum (Bumble like-with-comment) */}
+      <Modal
+        visible={noteTarget !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setNoteTarget(null)}>
+        <KeyboardAvoidingView
+          style={styles.noteBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.noteSheet}>
+            <View style={styles.noteHandle} />
+            <ThemedText style={styles.noteHeading}>
+              {noteTarget?.type === 'prompt'
+                ? `Note on “${noteTarget.label}”`
+                : `Note on ${currentUser?.first_name ?? 'this profile'}’s photo`}
+            </ThemedText>
+            <ThemedText style={styles.noteSub}>
+              Like it and say what caught your eye — the note’s optional.
+            </ThemedText>
+            <TextInput
+              style={styles.noteInput}
+              value={noteText}
+              onChangeText={setNoteText}
+              placeholder="Add a note…"
+              placeholderTextColor="#9A9A9A"
+              multiline
+              maxLength={240}
+              autoFocus
+            />
+            <ThemedText style={styles.noteCount}>{noteText.length}/240</ThemedText>
+            <View style={styles.noteActions}>
+              <TouchableOpacity
+                style={styles.noteCancel}
+                onPress={() => setNoteTarget(null)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel note">
+                <ThemedText style={styles.noteCancelText}>Cancel</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.noteSend}
+                onPress={handleSendNote}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Send like with note">
+                <Ionicons name="heart" size={18} color="#FFFFFF" />
+                <ThemedText style={styles.noteSendText}>Send like</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -599,15 +757,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   likeIcon: { fontSize: 32 },
-  starBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#E8E8E8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  starIcon: { fontSize: 26 },
 
   passOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -630,4 +779,76 @@ const styles = StyleSheet.create({
   noMoreWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   noMoreTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '600' },
   noMoreSubtitle: { color: '#999999', fontSize: 14, marginTop: 6, textAlign: 'center' },
+
+  // Note composer (bağlamlı beğeni)
+  noteBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  noteSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 28,
+    gap: 8,
+  },
+  noteHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 8,
+  },
+  noteHeading: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
+  noteSub: { fontSize: 14, color: '#8A8A8A', lineHeight: 20 },
+  noteInput: {
+    marginTop: 8,
+    minHeight: 88,
+    borderRadius: 14,
+    backgroundColor: '#F6F6F6',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.textPrimary,
+    textAlignVertical: 'top',
+  },
+  noteCount: { alignSelf: 'flex-end', fontSize: 12, color: '#B0B0B0' },
+  noteActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  noteCancel: {
+    flex: 1,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F2F2F2',
+  },
+  noteCancelText: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
+  noteSend: {
+    flex: 2,
+    height: 50,
+    borderRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: ACCENT,
+  },
+  noteSendText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  noteToast: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 32,
+    backgroundColor: 'rgba(30,30,30,0.92)',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    alignItems: 'center',
+    zIndex: 200,
+  },
+  noteToastText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600', textAlign: 'center' },
 });
