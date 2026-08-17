@@ -34,15 +34,30 @@ type NotificationRow = {
   relatedName: string | null;
 };
 
-// One blurred, locked liker card in the premium teaser grid.
-type LikeAvatar = { url: string | null; initial: string };
+// A single row from the `get_my_likers` RPC. Non-premium callers get every
+// identity field back as null (server-side gate) — only `totalCount` is safe
+// to use unconditionally.
+type LikerRow = {
+  likerId: string | null;
+  firstName: string | null;
+  photoPath: string | null;
+  targetType: string | null;
+  targetKey: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
+// Resolved-for-render version of a premium (unlocked) liker tile.
+type UnlockedLiker = { likerId: string; firstName: string | null; photoUrl: string | null };
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 type IconSpec = { name: IoniconName; color: string; bg: string };
 
 // --- Notification classification (single source of truth) --------------------
-// Phase B will swap the LIKE source from `notifications` to the real `likes`
-// table; keep the membership tests here so the rest of the screen is agnostic.
+// Phase B: the LIKE teaser (count + avatars) is now sourced from the real
+// `likes` table via `get_my_likers`, not from `notifications`. These types are
+// kept only to filter any legacy like-flavored notification rows out of the
+// compact feed, so they don't show twice.
 const LIKE_TYPES = new Set(['like', 'new_like', 'someone_liked', 'new_match']);
 const FEATURED_TYPES = new Set(['invite_accepted', 'new_invite', 'meeting_invite']);
 const isLikeType = (t: NotificationType) => LIKE_TYPES.has(t);
@@ -101,52 +116,96 @@ function routeForType(type: NotificationType): string {
 }
 
 // --- Premium "Likes You" teaser ---------------------------------------------
-// A 4-up strip: up to 3 blurred faces + a "+N" counter tile, then a full-width
-// Unlock button. Reveals nothing (name/face) — that unlock is the premium hook.
-// Phase B feeds this from the likes table and unblurs on premium.
+// Locked (free): count only, from `get_my_likers.total_count` — the RPC gates
+// identity server-side, so there is no photo/name to render here at all
+// (previously this blurred a real photo client-side, which still leaked the
+// liker's identity to anyone inspecting the response; anonymous tiles fix that).
+// Unlocked (premium): RPC returns real liker_id/first_name/photo_path — tiles
+// show the real (unblurred) photo and are tappable straight to their profile.
 function LikesSection({
   count,
-  avatars,
-  onPress,
+  unlocked,
+  likers,
+  onPressLocked,
+  onPressLiker,
 }: {
   count: number;
-  avatars: LikeAvatar[];
-  onPress: () => void;
+  unlocked: boolean;
+  likers: UnlockedLiker[];
+  onPressLocked: () => void;
+  onPressLiker: (likerId: string) => void;
 }) {
   if (count <= 0) return null;
-  const faces = avatars.slice(0, LIKE_FACE_TILES);
-  const remainder = count - faces.length; // count shown on the "+N" tile
   const title = count === 1 ? '1 person likes you' : `${count} people like you`;
 
+  if (!unlocked) {
+    const anonymousTiles = Math.min(count, LIKE_FACE_TILES);
+    const remainder = count - anonymousTiles;
+    return (
+      <TouchableOpacity
+        style={styles.likes}
+        onPress={onPressLocked}
+        activeOpacity={0.9}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}. Unlock to see who.`}>
+        <ThemedText style={styles.likesTitle}>{title}</ThemedText>
+        <ThemedText style={styles.likesSub}>Someone new is into you — unlock to see who</ThemedText>
+
+        <View style={styles.likesStrip}>
+          {Array.from({ length: anonymousTiles }).map((_, i) => (
+            <View key={i} style={[styles.likeTile, styles.likeTileFallback]}>
+              <Ionicons name="heart" size={22} color="#B8860B" />
+            </View>
+          ))}
+          {remainder > 0 ? (
+            <View style={[styles.likeTile, styles.likeTileMore]}>
+              <ThemedText style={styles.likeTileMoreText}>+{remainder}</ThemedText>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.likesUnlock}>
+          <Ionicons name="lock-closed" size={15} color="#FFFFFF" />
+          <ThemedText style={styles.likesUnlockText}>Unlock to see who likes you</ThemedText>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  const faces = likers.slice(0, LIKE_FACE_TILES);
+  const remainder = count - faces.length;
+  const unlockedTitle =
+    count === 1 && faces[0]?.firstName ? `${faces[0].firstName} likes you` : title;
+
   return (
-    <TouchableOpacity
-      style={styles.likes}
-      onPress={onPress}
-      activeOpacity={0.9}
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. Unlock to see who.`}>
-      <ThemedText style={styles.likesTitle}>{title}</ThemedText>
-      <ThemedText style={styles.likesSub}>Someone new is into you — unlock to see who</ThemedText>
+    <View style={styles.likes}>
+      <ThemedText style={styles.likesTitle}>{unlockedTitle}</ThemedText>
+      <ThemedText style={styles.likesSub}>Tap someone to see their profile</ThemedText>
 
       <View style={styles.likesStrip}>
-        {faces.map((a, i) => (
-          <View key={i} style={styles.likeTile}>
-            {a.url ? (
+        {faces.map((liker) => (
+          <TouchableOpacity
+            key={liker.likerId}
+            style={styles.likeTile}
+            onPress={() => onPressLiker(liker.likerId)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${liker.firstName ?? 'their'} profile`}>
+            {liker.photoUrl ? (
               <Image
-                source={{ uri: a.url }}
+                source={{ uri: liker.photoUrl }}
                 style={styles.likeTileImg}
-                blurRadius={22}
                 contentFit="cover"
                 transition={150}
               />
             ) : (
               <View style={[styles.likeTileImg, styles.likeTileFallback]}>
-                <ThemedText style={styles.likeTileInitial}>{a.initial}</ThemedText>
+                <ThemedText style={styles.likeTileInitial}>
+                  {(liker.firstName ?? '♥').charAt(0).toUpperCase()}
+                </ThemedText>
               </View>
             )}
-            <View style={styles.likeTileVeil} />
-            <Ionicons name="heart" size={15} color="rgba(255,255,255,0.9)" style={styles.likeTileHeart} />
-          </View>
+          </TouchableOpacity>
         ))}
         {remainder > 0 ? (
           <View style={[styles.likeTile, styles.likeTileMore]}>
@@ -154,12 +213,7 @@ function LikesSection({
           </View>
         ) : null}
       </View>
-
-      <View style={styles.likesUnlock}>
-        <Ionicons name="lock-closed" size={15} color="#FFFFFF" />
-        <ThemedText style={styles.likesUnlockText}>Unlock to see who likes you</ThemedText>
-      </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -217,11 +271,63 @@ function FeaturedCard({
 export default function NotificationsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<NotificationRow[]>([]);
-  const [likeAvatars, setLikeAvatars] = useState<LikeAvatar[]>([]);
   const [photoById, setPhotoById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+
+  // Buzz Faz B: real "who likes you" teaser, sourced from `get_my_likers` —
+  // gated server-side, not derived from `notifications`. Fetch failures here
+  // degrade the teaser to 0 (hidden) rather than blocking the whole screen,
+  // same pattern as the old `intentRows` degrade (CLAUDE.md §0.5).
+  const [likeCount, setLikeCount] = useState(0);
+  const [likeUnlocked, setLikeUnlocked] = useState(false);
+  const [likers, setLikers] = useState<UnlockedLiker[]>([]);
+
+  const fetchLikers = useCallback(async () => {
+    const { data, error } = await supabase.rpc('get_my_likers');
+    if (error || !data || data.length === 0) {
+      if (error) console.warn('get_my_likers failed', error.message);
+      setLikeCount(0);
+      setLikeUnlocked(false);
+      setLikers([]);
+      return;
+    }
+
+    const rows = data as {
+      total_count: number;
+      liker_id: string | null;
+      first_name: string | null;
+      photo_path: string | null;
+      created_at: string;
+    }[];
+    const unlocked = rows.some((r) => r.liker_id != null);
+    setLikeCount(Number(rows[0]?.total_count ?? 0));
+    setLikeUnlocked(unlocked);
+
+    if (!unlocked) {
+      setLikers([]);
+      return;
+    }
+
+    const resolved = await Promise.all(
+      rows
+        .filter((r): r is typeof r & { liker_id: string } => r.liker_id != null)
+        .slice(0, LIKE_FACE_TILES)
+        .map(async (r) => {
+          let photoUrl: string | null = null;
+          if (r.photo_path) {
+            try {
+              photoUrl = await resolveProfilePhotoUrl(r.photo_path, 3600);
+            } catch {
+              /* skip broken photo */
+            }
+          }
+          return { likerId: r.liker_id, firstName: r.first_name, photoUrl };
+        }),
+    );
+    setLikers(resolved);
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -232,7 +338,6 @@ export default function NotificationsScreen() {
 
     if (!user) {
       setItems([]);
-      setLikeAvatars([]);
       setPhotoById({});
       setLoading(false);
       await emitUnreadNotificationCount();
@@ -247,7 +352,6 @@ export default function NotificationsScreen() {
 
     if (error || !data) {
       setItems([]);
-      setLikeAvatars([]);
       setPhotoById({});
       setError(true);
       setLoading(false);
@@ -291,15 +395,8 @@ export default function NotificationsScreen() {
     }));
     setItems(rows);
 
-    // Resolve photos for: blurred like grid + featured card avatars.
-    const likerIds = [
-      ...new Set(
-        rows
-          .filter((r) => isLikeType(r.type))
-          .map((r) => r.related_user_id)
-          .filter((id): id is string => typeof id === 'string'),
-      ),
-    ];
+    // Resolve photos for the featured card avatars only (like-grid photos
+    // now come from `fetchLikers`, resolved separately above).
     const featuredIds = [
       ...new Set(
         rows
@@ -308,12 +405,10 @@ export default function NotificationsScreen() {
           .filter((id): id is string => typeof id === 'string'),
       ),
     ];
-    const gridIds = likerIds.slice(0, LIKE_FACE_TILES);
-    const idsToResolve = [...new Set([...gridIds, ...featuredIds])];
 
     const urlById: Record<string, string> = {};
     await Promise.all(
-      idsToResolve.map(async (id) => {
+      featuredIds.map(async (id) => {
         const firstPhoto = photosById.get(id)?.[0];
         if (!firstPhoto) return;
         try {
@@ -326,13 +421,6 @@ export default function NotificationsScreen() {
     );
     setPhotoById(urlById);
 
-    setLikeAvatars(
-      gridIds.map((id) => ({
-        url: urlById[id] ?? null,
-        initial: (nameById.get(id) ?? '♥').charAt(0).toUpperCase() || '♥',
-      })),
-    );
-
     setLoading(false);
     await emitUnreadNotificationCount();
   }, []);
@@ -340,25 +428,18 @@ export default function NotificationsScreen() {
   useFocusEffect(
     useCallback(() => {
       void fetchNotifications();
-    }, [fetchNotifications]),
+      void fetchLikers();
+    }, [fetchNotifications, fetchLikers]),
   );
 
   // Derived zones — recompute on items change (read-state edits included).
-  const { likeCount, featured, feed } = useMemo(() => {
-    const likeRows = items.filter((r) => isLikeType(r.type));
-    const likerIds = [
-      ...new Set(
-        likeRows
-          .map((r) => r.related_user_id)
-          .filter((id): id is string => typeof id === 'string'),
-      ),
-    ];
-    return {
-      likeCount: likerIds.length > 0 ? likerIds.length : likeRows.length,
+  const { featured, feed } = useMemo(
+    () => ({
       featured: items.filter((r) => isFeaturedType(r.type)),
       feed: items.filter((r) => !isLikeType(r.type) && !isFeaturedType(r.type)),
-    };
-  }, [items]);
+    }),
+    [items],
+  );
 
   async function handlePress(item: NotificationRow) {
     if (!item.is_read) {
@@ -430,8 +511,12 @@ export default function NotificationsScreen() {
   const ListFooter = (
     <LikesSection
       count={likeCount}
-      avatars={likeAvatars}
-      onPress={() => router.push('/premium' as never)}
+      unlocked={likeUnlocked}
+      likers={likers}
+      onPressLocked={() => router.push('/premium' as never)}
+      onPressLiker={(likerId) =>
+        router.push({ pathname: '/user-profile', params: { userId: likerId } } as never)
+      }
     />
   );
 
@@ -456,7 +541,7 @@ export default function NotificationsScreen() {
         <ActivityIndicator color={colors.accent} style={styles.loader} />
       ) : error ? (
         <ErrorState onRetry={() => void fetchNotifications()} />
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && likeCount === 0 ? (
         <View style={styles.emptyWrap}>
           <ThemedText style={styles.emptyText}>Nothing yet</ThemedText>
           <ThemedText style={styles.emptySubtext}>
@@ -552,15 +637,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: '#B8860B',
-  },
-  likeTileVeil: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(120,90,10,0.20)',
-  },
-  likeTileHeart: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
   },
   likeTileMore: {
     alignItems: 'center',
