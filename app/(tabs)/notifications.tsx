@@ -104,14 +104,24 @@ function feedRowText(type: NotificationType, name: string | null): string {
   }
 }
 
-function routeForType(type: NotificationType): string {
-  switch (type) {
+// `invite_accepted`/message types deep-link straight into that person's chat
+// (not just the Chats list — otherwise "Pick time" dumps you on the list and
+// you have to find them again). Falls back to the list when we don't know who.
+function routeForType(
+  item: NotificationRow,
+): { pathname: string; params?: Record<string, string> } {
+  switch (item.type) {
     case 'invite_accepted':
     case 'new_message':
     case 'message':
-      return '/(tabs)/messages';
+      return item.related_user_id
+        ? {
+            pathname: '/chat',
+            params: { userId: item.related_user_id, userName: item.relatedName ?? '' },
+          }
+        : { pathname: '/(tabs)/messages' };
     default:
-      return '/(tabs)/matches';
+      return { pathname: '/(tabs)/matches' };
   }
 }
 
@@ -213,6 +223,67 @@ function LikesSection({
           </View>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+// --- Zero-activity empty state: activation checklist, not a fake/blank screen --
+// UI-3 (CLAUDE.md §4/§5): no fake likes on 0-state — show a real, actionable path
+// (profile completeness) instead of "nothing here yet".
+type ActivationChecklist = { hasPhoto: boolean; hasPrompt: boolean; hasSentLike: boolean };
+
+function BuzzActivationCard({
+  checklist,
+  onGoProfile,
+  onGoHome,
+}: {
+  checklist: ActivationChecklist;
+  onGoProfile: () => void;
+  onGoHome: () => void;
+}) {
+  const items: { key: string; done: boolean; icon: IoniconName; label: string; onPress: () => void }[] = [
+    { key: 'photo', done: checklist.hasPhoto, icon: 'camera-outline', label: 'Add a photo', onPress: onGoProfile },
+    {
+      key: 'prompt',
+      done: checklist.hasPrompt,
+      icon: 'chatbubble-ellipses-outline',
+      label: 'Answer a prompt',
+      onPress: onGoProfile,
+    },
+    { key: 'like', done: checklist.hasSentLike, icon: 'heart-outline', label: 'Send your first like', onPress: onGoHome },
+  ];
+  const doneCount = items.filter((i) => i.done).length;
+
+  return (
+    <View style={styles.activation}>
+      <ThemedText style={styles.activationTitle}>Get your profile buzz-ready</ThemedText>
+      <ThemedText style={styles.activationSub}>
+        {doneCount}/{items.length} done — finish these and Buzz fills up here
+      </ThemedText>
+      <View style={styles.activationBar}>
+        <View style={[styles.activationBarFill, { width: `${(doneCount / items.length) * 100}%` }]} />
+      </View>
+      {items.map((item) => (
+        <TouchableOpacity
+          key={item.key}
+          style={styles.activationRow}
+          onPress={item.onPress}
+          disabled={item.done}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={item.label}
+          accessibilityState={{ disabled: item.done }}>
+          <Ionicons
+            name={item.done ? 'checkmark-circle' : item.icon}
+            size={20}
+            color={item.done ? '#2E9E5B' : colors.textMuted}
+          />
+          <ThemedText style={[styles.activationRowText, item.done && styles.activationRowDone]}>
+            {item.label}
+          </ThemedText>
+          {!item.done ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
@@ -329,6 +400,41 @@ export default function NotificationsScreen() {
     setLikers(resolved);
   }, []);
 
+  // UI-3: activation checklist for the 0-activity empty state. Cheap (one
+  // profiles row + one count query) so it's fetched every focus alongside the
+  // rest — no separate gating on emptiness.
+  const [checklist, setChecklist] = useState<ActivationChecklist>({
+    hasPhoto: false,
+    hasPrompt: false,
+    hasSentLike: false,
+  });
+
+  const fetchChecklist = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const [{ data: prof }, { count: sentCount }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('photos, bio, first_date_expectation, favorite_spots')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase.from('likes').select('id', { count: 'exact', head: true }).eq('liker_id', user.id),
+    ]);
+
+    const spots = prof?.favorite_spots;
+    const hasSpots =
+      !!spots && typeof spots === 'object' && Object.keys(spots as Record<string, unknown>).length > 0;
+
+    setChecklist({
+      hasPhoto: Array.isArray(prof?.photos) && prof.photos.length > 0,
+      hasPrompt: !!prof?.bio?.trim() || !!prof?.first_date_expectation?.trim() || hasSpots,
+      hasSentLike: (sentCount ?? 0) > 0,
+    });
+  }, []);
+
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     setError(false);
@@ -429,7 +535,8 @@ export default function NotificationsScreen() {
     useCallback(() => {
       void fetchNotifications();
       void fetchLikers();
-    }, [fetchNotifications, fetchLikers]),
+      void fetchChecklist();
+    }, [fetchNotifications, fetchLikers, fetchChecklist]),
   );
 
   // Derived zones — recompute on items change (read-state edits included).
@@ -449,7 +556,7 @@ export default function NotificationsScreen() {
       );
       await emitUnreadNotificationCount();
     }
-    router.push(routeForType(item.type) as never);
+    router.push(routeForType(item) as never);
   }
 
   async function handleMarkAllRead() {
@@ -542,12 +649,11 @@ export default function NotificationsScreen() {
       ) : error ? (
         <ErrorState onRetry={() => void fetchNotifications()} />
       ) : items.length === 0 && likeCount === 0 ? (
-        <View style={styles.emptyWrap}>
-          <ThemedText style={styles.emptyText}>Nothing yet</ThemedText>
-          <ThemedText style={styles.emptySubtext}>
-            When someone likes you or wants to meet, it&apos;ll show up here
-          </ThemedText>
-        </View>
+        <BuzzActivationCard
+          checklist={checklist}
+          onGoProfile={() => router.push('/(tabs)/profile' as never)}
+          onGoHome={() => router.push('/(tabs)' as never)}
+        />
       ) : (
         <FlatList
           data={feed}
@@ -780,24 +886,53 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     marginLeft: 4,
   },
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 48,
-    paddingHorizontal: 32,
-    gap: 8,
+  activation: {
+    marginTop: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    padding: 18,
   },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
+  activationTitle: {
+    fontSize: 17,
+    fontWeight: '800',
     color: colors.textPrimary,
-    textAlign: 'center',
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-    lineHeight: 20,
+  activationSub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 2,
+    marginBottom: 14,
+  },
+  activationBar: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F0F0F0',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  activationBarFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.accent,
+  },
+  activationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#F0F0F0',
+  },
+  activationRowText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.textPrimary,
+  },
+  activationRowDone: {
+    color: colors.textMuted,
+    textDecorationLine: 'line-through',
   },
 });

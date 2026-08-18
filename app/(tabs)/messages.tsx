@@ -192,11 +192,19 @@ export default function MessagesScreen() {
         <ErrorState onRetry={() => void fetchConversations()} />
       ) : conversations.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <ThemedText style={styles.emptyEmoji}>💬</ThemedText>
-          <ThemedText style={styles.emptyText}>No messages yet</ThemedText>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="chatbubbles-outline" size={28} color={colors.accent} />
+          </View>
+          <ThemedText style={styles.emptyText}>Your chats will show up here</ThemedText>
           <ThemedText style={styles.emptySubtext}>
-            Meet someone and start the conversation
+            Once someone accepts your invite, the conversation opens right here.
           </ThemedText>
+          <TouchableOpacity
+            style={styles.emptyCta}
+            activeOpacity={0.85}
+            onPress={() => router.push('/(tabs)/matches' as never)}>
+            <ThemedText style={styles.emptyCtaText}>Find people to meet</ThemedText>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -282,8 +290,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    paddingHorizontal: 36,
   },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
-  emptySubtext: { fontSize: 14, color: '#888', textAlign: 'center' },
+  emptyIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FBF3DF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyText: { fontSize: 16, fontWeight: '600', color: colors.textPrimary, textAlign: 'center' },
+  emptySubtext: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20 },
+  emptyCta: {
+    marginTop: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+    backgroundColor: colors.accent,
+  },
+  emptyCtaText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
 });
