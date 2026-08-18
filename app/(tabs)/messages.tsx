@@ -202,7 +202,9 @@ export default function MessagesScreen() {
           <TouchableOpacity
             style={styles.emptyCta}
             activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/matches' as never)}>
+            onPress={() => router.push('/(tabs)/matches' as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Find people to meet">
             <ThemedText style={styles.emptyCtaText}>Find people to meet</ThemedText>
           </TouchableOpacity>
         </View>

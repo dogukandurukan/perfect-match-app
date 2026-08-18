@@ -1,6 +1,15 @@
 // Screen: Kullanıcı profili (karşı taraf) | Status: stable | Last updated: Mayıs 2026
 import { useEffect, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -237,6 +246,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenContainer style={styles.container}>
         <HomeTopIcon />
+        <ActivityIndicator color={colors.accent} style={styles.loader} />
       </ScreenContainer>
     );
   }
@@ -404,7 +414,9 @@ export default function UserProfileScreen() {
                     userName: profile?.first_name ?? '',
                   },
                 })
-              }>
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Send message">
               <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
               <ThemedText style={styles.messageBtnText}>Send message</ThemedText>
             </TouchableOpacity>
@@ -415,11 +427,19 @@ export default function UserProfileScreen() {
             </View>
           )}
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.reportBtn} onPress={() => setReportModalVisible(true)}>
+            <TouchableOpacity
+              style={styles.reportBtn}
+              onPress={() => setReportModalVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Report this person">
               <Ionicons name="warning-outline" size={15} color={colors.textPrimary} />
               <ThemedText style={styles.reportBtnText}>Report</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.blockBtn} onPress={handleBlock}>
+            <TouchableOpacity
+              style={styles.blockBtn}
+              onPress={handleBlock}
+              accessibilityRole="button"
+              accessibilityLabel="Block this person">
               <Ionicons name="ban-outline" size={15} color="#C0392B" />
               <ThemedText style={styles.blockBtnText}>Block</ThemedText>
             </TouchableOpacity>
@@ -466,6 +486,7 @@ export default function UserProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
+  loader: { marginTop: 40 },
   content: { paddingBottom: 48, gap: 20 },
 
   photoWrap: {
