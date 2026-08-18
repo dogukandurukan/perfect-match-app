@@ -1,7 +1,22 @@
 /**
- * Shared Hinge-style profile helpers (Home + Matches).
+ * Shared Hinge-style profile helpers (Home + Matches + user-profile).
  */
-import { formatDrinkingLabel, formatIntentLabel, formatSmokingLabel } from './labels';
+import type { ComponentProps } from 'react';
+import type { Ionicons } from '@expo/vector-icons';
+import {
+  formatAvailabilityLabel,
+  formatDrinkingLabel,
+  formatIntentLabel,
+  formatSmokingLabel,
+} from './labels';
+
+export type ChipIcon = ComponentProps<typeof Ionicons>['name'];
+
+/** `formatXLabel()` helpers embed an emoji glyph for text-line contexts (chat, matches);
+ * chips render their own vector icon instead, so strip the glyph + leading space here. */
+function stripLeadingEmoji(s: string): string {
+  return s.replace(/^\p{Extended_Pictographic}️?\s*/u, '');
+}
 
 export type HingeProfilePerson = {
   first_name: string | null;
@@ -37,8 +52,8 @@ export type HingeProfilePerson = {
   photoUrls: string[];
 };
 
-/** Bir "About me" / interest chip'i: ikon (emoji) + etiket. */
-export type ProfileChip = { key: string; label: string };
+/** Bir "About me" / interest chip'i: vektör ikon + etiket (Bumble tarzı, emoji DEĞİL). */
+export type ProfileChip = { key: string; icon: ChipIcon; label: string };
 
 export type CommonSelf = {
   hobbies: string[] | null | undefined;
@@ -127,44 +142,40 @@ function cap(s: string): string {
   return t.length ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 }
 
-const ZODIAC_EMOJI: Record<string, string> = {
-  aries: '♈', taurus: '♉', gemini: '♊', cancer: '♋', leo: '♌', virgo: '♍',
-  libra: '♎', scorpio: '♏', sagittarius: '♐', capricorn: '♑', aquarius: '♒', pisces: '♓',
-  koc: '♈', boga: '♉', ikizler: '♊', yengec: '♋', aslan: '♌', basak: '♍',
-  terazi: '♎', akrep: '♏', yay: '♐', oglak: '♑', kova: '♒', balik: '♓',
-};
-
 function zodiacChip(sign: string | null | undefined): ProfileChip | null {
   const v = sign?.trim();
   if (!v) return null;
-  return { key: 'zodiac', label: `${ZODIAC_EMOJI[normKey(v)] ?? '🔮'} ${cap(v)}` };
+  return { key: 'zodiac', icon: 'sparkles-outline', label: cap(v) };
 }
 
 function morningNightChip(value: string | null | undefined): ProfileChip | null {
   const v = value?.trim();
   if (!v) return null;
   const k = normKey(v);
-  if (k.includes('night')) return { key: 'mn', label: '🌙 Night owl' };
-  if (k.includes('morning')) return { key: 'mn', label: '🌅 Morning person' };
-  return { key: 'mn', label: `🌓 ${cap(v)}` };
+  if (k.includes('night')) return { key: 'mn', icon: 'moon-outline', label: 'Night owl' };
+  if (k.includes('morning')) return { key: 'mn', icon: 'sunny-outline', label: 'Morning person' };
+  return { key: 'mn', icon: 'partly-sunny-outline', label: cap(v) };
 }
 
-/** Bumble "About me" chip grid — yalnızca dolu alanlar (ikon + etiket). */
+/** Bumble "About me" chip grid — yalnızca dolu alanlar (vektör ikon + etiket). */
 export function buildAboutMeChips(person: HingeProfilePerson): ProfileChip[] {
   const chips: ProfileChip[] = [];
   const push = (c: ProfileChip | null) => {
     if (c) chips.push(c);
   };
-  if (person.gender?.trim()) push({ key: 'gender', label: `👤 ${cap(person.gender)}` });
+  if (person.gender?.trim())
+    push({ key: 'gender', icon: 'person-outline', label: cap(person.gender) });
   push(zodiacChip(person.zodiac_sign));
-  if (person.education?.trim()) push({ key: 'edu', label: `🎓 ${cap(person.education)}` });
+  if (person.education?.trim())
+    push({ key: 'edu', icon: 'school-outline', label: cap(person.education) });
   push(morningNightChip(person.morning_night));
   const drink = formatDrinkingLabel(person.drinking);
-  if (drink) push({ key: 'drink', label: drink });
+  if (drink) push({ key: 'drink', icon: 'wine-outline', label: stripLeadingEmoji(drink) });
   const smoke = formatSmokingLabel(person.smoking);
-  if (smoke) push({ key: 'smoke', label: smoke });
-  if (person.pets?.trim()) push({ key: 'pets', label: `🐾 ${cap(person.pets)}` });
-  if (person.religion?.trim()) push({ key: 'rel', label: `🕊️ ${cap(person.religion)}` });
+  if (smoke) push({ key: 'smoke', icon: 'cloud-outline', label: stripLeadingEmoji(smoke) });
+  if (person.pets?.trim()) push({ key: 'pets', icon: 'paw-outline', label: cap(person.pets) });
+  if (person.religion?.trim())
+    push({ key: 'rel', icon: 'book-outline', label: cap(person.religion) });
   return chips;
 }
 
@@ -172,10 +183,11 @@ export function buildAboutMeChips(person: HingeProfilePerson): ProfileChip[] {
 export function buildLookingForChips(person: HingeProfilePerson): ProfileChip[] {
   const chips: ProfileChip[] = [];
   const intent = formatIntentLabel(person.intent);
-  if (intent) chips.push({ key: 'intent', label: intent });
-  if (person.core_value?.trim()) chips.push({ key: 'core', label: `💎 ${cap(person.core_value)}` });
+  if (intent) chips.push({ key: 'intent', icon: 'search-outline', label: stripLeadingEmoji(intent) });
+  if (person.core_value?.trim())
+    chips.push({ key: 'core', icon: 'diamond-outline', label: cap(person.core_value) });
   if (person.impressed_by?.trim())
-    chips.push({ key: 'impr', label: `✨ ${cap(person.impressed_by)}` });
+    chips.push({ key: 'impr', icon: 'flash-outline', label: cap(person.impressed_by) });
   return chips;
 }
 
@@ -184,15 +196,49 @@ export function buildInterestChips(person: HingeProfilePerson): ProfileChip[] {
   const chips: ProfileChip[] = [];
   for (const h of person.hobbies ?? []) {
     const t = h?.trim();
-    if (t) chips.push({ key: `hobby-${t}`, label: `${hobbyEmoji(t)} ${cap(t)}` });
+    if (t) chips.push({ key: `hobby-${t}`, icon: hobbyIcon(t), label: cap(t) });
   }
   if (person.favorite_activity?.trim())
-    chips.push({ key: 'fav', label: `⭐ ${cap(person.favorite_activity)}` });
-  if (person.vibe?.trim()) chips.push({ key: 'vibe', label: `🌈 ${cap(person.vibe)}` });
+    chips.push({ key: 'fav', icon: 'star-outline', label: cap(person.favorite_activity) });
+  if (person.vibe?.trim())
+    chips.push({ key: 'vibe', icon: 'color-palette-outline', label: cap(person.vibe) });
   return chips;
 }
 
-const HOBBY_EMOJI: Record<string, string> = {
+/** Availability chip ("Free weekends" etc.) for the About-me grid. */
+export function buildAvailabilityChip(days: string[] | null | undefined): ProfileChip | null {
+  const label = formatAvailabilityLabel(days);
+  if (!label) return null;
+  return { key: 'avail', icon: 'calendar-outline', label: stripLeadingEmoji(label) };
+}
+
+/** Bumble "Languages" chip grid. */
+export function buildLanguageChips(languages: string[] | null | undefined): ProfileChip[] {
+  return (languages ?? [])
+    .map((l) => l?.trim())
+    .filter((l): l is string => !!l)
+    .map((l) => ({ key: `lang-${l}`, icon: 'chatbubble-outline' as ChipIcon, label: l }));
+}
+
+const HOBBY_ICON: Record<string, ChipIcon> = {
+  gaming: 'game-controller-outline',
+  reading: 'book-outline',
+  cooking: 'restaurant-outline',
+  fitness: 'barbell-outline',
+  travel: 'airplane-outline',
+};
+
+function hobbyIcon(hobby: string): ChipIcon {
+  const key = normKey(hobby);
+  for (const [k, icon] of Object.entries(HOBBY_ICON)) {
+    if (key.includes(k)) return icon;
+  }
+  return 'sparkles-outline';
+}
+
+// Inline sentence copy ("You both love hiking 🥾") — not a structural chip icon,
+// so an emoji here is a copy/tone choice, not the anti-pattern the chip grid fixed.
+const HOBBY_EMOJI_TEXT: Record<string, string> = {
   gaming: '🎮',
   reading: '📚',
   cooking: '🍳',
@@ -200,9 +246,9 @@ const HOBBY_EMOJI: Record<string, string> = {
   travel: '✈️',
 };
 
-function hobbyEmoji(hobby: string): string {
+function hobbyEmojiForText(hobby: string): string {
   const key = normKey(hobby);
-  for (const [k, emoji] of Object.entries(HOBBY_EMOJI)) {
+  for (const [k, emoji] of Object.entries(HOBBY_EMOJI_TEXT)) {
     if (key.includes(k)) return emoji;
   }
   return '✨';
@@ -246,7 +292,7 @@ export function strongestCommonLine(
   const myHobbyKeys = new Set(myHobbies.map(normKey));
   const sharedHobby = theirHobbies.find((h) => myHobbyKeys.has(normKey(h)));
   if (sharedHobby) {
-    return `You both love ${sharedHobby} ${hobbyEmoji(sharedHobby)}`;
+    return `You both love ${sharedHobby} ${hobbyEmojiForText(sharedHobby)}`;
   }
 
   const myDistrict = me?.district?.trim() ?? '';

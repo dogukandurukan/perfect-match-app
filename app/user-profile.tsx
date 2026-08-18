@@ -1,42 +1,29 @@
 // Screen: Kullanıcı profili (karşı taraf) | Status: stable | Last updated: Mayıs 2026
 import { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { ChipGrid, SectionCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { ErrorState } from '@/components/ErrorState';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import {
-  formatAvailabilityLabel,
-  formatDrinkingLabel,
-  formatIntentLabel,
-  formatSmokingLabel,
-} from '@/lib/labels';
+  buildAboutMeChips,
+  buildAvailabilityChip,
+  buildInterestChips,
+  buildLanguageChips,
+  buildLookingForChips,
+  type ChipIcon,
+  type HingeProfilePerson,
+  type ProfileChip,
+} from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
-const ZODIAC_EMOJI: Record<string, string> = {
-  Aries: '♈',
-  Taurus: '♉',
-  Gemini: '♊',
-  Cancer: '♋',
-  Leo: '♌',
-  Virgo: '♍',
-  Libra: '♎',
-  Scorpio: '♏',
-  Sagittarius: '♐',
-  Capricorn: '♑',
-  Aquarius: '♒',
-  Pisces: '♓',
-};
-
-function zodiacLabel(sign: string | null) {
-  if (!sign) return '';
-  return `${ZODIAC_EMOJI[sign] ?? ''} ${sign}`;
-}
 function safeAge(dob: string | null): number {
   if (!dob) return 0;
   const d = new Date(dob);
@@ -83,27 +70,17 @@ type UserProfile = {
   core_value: string | null;
   impressed_by: string | null;
   dealbreaker: string | null;
+  pets: string | null;
+  vibe: string | null;
+  photo_verified: boolean | null;
 };
 
-function SectionTitle({ title }: { title: string }) {
-  return <ThemedText style={styles.sectionTitle}>{title}</ThemedText>;
-}
-function InfoRow({ label, value }: { label: string; value: string }) {
+/** Tek satır ikon+cümle kart (dealbreaker gibi tek-değerli alanlar). */
+function IconNote({ icon, text }: { icon: ChipIcon; text: string }) {
   return (
-    <View style={styles.infoRow}>
-      <ThemedText style={styles.infoLabel}>{label}</ThemedText>
-      <ThemedText style={styles.infoValue}>{value}</ThemedText>
-    </View>
-  );
-}
-function ChipList({ items }: { items: string[] }) {
-  return (
-    <View style={styles.chipsRow}>
-      {items.map((item) => (
-        <View key={item} style={styles.chip}>
-          <ThemedText style={styles.chipText}>{item}</ThemedText>
-        </View>
-      ))}
+    <View style={styles.iconNote}>
+      <Ionicons name={icon} size={16} color={colors.textPrimary} />
+      <ThemedText style={styles.iconNoteText}>{text}</ThemedText>
     </View>
   );
 }
@@ -146,7 +123,7 @@ export default function UserProfileScreen() {
             education, religion, availability_days, availability_hours,
             meeting_environment, first_date_expectation, bio,
             favorite_music, favorite_movie, favorite_book, favorite_activity,
-            core_value, impressed_by, dealbreaker
+            core_value, impressed_by, dealbreaker, pets, vibe, photo_verified
           `,
           )
           .eq('id', userId)
@@ -275,6 +252,56 @@ export default function UserProfileScreen() {
 
   const age = safeAge(profile?.date_of_birth ?? null);
 
+  // Home'daki (HingeProfileCard) aynı ikonlu chip sistemi — burada da tekrar kullanılıyor.
+  const chipPerson: HingeProfilePerson = {
+    first_name: profile.first_name,
+    date_of_birth: profile.date_of_birth,
+    district: profile.district,
+    city: profile.city,
+    intent: profile.intent,
+    availability_days: profile.availability_days,
+    drinking: profile.drinking,
+    smoking: profile.smoking,
+    hobbies: profile.hobbies,
+    favorite_music: profile.favorite_music,
+    favorite_movie: profile.favorite_movie,
+    favorite_book: profile.favorite_book,
+    bio: profile.bio,
+    first_date_expectation: profile.first_date_expectation,
+    favorite_spots: null,
+    education: profile.education,
+    zodiac_sign: profile.zodiac_sign,
+    gender: profile.gender,
+    pets: profile.pets,
+    religion: profile.religion,
+    morning_night: profile.morning_night,
+    core_value: profile.core_value,
+    impressed_by: profile.impressed_by,
+    favorite_activity: profile.favorite_activity,
+    vibe: profile.vibe,
+    languages: profile.languages,
+    photo_verified: profile.photo_verified,
+    photoUrls,
+  };
+  const aboutMeChips: ProfileChip[] = [];
+  const availabilityChip = buildAvailabilityChip(profile.availability_days);
+  if (availabilityChip) aboutMeChips.push(availabilityChip);
+  aboutMeChips.push(...buildAboutMeChips(chipPerson));
+  const lookingForChips = buildLookingForChips(chipPerson);
+  const interestChips = buildInterestChips(chipPerson);
+  const languageChips = buildLanguageChips(profile.languages);
+  const favoriteChips: ProfileChip[] = [];
+  if (profile.favorite_music?.trim())
+    favoriteChips.push({ key: 'music', icon: 'musical-notes-outline', label: profile.favorite_music.trim() });
+  if (profile.favorite_movie?.trim())
+    favoriteChips.push({ key: 'movie', icon: 'film-outline', label: profile.favorite_movie.trim() });
+  if (profile.favorite_book?.trim())
+    favoriteChips.push({ key: 'book', icon: 'book-outline', label: profile.favorite_book.trim() });
+  const meetingChips: ProfileChip[] = (profile.meeting_environment ?? [])
+    .map((m) => m?.trim())
+    .filter((m): m is string => !!m)
+    .map((m) => ({ key: `meet-${m}`, icon: 'cafe-outline' as ChipIcon, label: m }));
+
   return (
     <ScreenContainer style={styles.container}>
       <HomeTopIcon />
@@ -295,15 +322,12 @@ export default function UserProfileScreen() {
           )}
         </View>
 
-        {/* İsim + burç + konum */}
+        {/* İsim + konum */}
         <View style={styles.headerWrap}>
           <ThemedText style={styles.name}>
             {profile?.first_name ?? ''} {profile?.last_name ?? ''}
             {age > 0 ? `, ${age}` : ''}
           </ThemedText>
-          {profile?.zodiac_sign ? (
-            <ThemedText style={styles.zodiac}>{zodiacLabel(profile.zodiac_sign)}</ThemedText>
-          ) : null}
           <ThemedText style={styles.location}>
             📍 {profile?.district ?? profile?.city ?? 'Unknown'}
           </ThemedText>
@@ -316,110 +340,54 @@ export default function UserProfileScreen() {
           </View>
         ) : null}
 
-        {/* About */}
-        <View style={styles.section}>
-          <SectionTitle title="👤 About" />
-          <View style={styles.card}>
-            {formatIntentLabel(profile?.intent ?? null) ? (
-              <InfoRow label="Looking for" value={formatIntentLabel(profile?.intent ?? null)!} />
-            ) : null}
-            {profile?.gender ? <InfoRow label="Gender" value={profile.gender} /> : null}
-            {profile?.education ? <InfoRow label="Education" value={profile.education} /> : null}
-            {profile?.religion ? <InfoRow label="Beliefs" value={profile.religion} /> : null}
-            {profile?.morning_night ? (
-              <InfoRow label="Schedule" value={profile.morning_night} />
-            ) : null}
-            {profile?.recharge_style ? (
-              <InfoRow label="Recharge" value={profile.recharge_style} />
-            ) : null}
-            {formatDrinkingLabel(profile?.drinking ?? null) ? (
-              <InfoRow label="Drinking" value={formatDrinkingLabel(profile?.drinking ?? null)!} />
-            ) : null}
-            {formatSmokingLabel(profile?.smoking ?? null) ? (
-              <InfoRow label="Smoking" value={formatSmokingLabel(profile?.smoking ?? null)!} />
-            ) : null}
-          </View>
-        </View>
-
-        {/* Languages */}
-        {profile?.languages && profile.languages.length > 0 ? (
-          <View style={styles.section}>
-            <SectionTitle title="🌍 Languages" />
-            <ChipList items={profile.languages} />
-          </View>
+        {aboutMeChips.length > 0 ? (
+          <SectionCard title="About me">
+            <ChipGrid chips={aboutMeChips} />
+          </SectionCard>
         ) : null}
 
-        {/* Interests */}
-        {profile?.hobbies && profile.hobbies.length > 0 ? (
-          <View style={styles.section}>
-            <SectionTitle title="🎯 Interests" />
-            <ChipList items={profile.hobbies} />
-          </View>
+        {lookingForChips.length > 0 ? (
+          <SectionCard title="I'm looking for">
+            <ChipGrid chips={lookingForChips} />
+          </SectionCard>
         ) : null}
 
-        {/* Favorites */}
-        {profile?.favorite_music || profile?.favorite_movie || profile?.favorite_book ? (
-          <View style={styles.section}>
-            <SectionTitle title="🎯 Favorites" />
-            <View style={styles.card}>
-              {profile?.favorite_music ? (
-                <InfoRow label="🎵 Music" value={profile.favorite_music} />
-              ) : null}
-              {profile?.favorite_movie ? (
-                <InfoRow label="🎬 Movies & shows" value={profile.favorite_movie} />
-              ) : null}
-              {profile?.favorite_book ? (
-                <InfoRow label="📚 Books" value={profile.favorite_book} />
-              ) : null}
-              {profile?.favorite_activity ? (
-                <InfoRow label="🏃 Activities" value={profile.favorite_activity} />
-              ) : null}
-            </View>
-          </View>
+        {interestChips.length > 0 ? (
+          <SectionCard title="My interests">
+            <ChipGrid chips={interestChips} />
+          </SectionCard>
         ) : null}
 
-        {/* Values */}
-        {profile?.core_value || profile?.impressed_by || profile?.dealbreaker ? (
-          <View style={styles.section}>
-            <SectionTitle title="💬 Values" />
-            <View style={styles.card}>
-              {profile?.core_value ? (
-                <InfoRow label="🙏 What matters" value={profile.core_value} />
-              ) : null}
-              {profile?.impressed_by ? (
-                <InfoRow label="💡 Impressed by" value={profile.impressed_by} />
-              ) : null}
-              {profile?.dealbreaker ? (
-                <InfoRow label="🚩 Dealbreaker" value={profile.dealbreaker} />
-              ) : null}
-            </View>
-          </View>
+        {languageChips.length > 0 ? (
+          <SectionCard title="Languages">
+            <ChipGrid chips={languageChips} />
+          </SectionCard>
         ) : null}
 
-        {/* Meeting vibe */}
-        {profile?.meeting_environment && profile.meeting_environment.length > 0 ? (
-          <View style={styles.section}>
-            <SectionTitle title="☕ Meeting vibe" />
-            <ChipList items={profile.meeting_environment} />
-          </View>
+        {favoriteChips.length > 0 ? (
+          <SectionCard title="Favorites">
+            <ChipGrid chips={favoriteChips} />
+          </SectionCard>
         ) : null}
 
-        {/* Availability */}
-        {formatAvailabilityLabel(profile?.availability_days ?? null) ? (
-          <View style={styles.section}>
-            <SectionTitle title="📅 Availability" />
-            <ChipList items={[formatAvailabilityLabel(profile?.availability_days ?? null)!]} />
-          </View>
+        {meetingChips.length > 0 ? (
+          <SectionCard title="Meeting vibe">
+            <ChipGrid chips={meetingChips} />
+          </SectionCard>
         ) : null}
 
-        {/* First date */}
+        {profile?.dealbreaker?.trim() ? (
+          <SectionCard title="Dealbreaker">
+            <IconNote icon="flag-outline" text={profile.dealbreaker.trim()} />
+          </SectionCard>
+        ) : null}
+
         {profile?.first_date_expectation ? (
-          <View style={styles.section}>
-            <SectionTitle title="💬 First meeting" />
+          <SectionCard title="First meeting">
             <View style={styles.bioWrap}>
               <ThemedText style={styles.bioText}>{profile.first_date_expectation}</ThemedText>
             </View>
-          </View>
+          </SectionCard>
         ) : null}
       </ScrollView>
 
@@ -437,17 +405,23 @@ export default function UserProfileScreen() {
                   },
                 })
               }>
-              <ThemedText style={styles.messageBtnText}>💬 Send message</ThemedText>
+              <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
+              <ThemedText style={styles.messageBtnText}>Send message</ThemedText>
             </TouchableOpacity>
           ) : (
-            <ThemedText style={styles.pendingText}>⏳ Invite sent</ThemedText>
+            <View style={styles.pendingRow}>
+              <Ionicons name="time-outline" size={15} color={colors.textMuted} />
+              <ThemedText style={styles.pendingText}>Invite sent</ThemedText>
+            </View>
           )}
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.reportBtn} onPress={() => setReportModalVisible(true)}>
-              <ThemedText style={styles.reportBtnText}>⚠️ Report</ThemedText>
+              <Ionicons name="warning-outline" size={15} color={colors.textPrimary} />
+              <ThemedText style={styles.reportBtnText}>Report</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity style={styles.blockBtn} onPress={handleBlock}>
-              <ThemedText style={styles.blockBtnText}>🚫 Block</ThemedText>
+              <Ionicons name="ban-outline" size={15} color="#C0392B" />
+              <ThemedText style={styles.blockBtnText}>Block</ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -518,7 +492,6 @@ const styles = StyleSheet.create({
 
   headerWrap: { alignItems: 'center', gap: 4 },
   name: { fontSize: 24, fontWeight: '700', color: colors.textPrimary },
-  zodiac: { fontSize: 14, color: colors.accent, fontWeight: '500' },
   location: { fontSize: 14, color: '#888' },
 
   bioWrap: {
@@ -530,65 +503,30 @@ const styles = StyleSheet.create({
   },
   bioText: { fontSize: 15, color: colors.textPrimary, lineHeight: 22 },
 
-  section: { gap: 8 },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.accent,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-
-  card: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    overflow: 'hidden',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E8E8E8',
-  },
-  infoLabel: { fontSize: 14, color: '#888' },
-  infoValue: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    fontWeight: '500',
-    maxWidth: '60%',
-    textAlign: 'right',
-  },
-
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    backgroundColor: '#FFF8E1',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  chipText: { color: colors.accent, fontSize: 13, fontWeight: '500' },
+  iconNote: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconNoteText: { fontSize: 14, color: colors.textPrimary, flexShrink: 1 },
 
   actionsWrap: {
     gap: 8,
     paddingTop: 8,
     paddingBottom: 32,
   },
-  pendingText: {
-    textAlign: 'center',
-    color: '#888',
-    fontSize: 14,
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     paddingVertical: 12,
   },
+  pendingText: { color: '#888', fontSize: 14 },
   messageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     backgroundColor: colors.accent,
     borderRadius: 12,
     paddingVertical: 14,
-    alignItems: 'center',
   },
   messageBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
   actionRow: {
@@ -598,22 +536,28 @@ const styles = StyleSheet.create({
   },
   reportBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     borderWidth: 1,
     borderColor: '#E8A000',
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: 'center',
   },
-  reportBtnText: { color: '#E8A000', fontWeight: '600', fontSize: 14 },
+  reportBtnText: { color: colors.textPrimary, fontWeight: '600', fontSize: 14 },
   blockBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     borderWidth: 1,
     borderColor: '#E05555',
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: 'center',
   },
-  blockBtnText: { color: '#E05555', fontWeight: '600', fontSize: 14 },
+  blockBtnText: { color: '#C0392B', fontWeight: '600', fontSize: 14 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

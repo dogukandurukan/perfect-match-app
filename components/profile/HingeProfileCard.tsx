@@ -8,7 +8,9 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/lib/designTokens';
 import {
   buildAboutMeChips,
+  buildAvailabilityChip,
   buildInterestChips,
+  buildLanguageChips,
   buildLookingForChips,
   buildPromptCards,
   formatFeedLocation,
@@ -17,7 +19,7 @@ import {
   type ProfileChip,
   type PromptCard,
 } from '@/lib/hingeProfile';
-import { formatAvailabilityLabel, formatIntentLabel } from '@/lib/labels';
+import { formatIntentLabel } from '@/lib/labels';
 
 const ACCENT = '#B8860B';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -33,7 +35,7 @@ function InfoLine({ icon, text }: { icon?: string; text: string }) {
 }
 
 /** Bumble bölüm kartı — kalın başlık + içerik. */
-function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+export function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View style={styles.sectionCard}>
       <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
@@ -42,12 +44,13 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
   );
 }
 
-/** İkon+etiket chip grid'i (About me / Looking for / Interests). */
-function ChipGrid({ chips }: { chips: ProfileChip[] }) {
+/** İkon+etiket chip grid'i (About me / Looking for / Interests / Languages) — Bumble tarzı. */
+export function ChipGrid({ chips }: { chips: ProfileChip[] }) {
   return (
     <View style={styles.chipRow}>
       {chips.map((c) => (
         <View key={c.key} style={styles.aboutChip}>
+          <Ionicons name={c.icon} size={14} color={colors.textPrimary} />
           <ThemedText style={styles.aboutChipText}>{c.label}</ThemedText>
         </View>
       ))}
@@ -126,12 +129,12 @@ export function HingeProfileCard({
 }: HingeProfileCardProps) {
   const prompts = buildPromptCards(person);
   const intentLabel = formatIntentLabel(person.intent);
-  const availabilityLabel = formatAvailabilityLabel(person.availability_days);
   const locationLabel = formatFeedLocation(person.district, person.city, viewerCity);
 
   // Bumble bölümleri (yalnızca dolu alanlar).
   const aboutMeChips: ProfileChip[] = [];
-  if (availabilityLabel) aboutMeChips.push({ key: 'avail', label: availabilityLabel });
+  const availabilityChip = buildAvailabilityChip(person.availability_days);
+  if (availabilityChip) aboutMeChips.push(availabilityChip);
   aboutMeChips.push(...buildAboutMeChips(person));
   const lookingForChips = buildLookingForChips(person);
   const interestChips = buildInterestChips(person);
@@ -276,7 +279,7 @@ export function HingeProfileCard({
 
       {languages.length > 0 ? (
         <SectionCard title="Languages">
-          <ChipGrid chips={languages.map((l) => ({ key: `lang-${l}`, label: `💬 ${l}` }))} />
+          <ChipGrid chips={buildLanguageChips(languages)} />
         </SectionCard>
       ) : null}
 
@@ -338,6 +341,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
   aboutChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#F2EFE7',
     borderRadius: 20,
     paddingHorizontal: 13,
