@@ -34,6 +34,12 @@ type NotificationRow = {
   related_user_id: string | null;
   created_at: string;
   relatedName: string | null;
+  // Client-only, set right when the user acts (accept/decline/pick time) so a
+  // handled featured card demotes into the feed as a small trace of what
+  // happened, instead of just vanishing — otherwise Buzz goes straight back
+  // to "just the likes box" the moment you use it. Not persisted; a fresh
+  // fetch falls back to the generic per-type copy in feedRowText.
+  resolvedSummary?: string;
 };
 
 // A single row from the `get_my_likers` RPC. Non-premium callers get every
@@ -81,15 +87,23 @@ function typeIcon(type: NotificationType): IconSpec {
     case 'match_expiry':
     case 'expires_soon':
       return { name: 'hourglass', color: '#E08A00', bg: '#FCEFD6' };
+    // Demoted featured cards (handled invites) — still get a distinct icon
+    // once they land in the compact feed.
+    case 'new_invite':
+    case 'meeting_invite':
+    case 'invite_accepted':
+      return { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' };
     default:
       return { name: 'notifications', color: colors.textMuted, bg: '#F0F0F0' };
   }
 }
 
-// Compact feed rows only handle non-like, non-featured types.
-function feedRowText(type: NotificationType, name: string | null): string {
-  const who = name?.trim() || 'Someone';
-  switch (type) {
+// Compact feed rows handle non-like items, plus already-handled (read)
+// featured items demoted here instead of vanishing (see NotificationRow.resolvedSummary).
+function feedRowText(item: NotificationRow): string {
+  if (item.resolvedSummary) return item.resolvedSummary;
+  const who = item.relatedName?.trim() || 'Someone';
+  switch (item.type) {
     case 'new_message':
     case 'message':
       return `${who} sent you a message`;
@@ -101,6 +115,13 @@ function feedRowText(type: NotificationType, name: string | null): string {
     case 'match_expiry':
     case 'expires_soon':
       return `Your match with ${who} expires soon`;
+    // Demoted featured cards without a fresh in-session summary (e.g. after
+    // reload) — generic fallback, still better than vanishing silently.
+    case 'new_invite':
+    case 'meeting_invite':
+      return `You responded to ${who}'s invite`;
+    case 'invite_accepted':
+      return `You're chatting with ${who}`;
     default:
       return 'New notification';
   }
@@ -582,7 +603,9 @@ export default function NotificationsScreen() {
   const { featured, feed } = useMemo(
     () => ({
       featured: items.filter((r) => isFeaturedType(r.type) && !r.is_read),
-      feed: items.filter((r) => !isLikeType(r.type) && !isFeaturedType(r.type)),
+      feed: items.filter(
+        (r) => !isLikeType(r.type) && (!isFeaturedType(r.type) || r.is_read),
+      ),
     }),
     [items],
   );
@@ -606,8 +629,16 @@ export default function NotificationsScreen() {
   async function handleRespond(item: NotificationRow, accept: boolean) {
     if (!item.related_user_id) return;
 
+    const who = item.relatedName?.trim() || 'them';
+
     if (!accept) {
-      setItems((prev) => prev.filter((n) => n.id !== item.id));
+      setItems((prev) =>
+        prev.map((n) =>
+          n.id === item.id
+            ? { ...n, is_read: true, resolvedSummary: `You said not now to ${who}` }
+            : n,
+        ),
+      );
       await supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
       await emitUnreadNotificationCount();
       return;
@@ -658,7 +689,13 @@ export default function NotificationsScreen() {
       return;
     }
 
-    setItems((prev) => prev.filter((n) => n.id !== item.id));
+    setItems((prev) =>
+      prev.map((n) =>
+        n.id === item.id
+          ? { ...n, is_read: true, resolvedSummary: `You said yes to ${who}` }
+          : n,
+      ),
+    );
     await supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
     await emitUnreadNotificationCount();
 
@@ -704,7 +741,7 @@ export default function NotificationsScreen() {
           <Ionicons name={icon.name} size={18} color={icon.color} />
         </View>
         <View style={styles.rowContent}>
-          <ThemedText style={styles.rowText}>{feedRowText(item.type, item.relatedName)}</ThemedText>
+          <ThemedText style={styles.rowText}>{feedRowText(item)}</ThemedText>
           <ThemedText style={styles.rowTime}>{formatRelativeTime(item.created_at)}</ThemedText>
         </View>
         {!item.is_read ? <View style={styles.unreadDot} /> : null}
