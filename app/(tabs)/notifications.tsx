@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   StyleSheet,
   TouchableOpacity,
@@ -18,6 +19,7 @@ import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors, radius } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
+import { acceptMatchInvite } from '@/lib/matchInvite';
 import { emitUnreadNotificationCount } from '@/lib/unreadNotificationCount';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { supabase } from '@/lib/supabaseClient';
@@ -289,23 +291,31 @@ function BuzzActivationCard({
 }
 
 // --- Featured high-signal event (said yes / wants to meet) -------------------
+// "Wants to meet" gets inline Accept/Not now — no detour through Matches to
+// answer yes/no (that's the whole point of surfacing it here). "Said yes"
+// still routes to chat via the single CTA — that flow is unchanged today.
 function FeaturedCard({
   item,
   photoUrl,
   onPress,
+  onAccept,
+  onDecline,
+  responding,
 }: {
   item: NotificationRow;
   photoUrl: string | null;
   onPress: () => void;
+  onAccept?: () => void;
+  onDecline?: () => void;
+  responding?: boolean;
 }) {
   const name = item.relatedName?.trim() || 'Someone';
   const accepted = item.type === 'invite_accepted';
   const title = accepted ? `${name} said yes` : `${name} wants to meet`;
-  const sub = accepted ? 'Pick a time to meet up' : 'Coffee invite — tap to respond';
+  const sub = accepted ? 'Pick a time to meet up' : 'Coffee invite';
   const badge: IconSpec = accepted
     ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
     : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
-  const cta = accepted ? 'Pick time' : 'Respond';
 
   return (
     <TouchableOpacity
@@ -332,9 +342,34 @@ function FeaturedCard({
         <ThemedText style={styles.featuredSub}>{sub}</ThemedText>
       </View>
 
-      <View style={[styles.featuredCta, accepted && styles.featuredCtaAccepted]}>
-        <ThemedText style={styles.featuredCtaText}>{cta}</ThemedText>
-      </View>
+      {accepted ? (
+        <View style={[styles.featuredCta, styles.featuredCtaAccepted]}>
+          <ThemedText style={styles.featuredCtaText}>Pick time</ThemedText>
+        </View>
+      ) : responding ? (
+        <ActivityIndicator size="small" color={colors.accent} />
+      ) : (
+        <View style={styles.respondRow}>
+          <TouchableOpacity
+            style={styles.respondDecline}
+            onPress={onDecline}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`Not now, ${name}`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.respondAccept}
+            onPress={onAccept}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Accept ${name}'s invite`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -346,6 +381,7 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
 
   // Buzz Faz B: real "who likes you" teaser, sourced from `get_my_likers` —
   // gated server-side, not derived from `notifications`. Fetch failures here
@@ -540,9 +576,12 @@ export default function NotificationsScreen() {
   );
 
   // Derived zones — recompute on items change (read-state edits included).
+  // Featured excludes already-read items: once acted on (accept/decline) or
+  // even just opened, it shouldn't keep reappearing at the top every time you
+  // come back to Buzz — that was the "same card keeps coming back" bug.
   const { featured, feed } = useMemo(
     () => ({
-      featured: items.filter((r) => isFeaturedType(r.type)),
+      featured: items.filter((r) => isFeaturedType(r.type) && !r.is_read),
       feed: items.filter((r) => !isLikeType(r.type) && !isFeaturedType(r.type)),
     }),
     [items],
@@ -557,6 +596,83 @@ export default function NotificationsScreen() {
       await emitUnreadNotificationCount();
     }
     router.push(routeForType(item) as never);
+  }
+
+  // Inline Accept/Not now on the "wants to meet" featured card — no detour
+  // through Matches to answer yes/no. Mirrors matches.tsx's handleAccept
+  // (acceptMatchInvite) and handleMaybeLater (local dismiss, no DB write —
+  // matches.tsx doesn't persist a hard decline for incoming invites either,
+  // so this stays consistent with that existing behavior).
+  async function handleRespond(item: NotificationRow, accept: boolean) {
+    if (!item.related_user_id) return;
+
+    if (!accept) {
+      setItems((prev) => prev.filter((n) => n.id !== item.id));
+      await supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
+      await emitUnreadNotificationCount();
+      return;
+    }
+
+    setRespondingId(item.id);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setRespondingId(null);
+      return;
+    }
+
+    const otherId = item.related_user_id;
+    const [{ data: match }, { data: genderRows }] = await Promise.all([
+      supabase
+        .from('matches')
+        .select('id, invited_by, chat_opened, user_a_id, user_b_id')
+        .or(
+          `and(user_a_id.eq.${user.id},user_b_id.eq.${otherId}),` +
+            `and(user_a_id.eq.${otherId},user_b_id.eq.${user.id})`,
+        )
+        .eq('status', 'pending')
+        .maybeSingle(),
+      supabase.from('profiles').select('id, gender').in('id', [user.id, otherId]),
+    ]);
+
+    if (!match) {
+      setRespondingId(null);
+      Alert.alert('Invite not found', 'This invite may have expired.');
+      return;
+    }
+
+    const myGender = genderRows?.find((p) => p.id === user.id)?.gender ?? null;
+    const otherGender = genderRows?.find((p) => p.id === otherId)?.gender ?? null;
+
+    const result = await acceptMatchInvite({
+      matchId: match.id,
+      currentUserId: user.id,
+      currentUserGender: myGender,
+      otherUserGender: otherGender,
+    });
+    setRespondingId(null);
+
+    if (!result.ok) {
+      Alert.alert('Could not accept', result.error ?? 'Something went wrong.');
+      return;
+    }
+
+    setItems((prev) => prev.filter((n) => n.id !== item.id));
+    await supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
+    await emitUnreadNotificationCount();
+
+    if (result.chatOpened) {
+      router.push({
+        pathname: '/chat',
+        params: { userId: otherId, userName: item.relatedName ?? '', matchId: match.id },
+      } as never);
+    } else {
+      // Accepted, but the chat doesn't open on this side yet (gender-pair rule
+      // in shouldOpenChatOnAccept) — say so, otherwise the tap feels like it did
+      // nothing.
+      Alert.alert('Invite accepted', "You're in — the chat will open once it's their turn.");
+    }
   }
 
   async function handleMarkAllRead() {
@@ -607,6 +723,9 @@ export default function NotificationsScreen() {
           item={item}
           photoUrl={item.related_user_id ? (photoById[item.related_user_id] ?? null) : null}
           onPress={() => void handlePress(item)}
+          onAccept={() => void handleRespond(item, true)}
+          onDecline={() => void handleRespond(item, false)}
+          responding={respondingId === item.id}
         />
       ))}
       {featured.length > 0 && feed.length > 0 ? (
@@ -728,6 +847,7 @@ const styles = StyleSheet.create({
   },
   likeTile: {
     flex: 1,
+    maxWidth: 110,
     aspectRatio: 0.9,
     borderRadius: 12,
     overflow: 'hidden',
@@ -842,6 +962,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  respondRow: { flexDirection: 'row', gap: 8 },
+  respondDecline: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F0F0',
+  },
+  respondAccept: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2E9E5B',
   },
 
   // --- Compact feed row ---
