@@ -7,7 +7,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
+  SectionList,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -101,6 +101,23 @@ function typeIcon(type: NotificationType): IconSpec {
 
 // Compact feed rows handle non-like items, plus already-handled (read)
 // featured items demoted here instead of vanishing (see NotificationRow.resolvedSummary).
+// Instagram-style date grouping for the compact feed (CLAUDE.md §4 —
+// "activity history" visual pass; the data-layer half, pulling in `likes`
+// sent, is a separate follow-up).
+const DATE_BUCKET_ORDER = ['Today', 'Yesterday', 'This week', 'Earlier'] as const;
+
+function dateBucketLabel(iso: string): (typeof DATE_BUCKET_ORDER)[number] {
+  const d = new Date(iso);
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor(
+    (startOfDay(new Date()).getTime() - startOfDay(d).getTime()) / 86_400_000,
+  );
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays <= 6) return 'This week';
+  return 'Earlier';
+}
+
 function feedRowText(
   item: NotificationRow,
   place?: string,
@@ -844,6 +861,22 @@ export default function NotificationsScreen() {
     [items],
   );
 
+  // `feed` is already sorted newest-first (from the fetch), so each bucket
+  // stays chronologically ordered just by pushing in iteration order.
+  const feedSections = useMemo(() => {
+    const buckets = new Map<string, NotificationRow[]>();
+    for (const item of feed) {
+      const label = dateBucketLabel(item.created_at);
+      const bucket = buckets.get(label);
+      if (bucket) bucket.push(item);
+      else buckets.set(label, [item]);
+    }
+    return DATE_BUCKET_ORDER.filter((label) => buckets.has(label)).map((label) => ({
+      title: label,
+      data: buckets.get(label)!,
+    }));
+  }, [feed]);
+
   async function handlePress(item: NotificationRow) {
     // "wants to meet" needs an explicit ✕/✓ decision — tapping the card body
     // (avatar/title, to glance at Matches for more context) shouldn't mark it
@@ -1028,9 +1061,6 @@ export default function NotificationsScreen() {
           responding={respondingId === item.id}
         />
       ))}
-      {featured.length > 0 && feed.length > 0 ? (
-        <ThemedText style={styles.sectionLabel}>Earlier</ThemedText>
-      ) : null}
     </View>
   );
 
@@ -1074,14 +1104,18 @@ export default function NotificationsScreen() {
           onGoHome={() => router.push('/(tabs)' as never)}
         />
       ) : (
-        <FlatList
-          data={feed}
+        <SectionList
+          sections={feedSections}
           keyExtractor={(item) => item.id}
           renderItem={renderFeedRow}
+          renderSectionHeader={({ section }) => (
+            <ThemedText style={styles.sectionLabel}>{section.title}</ThemedText>
+          )}
           ListHeaderComponent={ListHeader}
           ListFooterComponent={ListFooter}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
         />
       )}
     </ScreenContainer>
@@ -1116,7 +1150,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginTop: 6,
+    marginTop: 14,
     marginBottom: 8,
   },
 
