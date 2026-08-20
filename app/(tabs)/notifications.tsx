@@ -88,12 +88,14 @@ function typeIcon(type: NotificationType): IconSpec {
     case 'match_expiry':
     case 'expires_soon':
       return { name: 'hourglass', color: '#E08A00', bg: '#FCEFD6' };
-    // Demoted featured cards (handled invites) — still get a distinct icon
-    // once they land in the compact feed.
+    // "Your activity" rows (demoted invites, likes sent) — one warm
+    // accent-gold tone shared across both, distinguished by icon shape only,
+    // instead of a mismatched green/red pair.
     case 'new_invite':
     case 'meeting_invite':
-    case 'invite_accepted':
-      return { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' };
+      return { name: 'checkmark-circle-outline', color: colors.accent, bg: '#FBF3DF' };
+    case 'like_sent':
+      return { name: 'heart-outline', color: colors.accent, bg: '#FBF3DF' };
     default:
       return { name: 'notifications', color: colors.textMuted, bg: '#F0F0F0' };
   }
@@ -122,8 +124,10 @@ function feedRowText(
   item: NotificationRow,
   place?: string,
   confirmedSlot?: string,
+  confirmedPlace?: string,
 ): string {
   const who = item.relatedName?.trim() || 'Someone';
+  const effectivePlace = confirmedPlace || place;
 
   // Live, just-acted-on summary ("You said yes to X — Saturday morning") —
   // already complete, don't also append place/time again below it (that was
@@ -143,14 +147,18 @@ function feedRowText(
     case 'expires_soon':
       return `Your match with ${who} expires soon`;
     // Demoted featured cards without a fresh in-session summary (e.g. after
-    // reload) — rebuilt from persisted data (matches.confirmed_slot), not
-    // just the raw place, so a reload doesn't lose what was actually decided.
+    // reload) — rebuilt from persisted data (matches.confirmed_slot/_place),
+    // not just the raw proposal, so a reload doesn't lose what was decided.
     case 'new_invite':
     case 'meeting_invite':
-      if (confirmedSlot) return `You said yes to ${who} — ${confirmedSlot}`;
-      return place ? `You responded to ${who}'s invite — ${place}` : `You responded to ${who}'s invite`;
-    case 'invite_accepted':
-      return confirmedSlot ? `You're chatting with ${who} — ${confirmedSlot}` : `You're chatting with ${who}`;
+      if (confirmedSlot) {
+        return effectivePlace
+          ? `You said yes to ${who} — ${confirmedSlot} at ${effectivePlace}`
+          : `You said yes to ${who} — ${confirmedSlot}`;
+      }
+      return effectivePlace
+        ? `You responded to ${who}'s invite — ${effectivePlace}`
+        : `You responded to ${who}'s invite`;
     default:
       return 'New notification';
   }
@@ -653,6 +661,76 @@ export default function NotificationsScreen() {
     setLikers(resolved);
   }, []);
 
+  // Activity history data layer (CLAUDE.md §4) — likes I've sent, folded into
+  // the same compact feed/date-bucketing as notifications. Synthetic rows,
+  // always "read" (past-tense activity, nothing to act on), never featured.
+  const [likesSentRows, setLikesSentRows] = useState<NotificationRow[]>([]);
+
+  const fetchLikesSent = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setLikesSentRows([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('likes')
+      .select('id, likee_id, target_type, created_at')
+      .eq('liker_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error || !data || data.length === 0) {
+      if (error) console.warn('fetchLikesSent failed', error.message);
+      setLikesSentRows([]);
+      return;
+    }
+
+    const likeeIds = [
+      ...new Set(
+        data
+          .map((row) => row.likee_id)
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    ];
+    const nameById = new Map<string, string>();
+    if (likeeIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name')
+        .in('id', likeeIds);
+      for (const p of profiles ?? []) {
+        if (typeof p.id === 'string' && typeof p.first_name === 'string') {
+          nameById.set(p.id, p.first_name);
+        }
+      }
+    }
+
+    const rows: NotificationRow[] = data.map((row) => {
+      const likeeId = typeof row.likee_id === 'string' ? row.likee_id : null;
+      const who = (likeeId ? nameById.get(likeeId) : null)?.trim() || 'Someone';
+      const summary =
+        row.target_type === 'photo'
+          ? `You liked ${who}'s photo`
+          : row.target_type === 'prompt'
+            ? `You liked ${who}'s answer`
+            : `You liked ${who}`;
+      return {
+        id: `like-${row.id}`,
+        type: 'like_sent',
+        text: '',
+        is_read: true,
+        related_user_id: likeeId,
+        created_at: String(row.created_at),
+        relatedName: likeeId ? (nameById.get(likeeId) ?? null) : null,
+        resolvedSummary: summary,
+      };
+    });
+    setLikesSentRows(rows);
+  }, []);
+
   // UI-3: activation checklist for the 0-activity empty state. Cheap (one
   // profiles row + one count query) so it's fetched every focus alongside the
   // rest — no separate gating on emptiness.
@@ -844,25 +922,37 @@ export default function NotificationsScreen() {
       void fetchNotifications();
       void fetchLikers();
       void fetchChecklist();
-    }, [fetchNotifications, fetchLikers, fetchChecklist]),
+      void fetchLikesSent();
+    }, [fetchNotifications, fetchLikers, fetchChecklist, fetchLikesSent]),
   );
 
   // Derived zones — recompute on items change (read-state edits included).
   // Featured excludes already-read items: once acted on (accept/decline) or
   // even just opened, it shouldn't keep reappearing at the top every time you
   // come back to Buzz — that was the "same card keeps coming back" bug.
-  const { featured, feed } = useMemo(
-    () => ({
+  const { featured, feed } = useMemo(() => {
+    // `invite_accepted` never demotes into feed — once you've tapped "Pick
+    // time"/"Open chat" there's nothing left to say about it here (that
+    // thread now lives in Chats); user feedback confirmed it wasn't wanted.
+    const notificationFeed = items.filter(
+      (r) =>
+        !isLikeType(r.type) &&
+        r.type !== 'invite_accepted' &&
+        (!isFeaturedType(r.type) || r.is_read),
+    );
+    // likesSentRows are synthetic (never featured, always "read") — merge
+    // straight into feed and re-sort since they come from a separate fetch.
+    const merged = [...notificationFeed, ...likesSentRows].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+    return {
       featured: items.filter((r) => isFeaturedType(r.type) && !r.is_read),
-      feed: items.filter(
-        (r) => !isLikeType(r.type) && (!isFeaturedType(r.type) || r.is_read),
-      ),
-    }),
-    [items],
-  );
+      feed: merged,
+    };
+  }, [items, likesSentRows]);
 
-  // `feed` is already sorted newest-first (from the fetch), so each bucket
-  // stays chronologically ordered just by pushing in iteration order.
+  // `feed` is already sorted newest-first, so each bucket stays
+  // chronologically ordered just by pushing in iteration order.
   const feedSections = useMemo(() => {
     const buckets = new Map<string, NotificationRow[]>();
     for (const item of feed) {
@@ -972,16 +1062,14 @@ export default function NotificationsScreen() {
       await supabase.from('matches').update(patch).eq('id', match.id);
     }
 
+    const effectivePlace = place || (item.related_user_id ? introLinesById[item.related_user_id]?.[0] : undefined);
+    const summary = !slot
+      ? `You said yes to ${who}`
+      : effectivePlace
+        ? `You said yes to ${who} — ${slot} at ${effectivePlace}`
+        : `You said yes to ${who} — ${slot}`;
     setItems((prev) =>
-      prev.map((n) =>
-        n.id === item.id
-          ? {
-              ...n,
-              is_read: true,
-              resolvedSummary: slot ? `You said yes to ${who} — ${slot}` : `You said yes to ${who}`,
-            }
-          : n,
-      ),
+      prev.map((n) => (n.id === item.id ? { ...n, is_read: true, resolvedSummary: summary } : n)),
     );
     await supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
     await emitUnreadNotificationCount();
@@ -1033,6 +1121,7 @@ export default function NotificationsScreen() {
               item,
               item.related_user_id ? introLinesById[item.related_user_id]?.[0] : undefined,
               item.related_user_id ? confirmedSlotById[item.related_user_id] : undefined,
+              item.related_user_id ? confirmedPlaceById[item.related_user_id] : undefined,
             )}
           </ThemedText>
           <ThemedText style={styles.rowTime}>{formatRelativeTime(item.created_at)}</ThemedText>
@@ -1097,7 +1186,7 @@ export default function NotificationsScreen() {
         <ActivityIndicator color={colors.accent} style={styles.loader} />
       ) : error ? (
         <ErrorState onRetry={() => void fetchNotifications()} />
-      ) : items.length === 0 && likeCount === 0 ? (
+      ) : items.length === 0 && likeCount === 0 && likesSentRows.length === 0 ? (
         <BuzzActivationCard
           checklist={checklist}
           onGoProfile={() => router.push('/(tabs)/profile' as never)}
