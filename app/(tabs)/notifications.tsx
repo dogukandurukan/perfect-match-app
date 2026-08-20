@@ -19,7 +19,7 @@ import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors, radius } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
-import { acceptMatchInvite } from '@/lib/matchInvite';
+import { acceptMatchInvite, formatIntroLines, introAnswersForUser } from '@/lib/matchInvite';
 import { emitUnreadNotificationCount } from '@/lib/unreadNotificationCount';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { supabase } from '@/lib/supabaseClient';
@@ -100,9 +100,15 @@ function typeIcon(type: NotificationType): IconSpec {
 
 // Compact feed rows handle non-like items, plus already-handled (read)
 // featured items demoted here instead of vanishing (see NotificationRow.resolvedSummary).
-function feedRowText(item: NotificationRow): string {
-  if (item.resolvedSummary) return item.resolvedSummary;
+function feedRowText(item: NotificationRow, introLines?: string[]): string {
   const who = item.relatedName?.trim() || 'Someone';
+  // Compact row — place only, not the full place+3-slots list (that's what
+  // the big featured card is for; cramming all of it here reads as a wall
+  // of text instead of a short row).
+  const detail = introLines && introLines.length > 0 ? ` — ${introLines[0]}` : '';
+
+  if (item.resolvedSummary) return `${item.resolvedSummary}${detail}`;
+
   switch (item.type) {
     case 'new_message':
     case 'message':
@@ -116,10 +122,11 @@ function feedRowText(item: NotificationRow): string {
     case 'expires_soon':
       return `Your match with ${who} expires soon`;
     // Demoted featured cards without a fresh in-session summary (e.g. after
-    // reload) — generic fallback, still better than vanishing silently.
+    // reload) — generic fallback + place/time if we have it, still better
+    // than vanishing silently.
     case 'new_invite':
     case 'meeting_invite':
-      return `You responded to ${who}'s invite`;
+      return `You responded to ${who}'s invite${detail}`;
     case 'invite_accepted':
       return `You're chatting with ${who}`;
     default:
@@ -318,6 +325,7 @@ function BuzzActivationCard({
 function FeaturedCard({
   item,
   photoUrl,
+  introLines,
   onPress,
   onAccept,
   onDecline,
@@ -325,6 +333,7 @@ function FeaturedCard({
 }: {
   item: NotificationRow;
   photoUrl: string | null;
+  introLines?: string[];
   onPress: () => void;
   onAccept?: () => void;
   onDecline?: () => void;
@@ -338,6 +347,9 @@ function FeaturedCard({
     ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
     : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
 
+  const place = introLines?.[0];
+  const times = introLines && introLines.length > 1 ? introLines.slice(1) : [];
+
   return (
     <TouchableOpacity
       style={[styles.featured, !item.is_read && styles.featuredUnread]}
@@ -345,52 +357,73 @@ function FeaturedCard({
       activeOpacity={0.9}
       accessibilityRole="button"
       accessibilityLabel={`${title}. ${sub}`}>
-      <View style={styles.featuredAvatarWrap}>
-        {photoUrl ? (
-          <Image source={{ uri: photoUrl }} style={styles.featuredAvatar} contentFit="cover" transition={150} />
+      <View style={styles.featuredMainRow}>
+        <View style={styles.featuredAvatarWrap}>
+          {photoUrl ? (
+            <Image source={{ uri: photoUrl }} style={styles.featuredAvatar} contentFit="cover" transition={150} />
+          ) : (
+            <View style={[styles.featuredAvatar, styles.featuredAvatarFallback]}>
+              <ThemedText style={styles.featuredInitial}>{name.charAt(0).toUpperCase()}</ThemedText>
+            </View>
+          )}
+          <View style={[styles.featuredBadge, { backgroundColor: badge.bg }]}>
+            <Ionicons name={badge.name} size={14} color={badge.color} />
+          </View>
+        </View>
+
+        <View style={styles.featuredBody}>
+          <ThemedText style={styles.featuredTitle}>{title}</ThemedText>
+          <ThemedText style={styles.featuredSub}>{sub}</ThemedText>
+        </View>
+
+        {accepted ? (
+          <View style={[styles.featuredCta, styles.featuredCtaAccepted]}>
+            <ThemedText style={styles.featuredCtaText}>Pick time</ThemedText>
+          </View>
+        ) : responding ? (
+          <ActivityIndicator size="small" color={colors.accent} />
         ) : (
-          <View style={[styles.featuredAvatar, styles.featuredAvatarFallback]}>
-            <ThemedText style={styles.featuredInitial}>{name.charAt(0).toUpperCase()}</ThemedText>
+          <View style={styles.respondRow}>
+            <TouchableOpacity
+              style={styles.respondDecline}
+              onPress={onDecline}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Not now, ${name}`}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.respondAccept}
+              onPress={onAccept}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Accept ${name}'s invite`}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
         )}
-        <View style={[styles.featuredBadge, { backgroundColor: badge.bg }]}>
-          <Ionicons name={badge.name} size={14} color={badge.color} />
-        </View>
       </View>
 
-      <View style={styles.featuredBody}>
-        <ThemedText style={styles.featuredTitle}>{title}</ThemedText>
-        <ThemedText style={styles.featuredSub}>{sub}</ThemedText>
-      </View>
-
-      {accepted ? (
-        <View style={[styles.featuredCta, styles.featuredCtaAccepted]}>
-          <ThemedText style={styles.featuredCtaText}>Pick time</ThemedText>
+      {!accepted && place ? (
+        <View style={styles.featuredInfoBlock}>
+          <View style={styles.featuredInfoRow}>
+            <Ionicons name="location-outline" size={13} color={colors.accent} />
+            <ThemedText style={styles.featuredInfoText} numberOfLines={1}>
+              {place}
+            </ThemedText>
+          </View>
+          {times.length > 0 ? (
+            <View style={styles.featuredInfoRow}>
+              <Ionicons name="time-outline" size={13} color={colors.accent} />
+              <ThemedText style={styles.featuredInfoText} numberOfLines={2}>
+                {times.join('  ·  ')}
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
-      ) : responding ? (
-        <ActivityIndicator size="small" color={colors.accent} />
-      ) : (
-        <View style={styles.respondRow}>
-          <TouchableOpacity
-            style={styles.respondDecline}
-            onPress={onDecline}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={`Not now, ${name}`}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.respondAccept}
-            onPress={onAccept}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={`Accept ${name}'s invite`}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      )}
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -403,6 +436,10 @@ export default function NotificationsScreen() {
   const [error, setError] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  // Proposed place + time slots for pending "wants to meet" invites, keyed by
+  // the inviter's user id — so Accept/Decline isn't blind (Matches already
+  // shows this on the incoming-invite card, Buzz didn't).
+  const [introLinesById, setIntroLinesById] = useState<Record<string, string[]>>({});
 
   // Buzz Faz B: real "who likes you" teaser, sourced from `get_my_likers` —
   // gated server-side, not derived from `notifications`. Fetch failures here
@@ -584,6 +621,49 @@ export default function NotificationsScreen() {
     );
     setPhotoById(urlById);
 
+    // Proposed place/time — for "wants to meet" cards (featured or already
+    // demoted to feed) the OTHER person proposed it; for "said yes" rows I'm
+    // the one who proposed it originally. Covers read rows too, so demoted
+    // feed lines ("You're chatting with X") can show what was actually
+    // decided instead of a bare generic sentence.
+    const otherIds = [
+      ...new Set(
+        rows
+          .filter((r) => isFeaturedType(r.type))
+          .map((r) => r.related_user_id)
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    ];
+    if (otherIds.length > 0) {
+      const linesById: Record<string, string[]> = {};
+      await Promise.all(
+        otherIds.map(async (otherId) => {
+          const { data: match } = await supabase
+            .from('matches')
+            .select('user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers')
+            .or(
+              `and(user_a_id.eq.${user.id},user_b_id.eq.${otherId}),` +
+                `and(user_a_id.eq.${otherId},user_b_id.eq.${user.id})`,
+            )
+            .in('status', ['pending', 'accepted'])
+            .maybeSingle();
+          if (!match) return;
+          // "wants to meet" → they proposed it; "said yes" → I did. A pair
+          // only has one active invite type at a time so this is unambiguous
+          // per otherId even though we don't have the row's type here.
+          const theirAnswers = introAnswersForUser(match, otherId);
+          const myAnswers = introAnswersForUser(match, user.id);
+          const lines = formatIntroLines(theirAnswers).length > 0
+            ? formatIntroLines(theirAnswers)
+            : formatIntroLines(myAnswers);
+          if (lines.length > 0) linesById[otherId] = lines;
+        }),
+      );
+      setIntroLinesById(linesById);
+    } else {
+      setIntroLinesById({});
+    }
+
     setLoading(false);
     await emitUnreadNotificationCount();
   }, []);
@@ -741,7 +821,9 @@ export default function NotificationsScreen() {
           <Ionicons name={icon.name} size={18} color={icon.color} />
         </View>
         <View style={styles.rowContent}>
-          <ThemedText style={styles.rowText}>{feedRowText(item)}</ThemedText>
+          <ThemedText style={styles.rowText} numberOfLines={2}>
+            {feedRowText(item, item.related_user_id ? introLinesById[item.related_user_id] : undefined)}
+          </ThemedText>
           <ThemedText style={styles.rowTime}>{formatRelativeTime(item.created_at)}</ThemedText>
         </View>
         {!item.is_read ? <View style={styles.unreadDot} /> : null}
@@ -759,6 +841,7 @@ export default function NotificationsScreen() {
           key={item.id}
           item={item}
           photoUrl={item.related_user_id ? (photoById[item.related_user_id] ?? null) : null}
+          introLines={item.related_user_id ? introLinesById[item.related_user_id] : undefined}
           onPress={() => void handlePress(item)}
           onAccept={() => void handleRespond(item, true)}
           onDecline={() => void handleRespond(item, false)}
@@ -928,9 +1011,6 @@ const styles = StyleSheet.create({
 
   // --- Featured event card ---
   featured: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     padding: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: radius.lg,
@@ -942,6 +1022,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
+  },
+  featuredMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   featuredUnread: {
     backgroundColor: '#FFFDF6',
@@ -985,6 +1070,24 @@ const styles = StyleSheet.create({
   featuredSub: {
     fontSize: 13,
     color: colors.textMuted,
+  },
+  featuredInfoBlock: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EFE4C4',
+    gap: 4,
+  },
+  featuredInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  featuredInfoText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: colors.textPrimary,
+    fontWeight: '500',
   },
   featuredCta: {
     paddingVertical: 9,
