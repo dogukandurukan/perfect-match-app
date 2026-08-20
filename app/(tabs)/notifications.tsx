@@ -9,6 +9,7 @@ import {
   Alert,
   FlatList,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -100,14 +101,17 @@ function typeIcon(type: NotificationType): IconSpec {
 
 // Compact feed rows handle non-like items, plus already-handled (read)
 // featured items demoted here instead of vanishing (see NotificationRow.resolvedSummary).
-function feedRowText(item: NotificationRow, introLines?: string[]): string {
+function feedRowText(
+  item: NotificationRow,
+  place?: string,
+  confirmedSlot?: string,
+): string {
   const who = item.relatedName?.trim() || 'Someone';
-  // Compact row — place only, not the full place+3-slots list (that's what
-  // the big featured card is for; cramming all of it here reads as a wall
-  // of text instead of a short row).
-  const detail = introLines && introLines.length > 0 ? ` — ${introLines[0]}` : '';
 
-  if (item.resolvedSummary) return `${item.resolvedSummary}${detail}`;
+  // Live, just-acted-on summary ("You said yes to X — Saturday morning") —
+  // already complete, don't also append place/time again below it (that was
+  // the duplicated-looking text bug).
+  if (item.resolvedSummary) return item.resolvedSummary;
 
   switch (item.type) {
     case 'new_message':
@@ -122,13 +126,14 @@ function feedRowText(item: NotificationRow, introLines?: string[]): string {
     case 'expires_soon':
       return `Your match with ${who} expires soon`;
     // Demoted featured cards without a fresh in-session summary (e.g. after
-    // reload) — generic fallback + place/time if we have it, still better
-    // than vanishing silently.
+    // reload) — rebuilt from persisted data (matches.confirmed_slot), not
+    // just the raw place, so a reload doesn't lose what was actually decided.
     case 'new_invite':
     case 'meeting_invite':
-      return `You responded to ${who}'s invite${detail}`;
+      if (confirmedSlot) return `You said yes to ${who} — ${confirmedSlot}`;
+      return place ? `You responded to ${who}'s invite — ${place}` : `You responded to ${who}'s invite`;
     case 'invite_accepted':
-      return `You're chatting with ${who}`;
+      return confirmedSlot ? `You're chatting with ${who} — ${confirmedSlot}` : `You're chatting with ${who}`;
     default:
       return 'New notification';
   }
@@ -326,6 +331,8 @@ function FeaturedCard({
   item,
   photoUrl,
   introLines,
+  confirmedSlot,
+  confirmedPlace,
   onPress,
   onAccept,
   onDecline,
@@ -334,29 +341,52 @@ function FeaturedCard({
   item: NotificationRow;
   photoUrl: string | null;
   introLines?: string[];
+  confirmedSlot?: string;
+  confirmedPlace?: string;
   onPress: () => void;
-  onAccept?: () => void;
+  onAccept?: (slot: string | null, place: string | null) => void;
   onDecline?: () => void;
   responding?: boolean;
 }) {
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [showCustomSlot, setShowCustomSlot] = useState(false);
+  const [customSlot, setCustomSlot] = useState('');
+  const [showCustomPlace, setShowCustomPlace] = useState(false);
+  const [customPlace, setCustomPlace] = useState('');
   const name = item.relatedName?.trim() || 'Someone';
   const accepted = item.type === 'invite_accepted';
   const title = accepted ? `${name} said yes` : `${name} wants to meet`;
-  const sub = accepted ? 'Pick a time to meet up' : 'Coffee invite';
+  const sub = accepted
+    ? confirmedSlot
+      ? `Confirmed: ${confirmedSlot}`
+      : 'Pick a time to meet up'
+    : 'Coffee invite';
   const badge: IconSpec = accepted
     ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
     : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
 
   const place = introLines?.[0];
   const times = introLines && introLines.length > 1 ? introLines.slice(1) : [];
+  // Invitee isn't limited to the inviter's 3 slots — "Suggest another time"
+  // lets them counter-propose, same as the inviter could enter a custom slot
+  // in micro-intro.tsx. Symmetric.
+  const effectiveSlot = showCustomSlot ? customSlot.trim() || null : selectedSlot;
+  // null here means "the inviter's proposed place stands" — place always has
+  // a default, so unlike time this is never required to accept.
+  const effectivePlace = showCustomPlace ? customPlace.trim() || null : null;
+  // Accepting without picking/entering a time isn't allowed once there are
+  // times to pick from — otherwise there's nothing to confirm on the
+  // inviter's side later.
+  const acceptDisabled = times.length > 0 && !effectiveSlot;
 
-  return (
-    <TouchableOpacity
-      style={[styles.featured, !item.is_read && styles.featuredUnread]}
-      onPress={onPress}
-      activeOpacity={0.9}
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. ${sub}`}>
+  // Non-accepted cards have real interactive content now (chips, text
+  // inputs) — wrapping the whole thing in one giant TouchableOpacity let taps
+  // meant for the TextInput get swallowed by the card's own onPress and
+  // silently dismiss it. Only the accepted ("said yes" → tap-to-chat) card
+  // is still a single big button; the rest is a plain View, ✕/✓ are the
+  // only ways to resolve it.
+  const cardBody = (
+    <>
       <View style={styles.featuredMainRow}>
         <View style={styles.featuredAvatarWrap}>
           {photoUrl ? (
@@ -378,7 +408,9 @@ function FeaturedCard({
 
         {accepted ? (
           <View style={[styles.featuredCta, styles.featuredCtaAccepted]}>
-            <ThemedText style={styles.featuredCtaText}>Pick time</ThemedText>
+            <ThemedText style={styles.featuredCtaText}>
+              {confirmedSlot ? 'Open chat' : 'Pick time'}
+            </ThemedText>
           </View>
         ) : responding ? (
           <ActivityIndicator size="small" color={colors.accent} />
@@ -394,11 +426,15 @@ function FeaturedCard({
               <Ionicons name="close" size={16} color={colors.textMuted} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.respondAccept}
-              onPress={onAccept}
+              style={[styles.respondAccept, acceptDisabled && styles.respondAcceptDisabled]}
+              onPress={() => onAccept?.(effectiveSlot, effectivePlace)}
+              disabled={acceptDisabled}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel={`Accept ${name}'s invite`}
+              accessibilityLabel={
+                acceptDisabled ? `Pick a time first to accept ${name}'s invite` : `Accept ${name}'s invite`
+              }
+              accessibilityState={{ disabled: acceptDisabled }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="checkmark" size={16} color="#FFFFFF" />
             </TouchableOpacity>
@@ -411,20 +447,120 @@ function FeaturedCard({
           <View style={styles.featuredInfoRow}>
             <Ionicons name="location-outline" size={13} color={colors.accent} />
             <ThemedText style={styles.featuredInfoText} numberOfLines={1}>
-              {place}
+              {showCustomPlace && customPlace.trim() ? customPlace.trim() : place}
             </ThemedText>
           </View>
+          {showCustomPlace ? (
+            <TextInput
+              style={styles.slotCustomInput}
+              placeholder="e.g. a place near you"
+              placeholderTextColor={colors.textMuted}
+              value={customPlace}
+              onChangeText={setCustomPlace}
+              autoFocus
+            />
+          ) : (
+            <TouchableOpacity
+              onPress={() => setShowCustomPlace(true)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Suggest a different place"
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+              <ThemedText style={styles.placeSuggestLink}>Suggest a different place</ThemedText>
+            </TouchableOpacity>
+          )}
           {times.length > 0 ? (
+            <>
+              <ThemedText style={styles.slotHint}>Pick one to accept</ThemedText>
+              <View style={styles.slotChipsRow}>
+                {times.map((t) => {
+                  const on = !showCustomSlot && selectedSlot === t;
+                  return (
+                    <TouchableOpacity
+                      key={t}
+                      style={[styles.slotChip, on && styles.slotChipSelected]}
+                      onPress={() => {
+                        setSelectedSlot(t);
+                        setShowCustomSlot(false);
+                      }}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={t}
+                      accessibilityState={{ selected: on }}>
+                      <ThemedText style={[styles.slotChipText, on && styles.slotChipTextSelected]}>
+                        {t}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity
+                  style={[styles.slotChip, showCustomSlot && styles.slotChipSelected]}
+                  onPress={() => {
+                    setShowCustomSlot(true);
+                    setSelectedSlot(null);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Suggest another time"
+                  accessibilityState={{ selected: showCustomSlot }}>
+                  <ThemedText
+                    style={[styles.slotChipText, showCustomSlot && styles.slotChipTextSelected]}>
+                    Suggest another time
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+              {showCustomSlot ? (
+                <TextInput
+                  style={styles.slotCustomInput}
+                  placeholder="e.g. Friday evening"
+                  placeholderTextColor={colors.textMuted}
+                  value={customSlot}
+                  onChangeText={setCustomSlot}
+                />
+              ) : null}
+            </>
+          ) : null}
+        </View>
+      ) : null}
+
+      {accepted && (confirmedPlace || place || confirmedSlot) ? (
+        <View style={styles.featuredInfoBlock}>
+          {confirmedPlace || place ? (
             <View style={styles.featuredInfoRow}>
-              <Ionicons name="time-outline" size={13} color={colors.accent} />
-              <ThemedText style={styles.featuredInfoText} numberOfLines={2}>
-                {times.join('  ·  ')}
+              <Ionicons name="location-outline" size={13} color={colors.accent} />
+              <ThemedText style={styles.featuredInfoText} numberOfLines={1}>
+                {confirmedPlace || place}
+              </ThemedText>
+            </View>
+          ) : null}
+          {confirmedSlot ? (
+            <View style={styles.featuredInfoRow}>
+              <Ionicons name="checkmark-circle-outline" size={13} color="#2E9E5B" />
+              <ThemedText style={styles.featuredInfoText} numberOfLines={1}>
+                {confirmedSlot}
               </ThemedText>
             </View>
           ) : null}
         </View>
       ) : null}
-    </TouchableOpacity>
+    </>
+  );
+
+  if (accepted) {
+    return (
+      <TouchableOpacity
+        style={[styles.featured, !item.is_read && styles.featuredUnread]}
+        onPress={onPress}
+        activeOpacity={0.9}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}. ${sub}`}>
+        {cardBody}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={[styles.featured, !item.is_read && styles.featuredUnread]}>{cardBody}</View>
   );
 }
 
@@ -440,6 +576,12 @@ export default function NotificationsScreen() {
   // the inviter's user id — so Accept/Decline isn't blind (Matches already
   // shows this on the incoming-invite card, Buzz didn't).
   const [introLinesById, setIntroLinesById] = useState<Record<string, string[]>>({});
+  // Which of the 3 proposed slots the invitee picked at accept time
+  // (matches.confirmed_slot) — shown on the inviter's "said yes" card.
+  const [confirmedSlotById, setConfirmedSlotById] = useState<Record<string, string>>({});
+  // Counter-proposed place (matches.confirmed_place) — set only if the
+  // invitee suggested somewhere other than the inviter's original pick.
+  const [confirmedPlaceById, setConfirmedPlaceById] = useState<Record<string, string>>({});
 
   // Buzz Faz B: real "who likes you" teaser, sourced from `get_my_likers` —
   // gated server-side, not derived from `notifications`. Fetch failures here
@@ -636,11 +778,15 @@ export default function NotificationsScreen() {
     ];
     if (otherIds.length > 0) {
       const linesById: Record<string, string[]> = {};
+      const confirmedSlotResult: Record<string, string> = {};
+      const confirmedPlaceResult: Record<string, string> = {};
       await Promise.all(
         otherIds.map(async (otherId) => {
           const { data: match } = await supabase
             .from('matches')
-            .select('user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers')
+            .select(
+              'user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers, confirmed_slot, confirmed_place',
+            )
             .or(
               `and(user_a_id.eq.${user.id},user_b_id.eq.${otherId}),` +
                 `and(user_a_id.eq.${otherId},user_b_id.eq.${user.id})`,
@@ -657,11 +803,19 @@ export default function NotificationsScreen() {
             ? formatIntroLines(theirAnswers)
             : formatIntroLines(myAnswers);
           if (lines.length > 0) linesById[otherId] = lines;
+          if (typeof match.confirmed_slot === 'string' && match.confirmed_slot)
+            confirmedSlotResult[otherId] = match.confirmed_slot;
+          if (typeof match.confirmed_place === 'string' && match.confirmed_place)
+            confirmedPlaceResult[otherId] = match.confirmed_place;
         }),
       );
       setIntroLinesById(linesById);
+      setConfirmedSlotById(confirmedSlotResult);
+      setConfirmedPlaceById(confirmedPlaceResult);
     } else {
       setIntroLinesById({});
+      setConfirmedSlotById({});
+      setConfirmedPlaceById({});
     }
 
     setLoading(false);
@@ -691,7 +845,11 @@ export default function NotificationsScreen() {
   );
 
   async function handlePress(item: NotificationRow) {
-    if (!item.is_read) {
+    // "wants to meet" needs an explicit ✕/✓ decision — tapping the card body
+    // (avatar/title, to glance at Matches for more context) shouldn't mark it
+    // read and make it silently vanish before you've actually decided.
+    const needsExplicitDecision = item.type === 'new_invite' || item.type === 'meeting_invite';
+    if (!item.is_read && !needsExplicitDecision) {
       await supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
       setItems((prev) =>
         prev.map((n) => (n.id === item.id ? { ...n, is_read: true } : n)),
@@ -706,7 +864,12 @@ export default function NotificationsScreen() {
   // (acceptMatchInvite) and handleMaybeLater (local dismiss, no DB write —
   // matches.tsx doesn't persist a hard decline for incoming invites either,
   // so this stays consistent with that existing behavior).
-  async function handleRespond(item: NotificationRow, accept: boolean) {
+  async function handleRespond(
+    item: NotificationRow,
+    accept: boolean,
+    slot: string | null = null,
+    place: string | null = null,
+  ) {
     if (!item.related_user_id) return;
 
     const who = item.relatedName?.trim() || 'them';
@@ -769,10 +932,21 @@ export default function NotificationsScreen() {
       return;
     }
 
+    if (slot || place) {
+      const patch: { confirmed_slot?: string; confirmed_place?: string } = {};
+      if (slot) patch.confirmed_slot = slot;
+      if (place) patch.confirmed_place = place;
+      await supabase.from('matches').update(patch).eq('id', match.id);
+    }
+
     setItems((prev) =>
       prev.map((n) =>
         n.id === item.id
-          ? { ...n, is_read: true, resolvedSummary: `You said yes to ${who}` }
+          ? {
+              ...n,
+              is_read: true,
+              resolvedSummary: slot ? `You said yes to ${who} — ${slot}` : `You said yes to ${who}`,
+            }
           : n,
       ),
     );
@@ -822,7 +996,11 @@ export default function NotificationsScreen() {
         </View>
         <View style={styles.rowContent}>
           <ThemedText style={styles.rowText} numberOfLines={2}>
-            {feedRowText(item, item.related_user_id ? introLinesById[item.related_user_id] : undefined)}
+            {feedRowText(
+              item,
+              item.related_user_id ? introLinesById[item.related_user_id]?.[0] : undefined,
+              item.related_user_id ? confirmedSlotById[item.related_user_id] : undefined,
+            )}
           </ThemedText>
           <ThemedText style={styles.rowTime}>{formatRelativeTime(item.created_at)}</ThemedText>
         </View>
@@ -842,8 +1020,10 @@ export default function NotificationsScreen() {
           item={item}
           photoUrl={item.related_user_id ? (photoById[item.related_user_id] ?? null) : null}
           introLines={item.related_user_id ? introLinesById[item.related_user_id] : undefined}
+          confirmedSlot={item.related_user_id ? confirmedSlotById[item.related_user_id] : undefined}
+          confirmedPlace={item.related_user_id ? confirmedPlaceById[item.related_user_id] : undefined}
           onPress={() => void handlePress(item)}
-          onAccept={() => void handleRespond(item, true)}
+          onAccept={(slot, place) => void handleRespond(item, true, slot, place)}
           onDecline={() => void handleRespond(item, false)}
           responding={respondingId === item.id}
         />
@@ -1089,6 +1269,50 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: '500',
   },
+  slotHint: {
+    fontSize: 11.5,
+    color: colors.textMuted,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  slotChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  slotChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: '#EFE4C4',
+    backgroundColor: '#FFFFFF',
+  },
+  slotChipSelected: {
+    borderColor: colors.accent,
+    backgroundColor: '#FFF8E1',
+  },
+  slotChipText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  slotChipTextSelected: {
+    color: colors.accent,
+  },
+  slotCustomInput: {
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: '#FFFBF0',
+    fontSize: 13,
+    color: colors.textPrimary,
+  },
+  placeSuggestLink: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: colors.accent,
+    marginTop: 2,
+  },
   featuredCta: {
     paddingVertical: 9,
     paddingHorizontal: 14,
@@ -1119,6 +1343,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#2E9E5B',
+  },
+  respondAcceptDisabled: {
+    backgroundColor: '#C9C9C9',
   },
 
   // --- Compact feed row ---
