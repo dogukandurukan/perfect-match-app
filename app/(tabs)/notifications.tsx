@@ -1,4 +1,5 @@
 // Screen: Hey tab (activity + likes teaser) | Status: test | Last updated: Ağustos 2026
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -7,6 +8,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   SectionList,
   StyleSheet,
   TextInput,
@@ -20,7 +22,12 @@ import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors, radius } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
-import { acceptMatchInvite, formatIntroLines, introAnswersForUser } from '@/lib/matchInvite';
+import {
+  acceptMatchInvite,
+  formatIntroLines,
+  formatMeetingTime,
+  introAnswersForUser,
+} from '@/lib/matchInvite';
 import { emitUnreadNotificationCount } from '@/lib/unreadNotificationCount';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { supabase } from '@/lib/supabaseClient';
@@ -147,7 +154,7 @@ function feedRowText(
     case 'expires_soon':
       return `Your match with ${who} expires soon`;
     // Demoted featured cards without a fresh in-session summary (e.g. after
-    // reload) — rebuilt from persisted data (matches.confirmed_slot/_place),
+    // reload) — rebuilt from persisted data (matches.meeting_at/confirmed_place),
     // not just the raw proposal, so a reload doesn't lose what was decided.
     case 'new_invite':
     case 'meeting_invite':
@@ -356,6 +363,7 @@ function FeaturedCard({
   item,
   photoUrl,
   introLines,
+  slotOptions,
   confirmedSlot,
   confirmedPlace,
   onPress,
@@ -366,6 +374,7 @@ function FeaturedCard({
   item: NotificationRow;
   photoUrl: string | null;
   introLines?: string[];
+  slotOptions?: string[];
   confirmedSlot?: string;
   confirmedPlace?: string;
   onPress: () => void;
@@ -374,8 +383,8 @@ function FeaturedCard({
   responding?: boolean;
 }) {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [showCustomSlot, setShowCustomSlot] = useState(false);
-  const [customSlot, setCustomSlot] = useState('');
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [timePickerDraft, setTimePickerDraft] = useState(new Date());
   const [showCustomPlace, setShowCustomPlace] = useState(false);
   const [customPlace, setCustomPlace] = useState('');
   const name = item.relatedName?.trim() || 'Someone';
@@ -391,14 +400,33 @@ function FeaturedCard({
     : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
 
   const place = introLines?.[0];
-  const times = introLines && introLines.length > 1 ? introLines.slice(1) : [];
+  const times = slotOptions ?? [];
   // Invitee isn't limited to the inviter's 3 slots — "Suggest another time"
-  // lets them counter-propose, same as the inviter could enter a custom slot
-  // in micro-intro.tsx. Symmetric.
-  const effectiveSlot = showCustomSlot ? customSlot.trim() || null : selectedSlot;
+  // opens a real date/time picker to counter-propose, same as the inviter
+  // could enter a custom slot in micro-intro.tsx. Symmetric, and always a
+  // real Date either way (2026-08-24 — CLAUDE.md §4 "real dates" pass).
+  const effectiveSlot = selectedSlot;
   // null here means "the inviter's proposed place stands" — place always has
   // a default, so unlike time this is never required to accept.
   const effectivePlace = showCustomPlace ? customPlace.trim() || null : null;
+
+  function openTimePicker() {
+    const draft = new Date();
+    draft.setMinutes(0, 0, 0);
+    draft.setHours(draft.getHours() + 1);
+    setTimePickerDraft(draft);
+    setShowTimePicker(true);
+  }
+
+  function onTimePickerChange(event: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+      if (event.type === 'set' && selected) setSelectedSlot(selected.toISOString());
+      return;
+    }
+    if (selected) setTimePickerDraft(selected);
+  }
+
   // Accepting without picking/entering a time isn't allowed once there are
   // times to pick from — otherwise there's nothing to confirm on the
   // inviter's side later.
@@ -499,49 +527,75 @@ function FeaturedCard({
               <ThemedText style={styles.slotHint}>Pick one to accept</ThemedText>
               <View style={styles.slotChipsRow}>
                 {times.map((t) => {
-                  const on = !showCustomSlot && selectedSlot === t;
+                  const on = selectedSlot === t;
                   return (
                     <TouchableOpacity
                       key={t}
                       style={[styles.slotChip, on && styles.slotChipSelected]}
                       onPress={() => {
                         setSelectedSlot(t);
-                        setShowCustomSlot(false);
+                        setShowTimePicker(false);
                       }}
                       activeOpacity={0.8}
                       accessibilityRole="button"
-                      accessibilityLabel={t}
+                      accessibilityLabel={formatMeetingTime(t)}
                       accessibilityState={{ selected: on }}>
                       <ThemedText style={[styles.slotChipText, on && styles.slotChipTextSelected]}>
-                        {t}
+                        {formatMeetingTime(t)}
                       </ThemedText>
                     </TouchableOpacity>
                   );
                 })}
-                <TouchableOpacity
-                  style={[styles.slotChip, showCustomSlot && styles.slotChipSelected]}
-                  onPress={() => {
-                    setShowCustomSlot(true);
-                    setSelectedSlot(null);
-                  }}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Suggest another time"
-                  accessibilityState={{ selected: showCustomSlot }}>
-                  <ThemedText
-                    style={[styles.slotChipText, showCustomSlot && styles.slotChipTextSelected]}>
-                    Suggest another time
-                  </ThemedText>
-                </TouchableOpacity>
+                {selectedSlot && !times.includes(selectedSlot) ? (
+                  <TouchableOpacity
+                    style={[styles.slotChip, styles.slotChipSelected]}
+                    onPress={openTimePicker}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={formatMeetingTime(selectedSlot)}
+                    accessibilityState={{ selected: true }}>
+                    <ThemedText style={[styles.slotChipText, styles.slotChipTextSelected]}>
+                      {formatMeetingTime(selectedSlot)}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.slotChip, showTimePicker && styles.slotChipSelected]}
+                    onPress={openTimePicker}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Suggest another time"
+                    accessibilityState={{ selected: showTimePicker }}>
+                    <ThemedText
+                      style={[styles.slotChipText, showTimePicker && styles.slotChipTextSelected]}>
+                      Suggest another time
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
               </View>
-              {showCustomSlot ? (
-                <TextInput
-                  style={styles.slotCustomInput}
-                  placeholder="e.g. Friday evening"
-                  placeholderTextColor={colors.textMuted}
-                  value={customSlot}
-                  onChangeText={setCustomSlot}
-                />
+              {showTimePicker ? (
+                <View style={styles.slotChipsRow}>
+                  <DateTimePicker
+                    value={timePickerDraft}
+                    mode="datetime"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    minimumDate={new Date()}
+                    onChange={onTimePickerChange}
+                  />
+                  {Platform.OS === 'ios' ? (
+                    <TouchableOpacity
+                      style={styles.respondAccept}
+                      onPress={() => {
+                        setSelectedSlot(timePickerDraft.toISOString());
+                        setShowTimePicker(false);
+                      }}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Use this time">
+                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               ) : null}
             </>
           ) : null}
@@ -601,8 +655,11 @@ export default function NotificationsScreen() {
   // the inviter's user id — so Accept/Decline isn't blind (Matches already
   // shows this on the incoming-invite card, Buzz didn't).
   const [introLinesById, setIntroLinesById] = useState<Record<string, string[]>>({});
-  // Which of the 3 proposed slots the invitee picked at accept time
-  // (matches.confirmed_slot) — shown on the inviter's "said yes" card.
+  // Raw ISO datetime strings for the 3 proposed slots (formatIntroLines gives
+  // display text, but the chip picker needs the real value to save on accept).
+  const [slotOptionsById, setSlotOptionsById] = useState<Record<string, string[]>>({});
+  // Confirmed meeting time the invitee picked at accept time (matches.meeting_at,
+  // formatted for display) — shown on the inviter's "said yes" card.
   const [confirmedSlotById, setConfirmedSlotById] = useState<Record<string, string>>({});
   // Counter-proposed place (matches.confirmed_place) — set only if the
   // invitee suggested somewhere other than the inviter's original pick.
@@ -873,6 +930,7 @@ export default function NotificationsScreen() {
     ];
     if (otherIds.length > 0) {
       const linesById: Record<string, string[]> = {};
+      const slotOptionsResult: Record<string, string[]> = {};
       const confirmedSlotResult: Record<string, string> = {};
       const confirmedPlaceResult: Record<string, string> = {};
       await Promise.all(
@@ -880,7 +938,7 @@ export default function NotificationsScreen() {
           const { data: match } = await supabase
             .from('matches')
             .select(
-              'user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers, confirmed_slot, confirmed_place',
+              'user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers, meeting_at, confirmed_place',
             )
             .or(
               `and(user_a_id.eq.${user.id},user_b_id.eq.${otherId}),` +
@@ -894,21 +952,26 @@ export default function NotificationsScreen() {
           // per otherId even though we don't have the row's type here.
           const theirAnswers = introAnswersForUser(match, otherId);
           const myAnswers = introAnswersForUser(match, user.id);
-          const lines = formatIntroLines(theirAnswers).length > 0
-            ? formatIntroLines(theirAnswers)
-            : formatIntroLines(myAnswers);
+          const proposer = formatIntroLines(theirAnswers).length > 0 ? theirAnswers : myAnswers;
+          const lines = formatIntroLines(proposer);
           if (lines.length > 0) linesById[otherId] = lines;
-          if (typeof match.confirmed_slot === 'string' && match.confirmed_slot)
-            confirmedSlotResult[otherId] = match.confirmed_slot;
+          const rawSlots = [proposer?.slot1, proposer?.slot2, proposer?.slot3].filter(
+            (s): s is string => typeof s === 'string' && s.length > 0,
+          );
+          if (rawSlots.length > 0) slotOptionsResult[otherId] = rawSlots;
+          if (typeof match.meeting_at === 'string' && match.meeting_at)
+            confirmedSlotResult[otherId] = formatMeetingTime(match.meeting_at);
           if (typeof match.confirmed_place === 'string' && match.confirmed_place)
             confirmedPlaceResult[otherId] = match.confirmed_place;
         }),
       );
       setIntroLinesById(linesById);
+      setSlotOptionsById(slotOptionsResult);
       setConfirmedSlotById(confirmedSlotResult);
       setConfirmedPlaceById(confirmedPlaceResult);
     } else {
       setIntroLinesById({});
+      setSlotOptionsById({});
       setConfirmedSlotById({});
       setConfirmedPlaceById({});
     }
@@ -1056,18 +1119,19 @@ export default function NotificationsScreen() {
     }
 
     if (slot || place) {
-      const patch: { confirmed_slot?: string; confirmed_place?: string } = {};
-      if (slot) patch.confirmed_slot = slot;
+      const patch: { meeting_at?: string; confirmed_place?: string } = {};
+      if (slot) patch.meeting_at = slot; // real timestamptz — matches.meeting_at
       if (place) patch.confirmed_place = place;
       await supabase.from('matches').update(patch).eq('id', match.id);
     }
 
     const effectivePlace = place || (item.related_user_id ? introLinesById[item.related_user_id]?.[0] : undefined);
-    const summary = !slot
+    const slotLabel = slot ? formatMeetingTime(slot) : null;
+    const summary = !slotLabel
       ? `You said yes to ${who}`
       : effectivePlace
-        ? `You said yes to ${who} — ${slot} at ${effectivePlace}`
-        : `You said yes to ${who} — ${slot}`;
+        ? `You said yes to ${who} — ${slotLabel} at ${effectivePlace}`
+        : `You said yes to ${who} — ${slotLabel}`;
     setItems((prev) =>
       prev.map((n) => (n.id === item.id ? { ...n, is_read: true, resolvedSummary: summary } : n)),
     );
@@ -1142,6 +1206,7 @@ export default function NotificationsScreen() {
           item={item}
           photoUrl={item.related_user_id ? (photoById[item.related_user_id] ?? null) : null}
           introLines={item.related_user_id ? introLinesById[item.related_user_id] : undefined}
+          slotOptions={item.related_user_id ? slotOptionsById[item.related_user_id] : undefined}
           confirmedSlot={item.related_user_id ? confirmedSlotById[item.related_user_id] : undefined}
           confirmedPlace={item.related_user_id ? confirmedPlaceById[item.related_user_id] : undefined}
           onPress={() => void handlePress(item)}

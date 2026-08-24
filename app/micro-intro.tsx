@@ -1,4 +1,5 @@
 // Screen: Micro-intro (invite: place + 3 time slots) | Status: stable | Last updated: Temmuz 2026
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -18,8 +19,9 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import {
   formatIntroLines,
+  formatMeetingTime,
   sendMatchInvite,
-  suggestTimeSlots,
+  suggestMeetingTimes,
   type IntroAnswers,
 } from '@/lib/matchInvite';
 import { supabase } from '@/lib/supabaseClient';
@@ -61,28 +63,44 @@ type VenueRow = {
   emoji: string | null;
 };
 
-function formatVenueOption(venue: VenueRow): string {
-  return `${venue.emoji ?? '☕'} ${venue.name} — ${venue.district}`;
+type VenueReason = 'both' | 'you' | 'them' | null;
+type PickedVenue = VenueRow & { reason: VenueReason };
+
+function formatVenueOption(venue: PickedVenue): string {
+  const base = `${venue.emoji ?? '☕'} ${venue.name} — ${venue.district}`;
+  if (venue.reason === 'both') return `${base} · Near both of you`;
+  if (venue.reason === 'you') return `${base} · Near you`;
+  if (venue.reason === 'them') return `${base} · Near them`;
+  return base;
 }
 
-function pickVenues(venues: VenueRow[], userDistrict: string | null): VenueRow[] {
-  const picked: VenueRow[] = [];
+/** Prefer a venue near both people over one only near you — otherwise the
+ * suggestion ignores where the other person actually is (2026-08-24). */
+function pickVenues(
+  venues: VenueRow[],
+  myDistrict: string | null,
+  otherDistrict: string | null,
+): PickedVenue[] {
+  const picked: PickedVenue[] = [];
   const seen = new Set<string>();
 
-  const addVenue = (venue: VenueRow) => {
+  const addVenue = (venue: VenueRow, reason: VenueReason) => {
     const key = `${venue.name}|${venue.district}`;
     if (seen.has(key) || picked.length >= 3) return;
     seen.add(key);
-    picked.push(venue);
+    picked.push({ ...venue, reason });
   };
 
-  if (userDistrict) {
-    venues.filter((v) => v.district === userDistrict).forEach(addVenue);
+  if (myDistrict && myDistrict === otherDistrict) {
+    venues.filter((v) => v.district === myDistrict).forEach((v) => addVenue(v, 'both'));
   }
-  venues.forEach((venue) => {
-    if (picked.length >= 3) return;
-    addVenue(venue);
-  });
+  if (myDistrict) {
+    venues.filter((v) => v.district === myDistrict).forEach((v) => addVenue(v, 'you'));
+  }
+  if (otherDistrict) {
+    venues.filter((v) => v.district === otherDistrict).forEach((v) => addVenue(v, 'them'));
+  }
+  venues.forEach((venue) => addVenue(venue, null));
 
   return picked;
 }
@@ -105,7 +123,8 @@ export default function MicroIntroScreen() {
   const [place, setPlace] = useState<string | null>(null);
   const [customPlace, setCustomPlace] = useState('');
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
-  const [customSlot, setCustomSlot] = useState('');
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [timePickerDraft, setTimePickerDraft] = useState(new Date());
   const [slotOptions, setSlotOptions] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
@@ -140,20 +159,22 @@ export default function MicroIntroScreen() {
           userDistrict = profile?.district ?? null;
           setMyGender(profile?.gender ?? null);
           setSlotOptions(
-            suggestTimeSlots(
+            suggestMeetingTimes(
               (profile?.availability_days as string[] | null) ?? null,
               (profile?.availability_hours as string[] | null) ?? null,
             ),
           );
         }
 
+        let otherDistrict: string | null = null;
         if (matchUserId) {
           const { data: other } = await supabase
             .from('profiles')
-            .select('gender')
+            .select('gender, district')
             .eq('id', matchUserId)
             .maybeSingle();
           if (mounted) setOtherGender(other?.gender ?? null);
+          otherDistrict = other?.district ?? null;
         }
 
         const { data: venues, error } = await supabase
@@ -168,7 +189,7 @@ export default function MicroIntroScreen() {
           return;
         }
 
-        const picked = pickVenues(venues as VenueRow[], userDistrict);
+        const picked = pickVenues(venues as VenueRow[], userDistrict, otherDistrict);
         if (picked.length === 0) {
           setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
           return;
@@ -178,7 +199,7 @@ export default function MicroIntroScreen() {
       } catch {
         if (mounted) {
           setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
-          setSlotOptions(suggestTimeSlots(null, null));
+          setSlotOptions(suggestMeetingTimes(null, null));
         }
       } finally {
         if (mounted) setVenuesLoading(false);
@@ -207,15 +228,28 @@ export default function MicroIntroScreen() {
     });
   }
 
-  function addCustomSlot() {
-    const t = customSlot.trim();
-    if (!t) return;
-    const label = capitalizeWords(t);
+  function openTimePicker() {
+    const draft = new Date();
+    draft.setMinutes(0, 0, 0);
+    draft.setHours(draft.getHours() + 1); // next full hour, not "now"
+    setTimePickerDraft(draft);
+    setShowTimePicker(true);
+  }
+
+  function addPickedSlot(iso: string) {
     setSelectedSlots((prev) => {
-      if (prev.includes(label) || prev.length >= MAX_SLOTS) return prev;
-      return [...prev, label];
+      if (prev.includes(iso) || prev.length >= MAX_SLOTS) return prev;
+      return [...prev, iso];
     });
-    setCustomSlot('');
+  }
+
+  function onTimePickerChange(event: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+      if (event.type === 'set' && selected) addPickedSlot(selected.toISOString());
+      return;
+    }
+    if (selected) setTimePickerDraft(selected);
   }
 
   async function handleSendInvite() {
@@ -423,27 +457,55 @@ export default function MicroIntroScreen() {
                       activeOpacity={0.8}>
                       <ThemedText style={[styles.optionText, on && styles.optionTextSelected]}>
                         {on ? '✓ ' : ''}
-                        {opt}
+                        {formatMeetingTime(opt)}
                       </ThemedText>
                     </TouchableOpacity>
                   );
                 })}
-                <View style={styles.customSlotRow}>
-                  <TextInput
-                    style={[styles.customInput, { flex: 1 }]}
-                    placeholder="Add a custom time…"
-                    placeholderTextColor="#AAAAAA"
-                    value={customSlot}
-                    onChangeText={setCustomSlot}
-                  />
+                {selectedSlots
+                  .filter((s) => !slotOptions.includes(s))
+                  .map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.option, styles.optionSelected]}
+                      onPress={() => toggleSlot(opt)}
+                      activeOpacity={0.8}>
+                      <ThemedText style={[styles.optionText, styles.optionTextSelected]}>
+                        ✓ {formatMeetingTime(opt)}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ))}
+
+                {showTimePicker ? (
+                  <View style={styles.customSlotRow}>
+                    <DateTimePicker
+                      value={timePickerDraft}
+                      mode="datetime"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      minimumDate={new Date()}
+                      onChange={onTimePickerChange}
+                    />
+                    {Platform.OS === 'ios' ? (
+                      <TouchableOpacity
+                        style={styles.addSlotBtn}
+                        onPress={() => {
+                          addPickedSlot(timePickerDraft.toISOString());
+                          setShowTimePicker(false);
+                        }}
+                        activeOpacity={0.85}>
+                        <ThemedText style={styles.addSlotBtnText}>Add</ThemedText>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : (
                   <TouchableOpacity
-                    style={styles.addSlotBtn}
-                    onPress={addCustomSlot}
-                    disabled={!customSlot.trim() || selectedSlots.length >= MAX_SLOTS}
-                    activeOpacity={0.85}>
-                    <ThemedText style={styles.addSlotBtnText}>Add</ThemedText>
+                    style={[styles.option, styles.customTimeOption]}
+                    onPress={openTimePicker}
+                    disabled={selectedSlots.length >= MAX_SLOTS}
+                    activeOpacity={0.8}>
+                    <ThemedText style={styles.optionText}>+ Pick another time</ThemedText>
                   </TouchableOpacity>
-                </View>
+                )}
               </View>
             </>
           )}
@@ -536,6 +598,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   customSlotRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  customTimeOption: {
+    borderStyle: 'dashed',
+    borderColor: colors.accent,
+    alignItems: 'center',
+  },
   addSlotBtn: {
     backgroundColor: colors.accent,
     borderRadius: 12,
