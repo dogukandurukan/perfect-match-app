@@ -76,6 +76,24 @@ function formatVenueOption(venue: PickedVenue): string {
 
 /** Prefer a venue near both people over one only near you — otherwise the
  * suggestion ignores where the other person actually is (2026-08-24). */
+const TR_DIACRITICS: Record<string, string> = {
+  ş: 's', ğ: 'g', ı: 'i', ö: 'o', ü: 'u', ç: 'c',
+  Ş: 's', Ğ: 'g', İ: 'i', I: 'i', Ö: 'o', Ü: 'u', Ç: 'c',
+};
+
+/** `venues.district` uses proper Turkish diacritics ("Beşiktaş");
+ * `profiles.district` is stored ASCII-only ("Besiktas") — raw `===` never
+ * matched, silently degrading every suggestion to the generic fallback
+ * (2026-08-25, found via device testing). Neighborhood-level values like
+ * "Moda" still won't match a district name — that needs a neighborhood→
+ * district lookup, separate/bigger fix, not attempted here. */
+function normalizeDistrict(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[şğıöüçŞĞİIÖÜÇ]/g, (ch) => TR_DIACRITICS[ch] ?? ch);
+}
+
 function pickVenues(
   venues: VenueRow[],
   myDistrict: string | null,
@@ -83,6 +101,8 @@ function pickVenues(
 ): PickedVenue[] {
   const picked: PickedVenue[] = [];
   const seen = new Set<string>();
+  const my = myDistrict ? normalizeDistrict(myDistrict) : null;
+  const other = otherDistrict ? normalizeDistrict(otherDistrict) : null;
 
   const addVenue = (venue: VenueRow, reason: VenueReason) => {
     const key = `${venue.name}|${venue.district}`;
@@ -91,14 +111,14 @@ function pickVenues(
     picked.push({ ...venue, reason });
   };
 
-  if (myDistrict && myDistrict === otherDistrict) {
-    venues.filter((v) => v.district === myDistrict).forEach((v) => addVenue(v, 'both'));
+  if (my && my === other) {
+    venues.filter((v) => normalizeDistrict(v.district) === my).forEach((v) => addVenue(v, 'both'));
   }
-  if (myDistrict) {
-    venues.filter((v) => v.district === myDistrict).forEach((v) => addVenue(v, 'you'));
+  if (my) {
+    venues.filter((v) => normalizeDistrict(v.district) === my).forEach((v) => addVenue(v, 'you'));
   }
-  if (otherDistrict) {
-    venues.filter((v) => v.district === otherDistrict).forEach((v) => addVenue(v, 'them'));
+  if (other) {
+    venues.filter((v) => normalizeDistrict(v.district) === other).forEach((v) => addVenue(v, 'them'));
   }
   venues.forEach((venue) => addVenue(venue, null));
 
