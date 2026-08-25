@@ -66,11 +66,11 @@ type VenueRow = {
 type VenueReason = 'both' | 'you' | 'them' | null;
 type PickedVenue = VenueRow & { reason: VenueReason };
 
-function formatVenueOption(venue: PickedVenue): string {
+function formatVenueOption(venue: PickedVenue, otherName: string): string {
   const base = `${venue.emoji ?? '☕'} ${venue.name} — ${venue.district}`;
   if (venue.reason === 'both') return `${base} · Near both of you`;
   if (venue.reason === 'you') return `${base} · Near you`;
-  if (venue.reason === 'them') return `${base} · Near them`;
+  if (venue.reason === 'them') return `${base} · Near ${otherName}`;
   return base;
 }
 
@@ -215,7 +215,10 @@ export default function MicroIntroScreen() {
           return;
         }
 
-        setPlaceOptions([...picked.map(formatVenueOption), CUSTOM_PLACE_OPTION]);
+        setPlaceOptions([
+          ...picked.map((v) => formatVenueOption(v, matchName)),
+          CUSTOM_PLACE_OPTION,
+        ]);
       } catch {
         if (mounted) {
           setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
@@ -497,23 +500,24 @@ export default function MicroIntroScreen() {
                   ))}
 
                 {showTimePicker ? (
-                  <View style={styles.customSlotRow}>
+                  <View style={styles.customSlotColumn}>
                     <DateTimePicker
                       value={timePickerDraft}
                       mode="datetime"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       minimumDate={new Date()}
                       onChange={onTimePickerChange}
+                      style={styles.timePickerSpinner}
                     />
                     {Platform.OS === 'ios' ? (
                       <TouchableOpacity
-                        style={styles.addSlotBtn}
+                        style={styles.addSlotBtnWide}
                         onPress={() => {
                           addPickedSlot(timePickerDraft.toISOString());
                           setShowTimePicker(false);
                         }}
                         activeOpacity={0.85}>
-                        <ThemedText style={styles.addSlotBtnText}>Add</ThemedText>
+                        <ThemedText style={styles.addSlotBtnText}>Add this time</ThemedText>
                       </TouchableOpacity>
                     ) : null}
                   </View>
@@ -618,6 +622,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   customSlotRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  // Picker stacked above its confirm button — side-by-side pushed the button
+  // off-screen since the spinner (3 columns: day/hour/minute) is wider than
+  // it looks and doesn't shrink to share a row (2026-08-25, device testing).
+  customSlotColumn: { gap: 8, alignItems: 'stretch' },
+  timePickerSpinner: { alignSelf: 'center' },
   customTimeOption: {
     borderStyle: 'dashed',
     borderColor: colors.accent,
@@ -628,6 +637,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  addSlotBtnWide: {
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
   },
   addSlotBtnText: { color: '#FFF', fontWeight: '600' },
   loadingText: { color: '#888', textAlign: 'center', marginTop: 12 },

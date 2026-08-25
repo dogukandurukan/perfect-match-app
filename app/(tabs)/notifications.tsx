@@ -574,17 +574,18 @@ function FeaturedCard({
                 )}
               </View>
               {showTimePicker ? (
-                <View style={styles.slotChipsRow}>
+                <View style={styles.timePickerColumn}>
                   <DateTimePicker
                     value={timePickerDraft}
                     mode="datetime"
                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                     minimumDate={new Date()}
                     onChange={onTimePickerChange}
+                    style={styles.timePickerSpinner}
                   />
                   {Platform.OS === 'ios' ? (
                     <TouchableOpacity
-                      style={styles.respondAccept}
+                      style={styles.addSlotBtnWide}
                       onPress={() => {
                         setSelectedSlot(timePickerDraft.toISOString());
                         setShowTimePicker(false);
@@ -592,7 +593,7 @@ function FeaturedCard({
                       activeOpacity={0.85}
                       accessibilityRole="button"
                       accessibilityLabel="Use this time">
-                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                      <ThemedText style={styles.addSlotBtnWideText}>Use this time</ThemedText>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -1464,6 +1465,18 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   slotChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // Picker stacked above its confirm button — side-by-side pushed the button
+  // off-screen (the spinner is wider than it looks, doesn't shrink to share
+  // a row). Same fix as micro-intro.tsx (2026-08-25, device testing).
+  timePickerColumn: { gap: 8, alignItems: 'stretch', marginTop: 4 },
+  timePickerSpinner: { alignSelf: 'center' },
+  addSlotBtnWide: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  addSlotBtnWideText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
   slotChip: {
     paddingVertical: 7,
     paddingHorizontal: 12,
