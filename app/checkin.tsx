@@ -28,9 +28,12 @@ export default function CheckinScreen() {
   const matchId = firstParam(params.matchId);
   const matchName = firstParam(params.matchName);
   const isUserA = firstParam(params.isUserA) === '1';
+  // Buzz's ✓ on a meetup-reminder card already answered "did you go" — skip
+  // straight to rating instead of asking again (2026-08-27).
+  const skipToRating = firstParam(params.wentThere) === '1';
 
-  const [step, setStep] = useState<'went' | 'rating' | 'done'>('went');
-  const [wentThere, setWentThere] = useState<boolean | null>(null);
+  const [step, setStep] = useState<'went' | 'rating' | 'done'>(skipToRating ? 'rating' : 'went');
+  const [wentThere, setWentThere] = useState<boolean | null>(skipToRating ? true : null);
   const [rating, setRating] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 

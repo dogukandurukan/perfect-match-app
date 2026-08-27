@@ -1,6 +1,6 @@
 // Screen: Root Stack layout | Status: stable | Last updated: Mayıs 2026
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
@@ -53,21 +53,59 @@ function LocationBridge() {
   return null;
 }
 
+function handleNotificationResponse(
+  response: Notifications.NotificationResponse,
+  router: ReturnType<typeof useRouter>,
+) {
+  const data = response.notification.request.content.data as
+    | { type?: string; matchId?: string; matchName?: string; isUserA?: string }
+    | undefined;
+  if (data?.type === 'meetup_reminder' && data.matchId) {
+    router.push({
+      pathname: '/checkin',
+      params: {
+        matchId: data.matchId,
+        matchName: data.matchName ?? '',
+        isUserA: data.isUserA ?? '0',
+      },
+    } as never);
+  }
+}
+
 function NotificationBridge() {
+  const router = useRouter();
+
   useEffect(() => {
     const notificationListener = Notifications.addNotificationReceivedListener(() => {
       // handled by OS banner / in-app list
     });
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(() => {
-      // navigation handled elsewhere when needed
+    // Tapping a "meetup_reminder" push (send-meetup-reminders Edge Function)
+    // deep-links straight into the existing checkin.tsx "did you go?" flow —
+    // reuses that screen rather than building a new yes/no UI (2026-08-27).
+    // This listener only fires while JS is already running (warm/backgrounded
+    // app) — a tap that cold-starts the app fires the response BEFORE this
+    // listener is subscribed, so it's silently missed and you land on Home.
+    // getLastNotificationResponseAsync() below covers that cold-start case.
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+      handleNotificationResponse(response, router);
+    });
+
+    // getLastNotificationResponseAsync() keeps returning the same response
+    // on every subsequent app open until cleared — clear it right after
+    // handling so re-opening the app later doesn't repeat the navigation.
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        handleNotificationResponse(response, router);
+        void Notifications.clearLastNotificationResponseAsync();
+      }
     });
 
     return () => {
       notificationListener.remove();
       responseListener.remove();
     };
-  }, []);
+  }, [router]);
 
   return null;
 }

@@ -75,7 +75,7 @@ type IconSpec = { name: IoniconName; color: string; bg: string };
 // kept only to filter any legacy like-flavored notification rows out of the
 // compact feed, so they don't show twice.
 const LIKE_TYPES = new Set(['like', 'new_like', 'someone_liked', 'new_match']);
-const FEATURED_TYPES = new Set(['invite_accepted', 'new_invite', 'meeting_invite']);
+const FEATURED_TYPES = new Set(['invite_accepted', 'new_invite', 'meeting_invite', 'meetup_reminder']);
 const isLikeType = (t: NotificationType) => LIKE_TYPES.has(t);
 const isFeaturedType = (t: NotificationType) => FEATURED_TYPES.has(t);
 
@@ -103,6 +103,8 @@ function typeIcon(type: NotificationType): IconSpec {
       return { name: 'checkmark-circle-outline', color: colors.accent, bg: '#FBF3DF' };
     case 'like_sent':
       return { name: 'heart-outline', color: colors.accent, bg: '#FBF3DF' };
+    case 'meetup_reminder':
+      return { name: 'cafe-outline', color: colors.accent, bg: '#FBF3DF' };
     default:
       return { name: 'notifications', color: colors.textMuted, bg: '#F0F0F0' };
   }
@@ -166,6 +168,8 @@ function feedRowText(
       return effectivePlace
         ? `You responded to ${who}'s invite — ${effectivePlace}`
         : `You responded to ${who}'s invite`;
+    case 'meetup_reminder':
+      return `You responded to today's reminder about ${who}`;
     default:
       return 'New notification';
   }
@@ -369,6 +373,8 @@ function FeaturedCard({
   onPress,
   onAccept,
   onDecline,
+  onCheckinYes,
+  onCheckinNo,
   responding,
 }: {
   item: NotificationRow;
@@ -380,6 +386,8 @@ function FeaturedCard({
   onPress: () => void;
   onAccept?: (slot: string | null, place: string | null) => void;
   onDecline?: () => void;
+  onCheckinYes?: () => void;
+  onCheckinNo?: () => void;
   responding?: boolean;
 }) {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -389,15 +397,27 @@ function FeaturedCard({
   const [customPlace, setCustomPlace] = useState('');
   const name = item.relatedName?.trim() || 'Someone';
   const accepted = item.type === 'invite_accepted';
-  const title = accepted ? `${name} said yes` : `${name} wants to meet`;
-  const sub = accepted
-    ? confirmedSlot
-      ? `Confirmed: ${confirmedSlot}`
-      : 'Pick a time to meet up'
-    : 'Coffee invite';
-  const badge: IconSpec = accepted
-    ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
-    : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
+  // Day-of "did you go?" reminder — no slot/place picker, just a yes/no on
+  // whether the meetup happened, mirroring the tap-the-push-notification path
+  // into checkin.tsx (2026-08-27).
+  const isReminder = item.type === 'meetup_reminder';
+  const title = isReminder
+    ? `Meeting ${name} today?`
+    : accepted
+      ? `${name} said yes`
+      : `${name} wants to meet`;
+  const sub = isReminder
+    ? 'Let us know if you went'
+    : accepted
+      ? confirmedSlot
+        ? `Confirmed: ${confirmedSlot}`
+        : 'Pick a time to meet up'
+      : 'Coffee invite';
+  const badge: IconSpec = isReminder
+    ? { name: 'cafe', color: colors.accent, bg: '#FBF3DF' }
+    : accepted
+      ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
+      : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
 
   const place = introLines?.[0];
   const times = slotOptions ?? [];
@@ -459,7 +479,32 @@ function FeaturedCard({
           <ThemedText style={styles.featuredSub}>{sub}</ThemedText>
         </View>
 
-        {accepted ? (
+        {isReminder ? (
+          responding ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <View style={styles.respondRow}>
+              <TouchableOpacity
+                style={styles.respondDecline}
+                onPress={onCheckinNo}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`No, didn't meet ${name}`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.respondAccept}
+                onPress={onCheckinYes}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Yes, met ${name}`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          )
+        ) : accepted ? (
           <View style={[styles.featuredCta, styles.featuredCtaAccepted]}>
             <ThemedText style={styles.featuredCtaText}>
               {confirmedSlot ? 'Open chat' : 'Pick time'}
@@ -495,7 +540,7 @@ function FeaturedCard({
         )}
       </View>
 
-      {!accepted && place ? (
+      {!isReminder && !accepted && place ? (
         <View style={styles.featuredInfoBlock}>
           <View style={styles.featuredInfoRow}>
             <Ionicons name="location-outline" size={13} color={colors.accent} />
@@ -665,6 +710,11 @@ export default function NotificationsScreen() {
   // Counter-proposed place (matches.confirmed_place) — set only if the
   // invitee suggested somewhere other than the inviter's original pick.
   const [confirmedPlaceById, setConfirmedPlaceById] = useState<Record<string, string>>({});
+  // matchId/isUserA for the active match per related user — meetup_reminder's
+  // ✓/✕ writes checkin_a/checkin_b directly, so it needs the match row id
+  // (notifications has no metadata column to carry it).
+  const [matchIdByOtherId, setMatchIdByOtherId] = useState<Record<string, string>>({});
+  const [isUserAByOtherId, setIsUserAByOtherId] = useState<Record<string, boolean>>({});
 
   // Buzz Faz B: real "who likes you" teaser, sourced from `get_my_likers` —
   // gated server-side, not derived from `notifications`. Fetch failures here
@@ -934,12 +984,14 @@ export default function NotificationsScreen() {
       const slotOptionsResult: Record<string, string[]> = {};
       const confirmedSlotResult: Record<string, string> = {};
       const confirmedPlaceResult: Record<string, string> = {};
+      const matchIdResult: Record<string, string> = {};
+      const isUserAResult: Record<string, boolean> = {};
       await Promise.all(
         otherIds.map(async (otherId) => {
           const { data: match } = await supabase
             .from('matches')
             .select(
-              'user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers, meeting_at, confirmed_place',
+              'id, user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers, meeting_at, confirmed_place',
             )
             .or(
               `and(user_a_id.eq.${user.id},user_b_id.eq.${otherId}),` +
@@ -948,6 +1000,8 @@ export default function NotificationsScreen() {
             .in('status', ['pending', 'accepted'])
             .maybeSingle();
           if (!match) return;
+          matchIdResult[otherId] = match.id as string;
+          isUserAResult[otherId] = match.user_a_id === user.id;
           // "wants to meet" → they proposed it; "said yes" → I did. A pair
           // only has one active invite type at a time so this is unambiguous
           // per otherId even though we don't have the row's type here.
@@ -970,11 +1024,15 @@ export default function NotificationsScreen() {
       setSlotOptionsById(slotOptionsResult);
       setConfirmedSlotById(confirmedSlotResult);
       setConfirmedPlaceById(confirmedPlaceResult);
+      setMatchIdByOtherId(matchIdResult);
+      setIsUserAByOtherId(isUserAResult);
     } else {
       setIntroLinesById({});
       setSlotOptionsById({});
       setConfirmedSlotById({});
       setConfirmedPlaceById({});
+      setMatchIdByOtherId({});
+      setIsUserAByOtherId({});
     }
 
     setLoading(false);
@@ -1152,6 +1210,59 @@ export default function NotificationsScreen() {
     }
   }
 
+  // Buzz's own ✓/✕ on a "meeting today?" reminder card, mirroring the
+  // push-notification deep-link into checkin.tsx (2026-08-27). ✕ writes the
+  // "didn't go" outcome inline (same payload checkin.tsx's handleWent(false)
+  // writes) since there's nothing further to ask; ✓ still routes to
+  // checkin.tsx for the 1-10 rating step (wentThere=1 skips its "did you go?"
+  // question straight to rating).
+  async function handleCheckin(item: NotificationRow, went: boolean) {
+    if (!item.related_user_id) return;
+    const matchId = matchIdByOtherId[item.related_user_id];
+    if (!matchId) {
+      Alert.alert('Match not found', "We couldn't find this meetup.");
+      return;
+    }
+    const isUserA = isUserAByOtherId[item.related_user_id] ?? true;
+    const who = item.relatedName?.trim() || 'them';
+
+    if (!went) {
+      setRespondingId(item.id);
+      await supabase
+        .from('matches')
+        .update(isUserA ? { checkin_a: false } : { checkin_b: false })
+        .eq('id', matchId);
+      setItems((prev) =>
+        prev.map((n) =>
+          n.id === item.id
+            ? { ...n, is_read: true, resolvedSummary: `You said you didn't meet ${who}` }
+            : n,
+        ),
+      );
+      await supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
+      setRespondingId(null);
+      await emitUnreadNotificationCount();
+      return;
+    }
+
+    setItems((prev) =>
+      prev.map((n) =>
+        n.id === item.id ? { ...n, is_read: true, resolvedSummary: `You met ${who} today` } : n,
+      ),
+    );
+    await supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
+    await emitUnreadNotificationCount();
+    router.push({
+      pathname: '/checkin',
+      params: {
+        matchId,
+        matchName: item.relatedName ?? '',
+        isUserA: isUserA ? '1' : '0',
+        wentThere: '1',
+      },
+    } as never);
+  }
+
   async function handleMarkAllRead() {
     const {
       data: { user },
@@ -1213,6 +1324,8 @@ export default function NotificationsScreen() {
           onPress={() => void handlePress(item)}
           onAccept={(slot, place) => void handleRespond(item, true, slot, place)}
           onDecline={() => void handleRespond(item, false)}
+          onCheckinYes={() => void handleCheckin(item, true)}
+          onCheckinNo={() => void handleCheckin(item, false)}
           responding={respondingId === item.id}
         />
       ))}
