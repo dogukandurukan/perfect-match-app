@@ -231,7 +231,7 @@ export default function ProfileSetupStep4() {
   const finish = async (skip: boolean) => {
     if (!userId) return;
     if (isDemoMode) {
-      router.replace('/profile-setup/success?demo=1');
+      router.replace('/(tabs)' as any);
       return;
     }
 
@@ -275,7 +275,7 @@ export default function ProfileSetupStep4() {
       console.log('STEP 4 - upsert error:', profileErr);
       if (profileErr) throw profileErr;
 
-      router.replace('/profile-setup/success');
+      router.replace('/(tabs)' as any);
     } catch (e: any) {
       console.error('STEP 4 - finish error:', e);
       Alert.alert('Kaydetme başarısız', e?.message ?? 'Bir hata oluştu.');

@@ -1,4 +1,5 @@
 // Screen: Setup 1 — profil ve fotoğraf | Status: stable | Last updated: Mayıs 2026
+import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -149,6 +150,7 @@ export default function ProfileSetupStep1() {
   const [district, setDistrict] = useState('Kadikoy');
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
+  const [locating, setLocating] = useState(false);
   const [genderSelection, setGenderSelection] = useState<GenderChip | null>(null);
   const [meetingPreferences, setMeetingPreferences] = useState<MeetingPref[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
@@ -269,6 +271,42 @@ export default function ProfileSetupStep1() {
       }
       return [...prev, value];
     });
+  };
+
+  const useMyLocation = async () => {
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission', 'Please allow location access to use this.');
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setLat(position.coords.latitude);
+      setLng(position.coords.longitude);
+
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      if (place) {
+        const geocodedCity = place.city?.trim();
+        const matchedCity = CITY_OPTIONS.find(
+          (opt) => opt.toLowerCase() === geocodedCity?.toLowerCase(),
+        );
+        if (matchedCity) setCity(matchedCity);
+
+        const geocodedDistrict = place.district || place.subregion;
+        if (geocodedDistrict) setDistrict(geocodedDistrict);
+      }
+    } catch (e: any) {
+      Alert.alert('Location', e?.message ?? 'Could not get your location.');
+    } finally {
+      setLocating(false);
+    }
   };
 
   const handlePickPhoto = async (slotIndex: number) => {
@@ -557,13 +595,14 @@ export default function ProfileSetupStep1() {
           </View>
           <TouchableOpacity
             style={[styles.locationBtn, { marginBottom: GAP }]}
-            onPress={() => {
-              setDistrict('Kadikoy');
-              setCity('Istanbul');
-              setLat(40.9917);
-              setLng(29.0277);
-            }}>
-            <ThemedText style={styles.locationBtnText}>Use my location</ThemedText>
+            onPress={() => void useMyLocation()}
+            disabled={locating}
+            accessibilityRole="button"
+            accessibilityLabel="Use my location"
+            accessibilityState={{ disabled: locating }}>
+            <ThemedText style={styles.locationBtnText}>
+              {locating ? 'Locating…' : 'Use my location'}
+            </ThemedText>
           </TouchableOpacity>
 
           <View style={{ marginBottom: GAP }}>
