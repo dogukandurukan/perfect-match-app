@@ -1,4 +1,4 @@
-// Screen: Profil düzenleme | Status: stable | Last updated: Mayıs 2026
+// Screen: Edit profile | Status: stable | Last updated: Ağustos 2026
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,37 +12,46 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
+import { OptionalFieldReveal } from '@/components/ui/OptionalFieldReveal';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Chip } from '@/components/ui/Chip';
 import { colors } from '@/lib/designTokens';
+import type { ChipIcon } from '@/lib/hingeProfile';
+import { MEETING_VENUE_OPTIONS } from '@/lib/meetingVenues';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 
-const MAX_PHOTOS = 3;
+const MAX_PHOTOS = 5;
 const PHOTOS_BUCKET = 'user-photos';
+const BIO_MAX_LENGTH = 300;
 
 const DAY_OPTIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 const HOUR_OPTIONS = ['Morning (9-12)', 'Afternoon (12-18)', 'Evening (18-21)', 'Always'] as const;
-const MEETING_ENV_OPTIONS = [
-  'Coffee',
-  'Walk in the park',
-  'Dinner',
-  'Drinks',
-  'Something active',
-] as const;
+
+function SectionTitle({ icon, title }: { icon: ChipIcon; title: string }) {
+  return (
+    <View style={styles.sectionTitleRow}>
+      <Ionicons name={icon} size={15} color={colors.accent} />
+      <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
+    </View>
+  );
+}
 
 function ChipInput({
+  icon,
   label,
   placeholder,
   items,
   onAdd,
   onRemove,
 }: {
+  icon: ChipIcon;
   label: string;
   placeholder: string;
   items: string[];
@@ -60,7 +69,10 @@ function ChipInput({
 
   return (
     <View style={styles.fieldWrap}>
-      <ThemedText style={styles.fieldLabel}>{label}</ThemedText>
+      <View style={styles.fieldLabelRow}>
+        <Ionicons name={icon} size={14} color={colors.textPrimary} />
+        <ThemedText style={styles.fieldLabel}>{label}</ThemedText>
+      </View>
       {items.length > 0 && (
         <View style={styles.chipsColumn}>
           {items.map((item) => (
@@ -68,7 +80,9 @@ function ChipInput({
               key={item}
               style={styles.chipAdded}
               onPress={() => onRemove(item)}
-              activeOpacity={0.7}>
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${item}`}>
               <ThemedText style={styles.chipAddedText}>{item} ✕</ThemedText>
             </TouchableOpacity>
           ))}
@@ -88,8 +102,10 @@ function ChipInput({
           style={[styles.addBtn, !input.trim() && styles.addBtnDisabled]}
           onPress={handleSubmit}
           disabled={!input.trim()}
-          activeOpacity={0.8}>
-          <ThemedText style={styles.addBtnText}>+ Ekle</ThemedText>
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Add to ${label}`}>
+          <ThemedText style={styles.addBtnText}>+ Add</ThemedText>
         </TouchableOpacity>
       </View>
     </View>
@@ -108,12 +124,10 @@ function parseField(val: string | string[] | null): string[] {
 async function resolvePhotoUrls(refs: string[]): Promise<string[]> {
   const urls = await Promise.all(
     refs.map(async (ref) => {
-      console.log('[resolvePhotoUrls] ref:', ref);
       if (ref.startsWith('http://') || ref.startsWith('https://')) {
         return ref;
       }
       const signed = await resolveProfilePhotoUrl(ref);
-      console.log('[resolvePhotoUrls] signed:', signed);
       return signed || ref;
     }),
   );
@@ -124,9 +138,11 @@ export default function ProfileEditScreen() {
   const router = useRouter();
 
   const [bio, setBio] = useState('');
+  const [idealDate, setIdealDate] = useState('');
   const [availDays, setAvailDays] = useState<string[]>([]);
   const [availHours, setAvailHours] = useState<string[]>([]);
   const [meetingEnv, setMeetingEnv] = useState<string[]>([]);
+  const [favoriteSpots, setFavoriteSpots] = useState<Record<string, string>>({});
 
   const [musicItems, setMusicItems] = useState<string[]>([]);
   const [movieItems, setMovieItems] = useState<string[]>([]);
@@ -153,6 +169,7 @@ export default function ProfileEditScreen() {
           .select(
             `
             bio, photos, availability_days, availability_hours, meeting_environment,
+            favorite_spots, first_date_expectation,
             favorite_music, favorite_movie, favorite_book, favorite_activity,
             core_value, impressed_by, dealbreaker
           `,
@@ -167,9 +184,15 @@ export default function ProfileEditScreen() {
         setPhotoUrls(await resolvePhotoUrls(refs));
 
         setBio(data.bio ?? '');
+        setIdealDate(data.first_date_expectation ?? '');
         setAvailDays(data.availability_days ?? []);
         setAvailHours(data.availability_hours ?? []);
         setMeetingEnv(data.meeting_environment ?? []);
+        setFavoriteSpots(
+          data.favorite_spots && typeof data.favorite_spots === 'object'
+            ? (data.favorite_spots as Record<string, string>)
+            : {},
+        );
 
         setMusicItems(parseField(data.favorite_music));
         setMovieItems(parseField(data.favorite_movie));
@@ -199,14 +222,40 @@ export default function ProfileEditScreen() {
     setter(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
   }
 
+  function toggleVenue(label: string) {
+    setMeetingEnv((prev) => {
+      if (prev.includes(label)) {
+        const def = MEETING_VENUE_OPTIONS.find((v) => v.label === label);
+        if (def) {
+          setFavoriteSpots((spots) => {
+            const next = { ...spots };
+            delete next[def.spotKey];
+            return next;
+          });
+        }
+        return prev.filter((v) => v !== label);
+      }
+      return [...prev, label];
+    });
+  }
+
+  function setSpot(key: string, text: string) {
+    setFavoriteSpots((prev) => ({ ...prev, [key]: text }));
+  }
+
   async function persistPhotosOnly(refs: string[]) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase
+    const { error } = await supabase
       .from('profiles')
       .update({ photos: refs.length ? refs : null })
       .eq('id', user.id);
+
+    if (error) {
+      console.warn('[ProfileEdit] persistPhotosOnly failed', error);
+      Alert.alert('Could not save photos', 'Please try again.');
+    }
   }
 
   async function handlePickPhoto() {
@@ -214,7 +263,7 @@ export default function ProfileEditScreen() {
 
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Fotoğraf erişimine izin vermeniz gerekiyor');
+      Alert.alert('Permission needed', 'Please allow photo library access.');
       return;
     }
 
@@ -230,13 +279,13 @@ export default function ProfileEditScreen() {
     setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Oturum bulunamadı.');
+      if (!user) throw new Error('No active session.');
 
       const uri = result.assets[0].uri;
       const storagePath = `${user.id}/${Date.now()}.jpg`;
 
       const response = await fetch(uri);
-      if (!response.ok) throw new Error('Fotoğraf okunamadı.');
+      if (!response.ok) throw new Error('Could not read photo.');
 
       const arrayBuffer = await response.arrayBuffer();
       const { error: uploadError } = await supabase.storage
@@ -253,7 +302,7 @@ export default function ProfileEditScreen() {
       setPhotoUrls(await resolvePhotoUrls(nextRefs));
       await persistPhotosOnly(nextRefs);
     } catch {
-      Alert.alert('Fotoğraf yüklenemedi, tekrar dene');
+      Alert.alert('Upload failed', 'Please try again.');
     } finally {
       setUploading(false);
     }
@@ -270,15 +319,21 @@ export default function ProfileEditScreen() {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Oturum bulunamadı.');
+      if (!user) throw new Error('No active session.');
+
+      const cleanedSpots = Object.fromEntries(
+        Object.entries(favoriteSpots).filter(([, v]) => String(v ?? '').trim().length > 0),
+      );
 
       const { error } = await supabase
         .from('profiles')
         .update({
           bio: bio.trim() || null,
+          first_date_expectation: idealDate.trim() || null,
           availability_days: availDays.length ? availDays : null,
           availability_hours: availHours.length ? availHours : null,
           meeting_environment: meetingEnv.length ? meetingEnv : null,
+          favorite_spots: Object.keys(cleanedSpots).length ? cleanedSpots : null,
           favorite_music: musicItems.length ? musicItems.join(', ') : null,
           favorite_movie: movieItems.length ? movieItems.join(', ') : null,
           favorite_book: bookItems.length ? bookItems.join(', ') : null,
@@ -292,15 +347,15 @@ export default function ProfileEditScreen() {
 
       if (error) throw new Error(error.message);
 
-      Alert.alert('Kaydedildi ✓', 'Profilin güncellendi.', [
+      Alert.alert('Saved ✓', 'Your profile has been updated.', [
         {
-          text: 'Tamam',
+          text: 'OK',
           onPress: () => router.back(),
         },
       ]);
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Bir hata oluştu.';
-      Alert.alert('Hata', message);
+      const message = e instanceof Error ? e.message : 'Something went wrong.';
+      Alert.alert('Error', message);
     } finally {
       setSaving(false);
     }
@@ -317,11 +372,11 @@ export default function ProfileEditScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          <ThemedText style={styles.pageTitle}>Profilini Düzenle ✏️</ThemedText>
+          <ThemedText style={styles.pageTitle}>Edit your profile</ThemedText>
 
-          {/* Fotoğraflar */}
+          {/* Photos */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>📷 Fotoğraflar</ThemedText>
+            <SectionTitle icon="camera-outline" title="Photos" />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -332,7 +387,9 @@ export default function ProfileEditScreen() {
                   <TouchableOpacity
                     style={styles.photoRemoveBtn}
                     onPress={() => handleRemovePhoto(index)}
-                    activeOpacity={0.8}>
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Remove photo">
                     <ThemedText style={styles.photoRemoveText}>✕</ThemedText>
                   </TouchableOpacity>
                 </View>
@@ -342,7 +399,9 @@ export default function ProfileEditScreen() {
                   style={styles.photoAddSlot}
                   onPress={handlePickPhoto}
                   disabled={uploading}
-                  activeOpacity={0.8}>
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add photo">
                   {uploading ? (
                     <ActivityIndicator color={colors.accent} />
                   ) : (
@@ -353,26 +412,46 @@ export default function ProfileEditScreen() {
             </ScrollView>
           </View>
 
-          {/* Bio */}
+          {/* About */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>📝 Hakkında</ThemedText>
+            <SectionTitle icon="create-outline" title="About me" />
             <View style={styles.fieldWrap}>
-              <ThemedText style={styles.fieldLabel}>Kendini kısaca anlat</ThemedText>
+              <ThemedText style={styles.fieldLabel}>A little about yourself</ThemedText>
               <TextInput
                 style={[styles.inputFlex, styles.inputMulti]}
                 value={bio}
                 onChangeText={setBio}
-                placeholder="Birkaç cümleyle kendinizden bahsedin..."
+                placeholder="A couple of sentences about you..."
                 placeholderTextColor="#AAAAAA"
                 multiline
                 numberOfLines={3}
+                maxLength={BIO_MAX_LENGTH}
+              />
+              <ThemedText style={styles.charCount}>
+                {bio.length}/{BIO_MAX_LENGTH}
+              </ThemedText>
+            </View>
+          </View>
+
+          {/* Prompts */}
+          <View style={styles.section}>
+            <SectionTitle icon="heart-outline" title="My ideal date" />
+            <View style={styles.fieldWrap}>
+              <TextInput
+                style={[styles.inputFlex, styles.inputMulti]}
+                value={idealDate}
+                onChangeText={setIdealDate}
+                placeholder="What does your ideal date look like?"
+                placeholderTextColor="#AAAAAA"
+                multiline
+                numberOfLines={2}
               />
             </View>
           </View>
 
-          {/* Müsait günler */}
+          {/* Availability */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>📅 Müsait Günler</ThemedText>
+            <SectionTitle icon="calendar-outline" title="Available days" />
             <View style={styles.chipsRow}>
               {DAY_OPTIONS.map((day) => (
                 <Chip
@@ -385,9 +464,8 @@ export default function ProfileEditScreen() {
             </View>
           </View>
 
-          {/* Müsait saatler */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>🕐 Müsait Saatler</ThemedText>
+            <SectionTitle icon="time-outline" title="Available hours" />
             <View style={styles.chipsRow}>
               {HOUR_OPTIONS.map((hour) => (
                 <Chip
@@ -400,93 +478,113 @@ export default function ProfileEditScreen() {
             </View>
           </View>
 
-          {/* Buluşma ortamı */}
+          {/* Meeting preferences */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>☕ Buluşma Ortamı</ThemedText>
+            <SectionTitle icon="cafe-outline" title="What kind of date sounds fun to you?" />
             <View style={styles.chipsRow}>
-              {MEETING_ENV_OPTIONS.map((env) => (
+              {MEETING_VENUE_OPTIONS.map(({ label }) => (
                 <Chip
-                  key={env}
-                  label={env}
-                  selected={meetingEnv.includes(env)}
-                  onPress={() => toggleChip(meetingEnv, setMeetingEnv, env)}
+                  key={label}
+                  label={label}
+                  selected={meetingEnv.includes(label)}
+                  onPress={() => toggleVenue(label)}
                 />
               ))}
             </View>
+            {MEETING_VENUE_OPTIONS.map(({ label, spotKey, placeholder }) =>
+              meetingEnv.includes(label) ? (
+                <OptionalFieldReveal key={spotKey} show animationKey={spotKey}>
+                  <TextInput
+                    style={styles.inputFlex}
+                    placeholder={placeholder}
+                    placeholderTextColor="#AAAAAA"
+                    value={favoriteSpots[spotKey] ?? ''}
+                    onChangeText={(t) => setSpot(spotKey, t)}
+                  />
+                </OptionalFieldReveal>
+              ) : null,
+            )}
           </View>
 
           {/* Interests & Taste */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>Interests & Taste</ThemedText>
+            <SectionTitle icon="sparkles-outline" title="Interests & taste" />
             <ThemedText style={styles.sectionSubtitle}>
-              Her alan eşleşme puanını artırır ✨
+              Every field you fill in improves your match score.
             </ThemedText>
 
             <ChipInput
-              label="Favori müzik (tür veya sanatçı)"
-              placeholder="örn. Jazz, Radiohead, Daft Punk"
+              icon="musical-notes-outline"
+              label="Music (genre or artist)"
+              placeholder="e.g. Jazz, Radiohead, Daft Punk"
               items={musicItems}
               onAdd={addTo(setMusicItems)}
               onRemove={removeFrom(setMusicItems)}
             />
             <ChipInput
-              label="🎬 Movies & Shows"
-              placeholder="ör. Eternal Sunshine, Breaking Bad..."
+              icon="film-outline"
+              label="Movies & shows"
+              placeholder="e.g. Eternal Sunshine, Breaking Bad..."
               items={movieItems}
               onAdd={addTo(setMovieItems)}
               onRemove={removeFrom(setMovieItems)}
             />
             <ChipInput
-              label="📚 Books"
-              placeholder="ör. Küçük Prens, Suç ve Ceza..."
+              icon="book-outline"
+              label="Books"
+              placeholder="e.g. The Little Prince, Sapiens..."
               items={bookItems}
               onAdd={addTo(setBookItems)}
               onRemove={removeFrom(setBookItems)}
             />
             <ChipInput
-              label="🎯 Hobbies"
-              placeholder="ör. Yürüyüş, fotoğrafçılık, okuma..."
+              icon="star-outline"
+              label="Hobbies"
+              placeholder="e.g. Hiking, photography, reading..."
               items={activityItems}
               onAdd={addTo(setActivityItems)}
               onRemove={removeFrom(setActivityItems)}
             />
           </View>
 
-          {/* Değerler */}
+          {/* Values */}
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>💬 Değerlerin</ThemedText>
+            <SectionTitle icon="diamond-outline" title="Your values" />
             <ChipInput
-              label="🙏 Hayatta değer verdiklerin"
-              placeholder="ör. Dürüstlük, özgürlük..."
+              icon="diamond-outline"
+              label="What matters most to you in life"
+              placeholder="e.g. Honesty, freedom..."
               items={coreValueItems}
               onAdd={addTo(setCoreValueItems)}
               onRemove={removeFrom(setCoreValueItems)}
             />
             <ChipInput
-              label="💡 Seni etkileyen şeyler"
-              placeholder="ör. Meraklı biri, iyi dinleyici..."
+              icon="flash-outline"
+              label="What impresses you"
+              placeholder="e.g. Curiosity, a good listener..."
               items={impressedByItems}
               onAdd={addTo(setImpressedByItems)}
               onRemove={removeFrom(setImpressedByItems)}
             />
             <ChipInput
-              label="🚩 Uyuşamayacağın şeyler"
-              placeholder="ör. Dakiksizlik, saygısızlık..."
+              icon="close-circle-outline"
+              label="Dealbreakers"
+              placeholder="e.g. Chronic lateness, rudeness..."
               items={dealbreakerItems}
               onAdd={addTo(setDealbreakerItems)}
               onRemove={removeFrom(setDealbreakerItems)}
             />
           </View>
 
-          {/* Kaydet */}
+          {/* Save */}
           <TouchableOpacity
             style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
             onPress={handleSave}
             disabled={saving}
-            activeOpacity={0.8}>
-            <ThemedText style={styles.saveBtnText}>
-              {saving ? 'Kaydediliyor...' : 'Kaydet ✓'}
-            </ThemedText>
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Save profile">
+            <ThemedText style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save ✓'}</ThemedText>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -508,6 +606,7 @@ const styles = StyleSheet.create({
   },
 
   section: { gap: 10 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '600',
@@ -522,7 +621,9 @@ const styles = StyleSheet.create({
   },
 
   fieldWrap: { gap: 8 },
+  fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   fieldLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: '500' },
+  charCount: { fontSize: 11, color: '#AAAAAA', textAlign: 'right' },
 
   inputRow: {
     flexDirection: 'row',
@@ -557,11 +658,6 @@ const styles = StyleSheet.create({
   chipsColumn: {
     flexDirection: 'column',
     gap: 6,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    marginVertical: 4,
   },
   chipAdded: {
     backgroundColor: '#FFF8E1',

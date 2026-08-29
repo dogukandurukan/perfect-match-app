@@ -11,6 +11,7 @@ import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { SetupScreenHeader } from '@/components/ui/SetupScreenHeader';
 import { colors } from '@/lib/designTokens';
+import { MEETING_VENUE_OPTIONS } from '@/lib/meetingVenues';
 import { supabase } from '@/lib/supabaseClient';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
@@ -20,13 +21,7 @@ const TIME_OPTIONS = ['Morning (9-12)', 'Afternoon (12-18)', 'Evening (18-21)'] 
 const TIME_ALWAYS = 'Always' as const;
 const TIME_CHIPS = [...TIME_OPTIONS, TIME_ALWAYS] as const;
 
-const VENUE_DEFS = [
-  { label: 'A coffee date ☕' as const, spotKey: 'coffee', placeholder: "What's your favorite coffee place? (optional)" },
-  { label: 'A walk outside 🌿' as const, spotKey: 'park', placeholder: "What's your favorite park or area? (optional)" },
-  { label: 'Dinner somewhere nice 🍽' as const, spotKey: 'dinner', placeholder: 'Any favorite restaurant or cuisine? (optional)' },
-  { label: 'Drinks at a bar 🍸' as const, spotKey: 'drinks', placeholder: 'Any favorite bar or spot? (optional)' },
-  { label: 'Something active & fun 🎯' as const, spotKey: 'active', placeholder: 'What kind of activity do you enjoy? (optional)' },
-];
+const VENUE_DEFS = MEETING_VENUE_OPTIONS;
 
 const FIRST_MEETING_OPTIONS = [
   "See if there's a spark",

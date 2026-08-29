@@ -55,7 +55,7 @@ const LANGUAGE_SUGGESTIONS = [
 ] as const;
 const MAX_LANGUAGES = 5;
 
-const PHOTO_SLOTS = 3;
+const PHOTO_SLOTS = 5;
 const PHOTO_SLOT_MAX = 72;
 /** Vertical gap between blocks (compact single-page goal) */
 const GAP = 14;
@@ -365,11 +365,18 @@ export default function ProfileSetupStep1() {
     try {
       const selectedPhotoUris = photos.filter(Boolean) as string[];
       let uploadedPhotoPaths: string[] = [];
-      try {
-        uploadedPhotoPaths = await uploadPhotosToSupabase(userId, selectedPhotoUris);
-      } catch (photoError) {
-        console.log('STEP 1 - photo upload skipped:', photoError);
-        uploadedPhotoPaths = [];
+      if (selectedPhotoUris.length > 0) {
+        try {
+          uploadedPhotoPaths = await uploadPhotosToSupabase(userId, selectedPhotoUris);
+        } catch (photoError: any) {
+          console.log('STEP 1 - photo upload failed:', photoError);
+          Alert.alert(
+            'Photo upload failed',
+            photoError?.message ?? 'Could not upload your photos. Please try again.',
+          );
+          setSaving(false);
+          return;
+        }
       }
 
       const isoDob = `${effectiveDob.getFullYear()}-${pad2(effectiveDob.getMonth() + 1)}-${pad2(effectiveDob.getDate())}`;

@@ -932,11 +932,7 @@ export default function MatchesTab() {
   }
 
   const hasAnyContent =
-    openChats.length > 0 ||
-    incoming.length > 0 ||
-    outgoing.length > 0 ||
-    acceptedMatches.length > 0 ||
-    cards.length > 0;
+    openChats.length > 0 || incoming.length > 0 || outgoing.length > 0 || cards.length > 0;
 
   return (
     <ScreenContainer style={styles.container}>
@@ -985,46 +981,6 @@ export default function MatchesTab() {
                       <ThemedText style={styles.acceptedStatus}>Tap to open chat</ThemedText>
                     </View>
                   </TouchableOpacity>
-                ))}
-              </View>
-            ) : null}
-
-            {acceptedMatches.length > 0 ? (
-              <View style={styles.section}>
-                <ThemedText style={styles.sectionTitle}>Confirmed meetups</ThemedText>
-                {acceptedMatches.map((am) => (
-                  <View key={am.matchId} style={styles.acceptedCard}>
-                    <Image
-                      source={{ uri: am.displayPhotoUrl }}
-                      style={styles.acceptedPhoto}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.acceptedInfo}>
-                      <ThemedText style={styles.acceptedName}>
-                        {am.firstName ?? 'Someone'}, {am.age}
-                      </ThemedText>
-                      <ThemedText style={styles.acceptedStatus}>
-                        {am.checkinDone ? 'Check-in done' : 'Meetup pending'}
-                      </ThemedText>
-                    </View>
-                    {!am.checkinDone ? (
-                      <TouchableOpacity
-                        style={styles.checkinBtn}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/checkin',
-                            params: {
-                              matchId: am.matchId,
-                              matchName: am.firstName ?? 'Someone',
-                              isUserA: am.isUserA ? '1' : '0',
-                            },
-                          })
-                        }
-                        activeOpacity={0.8}>
-                        <ThemedText style={styles.checkinBtnText}>Check in</ThemedText>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
                 ))}
               </View>
             ) : null}

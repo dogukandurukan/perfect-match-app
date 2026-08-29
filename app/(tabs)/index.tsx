@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -90,6 +91,8 @@ export default function HomeScreen() {
   const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null);
   const [noteText, setNoteText] = useState('');
   const [noteBanner, setNoteBanner] = useState<string | null>(null);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReason, setReportReason] = useState('');
 
   const hasLoadedFeedRef = useRef(false);
   const feedResetAtRef = useRef<string | null>(null);
@@ -516,6 +519,47 @@ export default function HomeScreen() {
     completeLike(); // Note de günlük kotayı düşürür + feed ilerler (❤ ile aynı).
   }, [noteTarget, currentUser, noteText, recordLike, completeLike]);
 
+  const handleBlockCurrentUser = useCallback(() => {
+    if (!authUserId || !currentUser) return;
+    const targetId = currentUser.user_id;
+    const targetName = currentUser.first_name ?? 'this person';
+    Alert.alert('Block', `Block ${targetName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Block',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase
+            .from('blocks')
+            .insert({ blocker_id: authUserId, blocked_id: targetId });
+          if (error) {
+            Alert.alert('Could not block', 'Please try again.');
+            return;
+          }
+          advanceIndex();
+        },
+      },
+    ]);
+  }, [authUserId, currentUser, advanceIndex]);
+
+  const handleSubmitReport = useCallback(() => {
+    const targetId = currentUser?.user_id;
+    const reason = reportReason.trim();
+    if (!authUserId || !targetId || !reason) return;
+    void (async () => {
+      const { error } = await supabase
+        .from('reports')
+        .insert({ reporter_id: authUserId, reported_id: targetId, reason });
+      setReportModalVisible(false);
+      setReportReason('');
+      if (error) {
+        Alert.alert('Could not send report', 'Please try again.');
+        return;
+      }
+      Alert.alert('Report sent', 'Thanks for letting us know.');
+    })();
+  }, [authUserId, currentUser, reportReason]);
+
   if (checking) {
     return (
       <View style={styles.loadingFeed}>
@@ -586,21 +630,43 @@ export default function HomeScreen() {
               person={currentUser}
               viewerCity={myCity}
               onNoteTarget={handleOpenNote}
-              midActions={
-                <View style={styles.actionRow}>
+              footer={
+                <View style={styles.footerActions}>
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={styles.passBtn}
+                      activeOpacity={0.85}
+                      disabled={animating}
+                      accessibilityRole="button"
+                      accessibilityLabel="Pass"
+                      onPress={() => handlePass(currentUser.user_id)}>
+                      <Text style={styles.passIcon}>✕</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.likeBtn}
+                      activeOpacity={0.85}
+                      disabled={animating}
+                      accessibilityRole="button"
+                      accessibilityLabel="Like"
+                      onPress={() => handleLike(currentUser.user_id)}>
+                      <Text style={styles.likeIcon}>❤️</Text>
+                    </TouchableOpacity>
+                  </View>
                   <TouchableOpacity
-                    style={styles.passBtn}
-                    activeOpacity={0.85}
-                    disabled={animating}
-                    onPress={() => handlePass(currentUser.user_id)}>
-                    <Text style={styles.passIcon}>✕</Text>
+                    style={styles.blockLink}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Block this person"
+                    onPress={handleBlockCurrentUser}>
+                    <ThemedText style={styles.blockLinkText}>Block</ThemedText>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.likeBtn}
-                    activeOpacity={0.85}
-                    disabled={animating}
-                    onPress={() => handleLike(currentUser.user_id)}>
-                    <Text style={styles.likeIcon}>❤️</Text>
+                    style={styles.reportLink}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Report this person"
+                    onPress={() => setReportModalVisible(true)}>
+                    <ThemedText style={styles.reportLinkText}>Report</ThemedText>
                   </TouchableOpacity>
                 </View>
               }
@@ -673,6 +739,50 @@ export default function HomeScreen() {
                 accessibilityLabel="Send like with note">
                 <Ionicons name="heart" size={18} color="#FFFFFF" />
                 <ThemedText style={styles.noteSendText}>Send like</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Report modal — Home discovery kartından direkt (user-profile.tsx ile aynı desen) */}
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReportModalVisible(false)}>
+        <KeyboardAvoidingView
+          style={styles.noteBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.noteSheet}>
+            <View style={styles.noteHandle} />
+            <ThemedText style={styles.noteHeading}>Why are you reporting?</ThemedText>
+            <TextInput
+              style={styles.noteInput}
+              value={reportReason}
+              onChangeText={setReportReason}
+              placeholder="Tell us briefly what happened…"
+              placeholderTextColor="#9A9A9A"
+              multiline
+              autoFocus
+            />
+            <View style={styles.noteActions}>
+              <TouchableOpacity
+                style={styles.noteCancel}
+                onPress={() => setReportModalVisible(false)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel report">
+                <ThemedText style={styles.noteCancelText}>Cancel</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.noteSend, !reportReason.trim() && styles.noteSendDisabled]}
+                onPress={handleSubmitReport}
+                disabled={!reportReason.trim()}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Send report">
+                <ThemedText style={styles.noteSendText}>Send</ThemedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -758,6 +868,15 @@ const styles = StyleSheet.create({
   },
   likeIcon: { fontSize: 32 },
 
+  footerActions: {
+    alignItems: 'center',
+    paddingBottom: 24,
+  },
+  blockLink: { paddingVertical: 10 },
+  blockLinkText: { fontSize: 14, fontWeight: '500', color: '#8A8A8A' },
+  reportLink: { paddingVertical: 6 },
+  reportLinkText: { fontSize: 14, fontWeight: '600', color: '#C0392B' },
+
   passOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#FFFFFF',
@@ -838,6 +957,7 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
   },
   noteSendText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  noteSendDisabled: { opacity: 0.4 },
   noteToast: {
     position: 'absolute',
     left: 24,

@@ -2,7 +2,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { type ReactNode } from 'react';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/lib/designTokens';
@@ -15,6 +15,7 @@ import {
   buildPromptCards,
   formatFeedLocation,
   hingeSafeAge,
+  type ChipIcon,
   type HingeProfilePerson,
   type ProfileChip,
   type PromptCard,
@@ -25,10 +26,10 @@ const ACCENT = '#B8860B';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PHOTO1_HEIGHT = SCREEN_HEIGHT * 0.55;
 
-function InfoLine({ icon, text }: { icon?: string; text: string }) {
+function InfoLine({ icon, text }: { icon?: ChipIcon; text: string }) {
   return (
     <View style={styles.infoLine}>
-      {icon ? <Text style={styles.infoLineIcon}>{icon}</Text> : null}
+      {icon ? <Ionicons name={icon} size={16} color={colors.textPrimary} /> : null}
       <ThemedText style={styles.infoLineText}>{text}</ThemedText>
     </View>
   );
@@ -217,19 +218,21 @@ export function HingeProfileCard({
       ) : null}
 
       {(person.hobbies ?? []).length > 0 || hasCommonMedia ? (
-        <SectionCard title="Things in common 🤝">
+        <SectionCard title="Things in common">
           {(person.hobbies ?? []).length > 0 ? (
             <View style={styles.chipRow}>
               {(person.hobbies ?? []).map((hobby) => (
-                <View key={hobby} style={styles.hobbyChip}>
-                  <ThemedText style={styles.hobbyChipText}>{hobby}</ThemedText>
+                <View key={hobby} style={styles.aboutChip}>
+                  <ThemedText style={styles.aboutChipText}>{hobby}</ThemedText>
                 </View>
               ))}
             </View>
           ) : null}
-          {person.favorite_music ? <InfoLine icon="🎵" text={person.favorite_music} /> : null}
-          {person.favorite_movie ? <InfoLine icon="🎬" text={person.favorite_movie} /> : null}
-          {person.favorite_book ? <InfoLine icon="📚" text={person.favorite_book} /> : null}
+          {person.favorite_music ? (
+            <InfoLine icon="musical-notes-outline" text={person.favorite_music} />
+          ) : null}
+          {person.favorite_movie ? <InfoLine icon="film-outline" text={person.favorite_movie} /> : null}
+          {person.favorite_book ? <InfoLine icon="book-outline" text={person.favorite_book} /> : null}
         </SectionCard>
       ) : null}
 
@@ -414,7 +417,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   infoLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  infoLineIcon: { fontSize: 16, width: 24 },
   infoLineText: { flex: 1, fontSize: 14, color: colors.textPrimary, lineHeight: 20 },
 
   promptCard: {
@@ -475,15 +477,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 4,
   },
-  hobbyChip: {
-    borderWidth: 1,
-    borderColor: ACCENT,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  hobbyChipText: { color: ACCENT, fontSize: 13 },
-
   inlinePhotoWrap: {
     position: 'relative',
     marginTop: 14,

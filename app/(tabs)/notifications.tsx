@@ -75,7 +75,13 @@ type IconSpec = { name: IoniconName; color: string; bg: string };
 // kept only to filter any legacy like-flavored notification rows out of the
 // compact feed, so they don't show twice.
 const LIKE_TYPES = new Set(['like', 'new_like', 'someone_liked', 'new_match']);
-const FEATURED_TYPES = new Set(['invite_accepted', 'new_invite', 'meeting_invite', 'meetup_reminder']);
+const FEATURED_TYPES = new Set([
+  'invite_accepted',
+  'new_invite',
+  'meeting_invite',
+  'meetup_reminder',
+  'meetup_reminder_morning',
+]);
 const isLikeType = (t: NotificationType) => LIKE_TYPES.has(t);
 const isFeaturedType = (t: NotificationType) => FEATURED_TYPES.has(t);
 
@@ -105,6 +111,8 @@ function typeIcon(type: NotificationType): IconSpec {
       return { name: 'heart-outline', color: colors.accent, bg: '#FBF3DF' };
     case 'meetup_reminder':
       return { name: 'cafe-outline', color: colors.accent, bg: '#FBF3DF' };
+    case 'meetup_reminder_morning':
+      return { name: 'sunny-outline', color: colors.accent, bg: '#FBF3DF' };
     default:
       return { name: 'notifications', color: colors.textMuted, bg: '#F0F0F0' };
   }
@@ -170,6 +178,8 @@ function feedRowText(
         : `You responded to ${who}'s invite`;
     case 'meetup_reminder':
       return `You responded to today's reminder about ${who}`;
+    case 'meetup_reminder_morning':
+      return `You confirmed this morning's plan with ${who}`;
     default:
       return 'New notification';
   }
@@ -375,6 +385,8 @@ function FeaturedCard({
   onDecline,
   onCheckinYes,
   onCheckinNo,
+  onMorningYes,
+  onMorningNo,
   responding,
 }: {
   item: NotificationRow;
@@ -388,6 +400,8 @@ function FeaturedCard({
   onDecline?: () => void;
   onCheckinYes?: () => void;
   onCheckinNo?: () => void;
+  onMorningYes?: () => void;
+  onMorningNo?: () => void;
   responding?: boolean;
 }) {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -397,27 +411,38 @@ function FeaturedCard({
   const [customPlace, setCustomPlace] = useState('');
   const name = item.relatedName?.trim() || 'Someone';
   const accepted = item.type === 'invite_accepted';
-  // Day-of "did you go?" reminder — no slot/place picker, just a yes/no on
-  // whether the meetup happened, mirroring the tap-the-push-notification path
-  // into checkin.tsx (2026-08-27).
+  // Two-stage day-of reminder (CLAUDE.md §4, 2026-08-29): a morning,
+  // future-tense nudge ("are you still on?") and — separately — an
+  // after-the-fact, past-tense check-in ("did you go?") once meeting_at has
+  // passed. Keeping the tenses straight is the whole point of the split (an
+  // earlier single-stage version asked "did you go?" before the meetup had
+  // even happened, which read as nonsensical — found via device testing,
+  // 2026-08-27).
+  const isMorning = item.type === 'meetup_reminder_morning';
   const isReminder = item.type === 'meetup_reminder';
-  const title = isReminder
+  const title = isMorning
     ? `Meeting ${name} today?`
-    : accepted
-      ? `${name} said yes`
-      : `${name} wants to meet`;
-  const sub = isReminder
-    ? 'Let us know if you went'
-    : accepted
-      ? confirmedSlot
-        ? `Confirmed: ${confirmedSlot}`
-        : 'Pick a time to meet up'
-      : 'Coffee invite';
-  const badge: IconSpec = isReminder
-    ? { name: 'cafe', color: colors.accent, bg: '#FBF3DF' }
-    : accepted
-      ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
-      : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
+    : isReminder
+      ? `Did you meet up with ${name}?`
+      : accepted
+        ? `${name} said yes`
+        : `${name} wants to meet`;
+  const sub = isMorning
+    ? "Let us know if you're still on"
+    : isReminder
+      ? 'Let us know how it went'
+      : accepted
+        ? confirmedSlot
+          ? `Confirmed: ${confirmedSlot}`
+          : 'Pick a time to meet up'
+        : 'Coffee invite';
+  const badge: IconSpec = isMorning
+    ? { name: 'sunny', color: colors.accent, bg: '#FBF3DF' }
+    : isReminder
+      ? { name: 'cafe', color: colors.accent, bg: '#FBF3DF' }
+      : accepted
+        ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
+        : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
 
   const place = introLines?.[0];
   const times = slotOptions ?? [];
@@ -479,7 +504,32 @@ function FeaturedCard({
           <ThemedText style={styles.featuredSub}>{sub}</ThemedText>
         </View>
 
-        {isReminder ? (
+        {isMorning ? (
+          responding ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <View style={styles.respondRow}>
+              <TouchableOpacity
+                style={styles.respondDecline}
+                onPress={onMorningNo}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`No, not meeting ${name} today`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.respondAccept}
+                onPress={onMorningYes}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Yes, still meeting ${name} today`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          )
+        ) : isReminder ? (
           responding ? (
             <ActivityIndicator size="small" color={colors.accent} />
           ) : (
@@ -540,7 +590,7 @@ function FeaturedCard({
         )}
       </View>
 
-      {!isReminder && !accepted && place ? (
+      {!isMorning && !isReminder && !accepted && place ? (
         <View style={styles.featuredInfoBlock}>
           <View style={styles.featuredInfoRow}>
             <Ionicons name="location-outline" size={13} color={colors.accent} />
@@ -1263,6 +1313,29 @@ export default function NotificationsScreen() {
     } as never);
   }
 
+  // Morning "are you still on?" reminder — purely a client-side acknowledgement,
+  // no matches write (checkin_a/b means "did you actually go", which isn't
+  // knowable yet in the morning — writing it here would be premature/wrong;
+  // that data-write belongs to handleCheckin, stage 2) (2026-08-29).
+  function handleMorningReminder(item: NotificationRow, going: boolean) {
+    const who = item.relatedName?.trim() || 'them';
+    setItems((prev) =>
+      prev.map((n) =>
+        n.id === item.id
+          ? {
+              ...n,
+              is_read: true,
+              resolvedSummary: going
+                ? `You're meeting ${who} today`
+                : `You said you're not meeting ${who} today`,
+            }
+          : n,
+      ),
+    );
+    void supabase.from('notifications').update({ is_read: true }).eq('id', item.id);
+    void emitUnreadNotificationCount();
+  }
+
   async function handleMarkAllRead() {
     const {
       data: { user },
@@ -1326,6 +1399,8 @@ export default function NotificationsScreen() {
           onDecline={() => void handleRespond(item, false)}
           onCheckinYes={() => void handleCheckin(item, true)}
           onCheckinNo={() => void handleCheckin(item, false)}
+          onMorningYes={() => handleMorningReminder(item, true)}
+          onMorningNo={() => handleMorningReminder(item, false)}
           responding={respondingId === item.id}
         />
       ))}
