@@ -268,6 +268,7 @@ export default function SettingsScreen() {
           <NavRow label="Photos" onPress={() => router.push('/profile-edit')} />
           <NavRow label="Email" value={email} />
           <NavRow label="Phone number" value={phone ?? 'Not set'} />
+          <NavRow label="Change password" onPress={() => router.push('/change-password')} />
         </View>
 
         <View style={styles.card}>

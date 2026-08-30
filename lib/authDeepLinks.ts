@@ -30,9 +30,15 @@ function paramsFromUrl(url: string): Record<string, string> {
   return out;
 }
 
-/** Apply Supabase session tokens (or PKCE code) from an auth redirect URL. */
-export async function applySessionFromUrl(url: string): Promise<void> {
-  if (!url) return;
+/**
+ * Apply Supabase session tokens (or PKCE code) from an auth redirect URL.
+ * Returns the link's `type` (e.g. 'recovery' for a password-reset email,
+ * 'signup' for email confirmation) so the caller can route accordingly —
+ * resetPasswordForEmail's redirect carries `type=recovery` in the URL, which
+ * is otherwise indistinguishable from a normal signup/magic-link session.
+ */
+export async function applySessionFromUrl(url: string): Promise<string | null> {
+  if (!url) return null;
 
   const params = paramsFromUrl(url);
   const access_token = params.access_token;
@@ -40,13 +46,16 @@ export async function applySessionFromUrl(url: string): Promise<void> {
 
   if (access_token && refresh_token) {
     await supabase.auth.setSession({ access_token, refresh_token });
-    return;
+    return params.type ?? null;
   }
 
   const code = params.code;
   if (code) {
     await supabase.auth.exchangeCodeForSession(code);
+    return params.type ?? null;
   }
+
+  return null;
 }
 
 /** Subscribe to initial + subsequent auth deep links. Returns unsubscribe. */

@@ -59,6 +59,14 @@ export default function LoginScreen() {
 
         <PrimaryButton label={loading ? 'Giriş yapılıyor…' : 'Log in'} onPress={handleLogin} loading={loading} />
 
+        <ThemedText
+          style={styles.linkText}
+          onPress={() => router.push('/(auth)/forgot-password')}
+          accessibilityRole="link"
+          accessibilityLabel="Şifremi unuttum">
+          Şifreni mi unuttun?
+        </ThemedText>
+
         <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/register')}>
           Hesabın yok mu? Create account
         </ThemedText>

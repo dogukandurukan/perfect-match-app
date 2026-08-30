@@ -16,11 +16,19 @@ import { supabase } from '@/lib/supabaseClient';
 import * as Notifications from 'expo-notifications';
 
 function AuthDeepLinkBridge() {
+  const router = useRouter();
   useEffect(() => {
     return subscribeAuthDeepLinks((url) => {
-      void applySessionFromUrl(url);
+      void applySessionFromUrl(url).then((type) => {
+        // Password-reset email link — the session is now a recovery session,
+        // route straight to setting a new password instead of dropping the
+        // user on whatever screen the app happened to open to.
+        if (type === 'recovery') {
+          router.push('/change-password' as never);
+        }
+      });
     });
-  }, []);
+  }, [router]);
   return null;
 }
 
@@ -128,7 +136,7 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding/index" options={{ headerShown: false }} />
         <Stack.Screen name="profile-setup" options={{ headerShown: false }} />
-        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
         <Stack.Screen name="coming-soon" options={{ headerShown: false }} />
         <Stack.Screen name="match-results" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
