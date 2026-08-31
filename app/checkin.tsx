@@ -1,6 +1,6 @@
 // Screen: Buluşma check-in | Status: test | Last updated: Mayıs 2026
 import { useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
@@ -43,8 +43,12 @@ export default function CheckinScreen() {
       // Gitmediyse direkt kaydet
       setLoading(true);
       const updatePayload = isUserA ? { checkin_a: false } : { checkin_b: false };
-      await supabase.from('matches').update(updatePayload).eq('id', matchId);
+      const { error } = await supabase.from('matches').update(updatePayload).eq('id', matchId);
       setLoading(false);
+      if (error) {
+        Alert.alert('Could not save', 'Please try again.');
+        return;
+      }
       setStep('done');
     } else {
       setStep('rating');
@@ -63,20 +67,33 @@ export default function CheckinScreen() {
       ? { checkin_a: true, date_rating_a: rating }
       : { checkin_b: true, date_rating_b: rating };
 
-    await supabase.from('matches').update(checkinPayload).eq('id', matchId);
+    const { error } = await supabase.from('matches').update(checkinPayload).eq('id', matchId);
+    if (error) {
+      setLoading(false);
+      Alert.alert('Could not save your rating', 'Please try again.');
+      return;
+    }
 
-    // İkisi de true ise confirmed yap
-    const { data: match } = await supabase
+    // İkisi de true ise confirmed yap — bu ikinci adım best-effort: yukarıdaki
+    // asıl check-in yazısı zaten başarılı oldu, bu sadece iki tarafın da
+    // check-in ettiğini tespit edip confirmed işaretliyor. Başarısız olursa
+    // kullanıcıyı bloklamıyoruz (rating zaten kaydedildi), sadece logluyoruz.
+    const { data: match, error: readError } = await supabase
       .from('matches')
       .select('checkin_a, checkin_b')
       .eq('id', matchId)
       .single();
 
-    if (match?.checkin_a === true && match?.checkin_b === true) {
-      await supabase
+    if (readError) {
+      console.warn('[checkin] confirmed-check read failed', readError.message);
+    } else if (match?.checkin_a === true && match?.checkin_b === true) {
+      const { error: confirmError } = await supabase
         .from('matches')
         .update({ checkin_confirmed: true })
         .eq('id', matchId);
+      if (confirmError) {
+        console.warn('[checkin] checkin_confirmed write failed', confirmError.message);
+      }
     }
 
     setLoading(false);

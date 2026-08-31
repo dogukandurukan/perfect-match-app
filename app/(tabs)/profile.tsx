@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
+import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
@@ -59,12 +60,15 @@ export default function ProfileTab() {
   const [intent, setIntent] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
       (async () => {
         setLoading(true);
+        setError(false);
         const {
           data: { user },
         } = await supabase.auth.getUser();
@@ -73,15 +77,16 @@ export default function ProfileTab() {
           return;
         }
 
-        const { data, error } = await supabase
+        const { data, error: fetchError } = await supabase
           .from('profiles')
           .select(PROFILE_SELECT)
           .eq('id', user.id)
           .single();
 
         if (!mounted) return;
-        if (error || !data) {
-          console.warn('[ProfileTab] profiles fetch failed', error);
+        if (fetchError || !data) {
+          console.warn('[ProfileTab] profiles fetch failed', fetchError);
+          setError(true);
           setLoading(false);
           return;
         }
@@ -119,7 +124,7 @@ export default function ProfileTab() {
       return () => {
         mounted = false;
       };
-    }, []),
+    }, [reloadKey]),
   );
 
   async function handleLogout() {
@@ -131,6 +136,15 @@ export default function ProfileTab() {
     return (
       <ScreenContainer style={styles.screenFlush}>
         <HomeTopIcon />
+      </ScreenContainer>
+    );
+  }
+
+  if (error) {
+    return (
+      <ScreenContainer style={styles.screenFlush}>
+        <HomeTopIcon />
+        <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
       </ScreenContainer>
     );
   }

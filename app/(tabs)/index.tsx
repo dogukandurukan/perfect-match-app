@@ -480,17 +480,27 @@ export default function HomeScreen() {
 
   const handleLike = useCallback(
     (userId: string) => {
-      void recordLike(userId, { type: 'profile', key: null });
-      setAnimating(true);
-      likeOverlayOpacity.value = withSequence(
-        withTiming(1, { duration: 300 }),
-        withDelay(
-          800,
-          withTiming(0, { duration: 200 }, (finished) => {
-            if (finished) runOnJS(completeLike)();
-          }),
-        ),
-      );
+      // Wait for the write before animating/advancing — the animation used
+      // to fire immediately regardless of whether recordLike succeeded, so a
+      // failed like still looked like it worked and the card was already
+      // gone by the time you'd know otherwise (no retry).
+      void (async () => {
+        const ok = await recordLike(userId, { type: 'profile', key: null });
+        if (!ok) {
+          Alert.alert('Could not send like', 'Please try again.');
+          return;
+        }
+        setAnimating(true);
+        likeOverlayOpacity.value = withSequence(
+          withTiming(1, { duration: 300 }),
+          withDelay(
+            800,
+            withTiming(0, { duration: 200 }, (finished) => {
+              if (finished) runOnJS(completeLike)();
+            }),
+          ),
+        );
+      })();
     },
     [completeLike, likeOverlayOpacity, recordLike],
   );
@@ -515,8 +525,11 @@ export default function HomeScreen() {
       const ok = await recordLike(likeeId, { type: target.type, key: target.key, note: text });
       setNoteBanner(ok ? 'Like sent ✨' : 'Couldn’t send your like — try again');
       setTimeout(() => setNoteBanner(null), 2600);
+      // completeLike() (kota düşür + feed ilerlet) sadece yazma başarılıysa —
+      // önceden koşulsuz çağrılıyordu, başarısız Note kotayı boşuna düşürüp
+      // kartı ilerletiyordu, tekrar deneme şansı olmadan (2026-08-31).
+      if (ok) completeLike();
     })();
-    completeLike(); // Note de günlük kotayı düşürür + feed ilerler (❤ ile aynı).
   }, [noteTarget, currentUser, noteText, recordLike, completeLike]);
 
   const handleBlockCurrentUser = useCallback(() => {
