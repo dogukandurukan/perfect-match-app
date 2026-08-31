@@ -89,29 +89,21 @@ export async function getDailyViewsState(userId: string): Promise<DailyViewsStat
   return refreshDailyViewsIfNeeded(userId);
 }
 
+// Atomic — a row-locked Postgres RPC (mirrors try_send_invite's pattern),
+// not a client-side read-then-write. Two near-simultaneous calls used to be
+// able to read the same starting count and both write the same nextCount,
+// under-counting and letting the daily limit be exceeded (found in codebase
+// audit, 2026-08-31; migration 20260831090000).
 export async function incrementDailyViews(userId: string): Promise<DailyViewsState | null> {
-  const current = await refreshDailyViewsIfNeeded(userId);
-  if (!current) return null;
-
-  const nextCount = current.count + 1;
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ daily_views_count: nextCount })
-    .eq('id', userId)
-    .select('daily_views_count, daily_views_reset_at')
-    .single();
+  const { data, error } = await supabase.rpc('increment_daily_views', { p_user: userId }).single();
 
   if (error || !data) {
-    console.warn('[dailyViews] increment update failed', error);
+    console.warn('[dailyViews] increment failed', error);
     return null;
   }
 
   const row = data as DailyViewsRow;
-  return buildDailyViewsState(
-    row.daily_views_count ?? nextCount,
-    row.daily_views_reset_at ?? current.resetAt,
-  );
+  return buildDailyViewsState(row.daily_views_count ?? 0, row.daily_views_reset_at ?? new Date().toISOString());
 }
 
 export function remainingDailyViews(state: DailyViewsState | null): number {
