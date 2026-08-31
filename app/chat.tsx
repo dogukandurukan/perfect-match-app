@@ -30,6 +30,7 @@ import { colors, radius } from '@/lib/designTokens';
 import { orderedPair } from '@/lib/matchInvite';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
+import { emitUnreadMessageCount } from '@/lib/unreadMessageCount';
 
 function firstParam(val: string | string[] | undefined): string {
   if (Array.isArray(val)) return val[0] ?? '';
@@ -218,6 +219,7 @@ export default function ChatScreen() {
               return [...prev, msg];
             });
             setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            if (msg.sender_id === otherUserId) void markIncomingMessagesRead();
           }
         },
       )
@@ -258,6 +260,24 @@ export default function ChatScreen() {
     };
   }, [currentUserId, otherUserId, chatOpened, messages.length, matchPercentage]);
 
+  // Marks the other person's messages to me as read (real read tracking —
+  // the Chats tab badge used to just guess from "who sent the last message",
+  // which stayed "unread" forever if you read without replying).
+  async function markIncomingMessagesRead() {
+    if (!currentUserId || !otherUserId) return;
+    const { error } = await supabase
+      .from('messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('sender_id', otherUserId)
+      .eq('receiver_id', currentUserId)
+      .is('read_at', null);
+    if (error) {
+      console.warn('[Chat] markIncomingMessagesRead failed', error);
+      return;
+    }
+    void emitUnreadMessageCount();
+  }
+
   async function fetchMessages() {
     if (!currentUserId || !otherUserId) return;
     const { data, error } = await supabase
@@ -279,6 +299,7 @@ export default function ChatScreen() {
     if (data) {
       setMessages(data as Message[]);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
+      void markIncomingMessagesRead();
     }
   }
 

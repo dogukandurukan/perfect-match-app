@@ -12,6 +12,7 @@ import { colors } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
+import { emitUnreadMessageCount } from '@/lib/unreadMessageCount';
 
 const EMPTY_CHAT_PREVIEW = 'You matched — say hi 👋';
 const VISIBLE_COUNT = 3;
@@ -134,6 +135,7 @@ export default function MessagesScreen() {
 
     setConversations(sorted);
     setLoading(false);
+    void emitUnreadMessageCount();
   }, [currentUserId]);
 
   useFocusEffect(
