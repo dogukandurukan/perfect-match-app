@@ -305,7 +305,8 @@ function CompactMatchCard({
         />
         <View style={styles.compactInfo}>
           <ThemedText style={styles.compactName}>
-            {displayName}, {displayAge}
+            {displayName}
+            {displayAge > 0 ? `, ${displayAge}` : ''}
           </ThemedText>
           <View style={styles.compactPctBadge}>
             <ThemedText style={styles.compactPctText}>%{match.match_percentage}</ThemedText>
@@ -347,8 +348,11 @@ function CompactMatchCard({
 }
 
 function safeAge(dob: string | null): number {
-  const age = hingeSafeAge(dob);
-  return age > 0 ? age : 28;
+  // Was fabricating 28 for a missing/invalid DOB — every other screen shows
+  // nothing in that case (hingeSafeAge's 0 sentinel), this one silently
+  // showed a confident, wrong age instead (found in codebase audit,
+  // 2026-08-29). Render sites below now guard on `> 0` to match.
+  return hingeSafeAge(dob);
 }
 
 export default function MatchesTab() {
@@ -823,7 +827,10 @@ export default function MatchesTab() {
       params: {
         matchUserId: match.user_id,
         matchName: match.first_name ?? 'them',
-        matchAge: String(safeAge(match.date_of_birth)),
+        matchAge: (() => {
+          const age = safeAge(match.date_of_birth);
+          return age > 0 ? String(age) : '';
+        })(),
         matchCity: match.city ?? '',
         matchPhoto: match.displayPhotoUrl,
         matchPercentage: String(match.match_percentage),
@@ -850,7 +857,17 @@ export default function MatchesTab() {
         text: 'Maybe later',
         onPress: () => {
           void (async () => {
-            await supabase.from('matches').update({ status: 'passed' }).eq('id', match.matchId);
+            const { error } = await supabase
+              .from('matches')
+              .update({ status: 'passed' })
+              .eq('id', match.matchId);
+            if (error) {
+              // Don't remove the card locally on failure — it would silently
+              // reappear on the next reload anyway, better to leave it in
+              // place so the pass can be retried right away.
+              Alert.alert('Could not pass', 'Please try again.');
+              return;
+            }
             setSelectedMatch(null);
             setCards((prev) => {
               const next = prev.filter((c) => c.matchId !== match.matchId);
@@ -976,7 +993,8 @@ export default function MatchesTab() {
                     />
                     <View style={styles.acceptedInfo}>
                       <ThemedText style={styles.acceptedName}>
-                        {chat.firstName ?? 'Someone'}, {chat.age}
+                        {chat.firstName ?? 'Someone'}
+                        {chat.age > 0 ? `, ${chat.age}` : ''}
                       </ThemedText>
                       <ThemedText style={styles.acceptedStatus}>Tap to open chat</ThemedText>
                     </View>
@@ -1004,7 +1022,8 @@ export default function MatchesTab() {
                       />
                       <View style={styles.inviteInfo}>
                         <ThemedText style={styles.inviteName}>
-                          {invite.firstName ?? 'Someone'}, {invite.age}
+                          {invite.firstName ?? 'Someone'}
+                          {invite.age > 0 ? `, ${invite.age}` : ''}
                         </ThemedText>
                         <ThemedText style={styles.inviteCity}>
                           📍 {invite.city ?? 'Unknown'}

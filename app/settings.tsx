@@ -387,7 +387,7 @@ export default function SettingsScreen() {
           />
           <NavRow
             label="Blocked users"
-            onPress={() => Alert.alert('Blocked users', 'Coming soon.')}
+            onPress={() => router.push('/blocked-users')}
           />
         </View>
 

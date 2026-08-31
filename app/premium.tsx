@@ -82,8 +82,7 @@ export default function PremiumScreen() {
         </View>
 
         <View style={styles.priceBlock}>
-          <ThemedText style={styles.price}>{'{PRICE} / month'}</ThemedText>
-          <ThemedText style={styles.cancelNote}>Cancel anytime</ThemedText>
+          <ThemedText style={styles.price}>Pricing coming soon</ThemedText>
         </View>
 
         <TouchableOpacity
