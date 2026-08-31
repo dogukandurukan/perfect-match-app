@@ -221,25 +221,10 @@ Pencere `created_at`'e bakıyor (pass anına değil); kesin "pass'ten N gün" is
 - Tema token seti **kısmen** uygulandı (token'lar eklendi ama sadece chat input'ta kullanıldı; diğer ekranlar hâlâ gri/accent hardcode ediyor — token sweep açık). ErrorState retry butonu ~42pt <44pt hâlâ açık.
 - ölü kod/seed temizliği; analytics + beta.
 
-**🔜 YARIN BURADAN DEVAM — kapsamlı denetimden kalan P0/P1/P2 (2026-08-29'da bulundu, 3 P0 düzeltildi, gerisi açık):**
-- **P0 (kullanıcı hemen hisseder):**
-  - `user-profile.tsx:210-243` block/report insert hatası kontrol edilmiyor — "Blocked ✓"/"Report sent" her zaman gösteriliyor, yazma başarısız olsa bile. `map.tsx:297-302`'de aynı desen (report). (Home'daki YENİ block/report bugün doğru yazıldı, bu ikisi eski/düzeltilmedi.)
-  - `lib/vibeCategories.ts:295-307` (`fetchBlockedUserIds`) hata olursa boş Set dönüyor → bloklanan biri Vibe feed'inde (`vibe.tsx`, `vibe-detail.tsx`) sessizce tekrar görünebilir.
-  - Şifremi unuttum akışı YOK — `login.tsx`'te link yok, `resetPasswordForEmail` hiç çağrılmıyor. `change-password.tsx` çalışır durumda ama `settings.tsx`'ten hiçbir yere bağlı değil → şu an şifre değiştirmenin hiçbir yolu yok.
-  - `checkin.tsx` — `checkin_a/b`, rating, `checkin_confirmed` yazmalarının hiçbiri hata kontrol etmiyor. Ürünün kuzey-yıldızı metriğini (buluşma oranı) besleyen ekran, sessizce hiç kaydetmeyebilir.
-  - Home'daki ❤ (`handleLike`→`recordLike`) sonucu hâlâ `void` ile atılıyor — başarısız olsa kalp animasyonu yine de oynuyor, retry yok.
-  - `(tabs)/profile.tsx` (bugün yeniden yazıldı ama bu kalemi kapsamadı) fetch hatası hâlâ sadece `console.warn`, ekranda görünür bir ErrorState yok.
-- **P1:**
-  - `matches.tsx` `safeAge` DOB eksikse **28 yaş uyduruyor** (diğer tüm ekranlar "—"/0 gösteriyor).
-  - `matches.tsx` `handlePass` DB hatasını yutuyor — hata olursa "geçilen" kişi bir sonraki yüklemede geri gelir.
-  - `lib/dailyViews.ts`/`lib/dailyInvites.ts` oku-yaz atomik değil — hızlı art arda tıklamada günlük limit aşılabilir (race condition).
-  - `lib/unreadMessageCount.ts` "okunmadı" tamamen sezgisel ("son mesajı ben mi attım") — `messages`'ta `read_at` yok, okuyup cevap vermezsen rozet sonsuza kadar kalır.
-  - `app/onboarding/*` (3 dosya) tamamen ölü — `register.tsx` direkt `profile-setup`'a gidiyor, hiçbir yerden linklenmiyor.
-  - `premium.tsx:85` gerçek kullanıcıya düz `{PRICE} / month` metni gidiyor (placeholder unutulmuş).
-  - `settings.tsx` "Blocked users" → "Coming soon" — engellediğin kimseyi görüp geri açamıyorsun.
-- **P2 (kod kalitesi/temizlik):**
+**✅ P0 + P1 TAMAMEN KAPANDI (2026-08-30/31, denetim 2026-08-29'da yapılmıştı).** Tek tek: şifremi unuttum akışı kuruldu (`forgot-password.tsx` + `authDeepLinks.ts` recovery-tipi ayrımı + `_layout.tsx` otomatik `/change-password` yönlendirmesi + `settings.tsx`'e nav satırı, `4a3a1b1`, cihazda uçtan uca doğrulandı); `user-profile.tsx`/`map.tsx` block/report artık hata gösteriyor + `vibeCategories.ts` `fetchBlockedUserIds` artık fail-closed (hata fırlatıyor, sessizce boş dönmüyor) + bunun kırdığı `vibe-detail.tsx`'e (hiç error-state'i yoktu) yenisi eklendi (`3960f9e`); `checkin.tsx` yazmaları artık hata gösteriyor, Home ❤/Note artık sadece yazma başarılıysa ilerliyor/kota düşürüyor, `(tabs)/profile.tsx`'e ErrorState eklendi (`1cff4f9`); `matches.tsx` sahte "28 yaş" kaldırıldı + `handlePass` hata kontrolü + `premium.tsx` placeholder metni + yeni `blocked-users.tsx` ekranı (`8bf0ee1`); ölü `app/onboarding/*` silindi (`ea7ff6b`); `dailyViews.ts` artık atomik RPC (`increment_daily_views`, satır kilidi — `try_send_invite`'ın deseni, migration `20260831090000`, `2d1f1da`); `unreadMessageCount.ts` artık gerçek `messages.read_at`'e bakıyor (migration `20260831100000`), `chat.tsx` mesajları okundu işaretliyor, `messages.tsx` her ziyarette rozeti tazeliyor (`96325eb`) — bu son ikisi cihazda doğrulandı. Ayrıca kullanıcı isteğiyle **Profile sekmesi alt bara eklendi** (Chats'in sağı, `96325eb`).
+- **Kalan P2 (kod kalitesi/temizlik, aciliyeti düşük):**
   - `safeAge` hâlâ birkaç dosyada kopyalanmış duruyor (bugünkü profil.tsx rewrite bunlardan birini elemiş oldu, `HingeProfileCard`'ın `hingeSafeAge`'i kullanıyor artık).
-  - `_layout.tsx`'te var olmayan dosyalara işaret eden `Stack.Screen` kayıtları: `reset-password`, `coming-soon`, `match-results`, `modal`.
+  - `_layout.tsx`'te var olmayan dosyalara işaret eden `Stack.Screen` kayıtları: `coming-soon`, `match-results`, `modal` (`reset-password` gerçek `forgot-password`'a çevrildi, kapandı).
   - `profile-setup/step1-4.tsx` + `register.tsx` prod'da tam upsert payload'ı (isim/DOB/konum) `console.log`'luyor — PII log'larda durmamalı.
   - Erişilebilirlik etiketleri app genelinde hâlâ seyrek (bugün dokunduğum yerlere eklendi: step1 konum butonu, profile-edit tüm butonlar, Home block/report/pass/like, profile.tsx edit/sign-out — ama geneli kapsamıyor).
   - **DB tarafı (bugün bulundu, kod'la ilgisiz):** 5 tetikleyicisi/çağrısı olmayan ölü fonksiyon (`send_like`, `handle_match_notification`, `handle_mutual_accept`, `update_match_status`, `update_updated_at`) — muhtemelen eski bir "mutual accept" sisteminden kalma (`index.tsx`'te hâlâ referans veren `user_a_accepted`/`user_b_accepted` sorgusu var ama bu kolonları artık hiçbir RPC/kod set etmiyor, o dal fiilen ölü). `matches.confirmed_slot` (eski text kolon) dead. `matches.updated_at` hiç auto-update olmuyor (trigger yok). `supabase/migrations/20260622100100_get_top_matches_is_hidden_filter.sql` git'te duruyor ama canlı fonksiyonda o filtre yok (uygulanmamış ya da ezilmiş) — bugünkü RLS fix'i aynı şeyi farklı katmanda zaten kapattı, dosya yanıltıcı, temizlenmeli. `matches.tsx`'teki `acceptedMatches`/`checkinBtn` artık render edilmiyor (yukarıda not var).
