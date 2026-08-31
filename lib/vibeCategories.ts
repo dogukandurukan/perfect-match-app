@@ -293,10 +293,18 @@ export async function fetchMyVibeContext(userId: string): Promise<MyVibeContext 
 }
 
 export async function fetchBlockedUserIds(userId: string): Promise<Set<string>> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('blocks')
     .select('blocker_id, blocked_id')
     .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
+
+  // Fail closed, not open — silently returning an empty set here would mean
+  // a blocked user shows back up in the Vibe feed on a transient query
+  // failure. Callers already have error/retry handling around this fetch
+  // (or gained it alongside this fix — see vibe-detail.tsx, 2026-08-30).
+  if (error) {
+    throw error;
+  }
 
   const blocked = new Set<string>();
   for (const row of data ?? []) {

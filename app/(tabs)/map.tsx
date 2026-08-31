@@ -294,11 +294,15 @@ export default function MapScreen() {
             data: { user },
           } = await supabase.auth.getUser();
           if (!user) return;
-          await supabase.from('reports').insert({
+          const { error } = await supabase.from('reports').insert({
             reporter_id: user.id,
             reported_id: userId,
             reason: 'Reported from map',
           });
+          if (error) {
+            Alert.alert('Could not send report', 'Please try again.');
+            return;
+          }
           Alert.alert('Report submitted', 'Thank you for your feedback.');
         },
       },

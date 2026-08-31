@@ -218,10 +218,14 @@ export default function UserProfileScreen() {
           text: 'Block',
           style: 'destructive',
           onPress: async () => {
-            await supabase.from('blocks').insert({
+            const { error } = await supabase.from('blocks').insert({
               blocker_id: currentUserId,
               blocked_id: userId,
             });
+            if (error) {
+              Alert.alert('Could not block', 'Please try again.');
+              return;
+            }
             setBlocked(true);
             Alert.alert('Blocked', "You won't see this person anymore.");
           },
@@ -232,13 +236,17 @@ export default function UserProfileScreen() {
 
   async function handleReport() {
     if (!currentUserId || !userId || !reportReason.trim()) return;
-    await supabase.from('reports').insert({
+    const { error } = await supabase.from('reports').insert({
       reporter_id: currentUserId,
       reported_id: userId,
       reason: reportReason.trim(),
     });
     setReportModalVisible(false);
     setReportReason('');
+    if (error) {
+      Alert.alert('Could not send report', 'Please try again.');
+      return;
+    }
     Alert.alert('Report sent', 'Thanks for letting us know.');
   }
 

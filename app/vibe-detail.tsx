@@ -12,6 +12,7 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { DailyLimitEmptyState } from '@/components/DailyLimitEmptyState';
+import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import {
@@ -75,6 +76,8 @@ export default function VibeDetailScreen() {
   const [photoUrls, setPhotoUrls] = useState<Record<string, string | null>>({});
   const [dailyViews, setDailyViews] = useState<DailyViewsState | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -86,57 +89,65 @@ export default function VibeDetailScreen() {
       }
 
       setLoading(true);
+      setError(false);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user || !mounted) {
-        setLoading(false);
-        return;
-      }
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || !mounted) {
+          setLoading(false);
+          return;
+        }
 
-      setCurrentUserId(user.id);
+        setCurrentUserId(user.id);
 
-      const [me, blockedIds, viewsState] = await Promise.all([
-        fetchMyVibeContext(user.id),
-        fetchBlockedUserIds(user.id),
-        getDailyViewsState(user.id),
-      ]);
+        const [me, blockedIds, viewsState] = await Promise.all([
+          fetchMyVibeContext(user.id),
+          fetchBlockedUserIds(user.id),
+          getDailyViewsState(user.id),
+        ]);
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      setDailyViews(viewsState);
+        setDailyViews(viewsState);
 
-      if (!me) {
-        setUsers([]);
-        setLoading(false);
-        return;
-      }
+        if (!me) {
+          setUsers([]);
+          setLoading(false);
+          return;
+        }
 
-      const rows = await fetchVibeCategoryUsers(categoryId, me, blockedIds);
-      if (!mounted) return;
+        const rows = await fetchVibeCategoryUsers(categoryId, me, blockedIds);
+        if (!mounted) return;
 
-      setUsers(rows);
+        setUsers(rows);
 
-      const photoEntries = await Promise.all(
-        rows.map(async (row) => {
-          const path = row.photos?.[0];
-          if (!path) return [row.id, null] as const;
-          const url = await resolveProfilePhotoUrl(path, 3600);
-          return [row.id, url] as const;
-        }),
-      );
+        const photoEntries = await Promise.all(
+          rows.map(async (row) => {
+            const path = row.photos?.[0];
+            if (!path) return [row.id, null] as const;
+            const url = await resolveProfilePhotoUrl(path, 3600);
+            return [row.id, url] as const;
+          }),
+        );
 
-      if (mounted) {
-        setPhotoUrls(Object.fromEntries(photoEntries));
-        setLoading(false);
+        if (mounted) {
+          setPhotoUrls(Object.fromEntries(photoEntries));
+          setLoading(false);
+        }
+      } catch {
+        if (mounted) {
+          setError(true);
+          setLoading(false);
+        }
       }
     })();
 
     return () => {
       mounted = false;
     };
-  }, [categoryId]);
+  }, [categoryId, reloadKey]);
 
   const handleUserPress = async (userId: string) => {
       if (!currentUserId) return;
@@ -182,6 +193,8 @@ export default function VibeDetailScreen() {
         <View style={styles.centerWrap}>
           <ActivityIndicator color={ACCENT} size="large" />
         </View>
+      ) : error ? (
+        <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
       ) : dailyViews?.limitReached ? (
         <DailyLimitEmptyState resetAt={dailyViews.resetAt} />
       ) : users.length === 0 ? (
