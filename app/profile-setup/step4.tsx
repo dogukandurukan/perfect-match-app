@@ -262,12 +262,9 @@ export default function ProfileSetupStep4() {
           };
       const step4UpsertRow = { id: userId, ...profilePayload };
 
-      console.log('STEP 4 - user id:', userId);
-      console.log('STEP 4 - upsert data:', step4UpsertRow);
       const { error: profileErr } = await supabase
         .from('profiles')
         .upsert(step4UpsertRow, { onConflict: 'id' });
-      console.log('STEP 4 - upsert error:', profileErr);
       if (profileErr) throw profileErr;
 
       router.replace('/(tabs)' as any);

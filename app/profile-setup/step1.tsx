@@ -82,12 +82,6 @@ function getMimeTypeFromUri(uri: string) {
 }
 
 async function uploadPhotosToSupabase(userId: string, uris: string[]): Promise<string[]> {
-  console.log('STEP 1 - photo upload start', {
-    bucket: USER_PHOTOS_BUCKET,
-    userId,
-    paths: uris.map((_, i) => profilePhotoObjectPath(userId, i)),
-  });
-
   const objectPaths: string[] = [];
   const storage = supabase.storage.from(USER_PHOTOS_BUCKET);
 
@@ -113,10 +107,9 @@ async function uploadPhotosToSupabase(userId: string, uris: string[]): Promise<s
       }
 
       objectPaths.push(path);
-      console.log('STEP 1 - photo upload ok:', path);
     }
   } catch (e) {
-    console.log('STEP 1 - photo upload error:', e);
+    console.warn('[profile-setup] photo upload failed', e);
     throw e instanceof Error ? e : new Error(String(e));
   }
 
@@ -197,9 +190,6 @@ export default function ProfileSetupStep1() {
       } = await supabase.auth.getUser();
 
       const userId = session?.user?.id ?? user?.id;
-
-      console.log('STEP 1 - session:', session?.user?.id);
-      console.log('STEP 1 - user:', user?.id);
 
       if (!mounted) return;
 
@@ -328,24 +318,18 @@ export default function ProfileSetupStep1() {
       quality: 0.8,
     });
 
-    console.log('STEP 1 - picker result:', result);
-
     if (result.canceled || result.assets.length === 0) return;
 
     const uri = result.assets[0].uri;
     setPhotos((prev) => {
       const next = [...prev];
       next[slotIndex] = uri;
-      const selectedPhotoUris = next.filter(Boolean) as string[];
-      console.log('STEP 1 - selectedPhotoUris:', selectedPhotoUris);
       return next;
     });
   };
 
   const handleNext = async () => {
-    console.log('STEP 1 - handleNext called');
     if (!userId) return;
-    console.log('STEP 1 - canProceed:', canProceed);
     if (!canProceed) {
       Alert.alert('Missing info', 'Please complete all required fields.');
       return;
@@ -369,7 +353,6 @@ export default function ProfileSetupStep1() {
         try {
           uploadedPhotoPaths = await uploadPhotosToSupabase(userId, selectedPhotoUris);
         } catch (photoError: any) {
-          console.log('STEP 1 - photo upload failed:', photoError);
           Alert.alert(
             'Photo upload failed',
             photoError?.message ?? 'Could not upload your photos. Please try again.',
@@ -435,27 +418,18 @@ export default function ProfileSetupStep1() {
         photos: photosForDb,
       };
 
-      console.log('STEP 1 - user id:', userId);
-      console.log('STEP 1 - upsert data:', payloadWithPhotos);
       const { error: upsertError } = await supabase.from('profiles').upsert(payloadWithPhotos, {
         onConflict: 'id',
       });
-      console.log('STEP 1 - upsert error:', upsertError);
 
       if (upsertError) {
-        console.log('STEP 1 - user id:', userId);
-        console.log('STEP 1 - upsert data:', baseProfile);
         const { error: fallbackError } = await supabase.from('profiles').upsert(baseProfile, {
           onConflict: 'id',
         });
-        console.log('STEP 1 - upsert error:', fallbackError);
         if (fallbackError) {
-          console.log('STEP 1 - user id:', userId);
-          console.log('STEP 1 - upsert data:', minimalProfile);
           const { error: minimalError } = await supabase.from('profiles').upsert(minimalProfile, {
             onConflict: 'id',
           });
-          console.log('STEP 1 - upsert error:', minimalError);
           if (minimalError) throw minimalError;
         }
       }

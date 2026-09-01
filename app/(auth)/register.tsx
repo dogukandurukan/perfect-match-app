@@ -100,7 +100,7 @@ export default function RegisterScreen() {
       meta.dial_code = selectedCountry.dial;
     }
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -108,9 +108,6 @@ export default function RegisterScreen() {
         ...(Object.keys(meta).length ? { data: meta } : {}),
       },
     });
-
-    console.log('SIGNUP - data:', data);
-    console.log('SIGNUP - error:', error);
 
     if (error) {
       setLoading(false);

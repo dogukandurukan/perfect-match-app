@@ -214,12 +214,9 @@ export default function ProfileSetupStep3() {
         current_step: 4,
       };
 
-      console.log('STEP 3 - user id:', userId);
-      console.log('STEP 3 - upsert data:', step3ProfilePayload);
       const { error: profileErr } = await supabase
         .from('profiles')
         .upsert(step3ProfilePayload, { onConflict: 'id' });
-      console.log('STEP 3 - upsert error:', profileErr);
       if (profileErr) throw profileErr;
 
       router.replace('/profile-setup/step4');

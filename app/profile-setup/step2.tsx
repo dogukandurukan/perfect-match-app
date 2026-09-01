@@ -242,26 +242,19 @@ export default function ProfileSetupStep2() {
       };
       const profileStep2Payload = { id: userId, current_step: 3 as const };
 
-      console.log('STEP 2 - user id:', userId);
-      console.log('STEP 2 - upsert data:', onboardingPayload);
       const { error: onboardingErr } = await supabase
         .from('onboarding_answers')
         .upsert(onboardingPayload, { onConflict: 'user_id' });
-      console.log('STEP 2 - upsert error:', onboardingErr);
       if (onboardingErr) throw onboardingErr;
 
-      console.log('STEP 2 - user id:', userId);
-      console.log('STEP 2 - upsert data:', profileStep2Payload);
       const { error: profileErr } = await supabase
         .from('profiles')
         .upsert(profileStep2Payload, { onConflict: 'id' });
-      console.log('STEP 2 - upsert error:', profileErr);
       if (profileErr) throw profileErr;
 
       router.replace('/profile-setup/step3');
     } catch (e: any) {
       console.error('STEP 2 - handleNext error:', e);
-      console.warn(e);
       Alert.alert('Kaydetme başarısız', e?.message ?? 'Bir hata oluştu.');
     } finally {
       setSaving(false);
