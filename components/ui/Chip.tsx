@@ -8,13 +8,22 @@ type ChipProps = {
   selected?: boolean;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  /** Overrides the selected fill/border color (default colors.accent gold).
+   * Onboarding's step1 screens pass a neutral dark color instead — a
+   * deliberate, scoped exception, not a change to the app-wide chip look. */
+  selectedColor?: string;
 };
 
-export function Chip({ label, selected = false, onPress, style }: ChipProps) {
+export function Chip({ label, selected = false, onPress, style, selectedColor }: ChipProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.chip, selected && styles.chipSelected, style]}
+      style={[
+        styles.chip,
+        selected && styles.chipSelected,
+        selected && selectedColor ? { backgroundColor: selectedColor, borderColor: selectedColor } : null,
+        style,
+      ]}
       accessibilityRole="button"
       accessibilityState={{ selected }}>
       <ThemedText style={[styles.label, selected && styles.labelSelected]}>{label}</ThemedText>

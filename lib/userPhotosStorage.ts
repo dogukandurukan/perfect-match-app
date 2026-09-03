@@ -9,6 +9,11 @@ export function profilePhotoObjectPath(userId: string, slotIndex: number) {
   return `${userId}/photo_${slotIndex}.jpg`;
 }
 
+/** Single, overwritable verification selfie — same bucket/RLS shape as profile photos. */
+export function verificationSelfiePath(userId: string) {
+  return `${userId}/verification_selfie.jpg`;
+}
+
 /** Public URL for bucket objects (or pass-through for https seed URLs). */
 export async function resolveProfilePhotoUrl(
   ref: string,
