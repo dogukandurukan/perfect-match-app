@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -14,6 +15,30 @@ import {
 } from '@/lib/notifications';
 import { supabase } from '@/lib/supabaseClient';
 import * as Notifications from 'expo-notifications';
+
+// Supabase's autoRefreshToken timer relies on the JS event loop, which RN
+// suspends while the app is backgrounded — without this, a session that's
+// been backgrounded past its ~1h token expiry comes back stale, and the
+// first authenticated write (e.g. a Storage upload) fails RLS with "new row
+// violates row-level security policy" even though the user never signed
+// out (found via device testing, 2026-09-03; this is Supabase's documented
+// RN requirement, not something specific to this app's code).
+function AuthRefreshBridge() {
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    });
+    if (AppState.currentState === 'active') {
+      supabase.auth.startAutoRefresh();
+    }
+    return () => sub.remove();
+  }, []);
+  return null;
+}
 
 function AuthDeepLinkBridge() {
   const router = useRouter();
@@ -127,6 +152,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <AuthRefreshBridge />
       <AuthDeepLinkBridge />
       <LocationBridge />
       <NotificationBridge />
