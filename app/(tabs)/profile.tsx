@@ -1,12 +1,11 @@
 // Screen: Profile tab | Status: stable | Last updated: Ağustos 2026
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
-import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import type { HingeProfilePerson } from '@/lib/hingeProfile';
@@ -135,7 +134,7 @@ export default function ProfileTab() {
   if (loading) {
     return (
       <ScreenContainer style={styles.screenFlush}>
-        <HomeTopIcon />
+        <ActivityIndicator color={colors.accent} style={styles.loader} />
       </ScreenContainer>
     );
   }
@@ -143,7 +142,6 @@ export default function ProfileTab() {
   if (error) {
     return (
       <ScreenContainer style={styles.screenFlush}>
-        <HomeTopIcon />
         <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
       </ScreenContainer>
     );
@@ -182,7 +180,6 @@ export default function ProfileTab() {
 
   return (
     <ScreenContainer style={styles.screenFlush}>
-      <HomeTopIcon />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -221,6 +218,7 @@ export default function ProfileTab() {
 }
 
 const styles = StyleSheet.create({
+  loader: { marginTop: 60 },
   screenFlush: {
     justifyContent: 'flex-start',
     paddingHorizontal: 0,

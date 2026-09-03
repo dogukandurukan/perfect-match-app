@@ -1,9 +1,9 @@
 // Shared "one question per screen" onboarding template — layout modeled on
 // Raya/Hinge's single-focus flow (big question, one control, thin top
 // progress bar, pinned bottom action) instead of one long scrolling form.
-// Keeps our own gold accent (#B8860B) rather than copying a reference app's
-// color identity — only the layout pattern is borrowed (CLAUDE.md §5,
-// 2026-09-02).
+// The black/monochrome colors used here became the app's colors.accent
+// too (2026-09-03) — no longer a scoped exception, this is just the app
+// identity now.
 import type { ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -143,10 +143,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
-    // Deliberately not colors.accent (gold) — this onboarding flow copies
-    // Raya's monochrome look specifically (user request, 2026-09-02); the
-    // rest of the app keeps the gold identity untouched.
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1A1A1A', // == colors.accent
   },
   body: {
     flex: 1,
@@ -188,8 +185,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    // Same reasoning as progressFill — black here only, not app-wide.
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1A1A1A', // == colors.accent
   },
   nextBtnDisabled: {
     backgroundColor: '#C9C9C9',

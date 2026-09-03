@@ -1,7 +1,9 @@
 // Screen: Tab layout | Status: stable | Last updated: Mayıs 2026
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { StyleSheet, Text } from 'react-native';
 
+import { ActiveTabIcon } from '@/components/ui/ActiveTabIcon';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import {
@@ -12,7 +14,7 @@ import { TabHeaderActions } from '@/components/ui/TabHeaderActions';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 const headerOptions = {
   headerShown: true as const,
@@ -21,6 +23,23 @@ const headerOptions = {
   headerStyle: { backgroundColor: '#FFFFFF' },
   headerRight: () => <TabHeaderActions />,
 };
+
+// Bumble bolds the active tab's label too, not just the icon (2026-09-03,
+// user reference screenshot).
+function TabLabel({ focused, color, children }: { focused: boolean; color: string; children: string }) {
+  return <Text style={[styles.label, { color }, focused && styles.labelActive]}>{children}</Text>;
+}
+
+const styles = StyleSheet.create({
+  label: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  labelActive: {
+    fontWeight: '700',
+    transform: [{ translateY: -2 }],
+  },
+});
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -32,6 +51,11 @@ export default function TabLayout() {
         tabBarActiveTintColor: ACCENT,
         tabBarInactiveTintColor: palette.tabIconDefault,
         tabBarButton: HapticTab,
+        tabBarLabel: ({ focused, color, children }) => (
+          <TabLabel focused={focused} color={color}>
+            {children}
+          </TabLabel>
+        ),
         ...headerOptions,
       }}>
       <Tabs.Screen
@@ -39,7 +63,11 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           href: '/(tabs)',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <ActiveTabIcon focused={focused}>
+              <IconSymbol size={22} name={focused ? 'house.fill' : 'house'} color={color} />
+            </ActiveTabIcon>
+          ),
         }}
       />
       <Tabs.Screen
@@ -48,8 +76,14 @@ export default function TabLayout() {
           href: null,
           title: 'Vibe',
           headerTitle: '',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="color-wand-outline" size={size ?? 24} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <ActiveTabIcon focused={focused}>
+              <Ionicons
+                name={focused ? 'color-wand' : 'color-wand-outline'}
+                size={size ?? 24}
+                color={color}
+              />
+            </ActiveTabIcon>
           ),
         }}
       />
@@ -57,8 +91,14 @@ export default function TabLayout() {
         name="matches"
         options={{
           title: 'Matches',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="sparkles-outline" size={size ?? 24} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <ActiveTabIcon focused={focused}>
+              <Ionicons
+                name={focused ? 'sparkles' : 'sparkles-outline'}
+                size={size ?? 24}
+                color={color}
+              />
+            </ActiveTabIcon>
           ),
         }}
       />
@@ -74,8 +114,8 @@ export default function TabLayout() {
         options={{
           title: 'Buzz',
           headerTitle: 'Buzz',
-          tabBarIcon: ({ color, size }) => (
-            <TabBarNotificationsIcon color={color} size={size ?? 24} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabBarNotificationsIcon color={color} size={size ?? 24} focused={focused} />
           ),
         }}
       />
@@ -84,7 +124,9 @@ export default function TabLayout() {
         options={{
           title: 'Chats',
           headerTitle: 'Chats',
-          tabBarIcon: ({ color, size }) => <TabBarMessagesIcon color={color} size={size ?? 24} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabBarMessagesIcon color={color} size={size ?? 24} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -94,8 +136,14 @@ export default function TabLayout() {
           headerTitle: 'Profile',
           headerTransparent: true,
           headerStyle: { backgroundColor: 'transparent' },
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-circle-outline" size={size ?? 26} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <ActiveTabIcon focused={focused}>
+              <Ionicons
+                name={focused ? 'person-circle' : 'person-circle-outline'}
+                size={size ?? 26}
+                color={color}
+              />
+            </ActiveTabIcon>
           ),
         }}
       />

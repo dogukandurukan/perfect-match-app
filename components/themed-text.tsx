@@ -50,6 +50,10 @@ const styles = StyleSheet.create({
   link: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#B8860B',
+    color: '#1A1A1A',
+    // Link color now matches regular text color (both black, post
+    // gold-removal) — underline keeps links visually identifiable
+    // without relying on a distinct hue (2026-09-03).
+    textDecorationLine: 'underline',
   },
 });

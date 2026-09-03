@@ -7,13 +7,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
-import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 type BlockedUser = {
   blockId: string;
@@ -132,7 +131,6 @@ export default function BlockedUsersScreen() {
         <Ionicons name="chevron-back" size={24} color={ACCENT} />
         <ThemedText style={styles.backText}>Settings</ThemedText>
       </TouchableOpacity>
-      <HomeTopIcon />
 
       <ThemedText type="title" style={styles.title}>
         Blocked users

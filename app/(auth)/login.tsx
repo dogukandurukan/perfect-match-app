@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { Alert, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { supabase } from '@/lib/supabaseClient';
@@ -33,7 +32,6 @@ export default function LoginScreen() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <HomeTopIcon />
       <ThemedText type="title" style={styles.title}>
         Log in
       </ThemedText>

@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 type FeatureRow = {
   feature: string;

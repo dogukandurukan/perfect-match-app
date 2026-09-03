@@ -18,7 +18,6 @@ import {
 
 import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
-import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors, radius } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
@@ -245,7 +244,7 @@ function LikesSection({
         <View style={styles.likesStrip}>
           {Array.from({ length: anonymousTiles }).map((_, i) => (
             <View key={i} style={[styles.likeTile, styles.likeTileFallback]}>
-              <Ionicons name="heart" size={22} color="#B8860B" />
+              <Ionicons name="heart" size={22} color="#1A1A1A" />
             </View>
           ))}
           {remainder > 0 ? (
@@ -1421,7 +1420,6 @@ export default function NotificationsScreen() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <HomeTopIcon />
       <View style={styles.headerRow}>
         <ThemedText style={styles.pageTitle}>Buzz</ThemedText>
         {hasUnread ? (
@@ -1539,7 +1537,7 @@ const styles = StyleSheet.create({
   likeTileInitial: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#B8860B',
+    color: '#1A1A1A',
   },
   likeTileMore: {
     alignItems: 'center',
@@ -1604,7 +1602,7 @@ const styles = StyleSheet.create({
   featuredInitial: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#B8860B',
+    color: '#1A1A1A',
   },
   featuredBadge: {
     position: 'absolute',

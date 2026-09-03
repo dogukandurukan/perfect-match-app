@@ -8,9 +8,10 @@ type ChipProps = {
   selected?: boolean;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
-  /** Overrides the selected fill/border color (default colors.accent gold).
-   * Onboarding's step1 screens pass a neutral dark color instead — a
-   * deliberate, scoped exception, not a change to the app-wide chip look. */
+  /** Overrides the selected fill/border color (default colors.accent).
+   * Onboarding passes '#1A1A1A' explicitly — now the same as the default
+   * since colors.accent switched to black app-wide (2026-09-03), kept for
+   * screens that want a specific override regardless of the token. */
   selectedColor?: string;
 };
 

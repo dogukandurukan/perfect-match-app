@@ -20,9 +20,8 @@ import {
   type ProfileChip,
   type PromptCard,
 } from '@/lib/hingeProfile';
-import { formatIntentLabel } from '@/lib/labels';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PHOTO1_HEIGHT = SCREEN_HEIGHT * 0.55;
 
@@ -45,13 +44,20 @@ export function SectionCard({ title, children }: { title: string; children: Reac
   );
 }
 
-/** İkon+etiket chip grid'i (About me / Looking for / Interests / Languages) — Bumble tarzı. */
+/** İkon+etiket chip grid'i (About me / Looking for / Languages) — Bumble tarzı
+ * monokrom vektör ikon. Interest chip'leri `emoji` alanı taşır (renkli,
+ * ilgiye özel — Bumble'ın "My interests" bölümündeki gibi, 2026-09-03) ve
+ * varsa vektör ikon yerine onu gösterir. */
 export function ChipGrid({ chips }: { chips: ProfileChip[] }) {
   return (
     <View style={styles.chipRow}>
       {chips.map((c) => (
         <View key={c.key} style={styles.aboutChip}>
-          <Ionicons name={c.icon} size={14} color={colors.textPrimary} />
+          {c.emoji ? (
+            <ThemedText style={styles.aboutChipEmoji}>{c.emoji}</ThemedText>
+          ) : (
+            <Ionicons name={c.icon} size={14} color={colors.textPrimary} />
+          )}
           <ThemedText style={styles.aboutChipText}>{c.label}</ThemedText>
         </View>
       ))}
@@ -129,7 +135,6 @@ export function HingeProfileCard({
   onNoteTarget,
 }: HingeProfileCardProps) {
   const prompts = buildPromptCards(person);
-  const intentLabel = formatIntentLabel(person.intent);
   const locationLabel = formatFeedLocation(person.district, person.city, viewerCity);
 
   // Bumble bölümleri (yalnızca dolu alanlar).
@@ -195,7 +200,6 @@ export function HingeProfileCard({
               {person.first_name ?? 'Someone'}
               {age > 0 ? `, ${age}` : ''}
             </ThemedText>
-            {intentLabel ? <ThemedText style={styles.intentHero}>{intentLabel}</ThemedText> : null}
           </View>
           {pct !== null ? (
             <View style={styles.matchBadge}>
@@ -346,13 +350,14 @@ const styles = StyleSheet.create({
   aboutChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     backgroundColor: '#F2EFE7',
-    borderRadius: 20,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
+    borderRadius: 18,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
   },
-  aboutChipText: { fontSize: 14, color: colors.textPrimary, fontWeight: '500' },
+  aboutChipText: { fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
+  aboutChipEmoji: { fontSize: 15, lineHeight: 18 },
   nameOverlay: {
     position: 'absolute',
     bottom: 0,
@@ -364,19 +369,17 @@ const styles = StyleSheet.create({
   },
   overlayName: {
     color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 25,
+    // No lineHeight before — ThemedText's default (24) is smaller than a
+    // 28px fontSize, so the top of tall glyphs (capital letters) got
+    // clipped. Explicit lineHeight fixes it (2026-09-03, found via device
+    // testing — "Ece" text screenshot showed the clipped top edge).
+    lineHeight: 30,
+    fontWeight: '600',
+    letterSpacing: 0.2,
     textShadowColor: 'rgba(0,0,0,0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
-  },
-  intentHero: {
-    color: ACCENT,
-    fontSize: 17,
-    fontWeight: '700',
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 5,
   },
   matchBadge: {
     position: 'absolute',
@@ -402,7 +405,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   lifestyleChip: {
     backgroundColor: '#F7F3EB',
     borderRadius: 18,

@@ -1,7 +1,10 @@
 /** Shared design tokens used across screens. */
 
 export const colors = {
-  accent: '#B8860B',
+  // Was gold (#B8860B) — app-wide switch to Raya's black/monochrome
+  // identity (2026-09-03, user request), matching the onboarding flow's
+  // color choice from the previous session.
+  accent: '#1A1A1A',
   bgPrimary: '#F5F5F5',
   bgCard: '#FFFFFF',
   bgSubtle: '#F5F5F5', // input / disabled fill

@@ -3,7 +3,7 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/lib/designTokens';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 type ErrorStateProps = {
   title?: string;

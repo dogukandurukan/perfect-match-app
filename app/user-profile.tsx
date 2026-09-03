@@ -17,7 +17,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChipGrid, SectionCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { ErrorState } from '@/components/ErrorState';
-import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import {
@@ -83,6 +82,24 @@ type UserProfile = {
   vibe: string | null;
   photo_verified: boolean | null;
 };
+
+/** Ekranın tek geri-dönüş yolu — headerShown:false, başka bir nav kontrolü
+ * yok (eskiden HomeTopIcon buradaydı ama Home'a değil "geri"ye gitmiyordu;
+ * kaldırılınca ekranda hiç kontrol kalmasın diye gerçek bir geri ok eklendi,
+ * 2026-09-04). */
+function TopBackButton() {
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+      style={styles.topBackBtn}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel="Back">
+      <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
+    </TouchableOpacity>
+  );
+}
 
 /** Tek satır ikon+cümle kart (dealbreaker gibi tek-değerli alanlar). */
 function IconNote({ icon, text }: { icon: ChipIcon; text: string }) {
@@ -253,7 +270,7 @@ export default function UserProfileScreen() {
   if (loading) {
     return (
       <ScreenContainer style={styles.container}>
-        <HomeTopIcon />
+        <TopBackButton />
         <ActivityIndicator color={colors.accent} style={styles.loader} />
       </ScreenContainer>
     );
@@ -262,7 +279,7 @@ export default function UserProfileScreen() {
   if (error || !profile) {
     return (
       <ScreenContainer style={styles.container}>
-        <HomeTopIcon />
+        <TopBackButton />
         <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
       </ScreenContainer>
     );
@@ -322,7 +339,7 @@ export default function UserProfileScreen() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <HomeTopIcon />
+      <TopBackButton />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Fotoğraflar */}
         <View style={styles.photoWrap}>
@@ -494,6 +511,7 @@ export default function UserProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
+  topBackBtn: { marginBottom: 8, alignSelf: 'flex-start' },
   loader: { marginTop: 40 },
   content: { paddingBottom: 48, gap: 20 },
 

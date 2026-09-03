@@ -52,8 +52,10 @@ export type HingeProfilePerson = {
   photoUrls: string[];
 };
 
-/** Bir "About me" / interest chip'i: vektör ikon + etiket (Bumble tarzı, emoji DEĞİL). */
-export type ProfileChip = { key: string; icon: ChipIcon; label: string };
+/** Bir "About me" / interest chip'i: vektör ikon + etiket (Bumble tarzı). Interest
+ * chip'leri ayrıca `emoji` taşır — Bumble'ın "My interests" bölümü gibi renkli,
+ * ilgiye özel emoji; About-me/Looking-for/Languages hâlâ sade vektör ikon. */
+export type ProfileChip = { key: string; icon: ChipIcon; label: string; emoji?: string };
 
 export type CommonSelf = {
   hobbies: string[] | null | undefined;
@@ -191,17 +193,24 @@ export function buildLookingForChips(person: HingeProfilePerson): ProfileChip[] 
   return chips;
 }
 
-/** Bumble "My interests" — hobiler + favori aktivite + vibe. */
+/** Bumble "My interests" — hobiler + favori aktivite + vibe. Renkli, ilgiye
+ * özel emoji taşır (Bumble referansı: 🏆 Gym, ⛵ Sailing, 🏛️ Museums, 🍻 Pubs,
+ * 🥃 Whisky — spesifik ve renkli, About-me'nin sade vektör ikonlarından farklı). */
 export function buildInterestChips(person: HingeProfilePerson): ProfileChip[] {
   const chips: ProfileChip[] = [];
   for (const h of person.hobbies ?? []) {
     const t = h?.trim();
-    if (t) chips.push({ key: `hobby-${t}`, icon: hobbyIcon(t), label: cap(t) });
+    if (t) chips.push({ key: `hobby-${t}`, icon: hobbyIcon(t), emoji: hobbyChipEmoji(t), label: cap(t) });
   }
   if (person.favorite_activity?.trim())
-    chips.push({ key: 'fav', icon: 'star-outline', label: cap(person.favorite_activity) });
+    chips.push({
+      key: 'fav',
+      icon: 'star-outline',
+      emoji: '⭐',
+      label: cap(person.favorite_activity),
+    });
   if (person.vibe?.trim())
-    chips.push({ key: 'vibe', icon: 'color-palette-outline', label: cap(person.vibe) });
+    chips.push({ key: 'vibe', icon: 'color-palette-outline', emoji: '🎨', label: cap(person.vibe) });
   return chips;
 }
 
@@ -234,6 +243,54 @@ function hobbyIcon(hobby: string): ChipIcon {
     if (key.includes(k)) return icon;
   }
   return 'sparkles-outline';
+}
+
+/** Interest-chip emoji — covers step3's PRESET_HOBBIES + HOBBY_SUGGESTIONS
+ * plus common free-typed interests (Bumble's own examples: gym/sailing/
+ * museums/pubs/whisky), substring-matched like HOBBY_ICON above. */
+const HOBBY_CHIP_EMOJI: Record<string, string> = {
+  travel: '✈️',
+  music: '🎵',
+  gym: '💪',
+  fitness: '💪',
+  running: '🏃',
+  read: '📚',
+  book: '📚',
+  gaming: '🎮',
+  cook: '🍳',
+  sport: '🏆',
+  photo: '📸',
+  hik: '🥾',
+  danc: '💃',
+  yoga: '🧘',
+  cinema: '🎬',
+  movie: '🎬',
+  film: '🎬',
+  coffee: '☕',
+  cycl: '🚴',
+  bike: '🚴',
+  sail: '⛵',
+  museum: '🏛️',
+  galler: '🏛️',
+  pub: '🍻',
+  bar: '🍻',
+  whisk: '🥃',
+  wine: '🍷',
+  swim: '🏊',
+  ski: '⛷️',
+  nature: '🌿',
+  beach: '🏖️',
+  dog: '🐾',
+  pet: '🐾',
+  art: '🎨',
+};
+
+function hobbyChipEmoji(hobby: string): string {
+  const key = normKey(hobby);
+  for (const [k, emoji] of Object.entries(HOBBY_CHIP_EMOJI)) {
+    if (key.includes(k)) return emoji;
+  }
+  return '✨';
 }
 
 // Inline sentence copy ("You both love hiking 🥾") — not a structural chip icon,

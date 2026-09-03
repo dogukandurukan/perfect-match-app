@@ -10,7 +10,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();

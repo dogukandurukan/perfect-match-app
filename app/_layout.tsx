@@ -1,12 +1,11 @@
 // Screen: Root Stack layout | Status: stable | Last updated: Mayıs 2026
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { applySessionFromUrl, subscribeAuthDeepLinks } from '@/lib/authDeepLinks';
 import { requestAndSaveLocation } from '@/lib/location';
 import {
@@ -148,10 +147,15 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
+  // App has no real dark-mode design — every screen hardcodes a light
+  // palette (colors.bgPrimary etc. in lib/designTokens.ts). Following the
+  // system scheme here only re-themed the navigation chrome (tab bar,
+  // headers) to dark, producing a half-black-half-white UI whenever the
+  // device auto-switches to Dark Mode at night (found 2026-09-03, ~23:49 —
+  // the tab bar and its labels went black while every screen stayed white).
+  // Pin to light until the app actually gets a dark-mode design.
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={DefaultTheme}>
       <AuthRefreshBridge />
       <AuthDeepLinkBridge />
       <LocationBridge />

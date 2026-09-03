@@ -33,7 +33,7 @@ import {
   type VibeListUser,
 } from '@/lib/vibeCategories';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 function firstParam(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? '';

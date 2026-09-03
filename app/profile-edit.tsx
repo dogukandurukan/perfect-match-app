@@ -17,7 +17,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
-import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { OptionalFieldReveal } from '@/components/ui/OptionalFieldReveal';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Chip } from '@/components/ui/Chip';
@@ -366,7 +365,6 @@ export default function ProfileEditScreen() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <HomeTopIcon />
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

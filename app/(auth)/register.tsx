@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
@@ -81,7 +80,6 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}>
-          <HomeTopIcon />
           <ThemedText type="title" style={styles.title}>
             Create account
           </ThemedText>

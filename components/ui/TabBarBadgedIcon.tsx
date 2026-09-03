@@ -19,21 +19,45 @@ function NotificationDot({ visible }: { visible: boolean }) {
   return <View style={styles.notificationDot} />;
 }
 
-export function TabBarMessagesIcon({ color, size = 24 }: { color: string; size?: number }) {
+export function TabBarMessagesIcon({
+  color,
+  size = 24,
+  focused = false,
+}: {
+  color: string;
+  size?: number;
+  focused?: boolean;
+}) {
   const { messageCount } = useTabBadgeCounts();
   return (
-    <View style={styles.wrap}>
-      <Ionicons name="chatbubble-outline" size={size} color={color} />
+    <View style={[styles.wrap, focused && styles.wrapActive]}>
+      <Ionicons
+        name={focused ? 'chatbubble' : 'chatbubble-outline'}
+        size={size}
+        color={color}
+      />
       <MessageCountBadge count={messageCount} />
     </View>
   );
 }
 
-export function TabBarNotificationsIcon({ color, size = 24 }: { color: string; size?: number }) {
+export function TabBarNotificationsIcon({
+  color,
+  size = 24,
+  focused = false,
+}: {
+  color: string;
+  size?: number;
+  focused?: boolean;
+}) {
   const { showNotificationDot } = useTabBadgeCounts();
   return (
-    <View style={styles.wrap}>
-      <Ionicons name="notifications-outline" size={size} color={color} />
+    <View style={[styles.wrap, focused && styles.wrapActive]}>
+      <Ionicons
+        name={focused ? 'notifications' : 'notifications-outline'}
+        size={size}
+        color={color}
+      />
       <NotificationDot visible={showNotificationDot} />
     </View>
   );
@@ -50,6 +74,11 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Same nudge-up treatment as ActiveTabIcon (components/ui/ActiveTabIcon.tsx)
+  // — kept separate here since this View also anchors the badge/dot overlay.
+  wrapActive: {
+    transform: [{ translateY: -2 }],
   },
   messageBadge: {
     position: 'absolute',

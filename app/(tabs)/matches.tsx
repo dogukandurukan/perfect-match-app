@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorState } from '@/components/ErrorState';
 import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
-import { HomeTopIcon } from '@/components/ui/HomeTopIcon';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import {
@@ -42,7 +41,7 @@ import {
 import { supabase } from '@/lib/supabaseClient';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 function matchCategory(score: number): string {
   if (score >= 85) return '🔥 Perfect match';
@@ -953,7 +952,6 @@ export default function MatchesTab() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <HomeTopIcon />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ThemedText style={styles.pageTitle}>Matches</ThemedText>
         {dailyInvites ? (

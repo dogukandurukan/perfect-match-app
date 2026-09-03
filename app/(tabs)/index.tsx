@@ -40,7 +40,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 type TopMatchRow = {
   user_id: string;
@@ -822,7 +822,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 120 },
+  // Was 120 — footerActions below (Block/Report) already adds its own
+  // paddingBottom:24, so the two stacked left ~144px of dead space after
+  // Report (user feedback, 2026-09-03).
+  scrollContent: { paddingBottom: 24 },
 
   landingWrap: { flex: 1, justifyContent: 'space-between' },
   landingActions: { paddingHorizontal: 24, paddingBottom: 40, gap: 12 },

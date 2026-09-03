@@ -29,7 +29,7 @@ import {
 } from '@/lib/profileSettings';
 import { supabase } from '@/lib/supabaseClient';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 const PRIVACY_URL = 'https://perfectmatch.app/privacy';
 const TERMS_URL = 'https://perfectmatch.app/terms';
 const HELP_URL = 'https://perfectmatch.app/help';

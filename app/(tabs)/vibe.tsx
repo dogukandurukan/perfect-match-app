@@ -24,7 +24,7 @@ import {
   type VibeStripUser,
 } from '@/lib/vibeCategories';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 const CARD_WIDTH = 140;
 const CARD_HEIGHT = 200;
 const CARD_GAP = 10;

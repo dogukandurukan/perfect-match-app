@@ -5,7 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/lib/designTokens';
 import { formatDailyResetCountdown, msUntilReset } from '@/lib/dailyViews';
 
-const ACCENT = '#B8860B';
+const ACCENT = '#1A1A1A';
 
 type DailyLimitEmptyStateProps = {
   resetAt: string;
