@@ -10,7 +10,7 @@ import {
   TabBarMessagesIcon,
   TabBarNotificationsIcon,
 } from '@/components/ui/TabBarBadgedIcon';
-import { TabHeaderActions } from '@/components/ui/TabHeaderActions';
+import { ProfileHeaderActions, TabHeaderActions } from '@/components/ui/TabHeaderActions';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -132,19 +132,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
+          // Reached via the header avatar icon (TabHeaderActions) now, not
+          // the bottom bar — Profile isn't a check-repeatedly feed like
+          // Matches/Buzz/Chats, so it doesn't need equal billing there
+          // (user request, 2026-09-06; matches Hinge/Tinder's own pattern
+          // of a header-icon profile instead of a 5th bottom tab).
+          href: null,
           title: 'Profile',
           headerTitle: 'Profile',
-          headerTransparent: true,
-          headerStyle: { backgroundColor: 'transparent' },
-          tabBarIcon: ({ color, size, focused }) => (
-            <ActiveTabIcon focused={focused}>
-              <Ionicons
-                name={focused ? 'person-circle' : 'person-circle-outline'}
-                size={size ?? 26}
-                color={color}
-              />
-            </ActiveTabIcon>
-          ),
+          headerRight: () => <ProfileHeaderActions />,
         }}
       />
       <Tabs.Screen

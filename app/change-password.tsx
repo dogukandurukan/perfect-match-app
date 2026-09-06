@@ -82,7 +82,7 @@ export default function ChangePasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { justifyContent: 'flex-start', paddingTop: 8 },
+  container: { justifyContent: 'flex-start' },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 16 },
   backText: { color: ACCENT, fontSize: 16 },
   title: { color: ACCENT, fontSize: 24, marginBottom: 8 },

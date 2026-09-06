@@ -1,5 +1,4 @@
-// Screen: Settings | Status: stable | Last updated: Haziran 2026
-import Slider from '@react-native-community/slider';
+// Screen: Settings | Status: stable | Last updated: 2026-09-06
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -14,17 +13,12 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Chip } from '@/components/ui/Chip';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import {
-  DISCOVERY_DISTANCE_OPTIONS,
-  MEETING_PREF_OPTIONS,
   fetchProfileSettings,
   softDeleteAccount,
   updateProfileSettings,
-  type DiscoveryDistance,
-  type MeetingPref,
   type ProfileSettingsRow,
 } from '@/lib/profileSettings';
 import { supabase } from '@/lib/supabaseClient';
@@ -63,7 +57,11 @@ function NavRow({
     <View style={styles.linkRow}>
       <ThemedText style={styles.rowLabel}>{label}</ThemedText>
       <View style={styles.rowRight}>
-        {value ? <ThemedText style={styles.rowValue}>{value}</ThemedText> : null}
+        {value ? (
+          <ThemedText style={styles.rowValue} numberOfLines={1} ellipsizeMode="tail">
+            {value}
+          </ThemedText>
+        ) : null}
         {onPress ? <Ionicons name="chevron-forward" size={18} color="#888" /> : null}
       </View>
     </View>
@@ -189,22 +187,6 @@ export default function SettingsScreen() {
     [persist],
   );
 
-  const toggleMeetingPref = (value: MeetingPref) => {
-    applySettings((prev) => {
-      const current = prev.meeting_preferences ?? [];
-      let next: string[];
-      if (value === 'Everyone') {
-        next = current.includes('Everyone') ? [] : ['Everyone'];
-      } else {
-        const withoutEveryone = current.filter((x) => x !== 'Everyone');
-        next = withoutEveryone.includes(value)
-          ? withoutEveryone.filter((x) => x !== value)
-          : [...withoutEveryone, value];
-      }
-      return { ...prev, meeting_preferences: next };
-    });
-  };
-
   const handleDeleteAccount = () => {
     Alert.alert('Delete your account?', "This can't be undone.", [
       { text: 'Cancel', style: 'cancel' },
@@ -246,10 +228,6 @@ export default function SettingsScreen() {
     );
   }
 
-  const distanceLabel =
-    DISCOVERY_DISTANCE_OPTIONS.find((o) => o.value === settings.discovery_max_distance)?.label ??
-    'Whole city';
-
   return (
     <ScreenContainer style={styles.container}>
       <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
@@ -272,79 +250,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.card}>
-          <SectionTitle title="Discovery preferences" />
-          <ThemedText style={styles.subLabel}>Who you want to meet</ThemedText>
-          <View style={styles.chipRow}>
-            {MEETING_PREF_OPTIONS.map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={(settings.meeting_preferences ?? []).includes(opt)}
-                onPress={() => toggleMeetingPref(opt)}
-                style={styles.chip}
-              />
-            ))}
-          </View>
-
-          <ThemedText style={styles.sliderLabel}>
-            Age range: {settings.discovery_age_min} – {settings.discovery_age_max}
-          </ThemedText>
-          <ThemedText style={styles.sliderHint}>Minimum age</ThemedText>
-          <Slider
-            style={styles.slider}
-            minimumValue={18}
-            maximumValue={60}
-            step={1}
-            minimumTrackTintColor={ACCENT}
-            maximumTrackTintColor="#DDD"
-            thumbTintColor={ACCENT}
-            value={settings.discovery_age_min}
-            onValueChange={(v) => {
-              const min = Math.round(v);
-              applySettings((prev) => ({
-                ...prev,
-                discovery_age_min: Math.min(min, prev.discovery_age_max),
-              }));
-            }}
-          />
-          <ThemedText style={styles.sliderHint}>Maximum age</ThemedText>
-          <Slider
-            style={styles.slider}
-            minimumValue={18}
-            maximumValue={60}
-            step={1}
-            minimumTrackTintColor={ACCENT}
-            maximumTrackTintColor="#DDD"
-            thumbTintColor={ACCENT}
-            value={settings.discovery_age_max}
-            onValueChange={(v) => {
-              const max = Math.round(v);
-              applySettings((prev) => ({
-                ...prev,
-                discovery_age_max: Math.max(max, prev.discovery_age_min),
-              }));
-            }}
-          />
-
-          <ThemedText style={styles.subLabel}>Distance</ThemedText>
-          <View style={styles.chipRow}>
-            {DISCOVERY_DISTANCE_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.value}
-                label={opt.label}
-                selected={settings.discovery_max_distance === opt.value}
-                onPress={() =>
-                  applySettings((prev) => ({
-                    ...prev,
-                    discovery_max_distance: opt.value as DiscoveryDistance,
-                  }))
-                }
-                style={styles.chip}
-              />
-            ))}
-          </View>
-          <ThemedText style={styles.hint}>Current: {distanceLabel}</ThemedText>
-
+          <SectionTitle title="Discovery" />
           <NavRow
             label="Languages"
             value={languages.length > 0 ? languages.join(', ') : 'Not set'}
@@ -409,7 +315,10 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { justifyContent: 'flex-start', paddingTop: 8 },
+  // No paddingTop override — ScreenContainer already adds safe-area top
+  // padding; a fixed 8 here was crushing it flat, pushing "Back"/title up
+  // under the status bar (found 2026-09-07, device screenshot).
+  container: { justifyContent: 'flex-start' },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
   backText: { color: ACCENT, fontSize: 16 },
   pageTitle: { color: ACCENT, fontSize: 26, fontWeight: '700', marginBottom: 16 },
@@ -430,7 +339,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   rowLabel: { fontSize: 15, color: colors.textPrimary, flexShrink: 1 },
-  rowValue: { fontSize: 14, color: '#666', maxWidth: 180, textAlign: 'right' },
+  rowValue: { fontSize: 14, color: '#666', maxWidth: 210, textAlign: 'right' },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   linkRow: {
     flexDirection: 'row',
@@ -447,11 +356,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 4,
   },
-  sliderLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: '600', marginTop: 8 },
-  sliderHint: { fontSize: 12, color: '#888', marginTop: 4 },
-  slider: { width: '100%', height: 36 },
-  subLabel: { fontSize: 14, color: colors.textPrimary, marginTop: 8 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderRadius: 20 },
   hint: { fontSize: 12, color: '#888', marginTop: -2, marginBottom: 4 },
 });

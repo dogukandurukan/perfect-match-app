@@ -184,6 +184,22 @@ export default function ProfileTab() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
+        <TouchableOpacity
+          style={styles.premiumBanner}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel="Explore Premium"
+          onPress={() => router.push('/premium' as any)}>
+          <View style={styles.premiumBannerText}>
+            <ThemedText style={styles.premiumBannerTitle}>Go Premium ✨</ThemedText>
+            <ThemedText style={styles.premiumBannerSubtitle}>
+              See who likes you, more daily invites, and more.
+            </ThemedText>
+          </View>
+          <View style={styles.premiumBannerCta}>
+            <ThemedText style={styles.premiumBannerCtaText}>Explore</ThemedText>
+          </View>
+        </TouchableOpacity>
         <HingeProfileCard
           person={person}
           footer={
@@ -227,6 +243,40 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
+  premiumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.accent,
+    borderRadius: 16,
+    marginHorizontal: 14,
+    marginTop: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 12,
+  },
+  premiumBannerText: { flex: 1 },
+  premiumBannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  premiumBannerSubtitle: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    marginTop: 3,
+  },
+  premiumBannerCta: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  premiumBannerCtaText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   accountBlock: {
     marginHorizontal: 14,
     marginTop: 14,

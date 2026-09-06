@@ -169,6 +169,7 @@ export default function RootLayout() {
         <Stack.Screen name="coming-soon" options={{ headerShown: false }} />
         <Stack.Screen name="match-results" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="filters" options={{ headerShown: false }} />
         <Stack.Screen name="blocked-users" options={{ headerShown: false }} />
         <Stack.Screen name="premium" options={{ headerShown: false }} />
         <Stack.Screen name="change-password" options={{ headerShown: false }} />
