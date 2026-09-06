@@ -85,7 +85,9 @@ Funnel iki-adımlı ve iki cinsiyette **simetrik** (bkz. §7 ürün kararları).
 | `(tabs)/vibe.tsx` · `(tabs)/profile.tsx` | Vibe akışı · kendi profil |
 | `chat.tsx` | Birebir sohbet — realtime, icebreaker, chat-gate |
 | `user-profile.tsx` | Karşı tarafın profili + block/report |
-| `premium.tsx` | Monetizasyon iskeleti |
+| `premium.tsx` | Monetizasyon iskeleti — artık Profile içindeki banner'dan açılıyor, global header'da değil (2026-09-06) |
+| `settings.tsx` | Account/Notifications/Privacy/App — discovery tercihleri artık burada değil, `filters.tsx`'te |
+| `filters.tsx` | Discovery tercihleri — şehir, ilişki tarzı (intent), kimi görmek istediğin, yaş aralığı, mesafe (2026-09-06, yeni; `settings.tsx`'ten ayrıldı) |
 | `checkin.tsx` · `micro-intro.tsx` | Buluşma check-in · mikro tanışma |
 
 ### Önemli lib helper'ları (`lib/`)
@@ -264,6 +266,16 @@ Cihazda step1→2→3→4→uygulama uçtan uca test edildi, kullanıcı onaylad
 - **Her ekranın üstündeki fazlalık Home ikonu (`HomeTopIcon`) tamamen kaldırıldı** (profile-edit, matches, blocked-users, user-profile, kendi Profile, Buzz, login, forgot-password, register — 9 dosya). Çoğunda zaten native header/alt tab bar/kendi geri oku vardı (fazlalıktı), ama **`user-profile.tsx`'te** (`headerShown:false`, başka hiç nav kontrolü yoktu) tek geri-dönüş yoluydu — kaldırılınca ekranda hiç kontrol kalmasın diye yerine gerçek bir `TopBackButton` (geri ok) eklendi. Yol boyunca bulunan bug: **`(tabs)/profile.tsx`'in loading dalında ikon kaldırılınca ekran resmen boş kalıyordu** (spinner bile yoktu, sadece HomeTopIcon vardı) — düzgün bir `ActivityIndicator` eklendi. `HomeTopIcon.tsx` artık hiçbir yerde kullanılmadığı için silindi (bu arada dosyanın kendi eski, ilgisiz bir typed-route tsc hatası da onunla birlikte gitti).
 
 Cihazda tüm gün boyunca (gündüz + gece karanlık-mod testi dahil) adım adım test edildi, her tur kullanıcı onayı sonrası bir sonrakine geçildi.
+
+**✅ Matches performansı + navigasyon restructure (2026-09-06/07, `ae919f7`+`eade696`).**
+- **Matches sekmesi yavaşlığı** (kullanıcı raporu: "diğer sekmelere göre çok yavaş dolduyor") — kök neden art arda (paralel değil sırayla) ~9-18 ağ isteğiydi, özellikle eksik-aday-doldurma döngüsü her aday için 2 sorguyu sırayla atıyordu. Birbirine bağımlı olmayan sorgular paralel gruplara alındı (bkz. `app/(tabs)/matches.tsx` üstündeki yorumlar) — sıralı aşama sayısı 4'e indi. **Hâlâ MVP öncesi daha da hızlandırma gerekebilir** — bir sonraki adım round-trip sayısı değil, `get_top_matches` RPC'sinin kendi sunucu-taraf çalışma süresi olabilir (`EXPLAIN ANALYZE` ile bakılmalı).
+- **Bottom bar 5→4 sekmeye indi: Home, Matches, Buzz, Chats.** Profile artık bottom bar'da değil — her ekranın sağ üstündeki avatar ikonundan açılıyor (Bumble/Hinge referansı: Profile "sürekli kontrol edilen feed" değil, bottom bar'da eşit ağırlık almamalı). Global header'daki Premium tacı da kaldırıldı (ne Bumble ne Hinge kalıcı bir premium ikonu tutuyor) — **Premium artık Profile ekranı içinde bir banner** ("Go Premium ✨" + Explore, app'in siyah kimliğiyle).
+- **Profile ekranındayken üstte Filters + Settings ikonları var** (kendi kendine dönen bir Profile ikonu yerine — Hinge'deki gibi); **Settings artık Profile'ın içinde** (alttaki fazlalık Settings butonu kaldırıldı, sadece Edit profile + Sign Out kaldı).
+- **Yeni `filters.tsx` ekranı** — `settings.tsx`'teki "Discovery preferences" (kimi görmek istediğin, yaş aralığı, mesafe) oradan çıkarıldı + **şehir** ve **ilişki tarzı (intent)** tercihi eklendi (önceden bunlar SADECE onboarding'de düzenlenebiliyordu, sonradan değiştirilemiyordu — kullanıcı isteği: "filters daha dolu olabilir mesela şehir değiştirebiliriz veya aradığın ilişki tarzını").
+- **Yol boyunca bulunan/düzeltilen buglar (bazıları önceden beri vardı, bu turda fark edildi):**
+  1. Profile ekranı `headerTransparent:true` kullanıyordu ama içerik alanı header için ayrı yer ayırmıyordu — yeni eklenen Premium banner header'ın üzerine biniyordu. Normal opak header'a çevrildi.
+  2. `settings.tsx`/`filters.tsx`/`change-password.tsx`/`blocked-users.tsx`'te aynı hata: `ScreenContainer`'ın güvenli-alan `paddingTop`'u sabit bir `paddingTop:8` ile eziliyordu, "Back" durum çubuğunun altında/üstünde kalıyordu (Haziran'dan beri vardı, kimse fark etmemiş).
+  3. Settings'te uzun değerler (email gibi) çirkin iki satıra bölünüyordu (`rowValue`'da `numberOfLines` yoktu) — artık tek satırda kısaltılıyor.
 
 ---
 
