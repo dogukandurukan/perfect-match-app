@@ -397,14 +397,53 @@ export default function MatchesTab() {
 
         const userId = user.id;
 
-        const [{ data: meProfile }, invitesState] = await Promise.all([
+        // meProfile / invitesState / myMatches / pendingRows are all
+        // independent of each other (each only needs userId) — was 3
+        // sequential round-trip stages one after another, now a single
+        // parallel batch (2026-09-06, user-reported Matches-tab slowness).
+        const nowIso = new Date().toISOString();
+        const [
+          { data: meProfile },
+          invitesState,
+          { data: myMatches, error: myMatchesError },
+          { data: pendingRows, error: pendingError },
+        ] = await Promise.all([
           supabase
             .from('profiles')
             .select('gender, city, district, hobbies, favorite_music, favorite_movie, favorite_book')
             .eq('id', userId)
             .maybeSingle(),
           getDailyInvitesState(userId, false),
+          supabase
+            .from('matches')
+            .select(
+              `
+            id,
+            user_a_id,
+            user_b_id,
+            match_score,
+            status,
+            invited_by,
+            chat_opened,
+            user_a_intro_answers,
+            user_b_intro_answers,
+            checkin_a,
+            checkin_b
+          `,
+            )
+            .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+            .not('status', 'in', '(expired,passed)'),
+          supabase
+            .from('matches')
+            .select('id, user_a_id, user_b_id, match_score, expires_at, status, invited_by, chat_opened')
+            .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+            .eq('status', 'pending')
+            .is('invited_by', null)
+            .gt('expires_at', nowIso)
+            .order('created_at', { ascending: true })
+            .limit(MATCH_SLOT_COUNT),
         ]);
+
         if (!mounted) return;
         setMyGender(meProfile?.gender ?? null);
         setMyCity(typeof meProfile?.city === 'string' ? meProfile.city : null);
@@ -419,29 +458,6 @@ export default function MatchesTab() {
           district: typeof meProfile?.district === 'string' ? meProfile.district : null,
         });
         setDailyInvites(invitesState);
-
-        // All matches involving me (invite / chat state)
-        const { data: myMatches, error: myMatchesError } = await supabase
-          .from('matches')
-          .select(
-            `
-            id,
-            user_a_id,
-            user_b_id,
-            match_score,
-            status,
-            invited_by,
-            chat_opened,
-            user_a_intro_answers,
-            user_b_intro_answers,
-            checkin_a,
-            checkin_b
-          `,
-          )
-          .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
-          .not('status', 'in', '(expired,passed)');
-
-        if (!mounted) return;
         if (myMatchesError) {
           setError(true);
           setLoading(false);
@@ -455,33 +471,139 @@ export default function MatchesTab() {
           ),
         ];
 
-        const profileById = new Map<
+        // inviteMap only needs `rows` (no profile data) — build it up front,
+        // synchronously, so candidate generation below (RPC + backfill) can
+        // start immediately instead of waiting on the profiles(otherIds)
+        // fetch it has nothing to do with (2026-09-06, Matches-tab slowness,
+        // round 2).
+        const inviteMap: Record<
           string,
-          {
-            id: string;
-            first_name: string | null;
-            date_of_birth: string | null;
-            city: string | null;
-            photos: string[] | null;
-            gender: string | null;
-          }
-        >();
-
-        if (otherIds.length > 0) {
-          const { data: profiles, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, first_name, date_of_birth, city, district, photos, gender')
-            .in('id', otherIds);
-          if (!mounted) return;
-          if (profilesError) {
-            setError(true);
-            setLoading(false);
-            return;
-          }
-          for (const p of profiles ?? []) {
-            profileById.set(p.id, p);
-          }
+          { matchId: string; invitedBy: string | null; chatOpened: boolean }
+        > = {};
+        for (const row of rows) {
+          const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
+          inviteMap[otherId] = {
+            matchId: row.id,
+            invitedBy: (row.invited_by as string | null) ?? null,
+            chatOpened: row.chat_opened === true,
+          };
         }
+
+        if (pendingError) {
+          setError(true);
+          setLoading(false);
+          return;
+        }
+
+        type ProfileRow = {
+          id: string;
+          first_name: string | null;
+          date_of_birth: string | null;
+          city: string | null;
+          photos: string[] | null;
+          gender: string | null;
+        };
+        type PendingRow = {
+          id: string;
+          user_a_id: string;
+          user_b_id: string;
+          match_score: number;
+          expires_at: string;
+          status: string;
+        };
+
+        // Two independent pieces of work: (a) profiles for existing match
+        // partners, used to render the invite/chat lists below, and
+        // (b) generating fresh discovery candidates (RPC + backfill) for
+        // the pending card slots. Neither needs the other's result — was
+        // sequential (profiles fetch, then RPC, then backfill loop), now
+        // run together.
+        const [profilesOutcome, candidatesOutcome] = await Promise.all([
+          (async () => {
+            if (otherIds.length === 0) {
+              return { profileById: new Map<string, ProfileRow>(), error: null as string | null };
+            }
+            const { data: profiles, error: profilesError } = await supabase
+              .from('profiles')
+              .select('id, first_name, date_of_birth, city, district, photos, gender')
+              .in('id', otherIds);
+            if (profilesError) {
+              return { profileById: new Map<string, ProfileRow>(), error: profilesError.message };
+            }
+            const map = new Map<string, ProfileRow>();
+            for (const p of profiles ?? []) map.set(p.id, p as ProfileRow);
+            return { profileById: map, error: null as string | null };
+          })(),
+          (async () => {
+            const activePending: PendingRow[] = (pendingRows ?? []) as PendingRow[];
+            const existingOtherIds = new Set(
+              activePending.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id)),
+            );
+
+            const missingCount = MATCH_SLOT_COUNT - activePending.length;
+            if (missingCount > 0) {
+              const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_matches', {
+                p_user_id: userId,
+                p_limit: missingCount + 5,
+              });
+              if (rpcError) return { activePending, error: rpcError.message };
+
+              const candidates = ((rpcData ?? []) as MatchResultItem[]).filter(
+                (c) => !existingOtherIds.has(c.user_id) && !inviteMap[c.user_id],
+              );
+
+              const backfilled = await Promise.all(
+                candidates.slice(0, missingCount).map(async (candidate) => {
+                  const upserted = await upsertMatchPair(
+                    userId,
+                    candidate.user_id,
+                    candidate.match_percentage,
+                  );
+                  if (!upserted.matchId) return null;
+
+                  const expiresAt = new Date(Date.now() + MATCH_TTL_MS).toISOString();
+                  await supabase
+                    .from('matches')
+                    .update({ expires_at: expiresAt, status: 'pending', algo_version: 'v1' })
+                    .eq('id', upserted.matchId)
+                    .is('invited_by', null);
+
+                  const [a, b] = orderedPair(userId, candidate.user_id);
+                  return {
+                    otherId: candidate.user_id,
+                    row: {
+                      id: upserted.matchId,
+                      user_a_id: a,
+                      user_b_id: b,
+                      match_score: candidate.match_percentage,
+                      expires_at: expiresAt,
+                      status: 'pending',
+                    } as PendingRow,
+                  };
+                }),
+              );
+
+              for (const item of backfilled) {
+                if (!item) continue;
+                activePending.push(item.row);
+                existingOtherIds.add(item.otherId);
+              }
+            }
+
+            return { activePending, error: null as string | null };
+          })(),
+        ]);
+
+        if (!mounted) return;
+
+        if (profilesOutcome.error || candidatesOutcome.error) {
+          setError(true);
+          setLoading(false);
+          return;
+        }
+
+        const profileById = profilesOutcome.profileById;
+        const activePending = candidatesOutcome.activePending;
 
         function photoFor(uid: string, photos: string[] | null | undefined): string {
           const first = photos?.[0];
@@ -495,10 +617,6 @@ export default function MatchesTab() {
         const nextOutgoing: OutgoingInvite[] = [];
         const nextOpen: OpenChatRow[] = [];
         const nextAccepted: AcceptedMatch[] = [];
-        const inviteMap: Record<
-          string,
-          { matchId: string; invitedBy: string | null; chatOpened: boolean }
-        > = {};
 
         for (const row of rows) {
           const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
@@ -508,12 +626,6 @@ export default function MatchesTab() {
           const age = safeAge(profile?.date_of_birth ?? null);
           const invitedBy = (row.invited_by as string | null) ?? null;
           const chatOpened = row.chat_opened === true;
-
-          inviteMap[otherId] = {
-            matchId: row.id,
-            invitedBy,
-            chatOpened,
-          };
 
           if (chatOpened) {
             nextOpen.push({
@@ -569,95 +681,11 @@ export default function MatchesTab() {
           }
         }
 
-        if (!mounted) return;
         setIncoming(nextIncoming);
         setOutgoing(nextOutgoing);
         setOpenChats(nextOpen);
         setAcceptedMatches(nextAccepted);
         setInviteByOtherId(inviteMap);
-
-        // Candidate cards — pending slots for discovery
-        const nowIso = new Date().toISOString();
-        const { data: pendingRows, error: pendingError } = await supabase
-          .from('matches')
-          .select('id, user_a_id, user_b_id, match_score, expires_at, status, invited_by, chat_opened')
-          .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
-          .eq('status', 'pending')
-          .is('invited_by', null)
-          .gt('expires_at', nowIso)
-          .order('created_at', { ascending: true })
-          .limit(MATCH_SLOT_COUNT);
-
-        if (!mounted) return;
-
-        if (pendingError) {
-          setError(true);
-          setLoading(false);
-          return;
-        }
-
-        type PendingRow = {
-          id: string;
-          user_a_id: string;
-          user_b_id: string;
-          match_score: number;
-          expires_at: string;
-          status: string;
-        };
-
-        let activePending: PendingRow[] = (pendingRows ?? []) as PendingRow[];
-        const existingOtherIds = new Set(
-          activePending.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id)),
-        );
-
-        const missingCount = MATCH_SLOT_COUNT - activePending.length;
-        if (missingCount > 0) {
-          const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_matches', {
-            p_user_id: userId,
-            p_limit: missingCount + 5,
-          });
-
-          if (!mounted) return;
-
-          if (rpcError) {
-            setError(true);
-            setLoading(false);
-            return;
-          }
-
-          const candidates = ((rpcData ?? []) as MatchResultItem[]).filter(
-            (c) => !existingOtherIds.has(c.user_id) && !inviteMap[c.user_id],
-          );
-
-          for (const candidate of candidates.slice(0, missingCount)) {
-            const upserted = await upsertMatchPair(
-              userId,
-              candidate.user_id,
-              candidate.match_percentage,
-            );
-            if (!upserted.matchId) continue;
-
-            const expiresAt = new Date(Date.now() + MATCH_TTL_MS).toISOString();
-            await supabase
-              .from('matches')
-              .update({ expires_at: expiresAt, status: 'pending', algo_version: 'v1' })
-              .eq('id', upserted.matchId)
-              .is('invited_by', null);
-
-            const [a, b] = orderedPair(userId, candidate.user_id);
-            activePending.push({
-              id: upserted.matchId,
-              user_a_id: a,
-              user_b_id: b,
-              match_score: candidate.match_percentage,
-              expires_at: expiresAt,
-              status: 'pending',
-            });
-            existingOtherIds.add(candidate.user_id);
-          }
-        }
-
-        if (!mounted) return;
 
         if (activePending.length === 0) {
           setCards([]);
@@ -669,14 +697,26 @@ export default function MatchesTab() {
         const cardOtherIds = activePending.map((r) =>
           r.user_a_id === userId ? r.user_b_id : r.user_a_id,
         );
-        const { data: profileRows, error: profileError } = await supabase
-          .from('profiles')
-          .select(
-            'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots',
-          )
-          .in('id', cardOtherIds);
+        // profileRows and intentRows both only depend on cardOtherIds, not
+        // on each other — run together (2026-09-06, Matches-tab slowness).
+        const [
+          { data: profileRows, error: profileError },
+          { data: intentRows, error: intentError },
+        ] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select(
+              'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots',
+            )
+            .in('id', cardOtherIds),
+          supabase.from('onboarding_answers').select('user_id, intent').in('user_id', cardOtherIds),
+        ]);
 
         if (!mounted) return;
+
+        if (intentError) {
+          console.warn('[Matches] intent fetch failed', intentError);
+        }
 
         let profilesForCards: ProfileForCard[] = [];
         if (profileError) {
@@ -703,17 +743,6 @@ export default function MatchesTab() {
             favorite_spots: parseFavoriteSpots((p as ProfileForCard).favorite_spots),
           }));
         }
-
-        const { data: intentRows, error: intentError } = await supabase
-          .from('onboarding_answers')
-          .select('user_id, intent')
-          .in('user_id', cardOtherIds);
-
-        if (intentError) {
-          console.warn('[Matches] intent fetch failed', intentError);
-        }
-
-        if (!mounted) return;
 
         const intentMap = new Map<string, string | null>(
           (intentRows ?? []).map((row: { user_id: string; intent: string | null }) => [
