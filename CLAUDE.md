@@ -286,6 +286,8 @@ Cihazda tüm gün boyunca (gündüz + gece karanlık-mod testi dahil) adım adı
 - **Sonuç:** planlama 187ms→8ms, çalıştırma 62ms→2ms, toplam ~250ms→~9ms. Bu RPC hem Home'un keşif akışını hem Matches'in eksik-aday-doldurma döngüsünü besliyor, kazanç ikisine de yansıdı. `matches` tablosunun indeksleri zaten yeterliydi (küçük tablo, planner bilinçli olarak Seq Scan seçiyordu — dokunulmadı).
 - Yöntem not: **DB perf sorunlarında ilk adım her zaman `EXPLAIN (ANALYZE, BUFFERS)` olmalı** — client-tarafı round-trip sayısını azaltmak (önceki tur) faydalıydı ama asıl büyük kazanç RPC'nin kendi planlama/çalıştırma maliyetindeydi.
 
+**✅ Home'a swipe ile like/dislike eklendi (2026-09-08, `bd70709`).** Önceden sadece alttaki ❤/✕ butonlarıyla mümkündü — "her dating app'te olduğu gibi" kullanıcı isteğiyle sağa/sola kaydırma eklendi. Kart aynı zamanda dikey kaydırılabilir olduğu için (About me vs. aşağıda), `Gesture.Pan()` `activeOffsetX`/`failOffsetY` ile sadece belirgin yatay harekette devreye giriyor, dikey denemede ScrollView'e devrediyor (bu tarz "içinde scroll olan swipe kart" için standart desen). Eşik altında geri yaylanıyor, eşik üstünde ekrandan uçup **aynı** `handleLike`/`handlePass`'i tetikliyor (buton mantığıyla birebir). `react-native-gesture-handler` zaten kuruluydu (react-navigation'ın kendi swipe-back'i için transitive) ama app kökünde `GestureHandlerRootView` hiç yoktu — resmi olarak gerekli, eklendi (native rebuild gerekmedi, saf JS). Bu arada `heroFullScreen`'in kırpma sorunu da düzeltildi: çok uzun kutuya `cover` ile ortalanan foto yüzün üstünü kesip isim overlay'ini ekran dışına düşürüyordu — `contentPosition="top"` + yükseklik %88→%70.
+
 ---
 
 ## 5. Ürün kararları (log)
