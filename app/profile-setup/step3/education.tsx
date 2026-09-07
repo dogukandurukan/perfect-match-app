@@ -1,4 +1,4 @@
-// Step3 screen 5/6 — education, with an optional follow-up detail field
+// Step3 screen 5/7 — education, with an optional follow-up detail field
 // that reveals once an option is picked.
 import { StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -24,7 +24,7 @@ export default function Step3Education() {
       totalSteps={TOTAL_SCREENS}
       macroStep={3}
       title="What's your education background?"
-      onNext={() => router.push('/profile-setup/step3/religion' as never)}>
+      onNext={() => router.push('/profile-setup/step3/occupation' as never)}>
       <View style={styles.chipRow}>
         {EDUCATION_OPTIONS.map((opt) => (
           <Chip

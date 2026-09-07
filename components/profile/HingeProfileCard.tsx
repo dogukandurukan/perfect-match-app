@@ -125,6 +125,9 @@ export type HingeProfileCardProps = {
   footer?: ReactNode;
   /** Verildiğinde her foto & prompt'a "Note" (bağlamlı beğeni) affordance'ı gösterilir. */
   onNoteTarget?: (target: NoteTarget) => void;
+  /** Bumble tarzı edge-to-edge, ekranı kaplayan ana foto (Home discovery kartı için —
+   * Matches/user-profile/kendi Profile hâlâ eski kart-görünümü kullanıyor). */
+  heroFullScreen?: boolean;
 };
 
 export function HingeProfileCard({
@@ -133,6 +136,7 @@ export function HingeProfileCard({
   midActions,
   footer,
   onNoteTarget,
+  heroFullScreen = false,
 }: HingeProfileCardProps) {
   const prompts = buildPromptCards(person);
   const locationLabel = formatFeedLocation(person.district, person.city, viewerCity);
@@ -147,6 +151,12 @@ export function HingeProfileCard({
   const languages = (person.languages ?? []).filter((l) => !!l && l.trim().length > 0);
   const livesInCity = person.city?.trim() && !/^\s*$/.test(person.city) ? person.city.trim() : null;
   const verified = person.photo_verified === true;
+  const universityLine =
+    (person.education === 'University' || person.education === "Master's") &&
+    person.education_detail?.trim()
+      ? person.education_detail.trim()
+      : null;
+  const occupationLine = person.occupation?.trim() || null;
 
   const hasCommonMedia =
     !!person.favorite_music || !!person.favorite_movie || !!person.favorite_book;
@@ -187,12 +197,12 @@ export function HingeProfileCard({
   return (
     <View>
       {heroUri ? (
-        <View style={styles.photo1Wrap}>
+        <View style={[styles.photo1Wrap, heroFullScreen && styles.photo1WrapFullScreen]}>
           <Image source={{ uri: heroUri }} style={styles.photo1} contentFit="cover" />
           <View style={styles.nameOverlay}>
             {verified ? (
               <View style={styles.verifiedPill}>
-                <Ionicons name="checkmark-circle" size={14} color="#2E7D32" />
+                <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
                 <ThemedText style={styles.verifiedText}>Photo verified</ThemedText>
               </View>
             ) : null}
@@ -200,6 +210,18 @@ export function HingeProfileCard({
               {person.first_name ?? 'Someone'}
               {age > 0 ? `, ${age}` : ''}
             </ThemedText>
+            {occupationLine ? (
+              <View style={styles.overlayInfoRow}>
+                <Ionicons name="briefcase-outline" size={14} color="#FFFFFF" />
+                <ThemedText style={styles.overlayInfoText}>{occupationLine}</ThemedText>
+              </View>
+            ) : null}
+            {universityLine ? (
+              <View style={styles.overlayInfoRow}>
+                <Ionicons name="school-outline" size={14} color="#FFFFFF" />
+                <ThemedText style={styles.overlayInfoText}>{universityLine}</ThemedText>
+              </View>
+            ) : null}
           </View>
           {pct !== null ? (
             <View style={styles.matchBadge}>
@@ -320,19 +342,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#DDDDDD',
     position: 'relative',
   },
+  // Bumble-style edge-to-edge hero for Home's discovery card (user request,
+  // 2026-09-07) — no side margin/rounding, fills basically the whole
+  // viewport so About-me etc. only appear once you scroll.
+  photo1WrapFullScreen: {
+    height: SCREEN_HEIGHT * 0.88,
+    marginHorizontal: 0,
+    marginTop: 0,
+    borderRadius: 0,
+  },
   photo1: { width: '100%', height: '100%' },
+  // Translucent dark pill + white text/icon (matches Bumble's own "Photo
+  // verified" badge, used as the style reference for matchBadge too,
+  // 2026-09-07 — was a light bg/dark-text pill before).
   verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 5,
     marginBottom: 2,
   },
-  verifiedText: { color: '#1a1a1a', fontSize: 12, fontWeight: '600' },
+  verifiedText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   sectionCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -385,12 +419,27 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     right: 16,
-    backgroundColor: ACCENT,
-    borderRadius: 20,
+    // Same translucent-dark treatment as verifiedPill (was flat opaque
+    // ACCENT before — read as "too black" against the photo, 2026-09-07).
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  matchBadgeText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  matchBadgeText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  overlayInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  overlayInfoText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
+  },
 
   infoCard: {
     backgroundColor: '#FFFFFF',

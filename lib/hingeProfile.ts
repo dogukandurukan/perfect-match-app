@@ -38,6 +38,8 @@ export type HingeProfilePerson = {
   // Bumble "About me" / "Looking for" / "Interests" bölümleri için (mevcut profiles kolonları).
   // Opsiyonel — Matches detay kartı bunları sağlamayabilir; Home besler.
   education?: string | null;
+  education_detail?: string | null;
+  occupation?: string | null;
   zodiac_sign?: string | null;
   gender?: string | null;
   pets?: string | null;

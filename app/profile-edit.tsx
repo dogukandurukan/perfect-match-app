@@ -139,6 +139,7 @@ export default function ProfileEditScreen() {
   const [bio, setBio] = useState('');
   const [idealDate, setIdealDate] = useState('');
   const [instagramHandle, setInstagramHandle] = useState('');
+  const [occupation, setOccupation] = useState('');
   const [availDays, setAvailDays] = useState<string[]>([]);
   const [availHours, setAvailHours] = useState<string[]>([]);
   const [meetingEnv, setMeetingEnv] = useState<string[]>([]);
@@ -171,7 +172,7 @@ export default function ProfileEditScreen() {
             bio, photos, availability_days, availability_hours, meeting_environment,
             favorite_spots, first_date_expectation,
             favorite_music, favorite_movie, favorite_book, favorite_activity,
-            core_value, impressed_by, dealbreaker, instagram_handle
+            core_value, impressed_by, dealbreaker, instagram_handle, occupation
           `,
           )
           .eq('id', user.id)
@@ -186,6 +187,7 @@ export default function ProfileEditScreen() {
         setBio(data.bio ?? '');
         setIdealDate(data.first_date_expectation ?? '');
         setInstagramHandle(data.instagram_handle ?? '');
+        setOccupation(data.occupation ?? '');
         setAvailDays(data.availability_days ?? []);
         setAvailHours(data.availability_hours ?? []);
         setMeetingEnv(data.meeting_environment ?? []);
@@ -332,6 +334,7 @@ export default function ProfileEditScreen() {
           bio: bio.trim() || null,
           first_date_expectation: idealDate.trim() || null,
           instagram_handle: instagramHandle.trim() || null,
+          occupation: occupation.trim() || null,
           availability_days: availDays.length ? availDays : null,
           availability_hours: availHours.length ? availHours : null,
           meeting_environment: meetingEnv.length ? meetingEnv : null,
@@ -431,6 +434,20 @@ export default function ProfileEditScreen() {
               <ThemedText style={styles.charCount}>
                 {bio.length}/{BIO_MAX_LENGTH}
               </ThemedText>
+            </View>
+          </View>
+
+          {/* Occupation */}
+          <View style={styles.section}>
+            <SectionTitle icon="briefcase-outline" title="Occupation (optional)" />
+            <View style={styles.fieldWrap}>
+              <TextInput
+                style={styles.inputFlex}
+                value={occupation}
+                onChangeText={setOccupation}
+                placeholder="e.g. Product Designer"
+                placeholderTextColor="#AAAAAA"
+              />
             </View>
           </View>
 

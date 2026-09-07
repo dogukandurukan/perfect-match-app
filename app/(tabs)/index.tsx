@@ -202,6 +202,8 @@ export default function HomeScreen() {
           first_date_expectation: null,
           favorite_spots: null,
           education: null,
+          education_detail: null,
+          occupation: null,
           zodiac_sign: null,
           gender: null,
           pets: null,
@@ -220,7 +222,7 @@ export default function HomeScreen() {
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
       .select(
-        'id, languages, bio, first_date_expectation, favorite_spots, education, zodiac_sign, gender, pets, religion, morning_night, core_value, impressed_by, favorite_activity, vibe, photo_verified',
+        'id, languages, bio, first_date_expectation, favorite_spots, education, education_detail, occupation, zodiac_sign, gender, pets, religion, morning_night, core_value, impressed_by, favorite_activity, vibe, photo_verified',
       )
       .in('id', userIds);
 
@@ -231,6 +233,8 @@ export default function HomeScreen() {
       first_date_expectation: string | null;
       favorite_spots: Record<string, string> | null;
       education: string | null;
+      education_detail: string | null;
+      occupation: string | null;
       zodiac_sign: string | null;
       gender: string | null;
       pets: string | null;
@@ -259,6 +263,8 @@ export default function HomeScreen() {
         first_date_expectation: null,
         favorite_spots: null,
         education: null,
+        education_detail: null,
+        occupation: null,
         zodiac_sign: null,
         gender: null,
         pets: null,
@@ -283,6 +289,8 @@ export default function HomeScreen() {
         first_date_expectation: extra?.first_date_expectation ?? null,
         favorite_spots: parseFavoriteSpots(extra?.favorite_spots),
         education: extra?.education ?? null,
+        education_detail: extra?.education_detail ?? null,
+        occupation: extra?.occupation ?? null,
         zodiac_sign: extra?.zodiac_sign ?? null,
         gender: extra?.gender ?? null,
         pets: extra?.pets ?? null,
@@ -643,6 +651,7 @@ export default function HomeScreen() {
               person={currentUser}
               viewerCity={myCity}
               onNoteTarget={handleOpenNote}
+              heroFullScreen
               footer={
                 <View style={styles.footerActions}>
                   <View style={styles.actionRow}>

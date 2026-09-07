@@ -49,7 +49,7 @@ export const RELIGION_OPTIONS: readonly ReligionOption[] = [
   'Spiritual', 'Religious', 'Agnostic', 'Atheist', 'Prefer not to say',
 ];
 
-export const TOTAL_SCREENS = 6;
+export const TOTAL_SCREENS = 7;
 
 type Step3ContextValue = {
   userId: string | null;
@@ -69,6 +69,8 @@ type Step3ContextValue = {
   setEducation: (v: EducationOption) => void;
   educationDetail: string;
   setEducationDetail: (v: string) => void;
+  occupation: string;
+  setOccupation: (v: string) => void;
   religion: ReligionOption | null;
   setReligion: (v: ReligionOption) => void;
 
@@ -97,6 +99,7 @@ export function Step3Provider({ children }: { children: ReactNode }) {
   const [drinkingSmoking, setDrinkingSmoking] = useState<DrinkingSmoking | null>(null);
   const [education, setEducation] = useState<EducationOption | null>(null);
   const [educationDetail, setEducationDetail] = useState('');
+  const [occupation, setOccupation] = useState('');
   const [religion, setReligion] = useState<ReligionOption | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -196,6 +199,7 @@ export function Step3Provider({ children }: { children: ReactNode }) {
         smoking: smokingValue,
         education,
         education_detail: educationDetailOut,
+        occupation: occupation.trim() || null,
         religion,
         current_step: 4,
       };
@@ -231,6 +235,8 @@ export function Step3Provider({ children }: { children: ReactNode }) {
     setEducation,
     educationDetail,
     setEducationDetail,
+    occupation,
+    setOccupation,
     religion,
     setReligion,
     submitAll,

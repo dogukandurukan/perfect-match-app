@@ -1,4 +1,4 @@
-// Step3 screen 6/6 — beliefs, last screen. Finish triggers submitAll()
+// Step3 screen 7/7 — beliefs, last screen. Finish triggers submitAll()
 // (upserts profiles.current_step=4, then pushes to step4).
 import { StyleSheet, View } from 'react-native';
 
@@ -11,7 +11,7 @@ export default function Step3Religion() {
 
   return (
     <QuestionScreen
-      step={6}
+      step={7}
       totalSteps={TOTAL_SCREENS}
       macroStep={3}
       title="How would you describe your beliefs?"
