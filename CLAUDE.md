@@ -114,7 +114,7 @@ favorite_book, favorite_movie, favorite_music, favorite_spots,
 first_date_expectation, first_name, full_address, gender, hide_location, hobbies,
 id, impressed_by, is_hidden, languages, last_name, lat, lng, meeting_environment,
 meeting_preferences, morning_night, neighborhoods, notify_meeting_invite,
-notify_messages, notify_new_match, pets, phone_number, photo_verified, photos,
+notify_messages, notify_new_match, occupation, pets, phone_number, photo_verified, photos,
 preferred_locations, recharge_style, religion, setup1_completed, setup_completed,
 smoking, updated_at, username, vibe, zodiac_sign
 ```
@@ -276,6 +276,8 @@ Cihazda tüm gün boyunca (gündüz + gece karanlık-mod testi dahil) adım adı
   1. Profile ekranı `headerTransparent:true` kullanıyordu ama içerik alanı header için ayrı yer ayırmıyordu — yeni eklenen Premium banner header'ın üzerine biniyordu. Normal opak header'a çevrildi.
   2. `settings.tsx`/`filters.tsx`/`change-password.tsx`/`blocked-users.tsx`'te aynı hata: `ScreenContainer`'ın güvenli-alan `paddingTop`'u sabit bir `paddingTop:8` ile eziliyordu, "Back" durum çubuğunun altında/üstünde kalıyordu (Haziran'dan beri vardı, kimse fark etmemiş).
   3. Settings'te uzun değerler (email gibi) çirkin iki satıra bölünüyordu (`rowValue`'da `numberOfLines` yoktu) — artık tek satırda kısaltılıyor.
+
+**✅ Home hero foto tam ekran + Bumble rozetleri + `occupation` alanı (2026-09-07, `c83d9fe`).** Kullanıcı Bumble ekran görüntüleri referans verdi: ana foto artık kenardan kenara, ekranın ~%88'i (sadece Home'da — `HingeProfileCard`'a `heroFullScreen` prop, Matches/user-profile/kendi Profile eski kart görünümünde kaldı); skor rozeti + "Photo verified" pill'i düz opak siyahtan yarı-saydam koyu+beyaz yazıya döndü ("çok siyah" geliyordu); isim altına doluysa 💼 iş / 🎓 üniversite satırları eklendi. **Yeni `profiles.occupation` kolonu** — "iş" için hiç alan yoktu, eklendi + Edit Profile'a gerçek input olarak kondu + onboarding step3'e ayrı ekran olarak eklendi (education'dan hemen sonra, religion'dan önce — Instagram'la aynı ekrana **konulmadı**, kullanıcı "ayrı şeyler" dedi; step3 6→7 ekrana çıktı). `first_name` ile ilerlemenin riski burada da çıktı: hangi "Melis" ID'sinin ekranda göründüğü belirlenemedi (10 tane var), demo veri (occupation+photo_verified) hepsine yazıldı.
 
 ---
 
