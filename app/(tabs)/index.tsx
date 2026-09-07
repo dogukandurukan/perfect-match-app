@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -31,14 +32,20 @@ import {
   View,
   ScrollView,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.28;
+const SWIPE_VELOCITY_THRESHOLD = 800;
 
 const ACCENT = '#1A1A1A';
 
@@ -99,6 +106,9 @@ export default function HomeScreen() {
 
   const passOverlayOpacity = useSharedValue(0);
   const likeOverlayOpacity = useSharedValue(0);
+  // Swipe-to-decide (every dating app has this — user request, 2026-09-08).
+  // Was buttons-only before.
+  const cardTranslateX = useSharedValue(0);
 
   const passOverlayStyle = useAnimatedStyle(() => ({
     opacity: passOverlayOpacity.value,
@@ -106,6 +116,13 @@ export default function HomeScreen() {
 
   const likeOverlayStyle = useAnimatedStyle(() => ({
     opacity: likeOverlayOpacity.value,
+  }));
+
+  const cardSwipeStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: cardTranslateX.value },
+      { rotate: `${cardTranslateX.value / 20}deg` },
+    ],
   }));
 
   const refreshProfileState = useCallback(async (): Promise<ProfileSetupState | null> => {
@@ -425,7 +442,8 @@ export default function HomeScreen() {
     setAnimating(false);
     passOverlayOpacity.value = 0;
     likeOverlayOpacity.value = 0;
-  }, [likeOverlayOpacity, passOverlayOpacity]);
+    cardTranslateX.value = 0;
+  }, [cardTranslateX, likeOverlayOpacity, passOverlayOpacity]);
 
   // Tek beğeni modeli — ❤ (profil) ve foto/prompt Note aynı `likes` satırını besler (§3/§5).
   // Kişi başına tek satır: upsert onConflict(liker_id,likee_id) → Note, ❤'in satırına hedef+not yazar.
@@ -516,6 +534,34 @@ export default function HomeScreen() {
   const currentUser = feedUsers[currentIndex] ?? null;
   const likesLeft = remainingDailyViews(dailyViews);
   const likesLeftLabel = `${likesLeft} ${likesLeft === 1 ? 'like' : 'likes'} left today`;
+
+  // activeOffsetX/failOffsetY: only claim the gesture once movement is
+  // clearly horizontal, otherwise fail immediately and let the ScrollView
+  // (vertical scroll through About-me etc.) handle it — the standard
+  // pattern for a swipeable card that also has scrollable content inside.
+  const swipeGesture = Gesture.Pan()
+    .enabled(!animating && !!currentUser)
+    .activeOffsetX([-10, 10])
+    .failOffsetY([-15, 15])
+    .onUpdate((e) => {
+      cardTranslateX.value = e.translationX;
+    })
+    .onEnd((e) => {
+      const passedThreshold =
+        Math.abs(e.translationX) > SWIPE_DISTANCE_THRESHOLD ||
+        Math.abs(e.velocityX) > SWIPE_VELOCITY_THRESHOLD;
+      if (!passedThreshold || !currentUser) {
+        cardTranslateX.value = withSpring(0, { damping: 15 });
+        return;
+      }
+      const direction = e.translationX > 0 ? 1 : -1;
+      const userId = currentUser.user_id;
+      cardTranslateX.value = withTiming(direction * SCREEN_WIDTH * 1.5, { duration: 220 }, (finished) => {
+        if (!finished) return;
+        if (direction > 0) runOnJS(handleLike)(userId);
+        else runOnJS(handlePass)(userId);
+      });
+    });
 
   const handleOpenNote = useCallback((target: NoteTarget) => {
     setNoteText('');
@@ -643,16 +689,18 @@ export default function HomeScreen() {
           <View style={styles.likesLeftBar}>
             <ThemedText style={styles.likesLeftText}>{likesLeftLabel}</ThemedText>
           </View>
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}>
-            <HingeProfileCard
-              person={currentUser}
-              viewerCity={myCity}
-              onNoteTarget={handleOpenNote}
-              heroFullScreen
-              footer={
+          <GestureDetector gesture={swipeGesture}>
+            <Animated.View style={[styles.swipeCard, cardSwipeStyle]}>
+              <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}>
+                <HingeProfileCard
+                  person={currentUser}
+                  viewerCity={myCity}
+                  onNoteTarget={handleOpenNote}
+                  heroFullScreen
+                  footer={
                 <View style={styles.footerActions}>
                   <View style={styles.actionRow}>
                     <TouchableOpacity
@@ -692,8 +740,10 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 </View>
               }
-            />
-          </ScrollView>
+                />
+              </ScrollView>
+            </Animated.View>
+          </GestureDetector>
 
           {/* Pass animasyon overlay */}
           <Animated.View style={[styles.passOverlay, passOverlayStyle]} pointerEvents="none">
@@ -830,6 +880,7 @@ const styles = StyleSheet.create({
     color: ACCENT,
     textAlign: 'center',
   },
+  swipeCard: { flex: 1 },
   scroll: { flex: 1 },
   // Was 120 — footerActions below (Block/Report) already adds its own
   // paddingBottom:24, so the two stacked left ~144px of dead space after

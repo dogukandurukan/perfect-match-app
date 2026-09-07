@@ -198,7 +198,17 @@ export function HingeProfileCard({
     <View>
       {heroUri ? (
         <View style={[styles.photo1Wrap, heroFullScreen && styles.photo1WrapFullScreen]}>
-          <Image source={{ uri: heroUri }} style={styles.photo1} contentFit="cover" />
+          <Image
+            source={{ uri: heroUri }}
+            style={styles.photo1}
+            contentFit="cover"
+            // Full-screen hero is much taller than a typical portrait photo,
+            // so a centered cover-crop pushed the face out the top and left
+            // mostly neck/shoulder (and the name overlay) at the bottom —
+            // biasing the crop to the top keeps the face in frame instead
+            // (user feedback with screenshot, 2026-09-08).
+            contentPosition={heroFullScreen ? 'top' : 'center'}
+          />
           <View style={styles.nameOverlay}>
             {verified ? (
               <View style={styles.verifiedPill}>
@@ -343,10 +353,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   // Bumble-style edge-to-edge hero for Home's discovery card (user request,
-  // 2026-09-07) — no side margin/rounding, fills basically the whole
-  // viewport so About-me etc. only appear once you scroll.
+  // 2026-09-07) — no side margin/rounding, About-me etc. only appear once
+  // you scroll. Was 0.88 — combined with the header above it ("3 likes left
+  // today" etc.), that pushed the name/verified overlay at the bottom of
+  // the photo past the visible viewport entirely (needed a scroll just to
+  // see the name — user screenshot, 2026-09-08). 0.68 keeps it dominant
+  // without shoving its own overlay off-screen.
   photo1WrapFullScreen: {
-    height: SCREEN_HEIGHT * 0.88,
+    height: SCREEN_HEIGHT * 0.70,
     marginHorizontal: 0,
     marginTop: 0,
     borderRadius: 0,

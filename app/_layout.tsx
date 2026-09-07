@@ -4,6 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { applySessionFromUrl, subscribeAuthDeepLinks } from '@/lib/authDeepLinks';
@@ -155,31 +156,37 @@ export default function RootLayout() {
   // the tab bar and its labels went black while every screen stayed white).
   // Pin to light until the app actually gets a dark-mode design.
   return (
-    <ThemeProvider value={DefaultTheme}>
-      <AuthRefreshBridge />
-      <AuthDeepLinkBridge />
-      <LocationBridge />
-      <NotificationBridge />
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
-        <Stack.Screen name="profile-setup" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
-        <Stack.Screen name="coming-soon" options={{ headerShown: false }} />
-        <Stack.Screen name="match-results" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ headerShown: false }} />
-        <Stack.Screen name="filters" options={{ headerShown: false }} />
-        <Stack.Screen name="blocked-users" options={{ headerShown: false }} />
-        <Stack.Screen name="premium" options={{ headerShown: false }} />
-        <Stack.Screen name="change-password" options={{ headerShown: false }} />
-        <Stack.Screen name="user-profile" options={{ headerShown: false }} />
-        <Stack.Screen name="micro-intro" options={{ headerShown: false }} />
-        <Stack.Screen name="chat" options={{ headerShown: false }} />
-        <Stack.Screen name="vibe-detail" options={{ headerShown: true }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    // Required by react-native-gesture-handler for reliable gesture
+    // recognition (Home's new swipe-to-like/pass card, 2026-09-08) —
+    // wasn't set up before; RNGH was only ever used transitively via
+    // react-navigation's own swipe-back, which didn't need this wrapper.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={DefaultTheme}>
+        <AuthRefreshBridge />
+        <AuthDeepLinkBridge />
+        <LocationBridge />
+        <NotificationBridge />
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
+          <Stack.Screen name="profile-setup" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
+          <Stack.Screen name="coming-soon" options={{ headerShown: false }} />
+          <Stack.Screen name="match-results" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="filters" options={{ headerShown: false }} />
+          <Stack.Screen name="blocked-users" options={{ headerShown: false }} />
+          <Stack.Screen name="premium" options={{ headerShown: false }} />
+          <Stack.Screen name="change-password" options={{ headerShown: false }} />
+          <Stack.Screen name="user-profile" options={{ headerShown: false }} />
+          <Stack.Screen name="micro-intro" options={{ headerShown: false }} />
+          <Stack.Screen name="chat" options={{ headerShown: false }} />
+          <Stack.Screen name="vibe-detail" options={{ headerShown: true }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
