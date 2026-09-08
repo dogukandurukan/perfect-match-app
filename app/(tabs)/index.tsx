@@ -15,6 +15,7 @@ import {
 } from '@/lib/dailyViews';
 import { parseFavoriteSpots, type HingeProfilePerson } from '@/lib/hingeProfile';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
+import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,16 +35,16 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Extrapolation,
+  interpolate,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
-  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.28;
 const SWIPE_VELOCITY_THRESHOLD = 800;
 
@@ -104,19 +105,9 @@ export default function HomeScreen() {
   const hasLoadedFeedRef = useRef(false);
   const feedResetAtRef = useRef<string | null>(null);
 
-  const passOverlayOpacity = useSharedValue(0);
-  const likeOverlayOpacity = useSharedValue(0);
   // Swipe-to-decide (every dating app has this — user request, 2026-09-08).
   // Was buttons-only before.
   const cardTranslateX = useSharedValue(0);
-
-  const passOverlayStyle = useAnimatedStyle(() => ({
-    opacity: passOverlayOpacity.value,
-  }));
-
-  const likeOverlayStyle = useAnimatedStyle(() => ({
-    opacity: likeOverlayOpacity.value,
-  }));
 
   const cardSwipeStyle = useAnimatedStyle(() => ({
     transform: [
@@ -124,6 +115,28 @@ export default function HomeScreen() {
       { rotate: `${cardTranslateX.value / 20}deg` },
     ],
   }));
+
+  // Bumble-style decision stamp — derived straight from the drag distance
+  // instead of a separate timed animation, so it appears mid-drag (not just
+  // after release) and rides along with the card as it flies off, with the
+  // next card's photo already visible underneath instead of a blank white
+  // frame (previous full-screen white overlay covered everything including
+  // the next card — user feedback with Bumble screenshots, 2026-09-07).
+  const passStampStyle = useAnimatedStyle(() => {
+    const progress = interpolate(cardTranslateX.value, [-SWIPE_DISTANCE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP);
+    return {
+      opacity: progress,
+      transform: [{ translateX: (1 - progress) * 90 }, { scale: 0.5 + progress * 0.5 }],
+    };
+  });
+
+  const likeStampStyle = useAnimatedStyle(() => {
+    const progress = interpolate(cardTranslateX.value, [0, SWIPE_DISTANCE_THRESHOLD], [0, 1], Extrapolation.CLAMP);
+    return {
+      opacity: progress,
+      transform: [{ translateX: (1 - progress) * 90 }, { scale: 0.5 + progress * 0.5 }],
+    };
+  });
 
   const refreshProfileState = useCallback(async (): Promise<ProfileSetupState | null> => {
     const {
@@ -440,10 +453,8 @@ export default function HomeScreen() {
   const advanceIndex = useCallback(() => {
     setCurrentIndex((i) => i + 1);
     setAnimating(false);
-    passOverlayOpacity.value = 0;
-    likeOverlayOpacity.value = 0;
     cardTranslateX.value = 0;
-  }, [cardTranslateX, likeOverlayOpacity, passOverlayOpacity]);
+  }, [cardTranslateX]);
 
   // Tek beğeni modeli — ❤ (profil) ve foto/prompt Note aynı `likes` satırını besler (§3/§5).
   // Kişi başına tek satır: upsert onConflict(liker_id,likee_id) → Note, ❤'in satırına hedef+not yazar.
@@ -490,48 +501,59 @@ export default function HomeScreen() {
   const handlePass = useCallback(
     (userId: string) => {
       void userId;
-      setAnimating(true);
-      passOverlayOpacity.value = withSequence(
-        withTiming(1, { duration: 300 }),
-        withDelay(
-          800,
-          withTiming(0, { duration: 200 }, (finished) => {
-            if (finished) runOnJS(completePass)();
-          }),
-        ),
-      );
+      // Card has already flown off-screen by the time this runs (either the
+      // gesture's own release animation or flyOffAndDecide for a button
+      // tap) — advance straight away instead of a separate timed overlay.
+      completePass();
     },
-    [completePass, passOverlayOpacity],
+    [completePass],
   );
 
   const handleLike = useCallback(
     (userId: string) => {
-      // Wait for the write before animating/advancing — the animation used
-      // to fire immediately regardless of whether recordLike succeeded, so a
-      // failed like still looked like it worked and the card was already
-      // gone by the time you'd know otherwise (no retry).
+      setAnimating(true);
+      // Wait for the write before advancing — the card is already off-screen
+      // visually, but a failed like shouldn't silently drop the profile from
+      // the feed with no retry.
       void (async () => {
         const ok = await recordLike(userId, { type: 'profile', key: null });
         if (!ok) {
           Alert.alert('Could not send like', 'Please try again.');
+          cardTranslateX.value = withSpring(0, { damping: 15 });
+          setAnimating(false);
           return;
         }
-        setAnimating(true);
-        likeOverlayOpacity.value = withSequence(
-          withTiming(1, { duration: 300 }),
-          withDelay(
-            800,
-            withTiming(0, { duration: 200 }, (finished) => {
-              if (finished) runOnJS(completeLike)();
-            }),
-          ),
-        );
+        completeLike();
       })();
     },
-    [completeLike, likeOverlayOpacity, recordLike],
+    [cardTranslateX, completeLike, recordLike],
+  );
+
+  // Shared by both the swipe gesture's release and the ❤/✕ buttons — flies
+  // the card off-screen (driving the stamp opacity via cardTranslateX along
+  // the way) and only then runs the actual decision, so tapping a button
+  // gets the same motion as a full swipe instead of an instant hard-cut.
+  const flyOffAndDecide = useCallback(
+    (direction: 1 | -1, userId: string) => {
+      setAnimating(true);
+      cardTranslateX.value = withTiming(
+        direction * SCREEN_WIDTH * 1.5,
+        { duration: 220 },
+        (finished) => {
+          if (!finished) return;
+          if (direction > 0) runOnJS(handleLike)(userId);
+          else runOnJS(handlePass)(userId);
+        },
+      );
+    },
+    [cardTranslateX, handleLike, handlePass],
   );
 
   const currentUser = feedUsers[currentIndex] ?? null;
+  // Rendered as a static backdrop behind the swiping card so dragging/flying
+  // the top card away reveals the next profile instead of blank white
+  // (Bumble reference — user feedback, 2026-09-07).
+  const nextUser = feedUsers[currentIndex + 1] ?? null;
   const likesLeft = remainingDailyViews(dailyViews);
   const likesLeftLabel = `${likesLeft} ${likesLeft === 1 ? 'like' : 'likes'} left today`;
 
@@ -555,12 +577,7 @@ export default function HomeScreen() {
         return;
       }
       const direction = e.translationX > 0 ? 1 : -1;
-      const userId = currentUser.user_id;
-      cardTranslateX.value = withTiming(direction * SCREEN_WIDTH * 1.5, { duration: 220 }, (finished) => {
-        if (!finished) return;
-        if (direction > 0) runOnJS(handleLike)(userId);
-        else runOnJS(handlePass)(userId);
-      });
+      runOnJS(flyOffAndDecide)(direction, currentUser.user_id);
     });
 
   const handleOpenNote = useCallback((target: NoteTarget) => {
@@ -686,11 +703,36 @@ export default function HomeScreen() {
         </View>
       ) : (
         <>
+          {/* Sıradaki kişi — kart sürüklenip uçarken arkada gerçek bir foto
+              görünsün diye (boş beyaz ekran yerine, Bumble referansı). */}
+          {nextUser?.photoUrls[0] ? (
+            <View style={styles.nextCardPeek} pointerEvents="none">
+              <Image
+                source={{ uri: nextUser.photoUrls[0] }}
+                style={styles.nextCardPeekImage}
+                contentFit="cover"
+                contentPosition="top"
+              />
+            </View>
+          ) : null}
+
           <View style={styles.likesLeftBar}>
             <ThemedText style={styles.likesLeftText}>{likesLeftLabel}</ThemedText>
           </View>
           <GestureDetector gesture={swipeGesture}>
             <Animated.View style={[styles.swipeCard, cardSwipeStyle]}>
+              {/* Bumble tarzı karar damgası — tam ekran beyaz overlay yerine
+                  kartın kendisine binen, sürükleme mesafesiyle beliren rozet. */}
+              <Animated.View style={[styles.decisionStamp, passStampStyle]} pointerEvents="none">
+                <View style={styles.stampCircle}>
+                  <Ionicons name="close" size={38} color="#1A1A1A" />
+                </View>
+              </Animated.View>
+              <Animated.View style={[styles.decisionStamp, likeStampStyle]} pointerEvents="none">
+                <View style={styles.stampCircle}>
+                  <Ionicons name="heart" size={34} color="#FF3B5C" />
+                </View>
+              </Animated.View>
               <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
@@ -709,7 +751,7 @@ export default function HomeScreen() {
                       disabled={animating}
                       accessibilityRole="button"
                       accessibilityLabel="Pass"
-                      onPress={() => handlePass(currentUser.user_id)}>
+                      onPress={() => flyOffAndDecide(-1, currentUser.user_id)}>
                       <Text style={styles.passIcon}>✕</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -718,7 +760,7 @@ export default function HomeScreen() {
                       disabled={animating}
                       accessibilityRole="button"
                       accessibilityLabel="Like"
-                      onPress={() => handleLike(currentUser.user_id)}>
+                      onPress={() => flyOffAndDecide(1, currentUser.user_id)}>
                       <Text style={styles.likeIcon}>❤️</Text>
                     </TouchableOpacity>
                   </View>
@@ -744,16 +786,6 @@ export default function HomeScreen() {
               </ScrollView>
             </Animated.View>
           </GestureDetector>
-
-          {/* Pass animasyon overlay */}
-          <Animated.View style={[styles.passOverlay, passOverlayStyle]} pointerEvents="none">
-            <Text style={styles.passOverlayIcon}>✕</Text>
-          </Animated.View>
-
-          {/* Like animasyon overlay */}
-          <Animated.View style={[styles.likeOverlay, likeOverlayStyle]} pointerEvents="none">
-            <Text style={styles.likeOverlayIcon}>❤️</Text>
-          </Animated.View>
 
           {/* Bağlamlı beğeni (Note) skeleton toast */}
           {noteBanner ? (
@@ -953,23 +985,36 @@ const styles = StyleSheet.create({
   reportLink: { paddingVertical: 6 },
   reportLinkText: { fontSize: 14, fontWeight: '600', color: '#C0392B' },
 
-  passOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 100,
-  },
-  passOverlayIcon: { fontSize: 120, color: '#CCCCCC' },
+  nextCardPeek: { ...StyleSheet.absoluteFillObject, backgroundColor: '#DDDDDD' },
+  nextCardPeekImage: { width: '100%', height: SCREEN_HEIGHT * 0.7 },
 
-  likeOverlay: {
+  // Dead-center of the whole swipeable area (not pinned near the top) — a
+  // fixed high offset kept landing on eyes/nose on portrait-framed photos
+  // (user screenshot, 2026-09-08); vertical middle of the card is far more
+  // likely to fall on neck/chest/background regardless of how the photo is
+  // framed.
+  decisionStamp: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 100,
+    zIndex: 10,
   },
-  likeOverlayIcon: { fontSize: 120 },
+  // Faint/glassy translucent circle (Bumble reference, 2026-09-08) — was an
+  // opaque white pill with a hard 3px border, looked like a heavy sticker
+  // instead of a soft, barely-there badge.
+  stampCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
 
   noMoreWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   noMoreTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '600' },
