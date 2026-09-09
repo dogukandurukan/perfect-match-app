@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 
-export const DAILY_VIEW_LIMIT = 3;
+export const DAILY_VIEW_LIMIT = 5;
 const RESET_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type DailyViewsState = {
