@@ -233,12 +233,13 @@ export default function ChatScreen() {
     if (!currentUserId) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('quick_icebreaker_answers')
         .eq('id', currentUserId)
         .maybeSingle();
       if (cancelled) return;
+      if (error) console.warn('[Chat] quick_icebreaker_answers fetch failed', error.message);
       const saved = Array.isArray(data?.quick_icebreaker_answers)
         ? (data.quick_icebreaker_answers as QuickIcebreakerAnswer[])
         : null;
@@ -358,7 +359,10 @@ export default function ChatScreen() {
         void supabase
           .from('profiles')
           .update({ quick_icebreaker_answers: nextAnswers })
-          .eq('id', currentUserId);
+          .eq('id', currentUserId)
+          .then(({ error }) => {
+            if (error) console.warn('[Chat] quick_icebreaker_answers save failed', error.message);
+          });
       }
       return;
     }
