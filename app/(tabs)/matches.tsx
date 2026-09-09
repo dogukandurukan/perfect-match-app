@@ -627,7 +627,13 @@ export default function MatchesTab() {
           const invitedBy = (row.invited_by as string | null) ?? null;
           const chatOpened = row.chat_opened === true;
 
-          if (chatOpened) {
+          // Mutual-like matches (invited_by never set — no one "invited" the
+          // other, they liked each other) are left out of this list on
+          // purpose: Buzz's "You matched!" card and the Chats tab already
+          // both link straight into the same conversation, a third copy
+          // here was redundant (user feedback, 2026-09-09). Matches' own
+          // invite-flow opens (invited_by set) still show as before.
+          if (chatOpened && invitedBy) {
             nextOpen.push({
               matchId: row.id,
               userId: otherId,
