@@ -106,6 +106,8 @@ function typeIcon(type: NotificationType): IconSpec {
     case 'new_invite':
     case 'meeting_invite':
       return { name: 'checkmark-circle-outline', color: colors.accent, bg: '#FBF3DF' };
+    case 'mutual_match':
+      return { name: 'heart-circle', color: '#FF3B5C', bg: '#FFE7EC' };
     case 'like_sent':
       return { name: 'heart-outline', color: colors.accent, bg: '#FBF3DF' };
     case 'meetup_reminder':
@@ -162,6 +164,8 @@ function feedRowText(
     case 'match_expiry':
     case 'expires_soon':
       return `Your match with ${who} expires soon`;
+    case 'mutual_match':
+      return `You matched with ${who}! Say hi 👋`;
     // Demoted featured cards without a fresh in-session summary (e.g. after
     // reload) — rebuilt from persisted data (matches.meeting_at/confirmed_place),
     // not just the raw proposal, so a reload doesn't lose what was decided.
@@ -192,6 +196,7 @@ function routeForType(
 ): { pathname: string; params?: Record<string, string> } {
   switch (item.type) {
     case 'invite_accepted':
+    case 'mutual_match':
     case 'new_message':
     case 'message':
       return item.related_user_id
