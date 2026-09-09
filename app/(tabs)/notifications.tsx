@@ -1048,15 +1048,19 @@ export default function NotificationsScreen() {
   // even just opened, it shouldn't keep reappearing at the top every time you
   // come back to Buzz — that was the "same card keeps coming back" bug.
   const { featured, feed } = useMemo(() => {
-    // `invite_accepted`/`mutual_match` never demote into feed — once you've
-    // tapped "Pick time"/"Open chat" there's nothing left to say about it
-    // here (that thread now lives in Chats); user feedback confirmed it
-    // wasn't wanted.
+    // `invite_accepted` never demotes into feed — once you've tapped "Pick
+    // time"/"Open chat" there's nothing left to say about it here (that
+    // thread now lives in Chats); user feedback confirmed it wasn't wanted.
+    // `mutual_match` is different: it's the ONLY thing that would ever
+    // populate Buzz's compact feed for a lot of users at this scale, so
+    // unlike invite_accepted it DOES demote into feed once read instead of
+    // disappearing outright — otherwise Buzz reads as permanently empty
+    // right after the one high-signal event it had (user feedback,
+    // 2026-09-09).
     const notificationFeed = items.filter(
       (r) =>
         !isLikeType(r.type) &&
         r.type !== 'invite_accepted' &&
-        r.type !== 'mutual_match' &&
         (!isFeaturedType(r.type) || r.is_read),
     );
     return {
