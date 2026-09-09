@@ -912,7 +912,14 @@ const styles = StyleSheet.create({
     color: ACCENT,
     textAlign: 'center',
   },
-  swipeCard: { flex: 1 },
+  // Opaque bg required — without it, a shorter profile (fewer chips/photos,
+  // ScrollView content ending above the viewport bottom) let the
+  // nextCardPeek backdrop bleed through the empty gap at rest, not just
+  // during the horizontal swipe-away translation it's meant for (user
+  // screenshot, 2026-09-09 — someone else's photo showing through under the
+  // real X/❤/Block/Report footer). Matches feedRoot's own background so the
+  // seam is invisible.
+  swipeCard: { flex: 1, backgroundColor: '#FAFAFA' },
   scroll: { flex: 1 },
   // Was 120 — footerActions below (Block/Report) already adds its own
   // paddingBottom:24, so the two stacked left ~144px of dead space after
