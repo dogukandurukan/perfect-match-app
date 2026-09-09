@@ -835,81 +835,6 @@ export default function NotificationsScreen() {
     setLikers(resolved);
   }, []);
 
-  // Activity history data layer (CLAUDE.md §4) — likes I've sent, folded into
-  // the same compact feed/date-bucketing as notifications. Synthetic rows,
-  // always "read" (past-tense activity, nothing to act on), never featured.
-  const [likesSentRows, setLikesSentRows] = useState<NotificationRow[]>([]);
-
-  const fetchLikesSent = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setLikesSentRows([]);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('likes')
-      .select('id, likee_id, target_type, created_at')
-      .eq('liker_id', user.id)
-      // Excludes 'matched' — once a like becomes a mutual match it's
-      // represented by the much more meaningful "You matched with X!"
-      // featured card instead (redundant otherwise — user feedback,
-      // 2026-09-09).
-      .eq('status', 'sent')
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (error || !data || data.length === 0) {
-      if (error) console.warn('fetchLikesSent failed', error.message);
-      setLikesSentRows([]);
-      return;
-    }
-
-    const likeeIds = [
-      ...new Set(
-        data
-          .map((row) => row.likee_id)
-          .filter((id): id is string => typeof id === 'string'),
-      ),
-    ];
-    const nameById = new Map<string, string>();
-    if (likeeIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, first_name')
-        .in('id', likeeIds);
-      for (const p of profiles ?? []) {
-        if (typeof p.id === 'string' && typeof p.first_name === 'string') {
-          nameById.set(p.id, p.first_name);
-        }
-      }
-    }
-
-    const rows: NotificationRow[] = data.map((row) => {
-      const likeeId = typeof row.likee_id === 'string' ? row.likee_id : null;
-      const who = (likeeId ? nameById.get(likeeId) : null)?.trim() || 'Someone';
-      const summary =
-        row.target_type === 'photo'
-          ? `You liked ${who}'s photo`
-          : row.target_type === 'prompt'
-            ? `You liked ${who}'s answer`
-            : `You liked ${who}`;
-      return {
-        id: `like-${row.id}`,
-        type: 'like_sent',
-        text: '',
-        is_read: true,
-        related_user_id: likeeId,
-        created_at: String(row.created_at),
-        relatedName: likeeId ? (nameById.get(likeeId) ?? null) : null,
-        resolvedSummary: summary,
-      };
-    });
-    setLikesSentRows(rows);
-  }, []);
-
   // UI-3: activation checklist for the 0-activity empty state. Cheap (one
   // profiles row + one count query) so it's fetched every focus alongside the
   // rest — no separate gating on emptiness.
@@ -1115,8 +1040,7 @@ export default function NotificationsScreen() {
       void fetchNotifications();
       void fetchLikers();
       void fetchChecklist();
-      void fetchLikesSent();
-    }, [fetchNotifications, fetchLikers, fetchChecklist, fetchLikesSent]),
+    }, [fetchNotifications, fetchLikers, fetchChecklist]),
   );
 
   // Derived zones — recompute on items change (read-state edits included).
@@ -1135,16 +1059,11 @@ export default function NotificationsScreen() {
         r.type !== 'mutual_match' &&
         (!isFeaturedType(r.type) || r.is_read),
     );
-    // likesSentRows are synthetic (never featured, always "read") — merge
-    // straight into feed and re-sort since they come from a separate fetch.
-    const merged = [...notificationFeed, ...likesSentRows].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
     return {
       featured: items.filter((r) => isFeaturedType(r.type) && !r.is_read),
-      feed: merged,
+      feed: notificationFeed,
     };
-  }, [items, likesSentRows]);
+  }, [items]);
 
   // `feed` is already sorted newest-first, so each bucket stays
   // chronologically ordered just by pushing in iteration order.
@@ -1462,7 +1381,7 @@ export default function NotificationsScreen() {
         <ActivityIndicator color={colors.accent} style={styles.loader} />
       ) : error ? (
         <ErrorState onRetry={() => void fetchNotifications()} />
-      ) : items.length === 0 && likeCount === 0 && likesSentRows.length === 0 ? (
+      ) : items.length === 0 && likeCount === 0 ? (
         <BuzzActivationCard
           checklist={checklist}
           onGoProfile={() => router.push('/(tabs)/profile' as never)}
