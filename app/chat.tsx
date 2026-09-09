@@ -7,7 +7,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -23,9 +22,10 @@ import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import {
-  generateIcebreakers,
-  type IcebreakerProfile,
-} from '@/lib/icebreakers';
+  buildQuickIcebreakerLine,
+  QUICK_ICEBREAKER_QUESTIONS,
+  type QuickIcebreakerChoice,
+} from '@/lib/quickIcebreaker';
 import { colors, radius } from '@/lib/designTokens';
 import { orderedPair } from '@/lib/matchInvite';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
@@ -45,27 +45,6 @@ type Message = {
   created_at: string;
 };
 
-const PROFILE_FIELDS =
-  'hobbies, favorite_book, favorite_movie, favorite_music, district, languages' as const;
-
-function toIcebreakerProfile(row: {
-  hobbies?: string[] | null;
-  favorite_book?: string | null;
-  favorite_movie?: string | null;
-  favorite_music?: string | null;
-  district?: string | null;
-  languages?: string[] | null;
-} | null): IcebreakerProfile {
-  return {
-    hobbies: row?.hobbies ?? null,
-    favorite_book: row?.favorite_book ?? null,
-    favorite_movie: row?.favorite_movie ?? null,
-    favorite_music: row?.favorite_music ?? null,
-    district: row?.district ?? null,
-    languages: row?.languages ?? null,
-  };
-}
-
 export default function ChatScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -77,13 +56,14 @@ export default function ChatScreen() {
   const [matchId, setMatchId] = useState<string | null>(matchIdParam || null);
   const [chatOpened, setChatOpened] = useState<boolean | null>(null);
   const [gateError, setGateError] = useState(false);
-  const [matchPercentage, setMatchPercentage] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesError, setMessagesError] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(false);
-  const [icebreakers, setIcebreakers] = useState<string[]>([]);
+  const [iceStep, setIceStep] = useState(0);
+  const [iceAnswers, setIceAnswers] = useState<QuickIcebreakerChoice[]>([]);
+  const [iceDone, setIceDone] = useState(false);
   const [headerPhotoUrl, setHeaderPhotoUrl] = useState<string | null>(null);
   const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
   const [myInitial, setMyInitial] = useState('?');
@@ -154,7 +134,7 @@ export default function ChatScreen() {
     if (matchIdParam) {
       const { data, error } = await supabase
         .from('matches')
-        .select('id, chat_opened, match_score, user_a_id, user_b_id')
+        .select('id, chat_opened, user_a_id, user_b_id')
         .eq('id', matchIdParam)
         .maybeSingle();
       if (error) {
@@ -164,7 +144,6 @@ export default function ChatScreen() {
       if (data) {
         setMatchId(data.id);
         setChatOpened(data.chat_opened === true);
-        setMatchPercentage(Number(data.match_score) || 0);
         return;
       }
     }
@@ -172,7 +151,7 @@ export default function ChatScreen() {
     const [a, b] = orderedPair(currentUserId, otherUserId);
     const { data, error } = await supabase
       .from('matches')
-      .select('id, chat_opened, match_score')
+      .select('id, chat_opened')
       .eq('user_a_id', a)
       .eq('user_b_id', b)
       .maybeSingle();
@@ -182,7 +161,6 @@ export default function ChatScreen() {
     } else if (data) {
       setMatchId(data.id);
       setChatOpened(data.chat_opened === true);
-      setMatchPercentage(Number(data.match_score) || 0);
     } else {
       setChatOpened(false);
     }
@@ -230,35 +208,13 @@ export default function ChatScreen() {
     };
   }, [currentUserId, otherUserId, chatOpened]);
 
+  // Quick this-or-that quiz resets whenever you land on a different empty
+  // chat — ephemeral/client-only by design (v1), no answers persisted.
   useEffect(() => {
-    if (!currentUserId || !otherUserId || chatOpened !== true) {
-      setIcebreakers([]);
-      return;
-    }
-    if (messages.length > 0) {
-      setIcebreakers([]);
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      const [{ data: meRow }, { data: themRow }] = await Promise.all([
-        supabase.from('profiles').select(PROFILE_FIELDS).eq('id', currentUserId).maybeSingle(),
-        supabase.from('profiles').select(PROFILE_FIELDS).eq('id', otherUserId).maybeSingle(),
-      ]);
-      if (cancelled) return;
-      const tips = await generateIcebreakers(
-        toIcebreakerProfile(meRow),
-        toIcebreakerProfile(themRow),
-        matchPercentage,
-      );
-      if (!cancelled) setIcebreakers(tips);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUserId, otherUserId, chatOpened, messages.length, matchPercentage]);
+    setIceStep(0);
+    setIceAnswers([]);
+    setIceDone(false);
+  }, [otherUserId]);
 
   // Marks the other person's messages to me as read (real read tracking —
   // the Chats tab badge used to just guess from "who sent the last message",
@@ -352,11 +308,19 @@ export default function ChatScreen() {
     }
   }
 
-  function applyIcebreaker(tip: string) {
-    setText(tip);
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
+  function handleQuickPick(choice: QuickIcebreakerChoice) {
+    const nextAnswers = [...iceAnswers, choice];
+    if (nextAnswers.length >= QUICK_ICEBREAKER_QUESTIONS.length) {
+      setIceAnswers(nextAnswers);
+      setIceDone(true);
+      setText(buildQuickIcebreakerLine(nextAnswers));
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      return;
+    }
+    setIceAnswers(nextAnswers);
+    setIceStep((i) => i + 1);
   }
 
   function openUserProfile() {
@@ -418,8 +382,8 @@ export default function ChatScreen() {
   const chatLoading = chatOpened === null;
   const inputLocked = chatOpened === false;
   const inputDisabled = chatLoading || inputLocked;
-  const showIcebreakers =
-    !inputDisabled && messages.length === 0 && icebreakers.length > 0;
+  const showIcebreakers = !inputDisabled && messages.length === 0 && !iceDone;
+  const currentIceQuestion = QUICK_ICEBREAKER_QUESTIONS[iceStep];
   const headerInitial = (userName.trim()[0] ?? '?').toUpperCase();
 
   return (
@@ -486,23 +450,40 @@ export default function ChatScreen() {
           />
         )}
 
-        {showIcebreakers ? (
+        {showIcebreakers && currentIceQuestion ? (
           <View style={styles.iceWrap}>
-            <ThemedText style={styles.iceTitle}>Break the ice ✨</ThemedText>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.iceScroll}>
-              {icebreakers.map((tip) => (
-                <TouchableOpacity
-                  key={tip}
-                  style={styles.iceChip}
-                  onPress={() => applyIcebreaker(tip)}
-                  activeOpacity={0.85}>
-                  <ThemedText style={styles.iceChipText}>{tip}</ThemedText>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <ThemedText style={styles.iceTitle}>
+              Quick this-or-that ✨ ({iceStep + 1}/{QUICK_ICEBREAKER_QUESTIONS.length})
+            </ThemedText>
+            <View style={styles.iceQuizRow}>
+              <TouchableOpacity
+                style={styles.iceQuizOption}
+                onPress={() => handleQuickPick('A')}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={currentIceQuestion.optionA.label}>
+                <ThemedText style={styles.iceQuizEmoji}>
+                  {currentIceQuestion.optionA.emoji}
+                </ThemedText>
+                <ThemedText style={styles.iceQuizLabel}>
+                  {currentIceQuestion.optionA.label}
+                </ThemedText>
+              </TouchableOpacity>
+              <ThemedText style={styles.iceQuizOr}>or</ThemedText>
+              <TouchableOpacity
+                style={styles.iceQuizOption}
+                onPress={() => handleQuickPick('B')}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={currentIceQuestion.optionB.label}>
+                <ThemedText style={styles.iceQuizEmoji}>
+                  {currentIceQuestion.optionB.emoji}
+                </ThemedText>
+                <ThemedText style={styles.iceQuizLabel}>
+                  {currentIceQuestion.optionB.label}
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : null}
 
@@ -636,24 +617,25 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 12,
   },
-  iceScroll: {
+  iceQuizRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
-    gap: 8,
+    gap: 10,
   },
-  iceChip: {
-    maxWidth: 280,
+  iceQuizOption: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#FFF8E8',
     borderWidth: 1,
     borderColor: '#1A1A1A',
     borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
-  iceChipText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textPrimary,
-  },
+  iceQuizEmoji: { fontSize: 24 },
+  iceQuizLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+  iceQuizOr: { fontSize: 12, color: colors.textMuted },
   msgWrap: { flexDirection: 'row', marginBottom: 6, alignItems: 'flex-end' },
   msgWrapMine: { justifyContent: 'flex-end' },
   msgWrapTheirs: { justifyContent: 'flex-start' },
