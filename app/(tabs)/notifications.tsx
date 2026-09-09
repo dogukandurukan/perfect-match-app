@@ -76,6 +76,7 @@ type IconSpec = { name: IoniconName; color: string; bg: string };
 const LIKE_TYPES = new Set(['like', 'new_like', 'someone_liked', 'new_match']);
 const FEATURED_TYPES = new Set([
   'invite_accepted',
+  'mutual_match',
   'new_invite',
   'meeting_invite',
   'meetup_reminder',
@@ -415,6 +416,7 @@ function FeaturedCard({
   const [customPlace, setCustomPlace] = useState('');
   const name = item.relatedName?.trim() || 'Someone';
   const accepted = item.type === 'invite_accepted';
+  const isMutualMatch = item.type === 'mutual_match';
   // Two-stage day-of reminder (CLAUDE.md §4, 2026-08-29): a morning,
   // future-tense nudge ("are you still on?") and — separately — an
   // after-the-fact, past-tense check-in ("did you go?") once meeting_at has
@@ -430,7 +432,9 @@ function FeaturedCard({
       ? `Did you meet up with ${name}?`
       : accepted
         ? `${name} said yes`
-        : `${name} wants to meet`;
+        : isMutualMatch
+          ? `You matched with ${name}!`
+          : `${name} wants to meet`;
   const sub = isMorning
     ? "Let us know if you're still on"
     : isReminder
@@ -439,10 +443,14 @@ function FeaturedCard({
         ? confirmedSlot
           ? `Confirmed: ${confirmedSlot}`
           : 'Pick a time to meet up'
-        : 'Coffee invite';
+        : isMutualMatch
+          ? 'Say hi 👋'
+          : 'Coffee invite';
   const badge: IconSpec = isMorning
     ? { name: 'sunny', color: colors.accent, bg: '#FBF3DF' }
-    : isReminder
+    : isMutualMatch
+      ? { name: 'heart-circle', color: '#FF3B5C', bg: '#FFE7EC' }
+      : isReminder
       ? { name: 'cafe', color: colors.accent, bg: '#FBF3DF' }
       : accepted
         ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
@@ -563,6 +571,10 @@ function FeaturedCard({
             <ThemedText style={styles.featuredCtaText}>
               {confirmedSlot ? 'Open chat' : 'Pick time'}
             </ThemedText>
+          </View>
+        ) : isMutualMatch ? (
+          <View style={[styles.featuredCta, styles.featuredCtaAccepted]}>
+            <ThemedText style={styles.featuredCtaText}>Open chat</ThemedText>
           </View>
         ) : responding ? (
           <ActivityIndicator size="small" color={colors.accent} />
@@ -725,7 +737,7 @@ function FeaturedCard({
     </>
   );
 
-  if (accepted) {
+  if (accepted || isMutualMatch) {
     return (
       <TouchableOpacity
         style={[styles.featured, !item.is_read && styles.featuredUnread]}
@@ -841,6 +853,11 @@ export default function NotificationsScreen() {
       .from('likes')
       .select('id, likee_id, target_type, created_at')
       .eq('liker_id', user.id)
+      // Excludes 'matched' — once a like becomes a mutual match it's
+      // represented by the much more meaningful "You matched with X!"
+      // featured card instead (redundant otherwise — user feedback,
+      // 2026-09-09).
+      .eq('status', 'sent')
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -1107,13 +1124,15 @@ export default function NotificationsScreen() {
   // even just opened, it shouldn't keep reappearing at the top every time you
   // come back to Buzz — that was the "same card keeps coming back" bug.
   const { featured, feed } = useMemo(() => {
-    // `invite_accepted` never demotes into feed — once you've tapped "Pick
-    // time"/"Open chat" there's nothing left to say about it here (that
-    // thread now lives in Chats); user feedback confirmed it wasn't wanted.
+    // `invite_accepted`/`mutual_match` never demote into feed — once you've
+    // tapped "Pick time"/"Open chat" there's nothing left to say about it
+    // here (that thread now lives in Chats); user feedback confirmed it
+    // wasn't wanted.
     const notificationFeed = items.filter(
       (r) =>
         !isLikeType(r.type) &&
         r.type !== 'invite_accepted' &&
+        r.type !== 'mutual_match' &&
         (!isFeaturedType(r.type) || r.is_read),
     );
     // likesSentRows are synthetic (never featured, always "read") — merge
