@@ -23,7 +23,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import {
   buildQuickIcebreakerLine,
-  QUICK_ICEBREAKER_QUESTIONS,
+  pickRandomQuestions,
+  type QuickIcebreakerAnswer,
   type QuickIcebreakerChoice,
 } from '@/lib/quickIcebreaker';
 import { colors, radius } from '@/lib/designTokens';
@@ -61,9 +62,17 @@ export default function ChatScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(false);
+  // Random 5-of-10 subset for THIS user's first-ever answer — fixed once per
+  // component mount so it doesn't reshuffle mid-quiz.
+  const [iceQuestions] = useState(() => pickRandomQuestions());
   const [iceStep, setIceStep] = useState(0);
-  const [iceAnswers, setIceAnswers] = useState<QuickIcebreakerChoice[]>([]);
+  const [iceAnswers, setIceAnswers] = useState<QuickIcebreakerAnswer[]>([]);
   const [iceDone, setIceDone] = useState(false);
+  // Persisted answers from a previous chat (profiles.quick_icebreaker_answers)
+  // — null while unchecked/never answered. Once set, new empty chats show a
+  // single "use my opener" chip instead of the 5-question walk.
+  const [savedIcebreaker, setSavedIcebreaker] = useState<QuickIcebreakerAnswer[] | null>(null);
+  const [icebreakerChecked, setIcebreakerChecked] = useState(false);
   const [headerPhotoUrl, setHeaderPhotoUrl] = useState<string | null>(null);
   const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
   const [myInitial, setMyInitial] = useState('?');
@@ -208,13 +217,38 @@ export default function ChatScreen() {
     };
   }, [currentUserId, otherUserId, chatOpened]);
 
-  // Quick this-or-that quiz resets whenever you land on a different empty
-  // chat — ephemeral/client-only by design (v1), no answers persisted.
+  // Per-chat quiz progress resets on a new conversation; the underlying
+  // answers (savedIcebreaker) are per-USER and fetched separately below, not
+  // reset here.
   useEffect(() => {
     setIceStep(0);
     setIceAnswers([]);
     setIceDone(false);
   }, [otherUserId]);
+
+  // Answered before (any chat, ever)? Fetch once per user so repeat matches
+  // skip straight to a single "use my opener" chip instead of re-asking the
+  // same 5 questions (user feedback, 2026-09-10).
+  useEffect(() => {
+    if (!currentUserId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('quick_icebreaker_answers')
+        .eq('id', currentUserId)
+        .maybeSingle();
+      if (cancelled) return;
+      const saved = Array.isArray(data?.quick_icebreaker_answers)
+        ? (data.quick_icebreaker_answers as QuickIcebreakerAnswer[])
+        : null;
+      setSavedIcebreaker(saved && saved.length > 0 ? saved : null);
+      setIcebreakerChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
 
   // Marks the other person's messages to me as read (real read tracking —
   // the Chats tab badge used to just guess from "who sent the last message",
@@ -309,18 +343,36 @@ export default function ChatScreen() {
   }
 
   function handleQuickPick(choice: QuickIcebreakerChoice) {
-    const nextAnswers = [...iceAnswers, choice];
-    if (nextAnswers.length >= QUICK_ICEBREAKER_QUESTIONS.length) {
+    const question = iceQuestions[iceStep];
+    if (!question) return;
+    const nextAnswers = [...iceAnswers, { id: question.id, choice }];
+    if (nextAnswers.length >= iceQuestions.length) {
       setIceAnswers(nextAnswers);
       setIceDone(true);
+      setSavedIcebreaker(nextAnswers);
       setText(buildQuickIcebreakerLine(nextAnswers));
       requestAnimationFrame(() => {
         inputRef.current?.focus();
       });
+      if (currentUserId) {
+        void supabase
+          .from('profiles')
+          .update({ quick_icebreaker_answers: nextAnswers })
+          .eq('id', currentUserId);
+      }
       return;
     }
     setIceAnswers(nextAnswers);
     setIceStep((i) => i + 1);
+  }
+
+  function handleUseSavedIcebreaker() {
+    if (!savedIcebreaker) return;
+    setIceDone(true);
+    setText(buildQuickIcebreakerLine(savedIcebreaker));
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
   }
 
   function openUserProfile() {
@@ -382,8 +434,9 @@ export default function ChatScreen() {
   const chatLoading = chatOpened === null;
   const inputLocked = chatOpened === false;
   const inputDisabled = chatLoading || inputLocked;
-  const showIcebreakers = !inputDisabled && messages.length === 0 && !iceDone;
-  const currentIceQuestion = QUICK_ICEBREAKER_QUESTIONS[iceStep];
+  const showIcebreakers =
+    !inputDisabled && messages.length === 0 && !iceDone && icebreakerChecked;
+  const currentIceQuestion = iceQuestions[iceStep];
   const headerInitial = (userName.trim()[0] ?? '?').toUpperCase();
 
   return (
@@ -450,10 +503,24 @@ export default function ChatScreen() {
           />
         )}
 
-        {showIcebreakers && currentIceQuestion ? (
+        {showIcebreakers && savedIcebreaker ? (
+          <View style={styles.iceWrap}>
+            <ThemedText style={styles.iceTitle}>Your icebreaker ✨</ThemedText>
+            <TouchableOpacity
+              style={styles.iceSavedChip}
+              onPress={handleUseSavedIcebreaker}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Use my icebreaker opener">
+              <ThemedText style={styles.iceChipText} numberOfLines={2}>
+                {buildQuickIcebreakerLine(savedIcebreaker)}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        ) : showIcebreakers && currentIceQuestion ? (
           <View style={styles.iceWrap}>
             <ThemedText style={styles.iceTitle}>
-              Quick this-or-that ✨ ({iceStep + 1}/{QUICK_ICEBREAKER_QUESTIONS.length})
+              Quick this-or-that ✨ ({iceStep + 1}/{iceQuestions.length})
             </ThemedText>
             <View style={styles.iceQuizRow}>
               <TouchableOpacity
@@ -616,6 +683,20 @@ const styles = StyleSheet.create({
     color: colors.accent,
     marginBottom: 8,
     paddingHorizontal: 12,
+  },
+  iceSavedChip: {
+    marginHorizontal: 12,
+    backgroundColor: '#FFF8E8',
+    borderWidth: 1,
+    borderColor: '#1A1A1A',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  iceChipText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textPrimary,
   },
   iceQuizRow: {
     flexDirection: 'row',
