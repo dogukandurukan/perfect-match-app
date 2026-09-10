@@ -43,13 +43,15 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   hide_location: false,
   discovery_verified_only: false,
   discovery_nonsmokers_only: false,
+  discovery_height_min: null,
+  discovery_height_max: null,
 };
 
 // Bumble splits filters into two tabs (user reference screenshots,
-// 2026-09-10): Basic = who/age/city/distance, Advanced = deeper
-// preferences (their "what are they looking for" maps to our intent
-// filter). Not premium-gated here — Bumble locks Advanced behind
-// premium, but that's a separate monetization call, not asked for yet.
+// 2026-09-06): Basic = who/age/city/distance, Advanced = deeper
+// preferences. Advanced is now premium-gated (2026-09-10, user decision —
+// matches Bumble's own pattern: doesn't restrict core discovery, just
+// narrowing it, low-risk monetization lever).
 type FilterTab = 'basic' | 'advanced';
 
 export default function FiltersScreen() {
@@ -58,6 +60,7 @@ export default function FiltersScreen() {
   const [settings, setSettings] = useState<ProfileSettingsRow>(DEFAULT_SETTINGS);
   const [city, setCity] = useState<CityOption | null>(null);
   const [intent, setIntent] = useState<IntentKey | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FilterTab>('basic');
 
@@ -74,12 +77,13 @@ export default function FiltersScreen() {
 
     const [row, { data: profileRow }, { data: intentRow }] = await Promise.all([
       fetchProfileSettings(user.id),
-      supabase.from('profiles').select('city').eq('id', user.id).maybeSingle(),
+      supabase.from('profiles').select('city, is_premium').eq('id', user.id).maybeSingle(),
       supabase.from('onboarding_answers').select('intent').eq('user_id', user.id).maybeSingle(),
     ]);
     if (row) setSettings(row);
     const rowCity = typeof profileRow?.city === 'string' ? profileRow.city : null;
     setCity(CITY_OPTIONS.find((c) => c === rowCity) ?? null);
+    setIsPremium(profileRow?.is_premium === true);
     setIntent((intentRow?.intent as IntentKey | null) ?? null);
     setLoading(false);
   }, [router]);
@@ -299,51 +303,119 @@ export default function FiltersScreen() {
             </View>
           </>
         ) : (
-          <>
-            <View style={styles.card}>
-              <ThemedText style={styles.subLabel}>What are you looking for?</ThemedText>
-              <View style={styles.chipRow}>
-                {INTENT_OPTIONS.map((opt) => (
-                  <Chip
-                    key={opt.key}
-                    label={opt.label}
-                    selected={intent === opt.key}
-                    onPress={() => void pickIntent(opt.key)}
-                    style={styles.chip}
+          <View style={styles.advancedWrap}>
+            <View
+              pointerEvents={isPremium ? 'auto' : 'none'}
+              style={!isPremium && styles.advancedDimmed}>
+              <View style={styles.card}>
+                <ThemedText style={styles.subLabel}>What are you looking for?</ThemedText>
+                <View style={styles.chipRow}>
+                  {INTENT_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt.key}
+                      label={opt.label}
+                      selected={intent === opt.key}
+                      onPress={() => void pickIntent(opt.key)}
+                      style={styles.chip}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleTextWrap}>
+                    <ThemedText style={styles.subLabel}>Verified profiles only</ThemedText>
+                    <ThemedText style={styles.toggleHint}>
+                      Only show people with a verified photo
+                    </ThemedText>
+                  </View>
+                  <Switch
+                    value={settings.discovery_verified_only}
+                    onValueChange={(v) =>
+                      applySettings((prev) => ({ ...prev, discovery_verified_only: v }))
+                    }
+                    trackColor={{ false: '#DDD', true: ACCENT }}
                   />
-                ))}
+                </View>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleTextWrap}>
+                    <ThemedText style={styles.subLabel}>Non-smokers only</ThemedText>
+                    <ThemedText style={styles.toggleHint}>Hide people who smoke</ThemedText>
+                  </View>
+                  <Switch
+                    value={settings.discovery_nonsmokers_only}
+                    onValueChange={(v) =>
+                      applySettings((prev) => ({ ...prev, discovery_nonsmokers_only: v }))
+                    }
+                    trackColor={{ false: '#DDD', true: ACCENT }}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <ThemedText style={styles.subLabel}>
+                  Height range: {settings.discovery_height_min ?? 140} –{' '}
+                  {settings.discovery_height_max ?? 220} cm
+                </ThemedText>
+                <ThemedText style={styles.sliderHint}>Minimum height</ThemedText>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={140}
+                  maximumValue={220}
+                  step={1}
+                  minimumTrackTintColor={ACCENT}
+                  maximumTrackTintColor="#DDD"
+                  thumbTintColor={ACCENT}
+                  value={settings.discovery_height_min ?? 140}
+                  onValueChange={(v) => {
+                    const min = Math.round(v);
+                    applySettings((prev) => ({
+                      ...prev,
+                      discovery_height_min: Math.min(min, prev.discovery_height_max ?? 220),
+                    }));
+                  }}
+                />
+                <ThemedText style={styles.sliderHint}>Maximum height</ThemedText>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={140}
+                  maximumValue={220}
+                  step={1}
+                  minimumTrackTintColor={ACCENT}
+                  maximumTrackTintColor="#DDD"
+                  thumbTintColor={ACCENT}
+                  value={settings.discovery_height_max ?? 220}
+                  onValueChange={(v) => {
+                    const max = Math.round(v);
+                    applySettings((prev) => ({
+                      ...prev,
+                      discovery_height_max: Math.max(max, prev.discovery_height_min ?? 140),
+                    }));
+                  }}
+                />
               </View>
             </View>
 
-            <View style={styles.card}>
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextWrap}>
-                  <ThemedText style={styles.subLabel}>Verified profiles only</ThemedText>
-                  <ThemedText style={styles.toggleHint}>Only show people with a verified photo</ThemedText>
+            {!isPremium ? (
+              <View style={styles.premiumLockOverlay} pointerEvents="box-none">
+                <View style={styles.premiumLockCard}>
+                  <Ionicons name="lock-closed" size={26} color={ACCENT} />
+                  <ThemedText style={styles.premiumLockTitle}>
+                    Advanced filters are a Premium feature
+                  </ThemedText>
+                  <TouchableOpacity
+                    style={styles.premiumLockBtn}
+                    activeOpacity={0.85}
+                    onPress={() => router.push('/premium' as never)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Unlock Premium">
+                    <ThemedText style={styles.premiumLockBtnText}>Unlock Premium</ThemedText>
+                  </TouchableOpacity>
                 </View>
-                <Switch
-                  value={settings.discovery_verified_only}
-                  onValueChange={(v) =>
-                    applySettings((prev) => ({ ...prev, discovery_verified_only: v }))
-                  }
-                  trackColor={{ false: '#DDD', true: ACCENT }}
-                />
               </View>
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleTextWrap}>
-                  <ThemedText style={styles.subLabel}>Non-smokers only</ThemedText>
-                  <ThemedText style={styles.toggleHint}>Hide people who smoke</ThemedText>
-                </View>
-                <Switch
-                  value={settings.discovery_nonsmokers_only}
-                  onValueChange={(v) =>
-                    applySettings((prev) => ({ ...prev, discovery_nonsmokers_only: v }))
-                  }
-                  trackColor={{ false: '#DDD', true: ACCENT }}
-                />
-              </View>
-            </View>
-          </>
+            ) : null}
+          </View>
         )}
       </ScrollView>
     </ScreenContainer>
@@ -392,4 +464,40 @@ const styles = StyleSheet.create({
   },
   toggleTextWrap: { flex: 1, gap: 2 },
   toggleHint: { fontSize: 12, color: '#888' },
+  advancedWrap: { position: 'relative', gap: 12 },
+  advancedDimmed: { opacity: 0.35 },
+  premiumLockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  premiumLockCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 22,
+    paddingVertical: 20,
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+    maxWidth: 280,
+  },
+  premiumLockTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  premiumLockBtn: {
+    backgroundColor: ACCENT,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  premiumLockBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });

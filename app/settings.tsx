@@ -40,6 +40,8 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   hide_location: false,
   discovery_verified_only: false,
   discovery_nonsmokers_only: false,
+  discovery_height_min: null,
+  discovery_height_max: null,
 };
 
 function SectionTitle({ title }: { title: string }) {
