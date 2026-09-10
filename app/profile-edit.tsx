@@ -140,6 +140,7 @@ export default function ProfileEditScreen() {
   const [idealDate, setIdealDate] = useState('');
   const [instagramHandle, setInstagramHandle] = useState('');
   const [occupation, setOccupation] = useState('');
+  const [heightCm, setHeightCm] = useState('');
   const [availDays, setAvailDays] = useState<string[]>([]);
   const [availHours, setAvailHours] = useState<string[]>([]);
   const [meetingEnv, setMeetingEnv] = useState<string[]>([]);
@@ -172,7 +173,7 @@ export default function ProfileEditScreen() {
             bio, photos, availability_days, availability_hours, meeting_environment,
             favorite_spots, first_date_expectation,
             favorite_music, favorite_movie, favorite_book, favorite_activity,
-            core_value, impressed_by, dealbreaker, instagram_handle, occupation
+            core_value, impressed_by, dealbreaker, instagram_handle, occupation, height_cm
           `,
           )
           .eq('id', user.id)
@@ -188,6 +189,7 @@ export default function ProfileEditScreen() {
         setIdealDate(data.first_date_expectation ?? '');
         setInstagramHandle(data.instagram_handle ?? '');
         setOccupation(data.occupation ?? '');
+        setHeightCm(data.height_cm != null ? String(data.height_cm) : '');
         setAvailDays(data.availability_days ?? []);
         setAvailHours(data.availability_hours ?? []);
         setMeetingEnv(data.meeting_environment ?? []);
@@ -335,6 +337,10 @@ export default function ProfileEditScreen() {
           first_date_expectation: idealDate.trim() || null,
           instagram_handle: instagramHandle.trim() || null,
           occupation: occupation.trim() || null,
+          height_cm: (() => {
+            const parsed = parseInt(heightCm.trim(), 10);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+          })(),
           availability_days: availDays.length ? availDays : null,
           availability_hours: availHours.length ? availHours : null,
           meeting_environment: meetingEnv.length ? meetingEnv : null,
@@ -448,6 +454,23 @@ export default function ProfileEditScreen() {
                 placeholder="e.g. Product Designer"
                 placeholderTextColor="#AAAAAA"
               />
+            </View>
+          </View>
+
+          {/* Height — self-reported, not scored, filter-only (Advanced filters). */}
+          <View style={styles.section}>
+            <SectionTitle icon="resize-outline" title="Height (optional)" />
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.inputFlex}
+                value={heightCm}
+                onChangeText={(v) => setHeightCm(v.replace(/[^0-9]/g, ''))}
+                placeholder="e.g. 175"
+                placeholderTextColor="#AAAAAA"
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+              <ThemedText style={styles.fieldSuffix}>cm</ThemedText>
             </View>
           </View>
 
@@ -655,6 +678,7 @@ const styles = StyleSheet.create({
   },
 
   fieldWrap: { gap: 8 },
+  fieldSuffix: { fontSize: 14, color: '#888888', width: 28 },
   fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   fieldLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: '500' },
   charCount: { fontSize: 11, color: '#AAAAAA', textAlign: 'right' },

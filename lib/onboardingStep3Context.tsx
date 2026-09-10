@@ -49,7 +49,7 @@ export const RELIGION_OPTIONS: readonly ReligionOption[] = [
   'Spiritual', 'Religious', 'Agnostic', 'Atheist', 'Prefer not to say',
 ];
 
-export const TOTAL_SCREENS = 7;
+export const TOTAL_SCREENS = 8;
 
 type Step3ContextValue = {
   userId: string | null;
@@ -73,6 +73,8 @@ type Step3ContextValue = {
   setOccupation: (v: string) => void;
   religion: ReligionOption | null;
   setReligion: (v: ReligionOption) => void;
+  heightCm: string;
+  setHeightCm: (v: string) => void;
 
   submitAll: () => Promise<void>;
 };
@@ -101,6 +103,7 @@ export function Step3Provider({ children }: { children: ReactNode }) {
   const [educationDetail, setEducationDetail] = useState('');
   const [occupation, setOccupation] = useState('');
   const [religion, setReligion] = useState<ReligionOption | null>(null);
+  const [heightCm, setHeightCm] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -190,6 +193,8 @@ export function Step3Provider({ children }: { children: ReactNode }) {
             : drinkingSmoking === 'When socializing'
               ? 'Socially'
               : 'No';
+      const heightParsed = parseInt(heightCm.trim(), 10);
+      const heightOut = Number.isFinite(heightParsed) && heightParsed > 0 ? heightParsed : null;
       const step3ProfilePayload = {
         id: userId,
         morning_night: morningNight,
@@ -201,6 +206,7 @@ export function Step3Provider({ children }: { children: ReactNode }) {
         education_detail: educationDetailOut,
         occupation: occupation.trim() || null,
         religion,
+        height_cm: heightOut,
         current_step: 4,
       };
 
@@ -239,6 +245,8 @@ export function Step3Provider({ children }: { children: ReactNode }) {
     setOccupation,
     religion,
     setReligion,
+    heightCm,
+    setHeightCm,
     submitAll,
   };
 

@@ -1,13 +1,14 @@
-// Step3 screen 7/7 — beliefs, last screen. Finish triggers submitAll()
-// (upserts profiles.current_step=4, then pushes to step4).
+// Step3 screen 7/8 — beliefs. Next goes to height (last screen).
 import { StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { Chip } from '@/components/ui/Chip';
 import { QuestionScreen } from '@/components/ui/QuestionScreen';
 import { RELIGION_OPTIONS, TOTAL_SCREENS, useStep3 } from '@/lib/onboardingStep3Context';
 
 export default function Step3Religion() {
-  const { religion, setReligion, saving, submitAll } = useStep3();
+  const router = useRouter();
+  const { religion, setReligion } = useStep3();
 
   return (
     <QuestionScreen
@@ -15,9 +16,7 @@ export default function Step3Religion() {
       totalSteps={TOTAL_SCREENS}
       macroStep={3}
       title="How would you describe your beliefs?"
-      onNext={() => void submitAll()}
-      nextLabel={saving ? 'Saving…' : 'Finish'}
-      nextLoading={saving}>
+      onNext={() => router.push('/profile-setup/step3/height' as never)}>
       <View style={styles.chipRow}>
         {RELIGION_OPTIONS.map((opt) => (
           <Chip
