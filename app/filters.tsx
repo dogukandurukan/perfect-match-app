@@ -43,6 +43,13 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   hide_location: false,
 };
 
+// Bumble splits filters into two tabs (user reference screenshots,
+// 2026-09-10): Basic = who/age/city/distance, Advanced = deeper
+// preferences (their "what are they looking for" maps to our intent
+// filter). Not premium-gated here — Bumble locks Advanced behind
+// premium, but that's a separate monetization call, not asked for yet.
+type FilterTab = 'basic' | 'advanced';
+
 export default function FiltersScreen() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
@@ -50,6 +57,7 @@ export default function FiltersScreen() {
   const [city, setCity] = useState<CityOption | null>(null);
   const [intent, setIntent] = useState<IntentKey | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<FilterTab>('basic');
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -174,110 +182,136 @@ export default function FiltersScreen() {
         Filters
       </ThemedText>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.card}>
-          <ThemedText style={styles.subLabel}>Your city</ThemedText>
-          <View style={styles.chipRow}>
-            {CITY_OPTIONS.map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={city === opt}
-                onPress={() => void pickCity(opt)}
-                style={styles.chip}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <ThemedText style={styles.subLabel}>What are you looking for?</ThemedText>
-          <View style={styles.chipRow}>
-            {INTENT_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.key}
-                label={opt.label}
-                selected={intent === opt.key}
-                onPress={() => void pickIntent(opt.key)}
-                style={styles.chip}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <ThemedText style={styles.subLabel}>Who you want to meet</ThemedText>
-          <View style={styles.chipRow}>
-            {MEETING_PREF_OPTIONS.map((opt) => (
-              <Chip
-                key={opt}
-                label={opt}
-                selected={(settings.meeting_preferences ?? []).includes(opt)}
-                onPress={() => toggleMeetingPref(opt)}
-                style={styles.chip}
-              />
-            ))}
-          </View>
-
-          <ThemedText style={styles.sliderLabel}>
-            Age range: {settings.discovery_age_min} – {settings.discovery_age_max}
+      <View style={styles.tabRow}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'basic' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('basic')}
+          activeOpacity={0.85}>
+          <ThemedText style={[styles.tabBtnText, activeTab === 'basic' && styles.tabBtnTextActive]}>
+            Basic filters
           </ThemedText>
-          <ThemedText style={styles.sliderHint}>Minimum age</ThemedText>
-          <Slider
-            style={styles.slider}
-            minimumValue={18}
-            maximumValue={60}
-            step={1}
-            minimumTrackTintColor={ACCENT}
-            maximumTrackTintColor="#DDD"
-            thumbTintColor={ACCENT}
-            value={settings.discovery_age_min}
-            onValueChange={(v) => {
-              const min = Math.round(v);
-              applySettings((prev) => ({
-                ...prev,
-                discovery_age_min: Math.min(min, prev.discovery_age_max),
-              }));
-            }}
-          />
-          <ThemedText style={styles.sliderHint}>Maximum age</ThemedText>
-          <Slider
-            style={styles.slider}
-            minimumValue={18}
-            maximumValue={60}
-            step={1}
-            minimumTrackTintColor={ACCENT}
-            maximumTrackTintColor="#DDD"
-            thumbTintColor={ACCENT}
-            value={settings.discovery_age_max}
-            onValueChange={(v) => {
-              const max = Math.round(v);
-              applySettings((prev) => ({
-                ...prev,
-                discovery_age_max: Math.max(max, prev.discovery_age_min),
-              }));
-            }}
-          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'advanced' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('advanced')}
+          activeOpacity={0.85}>
+          <ThemedText
+            style={[styles.tabBtnText, activeTab === 'advanced' && styles.tabBtnTextActive]}>
+            Advanced filters
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
 
-          <ThemedText style={styles.subLabel}>Distance</ThemedText>
-          <View style={styles.chipRow}>
-            {DISCOVERY_DISTANCE_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.value}
-                label={opt.label}
-                selected={settings.discovery_max_distance === opt.value}
-                onPress={() =>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {activeTab === 'basic' ? (
+          <>
+            <View style={styles.card}>
+              <ThemedText style={styles.subLabel}>Your city</ThemedText>
+              <View style={styles.chipRow}>
+                {CITY_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt}
+                    label={opt}
+                    selected={city === opt}
+                    onPress={() => void pickCity(opt)}
+                    style={styles.chip}
+                  />
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <ThemedText style={styles.subLabel}>Who you want to meet</ThemedText>
+              <View style={styles.chipRow}>
+                {MEETING_PREF_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt}
+                    label={opt}
+                    selected={(settings.meeting_preferences ?? []).includes(opt)}
+                    onPress={() => toggleMeetingPref(opt)}
+                    style={styles.chip}
+                  />
+                ))}
+              </View>
+
+              <ThemedText style={styles.sliderLabel}>
+                Age range: {settings.discovery_age_min} – {settings.discovery_age_max}
+              </ThemedText>
+              <ThemedText style={styles.sliderHint}>Minimum age</ThemedText>
+              <Slider
+                style={styles.slider}
+                minimumValue={18}
+                maximumValue={60}
+                step={1}
+                minimumTrackTintColor={ACCENT}
+                maximumTrackTintColor="#DDD"
+                thumbTintColor={ACCENT}
+                value={settings.discovery_age_min}
+                onValueChange={(v) => {
+                  const min = Math.round(v);
                   applySettings((prev) => ({
                     ...prev,
-                    discovery_max_distance: opt.value as DiscoveryDistance,
-                  }))
-                }
-                style={styles.chip}
+                    discovery_age_min: Math.min(min, prev.discovery_age_max),
+                  }));
+                }}
               />
-            ))}
+              <ThemedText style={styles.sliderHint}>Maximum age</ThemedText>
+              <Slider
+                style={styles.slider}
+                minimumValue={18}
+                maximumValue={60}
+                step={1}
+                minimumTrackTintColor={ACCENT}
+                maximumTrackTintColor="#DDD"
+                thumbTintColor={ACCENT}
+                value={settings.discovery_age_max}
+                onValueChange={(v) => {
+                  const max = Math.round(v);
+                  applySettings((prev) => ({
+                    ...prev,
+                    discovery_age_max: Math.max(max, prev.discovery_age_min),
+                  }));
+                }}
+              />
+            </View>
+
+            <View style={styles.card}>
+              <ThemedText style={styles.subLabel}>Distance</ThemedText>
+              <View style={styles.chipRow}>
+                {DISCOVERY_DISTANCE_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    label={opt.label}
+                    selected={settings.discovery_max_distance === opt.value}
+                    onPress={() =>
+                      applySettings((prev) => ({
+                        ...prev,
+                        discovery_max_distance: opt.value as DiscoveryDistance,
+                      }))
+                    }
+                    style={styles.chip}
+                  />
+                ))}
+              </View>
+              <ThemedText style={styles.hint}>Current: {distanceLabel}</ThemedText>
+            </View>
+          </>
+        ) : (
+          <View style={styles.card}>
+            <ThemedText style={styles.subLabel}>What are you looking for?</ThemedText>
+            <View style={styles.chipRow}>
+              {INTENT_OPTIONS.map((opt) => (
+                <Chip
+                  key={opt.key}
+                  label={opt.label}
+                  selected={intent === opt.key}
+                  onPress={() => void pickIntent(opt.key)}
+                  style={styles.chip}
+                />
+              ))}
+            </View>
           </View>
-          <ThemedText style={styles.hint}>Current: {distanceLabel}</ThemedText>
-        </View>
+        )}
       </ScrollView>
     </ScreenContainer>
   );
@@ -288,6 +322,20 @@ const styles = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
   backText: { color: ACCENT, fontSize: 16 },
   pageTitle: { color: ACCENT, fontSize: 26, fontWeight: '700', marginBottom: 16 },
+  tabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  tabBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: colors.bgCard,
+  },
+  tabBtnActive: { backgroundColor: ACCENT },
+  tabBtnText: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+  tabBtnTextActive: { color: '#FFFFFF' },
   scroll: { paddingBottom: 40, gap: 12 },
   loadingText: { color: '#888', textAlign: 'center', marginTop: 40 },
   card: {

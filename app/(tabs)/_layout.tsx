@@ -10,7 +10,11 @@ import {
   TabBarMessagesIcon,
   TabBarNotificationsIcon,
 } from '@/components/ui/TabBarBadgedIcon';
-import { ProfileHeaderActions, TabHeaderActions } from '@/components/ui/TabHeaderActions';
+import {
+  HomeHeaderActions,
+  ProfileHeaderActions,
+  TabHeaderActions,
+} from '@/components/ui/TabHeaderActions';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -68,6 +72,7 @@ export default function TabLayout() {
               <IconSymbol size={22} name={focused ? 'house.fill' : 'house'} color={color} />
             </ActiveTabIcon>
           ),
+          headerRight: () => <HomeHeaderActions />,
         }}
       />
       <Tabs.Screen
