@@ -2,6 +2,8 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 
 import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
@@ -42,6 +44,34 @@ type Profile = {
   core_value: string | null;
   impressed_by: string | null;
 };
+
+// Bumble-style "Complete Profile X%" badge (user reference screenshots,
+// 2026-09-10) — a real, computed score instead of a decorative number.
+// 8 equal-weight checks; deliberately doesn't include every profile field
+// (that'd basically require 100% onboarding completion to ever hit 100),
+// just the ones that meaningfully affect what a match sees.
+function computeProfileCompletion(profile: Profile | null, photoCount: number): number {
+  if (!profile) return 0;
+  const checks = [
+    photoCount >= 1,
+    photoCount >= 3,
+    !!profile.bio?.trim(),
+    (profile.hobbies ?? []).length > 0,
+    !!(
+      profile.favorite_book?.trim() ||
+      profile.favorite_movie?.trim() ||
+      profile.favorite_music?.trim() ||
+      profile.core_value?.trim() ||
+      profile.first_date_expectation?.trim() ||
+      profile.favorite_activity?.trim()
+    ),
+    (profile.availability_days ?? []).length > 0,
+    (profile.languages ?? []).length > 0,
+    profile.photo_verified === true,
+  ];
+  const done = checks.filter(Boolean).length;
+  return Math.round((done / checks.length) * 100);
+}
 
 const PROFILE_SELECT = `
   id, first_name, date_of_birth, city, district,
@@ -178,12 +208,51 @@ export default function ProfileTab() {
     photoUrls,
   };
 
+  const completionPct = computeProfileCompletion(profile, photoUrls.length);
+  const verified = profile?.photo_verified === true;
+
   return (
     <ScreenContainer style={styles.screenFlush}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
+        <TouchableOpacity
+          style={styles.identityRow}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile"
+          onPress={() => router.push('/profile-edit' as any)}>
+          <View style={styles.avatarWrap}>
+            {photoUrls[0] ? (
+              <Image source={{ uri: photoUrls[0] }} style={styles.avatarImg} contentFit="cover" />
+            ) : (
+              <View style={[styles.avatarImg, styles.avatarFallback]}>
+                <ThemedText style={styles.avatarInitial}>
+                  {(profile?.first_name?.trim()[0] ?? '?').toUpperCase()}
+                </ThemedText>
+              </View>
+            )}
+            <View style={styles.completionBadge}>
+              <ThemedText style={styles.completionBadgeText}>{completionPct}%</ThemedText>
+            </View>
+          </View>
+          <View style={styles.identityTextWrap}>
+            <View style={styles.nameRow}>
+              <ThemedText style={styles.identityName}>{profile?.first_name ?? 'You'}</ThemedText>
+              {verified ? (
+                <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
+              ) : null}
+            </View>
+            {completionPct < 100 ? (
+              <View style={styles.completePill}>
+                <ThemedText style={styles.completePillText}>Complete Profile</ThemedText>
+              </View>
+            ) : null}
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#B0B0B0" />
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.premiumBanner}
           activeOpacity={0.9}
@@ -243,6 +312,43 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginHorizontal: 14,
+    marginTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+  },
+  avatarWrap: { position: 'relative' },
+  avatarImg: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#DDD' },
+  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 24, fontWeight: '700', color: '#888' },
+  completionBadge: {
+    position: 'absolute',
+    bottom: -4,
+    left: -4,
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  completionBadgeText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
+  identityTextWrap: { flex: 1, gap: 6 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  identityName: { fontSize: 19, fontWeight: '700', color: colors.textPrimary },
+  completePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.bgSubtle,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  completePillText: { fontSize: 12, fontWeight: '600', color: colors.textPrimary },
   premiumBanner: {
     flexDirection: 'row',
     alignItems: 'center',
