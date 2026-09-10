@@ -24,11 +24,10 @@ type FeatureRow = {
 };
 
 const FEATURES: FeatureRow[] = [
-  { feature: 'Daily profiles', free: '3', premium: '10' },
+  { feature: 'Daily likes', free: '5', premium: '10' },
   { feature: 'Daily invites', free: '1', premium: '3' },
-  { feature: 'Active matches', free: '3', premium: '5' },
+  { feature: 'Advanced filters', free: '—', premium: '✓', premiumCheck: true },
   { feature: 'See who likes you', free: '—', premium: '✓', premiumCheck: true },
-  { feature: 'Unlimited likes', free: '—', premium: '✓', premiumCheck: true },
 ];
 
 export default function PremiumScreen() {
