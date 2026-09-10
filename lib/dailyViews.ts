@@ -1,24 +1,34 @@
 import { supabase } from '@/lib/supabaseClient';
 
 export const DAILY_VIEW_LIMIT = 5;
+// Mirrors try_send_invite's existing free=1/premium=3 invite pattern
+// (user request, 2026-09-10 — "premium olunca daha fazla hakkın olsun").
+export const DAILY_VIEW_LIMIT_PREMIUM = 10;
 const RESET_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function dailyViewLimitFor(isPremium: boolean): number {
+  return isPremium ? DAILY_VIEW_LIMIT_PREMIUM : DAILY_VIEW_LIMIT;
+}
 
 export type DailyViewsState = {
   count: number;
   resetAt: string;
+  limit: number;
   limitReached: boolean;
 };
 
 type DailyViewsRow = {
   daily_views_count: number | null;
   daily_views_reset_at: string | null;
+  is_premium?: boolean | null;
 };
 
-function buildDailyViewsState(count: number, resetAt: string): DailyViewsState {
+function buildDailyViewsState(count: number, resetAt: string, limit: number): DailyViewsState {
   return {
     count,
     resetAt,
-    limitReached: count >= DAILY_VIEW_LIMIT,
+    limit,
+    limitReached: count >= limit,
   };
 }
 
@@ -49,7 +59,7 @@ export function formatDailyResetCountdown(ms: number): string {
 export async function refreshDailyViewsIfNeeded(userId: string): Promise<DailyViewsState | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('daily_views_count, daily_views_reset_at')
+    .select('daily_views_count, daily_views_reset_at, is_premium')
     .eq('id', userId)
     .single();
 
@@ -60,6 +70,7 @@ export async function refreshDailyViewsIfNeeded(userId: string): Promise<DailyVi
 
   const row = data as DailyViewsRow;
   const resetAt = row.daily_views_reset_at ?? new Date().toISOString();
+  const limit = dailyViewLimitFor(row.is_premium === true);
 
   if (needsReset(resetAt)) {
     const now = new Date().toISOString();
@@ -79,10 +90,14 @@ export async function refreshDailyViewsIfNeeded(userId: string): Promise<DailyVi
     }
 
     const refreshed = updated as DailyViewsRow;
-    return buildDailyViewsState(refreshed.daily_views_count ?? 0, refreshed.daily_views_reset_at ?? now);
+    return buildDailyViewsState(
+      refreshed.daily_views_count ?? 0,
+      refreshed.daily_views_reset_at ?? now,
+      limit,
+    );
   }
 
-  return buildDailyViewsState(row.daily_views_count ?? 0, resetAt);
+  return buildDailyViewsState(row.daily_views_count ?? 0, resetAt, limit);
 }
 
 export async function getDailyViewsState(userId: string): Promise<DailyViewsState | null> {
@@ -93,7 +108,9 @@ export async function getDailyViewsState(userId: string): Promise<DailyViewsStat
 // not a client-side read-then-write. Two near-simultaneous calls used to be
 // able to read the same starting count and both write the same nextCount,
 // under-counting and letting the daily limit be exceeded (found in codebase
-// audit, 2026-08-31; migration 20260831090000).
+// audit, 2026-08-31; migration 20260831090000). Also returns is_premium now
+// (migration 20260910100000) so the free/premium cap is computed without an
+// extra round-trip on every like.
 export async function incrementDailyViews(userId: string): Promise<DailyViewsState | null> {
   const { data, error } = await supabase.rpc('increment_daily_views', { p_user: userId }).single();
 
@@ -103,10 +120,14 @@ export async function incrementDailyViews(userId: string): Promise<DailyViewsSta
   }
 
   const row = data as DailyViewsRow;
-  return buildDailyViewsState(row.daily_views_count ?? 0, row.daily_views_reset_at ?? new Date().toISOString());
+  return buildDailyViewsState(
+    row.daily_views_count ?? 0,
+    row.daily_views_reset_at ?? new Date().toISOString(),
+    dailyViewLimitFor(row.is_premium === true),
+  );
 }
 
 export function remainingDailyViews(state: DailyViewsState | null): number {
   if (!state) return DAILY_VIEW_LIMIT;
-  return Math.max(0, DAILY_VIEW_LIMIT - state.count);
+  return Math.max(0, state.limit - state.count);
 }

@@ -559,9 +559,10 @@ export default function HomeScreen() {
   const likesLeftLabel = `${likesLeft} ${likesLeft === 1 ? 'like' : 'likes'} left today`;
   // Bumble-style horizontal progress bar instead of text (user request,
   // 2026-09-10) — fills as the daily like allowance gets used up.
+  const likesLimit = dailyViews?.limit ?? DAILY_VIEW_LIMIT;
   const likesUsedPct = Math.min(
     100,
-    Math.max(0, ((dailyViews?.count ?? 0) / DAILY_VIEW_LIMIT) * 100),
+    Math.max(0, ((dailyViews?.count ?? 0) / likesLimit) * 100),
   );
 
   // activeOffsetX/failOffsetY: only claim the gesture once movement is
@@ -696,7 +697,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.feedRoot}>
       {dailyViews?.limitReached ? (
-        <DailyLimitEmptyState resetAt={dailyViews.resetAt} />
+        <DailyLimitEmptyState resetAt={dailyViews.resetAt} limit={dailyViews.limit} />
       ) : feedError && feedUsers.length === 0 ? (
         <ErrorState onRetry={retryFeed} />
       ) : feedLoading && feedUsers.length === 0 ? (
@@ -727,7 +728,7 @@ export default function HomeScreen() {
             style={styles.likesLeftBar}
             accessibilityRole="progressbar"
             accessibilityLabel={likesLeftLabel}
-            accessibilityValue={{ min: 0, max: DAILY_VIEW_LIMIT, now: dailyViews?.count ?? 0 }}>
+            accessibilityValue={{ min: 0, max: likesLimit, now: dailyViews?.count ?? 0 }}>
             <View style={styles.likesLeftTrack}>
               <View style={[styles.likesLeftFill, { width: `${likesUsedPct}%` }]} />
             </View>

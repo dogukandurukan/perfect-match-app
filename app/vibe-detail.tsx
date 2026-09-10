@@ -16,7 +16,6 @@ import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import {
-  DAILY_VIEW_LIMIT,
   getDailyViewsState,
   incrementDailyViews,
   type DailyViewsState,
@@ -155,7 +154,7 @@ export default function VibeDetailScreen() {
       if (dailyViews?.limitReached) {
         Alert.alert(
           'Günlük limit',
-          `Bugün en fazla ${DAILY_VIEW_LIMIT} profil görüntüleyebilirsin.`,
+          `Bugün en fazla ${dailyViews.limit} profil görüntüleyebilirsin.`,
         );
         return;
       }
@@ -196,7 +195,7 @@ export default function VibeDetailScreen() {
       ) : error ? (
         <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
       ) : dailyViews?.limitReached ? (
-        <DailyLimitEmptyState resetAt={dailyViews.resetAt} />
+        <DailyLimitEmptyState resetAt={dailyViews.resetAt} limit={dailyViews.limit} />
       ) : users.length === 0 ? (
         <View style={styles.centerWrap}>
           <ThemedText style={styles.emptyTitle}>Henüz kimse yok</ThemedText>
