@@ -8,6 +8,7 @@ import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompletion';
 import {
+  DAILY_VIEW_LIMIT,
   getDailyViewsState,
   incrementDailyViews,
   remainingDailyViews,
@@ -556,6 +557,12 @@ export default function HomeScreen() {
   const nextUser = feedUsers[currentIndex + 1] ?? null;
   const likesLeft = remainingDailyViews(dailyViews);
   const likesLeftLabel = `${likesLeft} ${likesLeft === 1 ? 'like' : 'likes'} left today`;
+  // Bumble-style horizontal progress bar instead of text (user request,
+  // 2026-09-10) — fills as the daily like allowance gets used up.
+  const likesUsedPct = Math.min(
+    100,
+    Math.max(0, ((dailyViews?.count ?? 0) / DAILY_VIEW_LIMIT) * 100),
+  );
 
   // activeOffsetX/failOffsetY: only claim the gesture once movement is
   // clearly horizontal, otherwise fail immediately and let the ScrollView
@@ -716,8 +723,14 @@ export default function HomeScreen() {
             </View>
           ) : null}
 
-          <View style={styles.likesLeftBar}>
-            <ThemedText style={styles.likesLeftText}>{likesLeftLabel}</ThemedText>
+          <View
+            style={styles.likesLeftBar}
+            accessibilityRole="progressbar"
+            accessibilityLabel={likesLeftLabel}
+            accessibilityValue={{ min: 0, max: DAILY_VIEW_LIMIT, now: dailyViews?.count ?? 0 }}>
+            <View style={styles.likesLeftTrack}>
+              <View style={[styles.likesLeftFill, { width: `${likesUsedPct}%` }]} />
+            </View>
           </View>
           <GestureDetector gesture={swipeGesture}>
             <Animated.View style={[styles.swipeCard, cardSwipeStyle]}>
@@ -901,16 +914,22 @@ const styles = StyleSheet.create({
   feedRoot: { flex: 1, backgroundColor: '#FAFAFA' },
   likesLeftBar: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E8E8E8',
   },
-  likesLeftText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: ACCENT,
-    textAlign: 'center',
+  likesLeftTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E8E8E8',
+    overflow: 'hidden',
+  },
+  likesLeftFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: ACCENT,
   },
   // Opaque bg required — without it, a shorter profile (fewer chips/photos,
   // ScrollView content ending above the viewport bottom) let the
