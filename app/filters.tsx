@@ -9,7 +9,7 @@ import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Chip } from '@/components/ui/Chip';
@@ -41,6 +41,8 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   notify_meeting_invite: true,
   is_hidden: false,
   hide_location: false,
+  discovery_verified_only: false,
+  discovery_nonsmokers_only: false,
 };
 
 // Bumble splits filters into two tabs (user reference screenshots,
@@ -297,20 +299,51 @@ export default function FiltersScreen() {
             </View>
           </>
         ) : (
-          <View style={styles.card}>
-            <ThemedText style={styles.subLabel}>What are you looking for?</ThemedText>
-            <View style={styles.chipRow}>
-              {INTENT_OPTIONS.map((opt) => (
-                <Chip
-                  key={opt.key}
-                  label={opt.label}
-                  selected={intent === opt.key}
-                  onPress={() => void pickIntent(opt.key)}
-                  style={styles.chip}
-                />
-              ))}
+          <>
+            <View style={styles.card}>
+              <ThemedText style={styles.subLabel}>What are you looking for?</ThemedText>
+              <View style={styles.chipRow}>
+                {INTENT_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.key}
+                    label={opt.label}
+                    selected={intent === opt.key}
+                    onPress={() => void pickIntent(opt.key)}
+                    style={styles.chip}
+                  />
+                ))}
+              </View>
             </View>
-          </View>
+
+            <View style={styles.card}>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleTextWrap}>
+                  <ThemedText style={styles.subLabel}>Verified profiles only</ThemedText>
+                  <ThemedText style={styles.toggleHint}>Only show people with a verified photo</ThemedText>
+                </View>
+                <Switch
+                  value={settings.discovery_verified_only}
+                  onValueChange={(v) =>
+                    applySettings((prev) => ({ ...prev, discovery_verified_only: v }))
+                  }
+                  trackColor={{ false: '#DDD', true: ACCENT }}
+                />
+              </View>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleTextWrap}>
+                  <ThemedText style={styles.subLabel}>Non-smokers only</ThemedText>
+                  <ThemedText style={styles.toggleHint}>Hide people who smoke</ThemedText>
+                </View>
+                <Switch
+                  value={settings.discovery_nonsmokers_only}
+                  onValueChange={(v) =>
+                    applySettings((prev) => ({ ...prev, discovery_nonsmokers_only: v }))
+                  }
+                  trackColor={{ false: '#DDD', true: ACCENT }}
+                />
+              </View>
+            </View>
+          </>
         )}
       </ScrollView>
     </ScreenContainer>
@@ -351,4 +384,12 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderRadius: 20 },
   hint: { fontSize: 12, color: '#888', marginTop: -2, marginBottom: 4 },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  toggleTextWrap: { flex: 1, gap: 2 },
+  toggleHint: { fontSize: 12, color: '#888' },
 });

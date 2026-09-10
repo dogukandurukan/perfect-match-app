@@ -38,6 +38,8 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   notify_meeting_invite: true,
   is_hidden: false,
   hide_location: false,
+  discovery_verified_only: false,
+  discovery_nonsmokers_only: false,
 };
 
 function SectionTitle({ title }: { title: string }) {

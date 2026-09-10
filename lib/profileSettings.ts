@@ -14,6 +14,9 @@ export type ProfileSettingsRow = {
   notify_meeting_invite: boolean;
   is_hidden: boolean;
   hide_location: boolean;
+  // Advanced filters (2026-09-10) — real, get_top_matches-backed toggles.
+  discovery_verified_only: boolean;
+  discovery_nonsmokers_only: boolean;
 };
 
 export const DISCOVERY_DISTANCE_OPTIONS: { value: DiscoveryDistance; label: string }[] = [
@@ -28,7 +31,7 @@ export async function fetchProfileSettings(userId: string): Promise<ProfileSetti
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'discovery_age_min, discovery_age_max, discovery_max_distance, meeting_preferences, notify_new_match, notify_messages, notify_meeting_invite, is_hidden, hide_location',
+      'discovery_age_min, discovery_age_max, discovery_max_distance, meeting_preferences, notify_new_match, notify_messages, notify_meeting_invite, is_hidden, hide_location, discovery_verified_only, discovery_nonsmokers_only',
     )
     .eq('id', userId)
     .maybeSingle();
@@ -39,6 +42,8 @@ export async function fetchProfileSettings(userId: string): Promise<ProfileSetti
     discovery_age_min: data.discovery_age_min ?? 18,
     discovery_age_max: data.discovery_age_max ?? 60,
     discovery_max_distance: (data.discovery_max_distance as DiscoveryDistance) ?? 'whole_city',
+    discovery_verified_only: data.discovery_verified_only ?? false,
+    discovery_nonsmokers_only: data.discovery_nonsmokers_only ?? false,
     meeting_preferences: data.meeting_preferences ?? [],
     notify_new_match: data.notify_new_match ?? true,
     notify_messages: data.notify_messages ?? true,
