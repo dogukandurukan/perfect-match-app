@@ -42,6 +42,8 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_nonsmokers_only: false,
   discovery_height_min: null,
   discovery_height_max: null,
+  discovery_zodiac_signs: [],
+  discovery_pets: [],
 };
 
 function SectionTitle({ title }: { title: string }) {

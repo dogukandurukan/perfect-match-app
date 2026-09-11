@@ -17,6 +17,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import type { IntentKey } from '@/lib/onboardingIntent';
 import { INTENT_OPTIONS } from '@/lib/onboardingStep2Context';
+import { PETS_OPTIONS } from '@/lib/onboardingStep3Context';
 import {
   DISCOVERY_DISTANCE_OPTIONS,
   MEETING_PREF_OPTIONS,
@@ -30,6 +31,23 @@ import { supabase } from '@/lib/supabaseClient';
 import { CITY_OPTIONS, type CityOption } from '@/lib/turkishGeo';
 
 const ACCENT = '#1A1A1A';
+
+// Matches lib/zodiac.ts's getZodiacFromDate exactly — that's what
+// profiles.zodiac_sign is auto-computed as, so these strings have to line up.
+const ZODIAC_OPTIONS: { sign: string; emoji: string }[] = [
+  { sign: 'Aries', emoji: '♈' },
+  { sign: 'Taurus', emoji: '♉' },
+  { sign: 'Gemini', emoji: '♊' },
+  { sign: 'Cancer', emoji: '♋' },
+  { sign: 'Leo', emoji: '♌' },
+  { sign: 'Virgo', emoji: '♍' },
+  { sign: 'Libra', emoji: '♎' },
+  { sign: 'Scorpio', emoji: '♏' },
+  { sign: 'Sagittarius', emoji: '♐' },
+  { sign: 'Capricorn', emoji: '♑' },
+  { sign: 'Aquarius', emoji: '♒' },
+  { sign: 'Pisces', emoji: '♓' },
+];
 
 const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_age_min: 18,
@@ -45,6 +63,8 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_nonsmokers_only: false,
   discovery_height_min: null,
   discovery_height_max: null,
+  discovery_zodiac_signs: [],
+  discovery_pets: [],
 };
 
 // Bumble splits filters into two tabs (user reference screenshots,
@@ -138,6 +158,21 @@ export default function FiltersScreen() {
           : [...withoutEveryone, value];
       }
       return { ...prev, meeting_preferences: next };
+    });
+  };
+
+  // Generic multi-select toggle for the zodiac/pets array filters —
+  // same shape as toggleMeetingPref but without the "Everyone" special case.
+  const toggleArrayFilter = (
+    key: 'discovery_zodiac_signs' | 'discovery_pets',
+    value: string,
+  ) => {
+    applySettings((prev) => {
+      const current = prev[key] ?? [];
+      const next = current.includes(value)
+        ? current.filter((x) => x !== value)
+        : [...current, value];
+      return { ...prev, [key]: next };
     });
   };
 
@@ -394,6 +429,36 @@ export default function FiltersScreen() {
                     }));
                   }}
                 />
+              </View>
+
+              <View style={styles.card}>
+                <ThemedText style={styles.subLabel}>Zodiac sign</ThemedText>
+                <View style={styles.chipRow}>
+                  {ZODIAC_OPTIONS.map((z) => (
+                    <Chip
+                      key={z.sign}
+                      label={`${z.emoji} ${z.sign}`}
+                      selected={settings.discovery_zodiac_signs.includes(z.sign)}
+                      onPress={() => toggleArrayFilter('discovery_zodiac_signs', z.sign)}
+                      style={styles.chip}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <ThemedText style={styles.subLabel}>Pets</ThemedText>
+                <View style={styles.chipRow}>
+                  {PETS_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt}
+                      label={opt}
+                      selected={settings.discovery_pets.includes(opt)}
+                      onPress={() => toggleArrayFilter('discovery_pets', opt)}
+                      style={styles.chip}
+                    />
+                  ))}
+                </View>
               </View>
             </View>
 
