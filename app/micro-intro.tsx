@@ -1,4 +1,4 @@
-// Screen: Micro-intro (invite: place + 3 time slots) | Status: stable | Last updated: Temmuz 2026
+// Screen: Micro-intro (invite: place + 1-3 time slots) | Status: stable | Last updated: 2026-09-11
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -276,7 +276,7 @@ export default function MicroIntroScreen() {
   }
 
   async function handleSendInvite() {
-    if (!resolvedPlace || selectedSlots.length !== MAX_SLOTS) return;
+    if (!resolvedPlace || selectedSlots.length < 1) return;
     if (!matchUserId) {
       Alert.alert('Missing profile', 'Could not find who to invite.');
       return;
@@ -393,7 +393,9 @@ export default function MicroIntroScreen() {
 
   const placeNextDisabled =
     !resolvedPlace || venuesLoading || (place === CUSTOM_PLACE_OPTION && !customPlace.trim());
-  const slotsReady = selectedSlots.length === MAX_SLOTS;
+  // Requiring exactly 3 was pure friction — one good time is enough to send
+  // an invite, more just gives the other person options (2026-09-11).
+  const slotsReady = selectedSlots.length >= 1;
 
   return (
     <ScreenContainer style={styles.container}>
@@ -465,9 +467,10 @@ export default function MicroIntroScreen() {
             </>
           ) : (
             <>
-              <ThemedText style={styles.question}>Pick 3 time options</ThemedText>
+              <ThemedText style={styles.question}>Pick 1-3 time options</ThemedText>
               <ThemedText style={styles.hint}>
-                Suggested from your availability. {selectedSlots.length}/{MAX_SLOTS} selected.
+                Suggested from your availability. More options make it easier for them to say
+                yes — {selectedSlots.length}/{MAX_SLOTS} selected.
               </ThemedText>
               <View style={styles.optionsWrap}>
                 {slotOptions.map((opt) => {
@@ -508,6 +511,8 @@ export default function MicroIntroScreen() {
                       minimumDate={new Date()}
                       onChange={onTimePickerChange}
                       style={styles.timePickerSpinner}
+                      themeVariant="light"
+                      textColor="#1A1A1A"
                     />
                     {Platform.OS === 'ios' ? (
                       <TouchableOpacity
@@ -608,9 +613,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8E8E8',
   },
-  optionSelected: { borderColor: colors.accent, backgroundColor: '#FFF8E1' },
+  // Was a pale gold fill (`#FFF8E1`) left over from before the black-identity
+  // migration — clashed with the now-black accent border (2026-09-11).
+  optionSelected: { borderColor: colors.accent, backgroundColor: colors.accent },
   optionText: { fontSize: 15, color: colors.textPrimary },
-  optionTextSelected: { color: colors.accent, fontWeight: '500' },
+  optionTextSelected: { color: '#FFF', fontWeight: '700' },
   customInput: {
     backgroundColor: '#F5F5F5',
     borderRadius: 12,
