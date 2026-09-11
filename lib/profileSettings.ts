@@ -23,6 +23,8 @@ export type ProfileSettingsRow = {
   // Multi-select — null/empty = no filter. NOT scored, filter-only.
   discovery_zodiac_signs: string[];
   discovery_pets: string[];
+  discovery_education: string[];
+  discovery_religion: string[];
 };
 
 export const DISCOVERY_DISTANCE_OPTIONS: { value: DiscoveryDistance; label: string }[] = [
@@ -37,7 +39,7 @@ export async function fetchProfileSettings(userId: string): Promise<ProfileSetti
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'discovery_age_min, discovery_age_max, discovery_max_distance, meeting_preferences, notify_new_match, notify_messages, notify_meeting_invite, is_hidden, hide_location, discovery_verified_only, discovery_nonsmokers_only, discovery_height_min, discovery_height_max, discovery_zodiac_signs, discovery_pets',
+      'discovery_age_min, discovery_age_max, discovery_max_distance, meeting_preferences, notify_new_match, notify_messages, notify_meeting_invite, is_hidden, hide_location, discovery_verified_only, discovery_nonsmokers_only, discovery_height_min, discovery_height_max, discovery_zodiac_signs, discovery_pets, discovery_education, discovery_religion',
     )
     .eq('id', userId)
     .maybeSingle();
@@ -54,6 +56,8 @@ export async function fetchProfileSettings(userId: string): Promise<ProfileSetti
     discovery_height_max: data.discovery_height_max ?? null,
     discovery_zodiac_signs: data.discovery_zodiac_signs ?? [],
     discovery_pets: data.discovery_pets ?? [],
+    discovery_education: data.discovery_education ?? [],
+    discovery_religion: data.discovery_religion ?? [],
     meeting_preferences: data.meeting_preferences ?? [],
     notify_new_match: data.notify_new_match ?? true,
     notify_messages: data.notify_messages ?? true,

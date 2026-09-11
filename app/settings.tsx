@@ -44,6 +44,8 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_height_max: null,
   discovery_zodiac_signs: [],
   discovery_pets: [],
+  discovery_education: [],
+  discovery_religion: [],
 };
 
 function SectionTitle({ title }: { title: string }) {

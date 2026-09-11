@@ -17,7 +17,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import type { IntentKey } from '@/lib/onboardingIntent';
 import { INTENT_OPTIONS } from '@/lib/onboardingStep2Context';
-import { PETS_OPTIONS } from '@/lib/onboardingStep3Context';
+import { EDUCATION_OPTIONS, PETS_OPTIONS, RELIGION_OPTIONS } from '@/lib/onboardingStep3Context';
 import {
   DISCOVERY_DISTANCE_OPTIONS,
   MEETING_PREF_OPTIONS,
@@ -65,6 +65,8 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_height_max: null,
   discovery_zodiac_signs: [],
   discovery_pets: [],
+  discovery_education: [],
+  discovery_religion: [],
 };
 
 // Bumble splits filters into two tabs (user reference screenshots,
@@ -161,10 +163,11 @@ export default function FiltersScreen() {
     });
   };
 
-  // Generic multi-select toggle for the zodiac/pets array filters —
-  // same shape as toggleMeetingPref but without the "Everyone" special case.
+  // Generic multi-select toggle for the array filters (zodiac/pets/
+  // education/religion) — same shape as toggleMeetingPref but without the
+  // "Everyone" special case.
   const toggleArrayFilter = (
-    key: 'discovery_zodiac_signs' | 'discovery_pets',
+    key: 'discovery_zodiac_signs' | 'discovery_pets' | 'discovery_education' | 'discovery_religion',
     value: string,
   ) => {
     applySettings((prev) => {
@@ -455,6 +458,36 @@ export default function FiltersScreen() {
                       label={opt}
                       selected={settings.discovery_pets.includes(opt)}
                       onPress={() => toggleArrayFilter('discovery_pets', opt)}
+                      style={styles.chip}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <ThemedText style={styles.subLabel}>Education</ThemedText>
+                <View style={styles.chipRow}>
+                  {EDUCATION_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt}
+                      label={opt}
+                      selected={settings.discovery_education.includes(opt)}
+                      onPress={() => toggleArrayFilter('discovery_education', opt)}
+                      style={styles.chip}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <ThemedText style={styles.subLabel}>Religion</ThemedText>
+                <View style={styles.chipRow}>
+                  {RELIGION_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt}
+                      label={opt}
+                      selected={settings.discovery_religion.includes(opt)}
+                      onPress={() => toggleArrayFilter('discovery_religion', opt)}
                       style={styles.chip}
                     />
                   ))}
