@@ -28,7 +28,7 @@ export default function CheckinScreen() {
   const matchId = firstParam(params.matchId);
   const matchName = firstParam(params.matchName);
   const isUserA = firstParam(params.isUserA) === '1';
-  // Buzz's ✓ on a meetup-reminder card already answered "did you go" — skip
+  // Activity's ✓ on a meetup-reminder card already answered "did you go" — skip
   // straight to rating instead of asking again (2026-08-27).
   const skipToRating = firstParam(params.wentThere) === '1';
 

@@ -1,4 +1,4 @@
-// Screen: Hey tab (activity + likes teaser) | Status: test | Last updated: Ağustos 2026
+// Screen: Activity tab (activity feed + likes teaser) | Status: stable | Last updated: 2026-09-12
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -43,7 +43,7 @@ type NotificationRow = {
   relatedName: string | null;
   // Client-only, set right when the user acts (accept/decline/pick time) so a
   // handled featured card demotes into the feed as a small trace of what
-  // happened, instead of just vanishing — otherwise Buzz goes straight back
+  // happened, instead of just vanishing — otherwise Activity goes straight back
   // to "just the likes box" the moment you use it. Not persisted; a fresh
   // fetch falls back to the generic per-type copy in feedRowText.
   resolvedSummary?: string;
@@ -318,7 +318,7 @@ function LikesSection({
 // (profile completeness) instead of "nothing here yet".
 type ActivationChecklist = { hasPhoto: boolean; hasPrompt: boolean; hasSentLike: boolean };
 
-function BuzzActivationCard({
+function ActivityActivationCard({
   checklist,
   onGoProfile,
   onGoHome,
@@ -344,7 +344,7 @@ function BuzzActivationCard({
     <View style={styles.activation}>
       <ThemedText style={styles.activationTitle}>Get your profile buzz-ready</ThemedText>
       <ThemedText style={styles.activationSub}>
-        {doneCount}/{items.length} done — finish these and Buzz fills up here
+        {doneCount}/{items.length} done — finish these and Activity fills up here
       </ThemedText>
       <View style={styles.activationBar}>
         <View style={[styles.activationBarFill, { width: `${(doneCount / items.length) * 100}%` }]} />
@@ -385,6 +385,7 @@ function FeaturedCard({
   slotOptions,
   confirmedSlot,
   confirmedPlace,
+  pendingReview,
   onPress,
   onAccept,
   onDecline,
@@ -392,6 +393,9 @@ function FeaturedCard({
   onCheckinNo,
   onMorningYes,
   onMorningNo,
+  onReviewYes,
+  onReviewNo,
+  onReviewSuggestAnother,
   responding,
 }: {
   item: NotificationRow;
@@ -400,13 +404,17 @@ function FeaturedCard({
   slotOptions?: string[];
   confirmedSlot?: string;
   confirmedPlace?: string;
+  pendingReview?: boolean;
   onPress: () => void;
-  onAccept?: (slot: string | null, place: string | null) => void;
+  onAccept?: (slot: string | null, place: string | null, isCustomTime: boolean) => void;
   onDecline?: () => void;
   onCheckinYes?: () => void;
   onCheckinNo?: () => void;
   onMorningYes?: () => void;
   onMorningNo?: () => void;
+  onReviewYes?: () => void;
+  onReviewNo?: () => void;
+  onReviewSuggestAnother?: () => void;
   responding?: boolean;
 }) {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -440,9 +448,11 @@ function FeaturedCard({
     : isReminder
       ? 'Let us know how it went'
       : accepted
-        ? confirmedSlot
-          ? `Confirmed: ${confirmedSlot}`
-          : 'Pick a time to meet up'
+        ? pendingReview
+          ? `${name} suggested a different time`
+          : confirmedSlot
+            ? `Confirmed: ${confirmedSlot}`
+            : 'Pick a time to meet up'
         : isMutualMatch
           ? 'Say hi 👋'
           : 'Coffee invite';
@@ -463,6 +473,9 @@ function FeaturedCard({
   // could enter a custom slot in micro-intro.tsx. Symmetric, and always a
   // real Date either way (2026-08-24 — CLAUDE.md §4 "real dates" pass).
   const effectiveSlot = selectedSlot;
+  // A slot not in the offered `times` (picked via "Suggest another time")
+  // needs the inviter's review before it's final — see handleRespond.
+  const isCustomSlot = !!effectiveSlot && !times.includes(effectiveSlot);
   // null here means "the inviter's proposed place stands" — place always has
   // a default, so unlike time this is never required to accept.
   const effectivePlace = showCustomPlace ? customPlace.trim() || null : null;
@@ -566,6 +579,31 @@ function FeaturedCard({
               </TouchableOpacity>
             </View>
           )
+        ) : accepted && pendingReview ? (
+          responding ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <View style={styles.respondRow}>
+              <TouchableOpacity
+                style={styles.respondDecline}
+                onPress={onReviewNo}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Decline ${name}'s suggested time`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.respondAccept}
+                onPress={onReviewYes}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Confirm ${name}'s suggested time`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          )
         ) : accepted ? (
           <View style={[styles.featuredCta, styles.featuredCtaAccepted]}>
             <ThemedText style={styles.featuredCtaText}>
@@ -591,7 +629,7 @@ function FeaturedCard({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.respondAccept, acceptDisabled && styles.respondAcceptDisabled]}
-              onPress={() => onAccept?.(effectiveSlot, effectivePlace)}
+              onPress={() => onAccept?.(effectiveSlot, effectivePlace, isCustomSlot)}
               disabled={acceptDisabled}
               activeOpacity={0.85}
               accessibilityRole="button"
@@ -693,6 +731,8 @@ function FeaturedCard({
                     minimumDate={new Date()}
                     onChange={onTimePickerChange}
                     style={styles.timePickerSpinner}
+                    themeVariant="light"
+                    textColor="#1A1A1A"
                   />
                   {Platform.OS === 'ios' ? (
                     <TouchableOpacity
@@ -726,18 +766,32 @@ function FeaturedCard({
           ) : null}
           {confirmedSlot ? (
             <View style={styles.featuredInfoRow}>
-              <Ionicons name="checkmark-circle-outline" size={13} color="#2E9E5B" />
+              <Ionicons
+                name={pendingReview ? 'time-outline' : 'checkmark-circle-outline'}
+                size={13}
+                color={pendingReview ? colors.accent : '#2E9E5B'}
+              />
               <ThemedText style={styles.featuredInfoText} numberOfLines={1}>
                 {confirmedSlot}
               </ThemedText>
             </View>
+          ) : null}
+          {pendingReview ? (
+            <TouchableOpacity
+              onPress={onReviewSuggestAnother}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Suggest a different time instead"
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
+              <ThemedText style={styles.placeSuggestLink}>Suggest a different time instead</ThemedText>
+            </TouchableOpacity>
           ) : null}
         </View>
       ) : null}
     </>
   );
 
-  if (accepted || isMutualMatch) {
+  if ((accepted && !pendingReview) || isMutualMatch) {
     return (
       <TouchableOpacity
         style={[styles.featured, !item.is_read && styles.featuredUnread]}
@@ -765,7 +819,7 @@ export default function NotificationsScreen() {
   const [respondingId, setRespondingId] = useState<string | null>(null);
   // Proposed place + time slots for pending "wants to meet" invites, keyed by
   // the inviter's user id — so Accept/Decline isn't blind (Matches already
-  // shows this on the incoming-invite card, Buzz didn't).
+  // shows this on the incoming-invite card, Activity didn't).
   const [introLinesById, setIntroLinesById] = useState<Record<string, string[]>>({});
   // Raw ISO datetime strings for the 3 proposed slots (formatIntroLines gives
   // display text, but the chip picker needs the real value to save on accept).
@@ -781,8 +835,12 @@ export default function NotificationsScreen() {
   // (notifications has no metadata column to carry it).
   const [matchIdByOtherId, setMatchIdByOtherId] = useState<Record<string, string>>({});
   const [isUserAByOtherId, setIsUserAByOtherId] = useState<Record<string, boolean>>({});
+  // True when the accepter picked a time I (the inviter) didn't originally
+  // offer — needs my review (Yes/No/Suggest another) before it's final
+  // (2026-09-12, mirrors chat.tsx's meetup Yes/No/Suggest-another-time card).
+  const [pendingReviewById, setPendingReviewById] = useState<Record<string, boolean>>({});
 
-  // Buzz Faz B: real "who likes you" teaser, sourced from `get_my_likers` —
+  // Activity Faz B: real "who likes you" teaser, sourced from `get_my_likers` —
   // gated server-side, not derived from `notifications`. Fetch failures here
   // degrade the teaser to 0 (hidden) rather than blocking the whole screen,
   // same pattern as the old `intentRows` degrade (CLAUDE.md §0.5).
@@ -982,12 +1040,13 @@ export default function NotificationsScreen() {
       const confirmedPlaceResult: Record<string, string> = {};
       const matchIdResult: Record<string, string> = {};
       const isUserAResult: Record<string, boolean> = {};
+      const pendingReviewResult: Record<string, boolean> = {};
       await Promise.all(
         otherIds.map(async (otherId) => {
           const { data: match } = await supabase
             .from('matches')
             .select(
-              'id, user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers, meeting_at, confirmed_place',
+              'id, user_a_id, user_b_id, user_a_intro_answers, user_b_intro_answers, meeting_at, confirmed_place, meetup_confirmed, meetup_proposed_by',
             )
             .or(
               `and(user_a_id.eq.${user.id},user_b_id.eq.${otherId}),` +
@@ -1014,6 +1073,17 @@ export default function NotificationsScreen() {
             confirmedSlotResult[otherId] = formatMeetingTime(match.meeting_at);
           if (typeof match.confirmed_place === 'string' && match.confirmed_place)
             confirmedPlaceResult[otherId] = match.confirmed_place;
+          // A custom (non-offered) time the invitee picked at accept time is
+          // held as pending until I (the original inviter) review it — see
+          // handleRespond's isCustomTime branch. meetup_proposed_by === otherId
+          // means THEY are the one waiting on ME, not the reverse.
+          if (
+            match.meeting_at &&
+            match.meetup_confirmed === null &&
+            match.meetup_proposed_by === otherId
+          ) {
+            pendingReviewResult[otherId] = true;
+          }
         }),
       );
       setIntroLinesById(linesById);
@@ -1022,6 +1092,7 @@ export default function NotificationsScreen() {
       setConfirmedPlaceById(confirmedPlaceResult);
       setMatchIdByOtherId(matchIdResult);
       setIsUserAByOtherId(isUserAResult);
+      setPendingReviewById(pendingReviewResult);
     } else {
       setIntroLinesById({});
       setSlotOptionsById({});
@@ -1029,6 +1100,7 @@ export default function NotificationsScreen() {
       setConfirmedPlaceById({});
       setMatchIdByOtherId({});
       setIsUserAByOtherId({});
+      setPendingReviewById({});
     }
 
     setLoading(false);
@@ -1046,15 +1118,15 @@ export default function NotificationsScreen() {
   // Derived zones — recompute on items change (read-state edits included).
   // Featured excludes already-read items: once acted on (accept/decline) or
   // even just opened, it shouldn't keep reappearing at the top every time you
-  // come back to Buzz — that was the "same card keeps coming back" bug.
+  // come back to Activity — that was the "same card keeps coming back" bug.
   const { featured, feed } = useMemo(() => {
     // `invite_accepted` never demotes into feed — once you've tapped "Pick
     // time"/"Open chat" there's nothing left to say about it here (that
     // thread now lives in Chats); user feedback confirmed it wasn't wanted.
     // `mutual_match` is different: it's the ONLY thing that would ever
-    // populate Buzz's compact feed for a lot of users at this scale, so
+    // populate Activity's compact feed for a lot of users at this scale, so
     // unlike invite_accepted it DOES demote into feed once read instead of
-    // disappearing outright — otherwise Buzz reads as permanently empty
+    // disappearing outright — otherwise Activity reads as permanently empty
     // right after the one high-signal event it had (user feedback,
     // 2026-09-09).
     const notificationFeed = items.filter(
@@ -1110,6 +1182,7 @@ export default function NotificationsScreen() {
     accept: boolean,
     slot: string | null = null,
     place: string | null = null,
+    isCustomTime: boolean = false,
   ) {
     if (!item.related_user_id) return;
 
@@ -1174,9 +1247,24 @@ export default function NotificationsScreen() {
     }
 
     if (slot || place) {
-      const patch: { meeting_at?: string; confirmed_place?: string } = {};
+      const patch: {
+        meeting_at?: string;
+        confirmed_place?: string;
+        meetup_confirmed?: boolean | null;
+        meetup_proposed_by?: string;
+      } = {};
       if (slot) patch.meeting_at = slot; // real timestamptz — matches.meeting_at
       if (place) patch.confirmed_place = place;
+      // A time I didn't offer needs the inviter's OK before it's final — same
+      // pending/confirmed cycle chat.tsx's meetup card uses (2026-09-12).
+      // Picking one of the offered chips is pre-approved (they proposed it).
+      if (slot && isCustomTime) {
+        patch.meetup_confirmed = null;
+        patch.meetup_proposed_by = user.id;
+      } else if (slot) {
+        patch.meetup_confirmed = true;
+        patch.meetup_proposed_by = otherId;
+      }
       await supabase.from('matches').update(patch).eq('id', match.id);
     }
 
@@ -1184,9 +1272,11 @@ export default function NotificationsScreen() {
     const slotLabel = slot ? formatMeetingTime(slot) : null;
     const summary = !slotLabel
       ? `You said yes to ${who}`
-      : effectivePlace
-        ? `You said yes to ${who} — ${slotLabel} at ${effectivePlace}`
-        : `You said yes to ${who} — ${slotLabel}`;
+      : isCustomTime
+        ? `You said yes to ${who} — suggested ${slotLabel}${effectivePlace ? ` at ${effectivePlace}` : ''}, waiting for them to confirm`
+        : effectivePlace
+          ? `You said yes to ${who} — ${slotLabel} at ${effectivePlace}`
+          : `You said yes to ${who} — ${slotLabel}`;
     setItems((prev) =>
       prev.map((n) => (n.id === item.id ? { ...n, is_read: true, resolvedSummary: summary } : n)),
     );
@@ -1206,7 +1296,92 @@ export default function NotificationsScreen() {
     }
   }
 
-  // Buzz's own ✓/✕ on a "meeting today?" reminder card, mirroring the
+  // Original inviter reviewing a custom time the accepter picked (not one of
+  // the offered slots) — the pendingReview state set above. 'yes' finalizes
+  // it; 'no'/'suggest_another' both reset the proposal (meeting_at etc back
+  // to null) — 'suggest_another' additionally opens the chat, where the same
+  // meetup Yes/No/Suggest-another card (chat.tsx) now works for any open
+  // chat, not just mutual-like, so they can counter-propose there
+  // (2026-09-12).
+  async function handleReviewRespond(item: NotificationRow, action: 'yes' | 'no' | 'suggest_another') {
+    if (!item.related_user_id) return;
+    const otherId = item.related_user_id;
+    const matchId = matchIdByOtherId[otherId];
+    if (!matchId) {
+      Alert.alert('Match not found', "We couldn't find this meetup.");
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    setRespondingId(item.id);
+    if (action === 'yes') {
+      const { error } = await supabase.from('matches').update({ meetup_confirmed: true }).eq('id', matchId);
+      setRespondingId(null);
+      if (error) {
+        Alert.alert('Could not confirm', error.message);
+        return;
+      }
+      setPendingReviewById((prev) => {
+        const next = { ...prev };
+        delete next[otherId];
+        return next;
+      });
+      // Writing to `matches` alone doesn't tell the accepter anything — same
+      // gap this session already found and fixed for the base invite flow.
+      if (user) {
+        await supabase.from('messages').insert({
+          sender_id: user.id,
+          receiver_id: otherId,
+          content: '✅ That time works for me too — see you then!',
+        });
+      }
+      return;
+    }
+
+    const { error } = await supabase
+      .from('matches')
+      .update({ meeting_at: null, confirmed_place: null, meetup_proposed_by: null, meetup_confirmed: null })
+      .eq('id', matchId);
+    setRespondingId(null);
+    if (error) {
+      Alert.alert('Could not respond', error.message);
+      return;
+    }
+    if (user) {
+      await supabase.from('messages').insert({
+        sender_id: user.id,
+        receiver_id: otherId,
+        content: "❌ That time doesn't work for me — let's find another one.",
+      });
+    }
+    setConfirmedSlotById((prev) => {
+      const next = { ...prev };
+      delete next[otherId];
+      return next;
+    });
+    setConfirmedPlaceById((prev) => {
+      const next = { ...prev };
+      delete next[otherId];
+      return next;
+    });
+    setPendingReviewById((prev) => {
+      const next = { ...prev };
+      delete next[otherId];
+      return next;
+    });
+
+    if (action === 'suggest_another') {
+      router.push({
+        pathname: '/chat',
+        params: { userId: otherId, userName: item.relatedName ?? '', matchId },
+      } as never);
+    }
+  }
+
+  // Activity's own ✓/✕ on a "meeting today?" reminder card, mirroring the
   // push-notification deep-link into checkin.tsx (2026-08-27). ✕ writes the
   // "didn't go" outcome inline (same payload checkin.tsx's handleWent(false)
   // writes) since there's nothing further to ask; ✓ still routes to
@@ -1340,13 +1515,17 @@ export default function NotificationsScreen() {
           slotOptions={item.related_user_id ? slotOptionsById[item.related_user_id] : undefined}
           confirmedSlot={item.related_user_id ? confirmedSlotById[item.related_user_id] : undefined}
           confirmedPlace={item.related_user_id ? confirmedPlaceById[item.related_user_id] : undefined}
+          pendingReview={item.related_user_id ? pendingReviewById[item.related_user_id] : undefined}
           onPress={() => void handlePress(item)}
-          onAccept={(slot, place) => void handleRespond(item, true, slot, place)}
+          onAccept={(slot, place, isCustomTime) => void handleRespond(item, true, slot, place, isCustomTime)}
           onDecline={() => void handleRespond(item, false)}
           onCheckinYes={() => void handleCheckin(item, true)}
           onCheckinNo={() => void handleCheckin(item, false)}
           onMorningYes={() => handleMorningReminder(item, true)}
           onMorningNo={() => handleMorningReminder(item, false)}
+          onReviewYes={() => void handleReviewRespond(item, 'yes')}
+          onReviewNo={() => void handleReviewRespond(item, 'no')}
+          onReviewSuggestAnother={() => void handleReviewRespond(item, 'suggest_another')}
           responding={respondingId === item.id}
         />
       ))}
@@ -1368,7 +1547,7 @@ export default function NotificationsScreen() {
   return (
     <ScreenContainer style={styles.container}>
       <View style={styles.headerRow}>
-        <ThemedText style={styles.pageTitle}>Buzz</ThemedText>
+        <ThemedText style={styles.pageTitle}>Activity</ThemedText>
         {hasUnread ? (
           <TouchableOpacity
             onPress={() => void handleMarkAllRead()}
@@ -1386,7 +1565,7 @@ export default function NotificationsScreen() {
       ) : error ? (
         <ErrorState onRetry={() => void fetchNotifications()} />
       ) : items.length === 0 && likeCount === 0 ? (
-        <BuzzActivationCard
+        <ActivityActivationCard
           checklist={checklist}
           onGoProfile={() => router.push('/(tabs)/profile' as never)}
           onGoHome={() => router.push('/(tabs)' as never)}
@@ -1601,8 +1780,16 @@ const styles = StyleSheet.create({
   // Picker stacked above its confirm button — side-by-side pushed the button
   // off-screen (the spinner is wider than it looks, doesn't shrink to share
   // a row). Same fix as micro-intro.tsx (2026-08-25, device testing).
-  timePickerColumn: { gap: 8, alignItems: 'stretch', marginTop: 4 },
-  timePickerSpinner: { alignSelf: 'center' },
+  timePickerColumn: { gap: 8, alignItems: 'stretch', marginTop: 4, overflow: 'hidden' },
+  // Explicit size so the ~216pt native spinner reserves its real footprint
+  // inside a FlatList/SectionList header (found 2026-09-12, device
+  // screenshot). Text was STILL invisible after that — root cause was the
+  // native UIPickerView following the phone's system dark-mode trait
+  // collection (white text) while sitting on this light card, even though
+  // the app's own RN-level theme is forced light everywhere else (see
+  // 2026-09-04 dark-mode note). Fixed by pinning themeVariant/textColor on
+  // the <DateTimePicker> itself, not fixable from a style prop alone.
+  timePickerSpinner: { alignSelf: 'stretch', width: '100%', height: 180, backgroundColor: '#FFFFFF' },
   addSlotBtnWide: {
     backgroundColor: colors.accent,
     borderRadius: radius.md,

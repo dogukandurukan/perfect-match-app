@@ -6,12 +6,14 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   StyleSheet,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -27,8 +29,9 @@ import {
   type QuickIcebreakerAnswer,
   type QuickIcebreakerChoice,
 } from '@/lib/quickIcebreaker';
+import { logEvent } from '@/lib/analytics';
 import { colors, radius } from '@/lib/designTokens';
-import { orderedPair } from '@/lib/matchInvite';
+import { formatMeetingTime, orderedPair, suggestMeetingTimes } from '@/lib/matchInvite';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 import { emitUnreadMessageCount } from '@/lib/unreadMessageCount';
@@ -56,6 +59,26 @@ export default function ChatScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(matchIdParam || null);
   const [chatOpened, setChatOpened] = useState<boolean | null>(null);
+  // "Suggest a meetup" nudge bar (mutual-like matches only — the algo-invite
+  // flow already proposes a time/place as part of the invite itself, this
+  // is for chats that opened straight into an empty conversation with no
+  // structured next step, 2026-09-11).
+  const [matchSource, setMatchSource] = useState<string | null>(null);
+  const [meetingAt, setMeetingAt] = useState<string | null>(null);
+  const [confirmedPlace, setConfirmedPlace] = useState<string | null>(null);
+  // Pending/confirmed response cycle for the active proposal above — added
+  // 2026-09-11 after finding the proposal was write-only (the other person
+  // had no way to respond, and the proposer had no way to know it landed).
+  const [meetupProposedBy, setMeetupProposedBy] = useState<string | null>(null);
+  const [meetupConfirmed, setMeetupConfirmed] = useState<boolean | null>(null);
+  const [respondingMeetup, setRespondingMeetup] = useState(false);
+  const [proposeModalVisible, setProposeModalVisible] = useState(false);
+  const [proposeTimes, setProposeTimes] = useState<string[]>([]);
+  const [selectedProposeTime, setSelectedProposeTime] = useState<string | null>(null);
+  const [proposePlace, setProposePlace] = useState('');
+  const [showProposeTimePicker, setShowProposeTimePicker] = useState(false);
+  const [proposeTimePickerDraft, setProposeTimePickerDraft] = useState(new Date());
+  const [proposing, setProposing] = useState(false);
   const [gateError, setGateError] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesError, setMessagesError] = useState(false);
@@ -143,7 +166,9 @@ export default function ChatScreen() {
     if (matchIdParam) {
       const { data, error } = await supabase
         .from('matches')
-        .select('id, chat_opened, user_a_id, user_b_id')
+        .select(
+          'id, chat_opened, user_a_id, user_b_id, source, meeting_at, confirmed_place, meetup_proposed_by, meetup_confirmed',
+        )
         .eq('id', matchIdParam)
         .maybeSingle();
       if (error) {
@@ -153,6 +178,11 @@ export default function ChatScreen() {
       if (data) {
         setMatchId(data.id);
         setChatOpened(data.chat_opened === true);
+        setMatchSource(data.source ?? null);
+        setMeetingAt(data.meeting_at ?? null);
+        setConfirmedPlace(data.confirmed_place ?? null);
+        setMeetupProposedBy(data.meetup_proposed_by ?? null);
+        setMeetupConfirmed(data.meetup_confirmed ?? null);
         return;
       }
     }
@@ -160,7 +190,9 @@ export default function ChatScreen() {
     const [a, b] = orderedPair(currentUserId, otherUserId);
     const { data, error } = await supabase
       .from('matches')
-      .select('id, chat_opened')
+      .select(
+        'id, chat_opened, source, meeting_at, confirmed_place, meetup_proposed_by, meetup_confirmed',
+      )
       .eq('user_a_id', a)
       .eq('user_b_id', b)
       .maybeSingle();
@@ -170,6 +202,11 @@ export default function ChatScreen() {
     } else if (data) {
       setMatchId(data.id);
       setChatOpened(data.chat_opened === true);
+      setMatchSource(data.source ?? null);
+      setMeetingAt(data.meeting_at ?? null);
+      setConfirmedPlace(data.confirmed_place ?? null);
+      setMeetupProposedBy(data.meetup_proposed_by ?? null);
+      setMeetupConfirmed(data.meetup_confirmed ?? null);
     } else {
       setChatOpened(false);
     }
@@ -299,6 +336,7 @@ export default function ChatScreen() {
     setSending(true);
     setSendError(false);
     const content = text.trim();
+    const isFirstMessage = messages.length === 0;
     setText('');
     const { error } = await supabase.from('messages').insert({
       sender_id: currentUserId,
@@ -308,6 +346,8 @@ export default function ChatScreen() {
     if (error) {
       setText(content);
       setSendError(true);
+    } else if (isFirstMessage) {
+      logEvent('first_message_sent', { match_source: matchSource });
     }
     setSending(false);
   }
@@ -379,6 +419,158 @@ export default function ChatScreen() {
     });
   }
 
+  // Suggest-a-meetup modal — mutual-like chats only (see meetupUiEnabled
+  // check below). Deliberately does NOT go through
+  // sendMatchInvite/trySendInvite: this match is already accepted +
+  // chat_opened, re-running the invite flow would reset status back to
+  // 'pending' and re-apply the gendered chat-open rule, which would be
+  // wrong here — both sides already gave equal consent. Writes meeting_at/
+  // confirmed_place directly, no quota, no accept step (either side can
+  // just propose a time in the open conversation, low-friction by design).
+  async function openProposeModal() {
+    setProposePlace('');
+    setSelectedProposeTime(null);
+    setShowProposeTimePicker(false);
+    setProposeTimes([]);
+    if (currentUserId) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('availability_days, availability_hours')
+        .eq('id', currentUserId)
+        .maybeSingle();
+      setProposeTimes(suggestMeetingTimes(data?.availability_days, data?.availability_hours));
+    }
+    setProposeModalVisible(true);
+  }
+
+  function onProposeTimePickerChange(event: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === 'android') {
+      setShowProposeTimePicker(false);
+      if (event.type === 'set' && selected) setSelectedProposeTime(selected.toISOString());
+      return;
+    }
+    if (selected) setProposeTimePickerDraft(selected);
+  }
+
+  async function confirmProposeMeetup() {
+    if (!matchId || !selectedProposeTime || !currentUserId || !otherUserId) return;
+    setProposing(true);
+    const place = proposePlace.trim();
+    const { error } = await supabase
+      .from('matches')
+      .update({
+        meeting_at: selectedProposeTime,
+        confirmed_place: place || null,
+        meetup_proposed_by: currentUserId,
+        meetup_confirmed: null,
+      })
+      .eq('id', matchId);
+    if (error) {
+      setProposing(false);
+      Alert.alert('Could not suggest a time', error.message);
+      return;
+    }
+    // Writing to `matches` alone is invisible to the other person — send an
+    // actual chat message so they see the proposal (found 2026-09-11: this
+    // was previously silent, "did it reach them?" had no answer — it didn't).
+    const messageContent = `📅 I suggested meeting ${formatMeetingTime(selectedProposeTime)}${
+      place ? ` at ${place}` : ''
+    }. Let me know if that works!`;
+    const { error: messageError } = await supabase.from('messages').insert({
+      sender_id: currentUserId,
+      receiver_id: otherUserId,
+      content: messageContent,
+    });
+    setProposing(false);
+    if (messageError) {
+      Alert.alert(
+        'Time saved, but the message failed to send',
+        messageError.message,
+      );
+    }
+    setMeetingAt(selectedProposeTime);
+    setConfirmedPlace(place || null);
+    setMeetupProposedBy(currentUserId);
+    setMeetupConfirmed(null);
+    setProposeModalVisible(false);
+  }
+
+  // Resets the active proposal back to "no proposal" — used by both a plain
+  // decline and a "suggest another time" (which then reopens the modal so
+  // the responder becomes the new proposer).
+  async function resetMeetupProposal(): Promise<string | null> {
+    if (!matchId) return null;
+    const { error } = await supabase
+      .from('matches')
+      .update({
+        meeting_at: null,
+        confirmed_place: null,
+        meetup_proposed_by: null,
+        meetup_confirmed: null,
+      })
+      .eq('id', matchId);
+    return error?.message ?? null;
+  }
+
+  async function respondMeetupYes() {
+    if (!matchId || !currentUserId || !otherUserId) return;
+    setRespondingMeetup(true);
+    const { error } = await supabase
+      .from('matches')
+      .update({ meetup_confirmed: true })
+      .eq('id', matchId);
+    if (error) {
+      setRespondingMeetup(false);
+      Alert.alert('Could not confirm', error.message);
+      return;
+    }
+    const { error: messageError } = await supabase.from('messages').insert({
+      sender_id: currentUserId,
+      receiver_id: otherUserId,
+      content: '✅ Sounds good, see you then!',
+    });
+    setRespondingMeetup(false);
+    if (messageError) console.warn('[Chat] confirm message failed', messageError.message);
+    setMeetupConfirmed(true);
+  }
+
+  async function respondMeetupNo() {
+    if (!currentUserId || !otherUserId) return;
+    setRespondingMeetup(true);
+    const resetError = await resetMeetupProposal();
+    if (resetError) {
+      setRespondingMeetup(false);
+      Alert.alert('Could not respond', resetError);
+      return;
+    }
+    const { error: messageError } = await supabase.from('messages').insert({
+      sender_id: currentUserId,
+      receiver_id: otherUserId,
+      content: "❌ That time doesn't work for me.",
+    });
+    setRespondingMeetup(false);
+    if (messageError) console.warn('[Chat] decline message failed', messageError.message);
+    setMeetingAt(null);
+    setConfirmedPlace(null);
+    setMeetupProposedBy(null);
+    setMeetupConfirmed(null);
+  }
+
+  async function respondMeetupSuggestAnother() {
+    setRespondingMeetup(true);
+    const resetError = await resetMeetupProposal();
+    setRespondingMeetup(false);
+    if (resetError) {
+      Alert.alert('Could not respond', resetError);
+      return;
+    }
+    setMeetingAt(null);
+    setConfirmedPlace(null);
+    setMeetupProposedBy(null);
+    setMeetupConfirmed(null);
+    void openProposeModal();
+  }
+
   function openUserProfile() {
     if (!otherUserId) return;
     const activeMatchId = matchId ?? matchIdParam;
@@ -441,9 +633,27 @@ export default function ChatScreen() {
   const showIcebreakers =
     !inputDisabled && messages.length === 0 && !iceDone && icebreakerChecked;
   const currentIceQuestion = iceQuestions[iceStep];
+  // Unlike the icebreaker bar, this doesn't hide once you've sent a
+  // message — a chat with no plan yet should keep nudging regardless of how
+  // long the conversation runs. Originally mutual-like-only; widened
+  // 2026-09-12 to any open chat (source no longer checked) so an
+  // algorithmic invite's inviter has somewhere to counter-propose after
+  // declining the accepter's custom time on the Activity review card — same
+  // meetup_proposed_by/meetup_confirmed columns drive both paths now.
+  const meetupUiEnabled = !inputDisabled;
+  // 'none' = no active proposal · 'proposed_by_me' = waiting on the other
+  // person · 'proposed_by_them' = I need to respond · 'confirmed' = settled.
+  const meetupState: 'none' | 'proposed_by_me' | 'proposed_by_them' | 'confirmed' = !meetingAt
+    ? 'none'
+    : meetupConfirmed === true
+      ? 'confirmed'
+      : meetupProposedBy === currentUserId
+        ? 'proposed_by_me'
+        : 'proposed_by_them';
   const headerInitial = (userName.trim()[0] ?? '?').toUpperCase();
 
   return (
+    <>
     <ScreenContainer style={[styles.container, { paddingBottom: 0 }]}>
       <View style={styles.header}>
         <TouchableOpacity
@@ -558,6 +768,78 @@ export default function ChatScreen() {
           </View>
         ) : null}
 
+        {meetupUiEnabled && meetupState === 'none' ? (
+          <TouchableOpacity
+            style={styles.meetupBar}
+            activeOpacity={0.85}
+            onPress={() => void openProposeModal()}
+            accessibilityRole="button"
+            accessibilityLabel="Suggest a time to meet up">
+            <ThemedText style={styles.meetupBarIcon}>☕</ThemedText>
+            <ThemedText style={styles.meetupBarText}>Suggest a time to meet up</ThemedText>
+            <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+          </TouchableOpacity>
+        ) : null}
+
+        {meetupUiEnabled && meetupState === 'proposed_by_me' ? (
+          <View style={styles.meetupBar}>
+            <ThemedText style={styles.meetupBarIcon}>⏳</ThemedText>
+            <ThemedText style={styles.meetupBarText}>
+              Waiting for {userName} to respond to your suggested time —{' '}
+              {meetingAt ? formatMeetingTime(meetingAt) : ''}
+              {confirmedPlace ? ` at ${confirmedPlace}` : ''}.
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {meetupUiEnabled && meetupState === 'confirmed' ? (
+          <View style={styles.meetupBar}>
+            <ThemedText style={styles.meetupBarIcon}>✅</ThemedText>
+            <ThemedText style={styles.meetupBarText}>
+              Meetup confirmed — {meetingAt ? formatMeetingTime(meetingAt) : ''}
+              {confirmedPlace ? ` at ${confirmedPlace}` : ''}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {meetupUiEnabled && meetupState === 'proposed_by_them' ? (
+          <View style={styles.meetupRespondCard}>
+            <ThemedText style={styles.meetupBarText}>
+              {userName} suggested meeting {meetingAt ? formatMeetingTime(meetingAt) : ''}
+              {confirmedPlace ? ` at ${confirmedPlace}` : ''}.
+            </ThemedText>
+            <View style={styles.meetupRespondRow}>
+              <TouchableOpacity
+                style={[styles.meetupRespondBtn, styles.meetupRespondYes]}
+                activeOpacity={0.85}
+                disabled={respondingMeetup}
+                onPress={() => void respondMeetupYes()}
+                accessibilityRole="button"
+                accessibilityLabel="Yes, that works">
+                <ThemedText style={styles.meetupRespondYesText}>Yes</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.meetupRespondBtn}
+                activeOpacity={0.85}
+                disabled={respondingMeetup}
+                onPress={() => void respondMeetupSuggestAnother()}
+                accessibilityRole="button"
+                accessibilityLabel="Suggest another time">
+                <ThemedText style={styles.meetupRespondBtnText}>Another time</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.meetupRespondBtn}
+                activeOpacity={0.85}
+                disabled={respondingMeetup}
+                onPress={() => void respondMeetupNo()}
+                accessibilityRole="button"
+                accessibilityLabel="No, that doesn't work">
+                <ThemedText style={styles.meetupRespondBtnText}>No</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
         {sendError ? (
           <ThemedText style={styles.sendErrorText}>
             Message didn’t send. Tap ↑ to try again.
@@ -611,6 +893,126 @@ export default function ChatScreen() {
         </View>
       </KeyboardAvoidingView>
     </ScreenContainer>
+
+    <Modal
+      visible={proposeModalVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setProposeModalVisible(false)}>
+      <KeyboardAvoidingView
+        style={styles.proposeBackdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.proposeSheet}>
+          <ThemedText style={styles.proposeTitle}>Suggest a time to meet up</ThemedText>
+
+          {proposeTimes.length > 0 ? (
+            <View style={styles.slotChipsRow}>
+              {proposeTimes.map((t) => {
+                const on = selectedProposeTime === t;
+                return (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.slotChip, on && styles.slotChipSelected]}
+                    onPress={() => {
+                      setSelectedProposeTime(t);
+                      setShowProposeTimePicker(false);
+                    }}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={formatMeetingTime(t)}
+                    accessibilityState={{ selected: on }}>
+                    <ThemedText style={[styles.slotChipText, on && styles.slotChipTextSelected]}>
+                      {formatMeetingTime(t)}
+                    </ThemedText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {selectedProposeTime && !proposeTimes.includes(selectedProposeTime) ? (
+            <View style={styles.slotChipsRow}>
+              <TouchableOpacity
+                style={[styles.slotChip, styles.slotChipSelected]}
+                onPress={() => setShowProposeTimePicker(true)}
+                activeOpacity={0.8}>
+                <ThemedText style={[styles.slotChipText, styles.slotChipTextSelected]}>
+                  {formatMeetingTime(selectedProposeTime)}
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => {
+                setProposeTimePickerDraft(new Date());
+                setShowProposeTimePicker(true);
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Pick another time">
+              <ThemedText style={styles.proposeCustomLink}>Pick another time</ThemedText>
+            </TouchableOpacity>
+          )}
+
+          {showProposeTimePicker ? (
+            <View style={styles.proposeTimePickerColumn}>
+              <DateTimePicker
+                value={proposeTimePickerDraft}
+                mode="datetime"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minimumDate={new Date()}
+                onChange={onProposeTimePickerChange}
+                themeVariant="light"
+                textColor="#1A1A1A"
+              />
+              {Platform.OS === 'ios' ? (
+                <TouchableOpacity
+                  style={styles.proposeAddSlotBtn}
+                  onPress={() => {
+                    setSelectedProposeTime(proposeTimePickerDraft.toISOString());
+                    setShowProposeTimePicker(false);
+                  }}
+                  activeOpacity={0.85}>
+                  <ThemedText style={styles.proposeAddSlotBtnText}>Use this time</ThemedText>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
+          <ThemedText style={styles.proposePlaceLabel}>Where? (optional)</ThemedText>
+          <TextInput
+            style={styles.proposePlaceInput}
+            placeholder="e.g. a coffee place near you"
+            placeholderTextColor={colors.textMuted}
+            value={proposePlace}
+            onChangeText={setProposePlace}
+            returnKeyType="done"
+            onSubmitEditing={() => Keyboard.dismiss()}
+          />
+
+          <View style={styles.proposeBtnRow}>
+            <TouchableOpacity
+              style={styles.proposeCancelBtn}
+              activeOpacity={0.8}
+              onPress={() => setProposeModalVisible(false)}>
+              <ThemedText style={styles.proposeCancelBtnText}>Cancel</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.proposeConfirmBtn, !selectedProposeTime && { opacity: 0.4 }]}
+              activeOpacity={0.85}
+              disabled={!selectedProposeTime || proposing}
+              onPress={() => void confirmProposeMeetup()}>
+              {proposing ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <ThemedText style={styles.proposeConfirmBtnText}>Suggest</ThemedText>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+    </>
   );
 }
 
@@ -721,6 +1123,113 @@ const styles = StyleSheet.create({
   iceQuizEmoji: { fontSize: 24 },
   iceQuizLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
   iceQuizOr: { fontSize: 12, color: colors.textMuted },
+  meetupBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: colors.bgSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  meetupBarIcon: { fontSize: 16 },
+  meetupBarText: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+  meetupRespondCard: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: colors.bgSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 10,
+  },
+  meetupRespondRow: { flexDirection: 'row', gap: 8 },
+  meetupRespondBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  meetupRespondBtnText: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+  meetupRespondYes: { backgroundColor: colors.accent, borderColor: colors.accent },
+  meetupRespondYesText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  proposeBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  proposeSheet: {
+    backgroundColor: colors.bgCard,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 32,
+    gap: 14,
+  },
+  proposeTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
+  slotChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  slotChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: colors.bgSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  slotChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+  slotChipText: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+  slotChipTextSelected: { color: '#FFF' },
+  proposeCustomLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.accent,
+    textDecorationLine: 'underline',
+  },
+  proposeTimePickerColumn: { alignItems: 'stretch', gap: 8 },
+  proposeAddSlotBtn: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: colors.accent,
+  },
+  proposeAddSlotBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  proposePlaceLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+  proposePlaceInput: {
+    backgroundColor: colors.bgSubtle,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  proposeBtnRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  proposeCancelBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 13,
+    borderRadius: 14,
+    backgroundColor: colors.bgSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  proposeCancelBtnText: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+  proposeConfirmBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 13,
+    borderRadius: 14,
+    backgroundColor: colors.accent,
+  },
+  proposeConfirmBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
   msgWrap: { flexDirection: 'row', marginBottom: 6, alignItems: 'flex-end' },
   msgWrapMine: { justifyContent: 'flex-end' },
   msgWrapTheirs: { justifyContent: 'flex-start' },

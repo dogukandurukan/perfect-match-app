@@ -117,8 +117,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          title: 'Buzz',
-          headerTitle: 'Buzz',
+          title: 'Activity',
+          headerTitle: 'Activity',
           tabBarIcon: ({ color, size, focused }) => (
             <TabBarNotificationsIcon color={color} size={size ?? 24} focused={focused} />
           ),
@@ -139,7 +139,7 @@ export default function TabLayout() {
         options={{
           // Reached via the header avatar icon (TabHeaderActions) now, not
           // the bottom bar — Profile isn't a check-repeatedly feed like
-          // Matches/Buzz/Chats, so it doesn't need equal billing there
+          // Matches/Activity/Chats, so it doesn't need equal billing there
           // (user request, 2026-09-06; matches Hinge/Tinder's own pattern
           // of a header-icon profile instead of a 5th bottom tab).
           href: null,

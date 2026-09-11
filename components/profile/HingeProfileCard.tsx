@@ -65,7 +65,7 @@ export function ChipGrid({ chips }: { chips: ProfileChip[] }) {
   );
 }
 
-/** Bağlamlı beğeni hedefi — Home Note etkileşimi + Buzz Faz B aynı `likes` şemasını besler (bkz CLAUDE.md §3/§5). */
+/** Bağlamlı beğeni hedefi — Home Note etkileşimi + Activity Faz B aynı `likes` şemasını besler (bkz CLAUDE.md §3/§5). */
 export type NoteTarget = {
   type: 'photo' | 'prompt';
   /** likes.target_key olacak: 'photo-0' (hero), 'photo-1'… veya prompt.id */
