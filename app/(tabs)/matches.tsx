@@ -19,7 +19,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import {
-  acceptMatchInvite,
   formatIntroLines,
   introAnswersForUser,
   orderedPair,
@@ -95,7 +94,6 @@ type IncomingInvite = {
   displayPhotoUrl: string;
   matchScore: number;
   introAnswers: IntroAnswers | null;
-  otherGender: string | null;
 };
 
 type OutgoingInvite = {
@@ -372,7 +370,6 @@ export default function MatchesTab() {
   const [myGender, setMyGender] = useState<string | null>(null);
   const [myCity, setMyCity] = useState<string | null>(null);
   const [commonSelf, setCommonSelf] = useState<CommonSelf | null>(null);
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [dailyInvites, setDailyInvites] = useState<DailyInvitesState | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<MatchCardData | null>(null);
 
@@ -629,7 +626,7 @@ export default function MatchesTab() {
 
           // Mutual-like matches (invited_by never set — no one "invited" the
           // other, they liked each other) are left out of this list on
-          // purpose: Buzz's "You matched!" card and the Chats tab already
+          // purpose: Activity's "You matched!" card and the Chats tab already
           // both link straight into the same conversation, a third copy
           // here was redundant (user feedback, 2026-09-09). Matches' own
           // invite-flow opens (invited_by set) still show as before.
@@ -660,7 +657,6 @@ export default function MatchesTab() {
               displayPhotoUrl,
               matchScore: Math.round(Number(row.match_score) || 0),
               introAnswers: inviterAnswers,
-              otherGender: profile?.gender ?? null,
             });
           } else if (invitedBy === userId) {
             nextOutgoing.push({
@@ -799,50 +795,6 @@ export default function MatchesTab() {
       };
     }, [reloadKey]),
   );
-
-  async function handleAccept(invite: IncomingInvite) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    setAcceptingId(invite.matchId);
-    const result = await acceptMatchInvite({
-      matchId: invite.matchId,
-      currentUserId: user.id,
-      currentUserGender: myGender,
-      otherUserGender: invite.otherGender,
-    });
-    setAcceptingId(null);
-
-    if (!result.ok) {
-      Alert.alert('Could not accept', result.error ?? 'Something went wrong.');
-      return;
-    }
-
-    setIncoming((prev) => prev.filter((i) => i.matchId !== invite.matchId));
-
-    if (result.chatOpened) {
-      setOpenChats((prev) => [
-        {
-          matchId: invite.matchId,
-          userId: invite.userId,
-          firstName: invite.firstName,
-          age: invite.age,
-          displayPhotoUrl: invite.displayPhotoUrl,
-        },
-        ...prev.filter((c) => c.matchId !== invite.matchId),
-      ]);
-      router.push({
-        pathname: '/chat',
-        params: {
-          userId: invite.userId,
-          userName: invite.firstName ?? 'Chat',
-          matchId: invite.matchId,
-        },
-      });
-    }
-  }
 
   async function handleMaybeLater(invite: IncomingInvite) {
     setIncoming((prev) => prev.filter((i) => i.matchId !== invite.matchId));
@@ -1077,14 +1029,9 @@ export default function MatchesTab() {
                       <View style={styles.inviteActions}>
                         <TouchableOpacity
                           style={styles.acceptBtn}
-                          onPress={() => void handleAccept(invite)}
-                          disabled={acceptingId === invite.matchId}
+                          onPress={() => router.push('/(tabs)/notifications' as never)}
                           activeOpacity={0.8}>
-                          <ThemedText style={styles.acceptBtnText}>
-                            {acceptingId === invite.matchId
-                              ? 'Opening…'
-                              : 'Accept & open chat'}
-                          </ThemedText>
+                          <ThemedText style={styles.acceptBtnText}>Review invite</ThemedText>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.rejectBtn}
