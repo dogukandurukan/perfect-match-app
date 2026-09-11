@@ -4,6 +4,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { HingeProfileCard, type NoteTarget } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { logEvent } from '@/lib/analytics';
 import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompletion';
@@ -480,6 +481,7 @@ export default function HomeScreen() {
         console.warn('recordLike failed', error.message);
         return false;
       }
+      logEvent('like_sent', { target_type: target.type, has_note: !!target.note?.trim() });
       return true;
     },
     [authUserId],

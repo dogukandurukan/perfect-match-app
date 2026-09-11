@@ -1,7 +1,7 @@
 // Screen: Premium (visual placeholder) | Status: placeholder | Last updated: Temmuz 2026
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { logEvent } from '@/lib/analytics';
 
 const ACCENT = '#1A1A1A';
 
@@ -34,6 +35,10 @@ export default function PremiumScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [comingSoonVisible, setComingSoonVisible] = useState(false);
+
+  useEffect(() => {
+    logEvent('premium_screen_viewed');
+  }, []);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -87,7 +92,10 @@ export default function PremiumScreen() {
         <TouchableOpacity
           style={styles.cta}
           activeOpacity={0.85}
-          onPress={() => setComingSoonVisible(true)}>
+          onPress={() => {
+            logEvent('premium_cta_tapped');
+            setComingSoonVisible(true);
+          }}>
           <ThemedText style={styles.ctaText}>Get Premium</ThemedText>
         </TouchableOpacity>
       </ScrollView>

@@ -10,6 +10,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { logEvent } from '@/lib/analytics';
 import { MEETING_VENUE_OPTIONS } from '@/lib/meetingVenues';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -233,6 +234,7 @@ export function Step4Provider({ children }: { children: ReactNode }) {
       const { error: profileErr } = await supabase.from('profiles').upsert(step4UpsertRow, { onConflict: 'id' });
       if (profileErr) throw profileErr;
 
+      logEvent('onboarding_completed');
       router.replace('/(tabs)' as never);
     } catch (e: any) {
       console.error('STEP 4 - submitAll error:', e);

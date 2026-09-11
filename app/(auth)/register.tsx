@@ -15,6 +15,7 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { logEvent } from '@/lib/analytics';
 import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -59,6 +60,7 @@ export default function RegisterScreen() {
     setLoading(false);
 
     if (!signInError && signInData.session) {
+      logEvent('signup_completed');
       router.replace('/profile-setup/step1');
       return;
     }

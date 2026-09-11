@@ -1,3 +1,4 @@
+import { logEvent } from '@/lib/analytics';
 import { supabase } from '@/lib/supabaseClient';
 
 export type IntroAnswers = {
@@ -290,6 +291,7 @@ export async function sendMatchInvite(params: SendInviteParams): Promise<SendInv
     };
   }
 
+  logEvent('invite_sent', { match_id: matchId, chat_opened: openNow });
   return { ok: true, matchId, chatOpened: openNow, error: null, limitReached: false };
 }
 
@@ -336,6 +338,7 @@ export async function acceptMatchInvite(params: {
     return { ok: false, chatOpened: false, error: updateError.message };
   }
 
+  logEvent('invite_accepted', { match_id: params.matchId, chat_opened: openNow });
   return { ok: true, chatOpened: openNow, error: null };
 }
 
