@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_pets: [],
   discovery_education: [],
   discovery_religion: [],
+  discovery_active_today: false,
 };
 
 function SectionTitle({ title }: { title: string }) {

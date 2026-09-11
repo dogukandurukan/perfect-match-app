@@ -67,6 +67,7 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_pets: [],
   discovery_education: [],
   discovery_religion: [],
+  discovery_active_today: false,
 };
 
 // Bumble splits filters into two tabs (user reference screenshots,
@@ -385,6 +386,21 @@ export default function FiltersScreen() {
                     value={settings.discovery_nonsmokers_only}
                     onValueChange={(v) =>
                       applySettings((prev) => ({ ...prev, discovery_nonsmokers_only: v }))
+                    }
+                    trackColor={{ false: '#DDD', true: ACCENT }}
+                  />
+                </View>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleTextWrap}>
+                    <ThemedText style={styles.subLabel}>Active today</ThemedText>
+                    <ThemedText style={styles.toggleHint}>
+                      Only show people who opened the app today
+                    </ThemedText>
+                  </View>
+                  <Switch
+                    value={settings.discovery_active_today}
+                    onValueChange={(v) =>
+                      applySettings((prev) => ({ ...prev, discovery_active_today: v }))
                     }
                     trackColor={{ false: '#DDD', true: ACCENT }}
                   />

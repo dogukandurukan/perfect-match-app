@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { applySessionFromUrl, subscribeAuthDeepLinks } from '@/lib/authDeepLinks';
+import { updateLastActive } from '@/lib/lastActive';
 import { requestAndSaveLocation } from '@/lib/location';
 import {
   registerForPushNotifications,
@@ -77,6 +78,7 @@ function LocationBridge() {
   useEffect(() => {
     if (!userId) return;
     void requestAndSaveLocation(userId);
+    void updateLastActive(userId);
     void (async () => {
       const token = await registerForPushNotifications();
       if (token) await savePushToken(userId, token);
