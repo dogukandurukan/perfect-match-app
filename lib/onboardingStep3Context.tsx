@@ -49,7 +49,10 @@ export const RELIGION_OPTIONS: readonly ReligionOption[] = [
   'Spiritual', 'Religious', 'Agnostic', 'Atheist', 'Prefer not to say',
 ];
 
-export const TOTAL_SCREENS = 8;
+export const TOTAL_SCREENS = 9;
+
+export const PETS_OPTIONS = ['Dog', 'Cat', 'Both', 'Other', 'None'] as const;
+export type PetsOption = (typeof PETS_OPTIONS)[number];
 
 type Step3ContextValue = {
   userId: string | null;
@@ -75,6 +78,8 @@ type Step3ContextValue = {
   setReligion: (v: ReligionOption) => void;
   heightCm: string;
   setHeightCm: (v: string) => void;
+  pets: PetsOption | null;
+  setPets: (v: PetsOption) => void;
 
   submitAll: () => Promise<void>;
 };
@@ -104,6 +109,7 @@ export function Step3Provider({ children }: { children: ReactNode }) {
   const [occupation, setOccupation] = useState('');
   const [religion, setReligion] = useState<ReligionOption | null>(null);
   const [heightCm, setHeightCm] = useState('');
+  const [pets, setPets] = useState<PetsOption | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -207,6 +213,7 @@ export function Step3Provider({ children }: { children: ReactNode }) {
         occupation: occupation.trim() || null,
         religion,
         height_cm: heightOut,
+        pets,
         current_step: 4,
       };
 
@@ -247,6 +254,8 @@ export function Step3Provider({ children }: { children: ReactNode }) {
     setReligion,
     heightCm,
     setHeightCm,
+    pets,
+    setPets,
     submitAll,
   };
 

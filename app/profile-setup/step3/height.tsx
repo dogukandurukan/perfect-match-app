@@ -1,8 +1,8 @@
-// Step3 screen 8/8 — height, last screen. Optional, self-reported, NOT
-// scored in get_top_matches — filter-only (Advanced filters, premium).
-// Finish triggers submitAll() (upserts profiles.current_step=4, then
-// pushes to step4).
+// Step3 screen 8/9 — height. Next goes to pets (last screen). Optional,
+// self-reported, NOT scored in get_top_matches — filter-only (Advanced
+// filters, premium).
 import { StyleSheet, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { QuestionScreen } from '@/components/ui/QuestionScreen';
@@ -10,7 +10,8 @@ import { colors } from '@/lib/designTokens';
 import { TOTAL_SCREENS, useStep3 } from '@/lib/onboardingStep3Context';
 
 export default function Step3Height() {
-  const { heightCm, setHeightCm, saving, submitAll } = useStep3();
+  const router = useRouter();
+  const { heightCm, setHeightCm } = useStep3();
 
   return (
     <QuestionScreen
@@ -19,9 +20,7 @@ export default function Step3Height() {
       macroStep={3}
       title="How tall are you?"
       subtitle="Optional — in cm"
-      onNext={() => void submitAll()}
-      nextLabel={saving ? 'Saving…' : 'Finish'}
-      nextLoading={saving}>
+      onNext={() => router.push('/profile-setup/step3/pets' as never)}>
       <View style={styles.inputWrap}>
         <TextInput
           style={styles.input}
