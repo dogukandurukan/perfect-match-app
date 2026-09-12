@@ -1,8 +1,10 @@
-// Screen: Micro-intro (invite: place + 1-3 time slots) | Status: stable | Last updated: 2026-09-11
+// Screen: Micro-intro (invite: place + 1-3 time slots) | Status: stable | Last updated: 2026-09-12
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -16,7 +18,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { colors } from '@/lib/designTokens';
+import { colors, radius } from '@/lib/designTokens';
 import {
   formatIntroLines,
   formatMeetingTime,
@@ -139,7 +141,6 @@ export default function MicroIntroScreen() {
   const matchPercentage = firstParam(params.matchPercentage);
   const matchIdParam = firstParam(params.matchId);
 
-  const [step, setStep] = useState<0 | 1>(0);
   const [place, setPlace] = useState<string | null>(null);
   const [customPlace, setCustomPlace] = useState('');
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
@@ -325,10 +326,6 @@ export default function MicroIntroScreen() {
       setSavedAnswers(introAnswers);
       setChatOpened(result.chatOpened);
       setDone(true);
-
-      if (result.chatOpened && result.matchId) {
-        // Brief confirmation then chat is available from matches; stay on done screen.
-      }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Something went wrong.';
       Alert.alert('Invite not sent', message);
@@ -375,7 +372,9 @@ export default function MicroIntroScreen() {
                   },
                 })
               }
-              activeOpacity={0.85}>
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Open chat">
               <ThemedText style={styles.doneBtnText}>Open chat</ThemedText>
             </TouchableOpacity>
           ) : null}
@@ -383,7 +382,9 @@ export default function MicroIntroScreen() {
           <TouchableOpacity
             style={styles.doneBtnSecondary}
             onPress={() => router.replace('/(tabs)/matches')}
-            activeOpacity={0.85}>
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Back to matches">
             <ThemedText style={styles.doneBtnSecondaryText}>Back to matches</ThemedText>
           </TouchableOpacity>
         </View>
@@ -391,14 +392,22 @@ export default function MicroIntroScreen() {
     );
   }
 
-  const placeNextDisabled =
-    !resolvedPlace || venuesLoading || (place === CUSTOM_PLACE_OPTION && !customPlace.trim());
-  // Requiring exactly 3 was pure friction — one good time is enough to send
-  // an invite, more just gives the other person options (2026-09-11).
-  const slotsReady = selectedSlots.length >= 1;
+  // resolvedPlace is already null while CUSTOM_PLACE_OPTION is picked but
+  // its text field is still empty, so this alone covers both cases.
+  const canSend = !!resolvedPlace && selectedSlots.length >= 1 && !venuesLoading;
 
   return (
     <ScreenContainer style={styles.container}>
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/matches'))}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Back">
+        <Ionicons name="chevron-back" size={24} color={colors.accent} />
+        <ThemedText style={styles.backText}>Back</ThemedText>
+      </TouchableOpacity>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}>
@@ -429,142 +438,148 @@ export default function MicroIntroScreen() {
             ) : null}
           </View>
 
-          <View style={styles.dotsRow}>
-            <View style={[styles.dot, step === 0 && styles.dotActive, step > 0 && styles.dotDone]} />
-            <View style={[styles.dot, step === 1 && styles.dotActive]} />
-          </View>
+          <ThemedText style={styles.introLine}>
+            Suggest a place and a time — {matchName} can pick what works for them.
+          </ThemedText>
 
-          {step === 0 ? (
-            <>
-              <ThemedText style={styles.question}>Where should you meet?</ThemedText>
-              <View style={styles.optionsWrap}>
-                {venuesLoading ? (
-                  <ThemedText style={styles.loadingText}>Loading places…</ThemedText>
-                ) : (
-                  placeOptions.map((opt) => (
+          <View style={styles.card}>
+            <ThemedText style={styles.cardTitle}>📍 Where</ThemedText>
+            {venuesLoading ? (
+              <ActivityIndicator color={colors.accent} style={styles.placeLoading} />
+            ) : (
+              <View style={styles.placeList}>
+                {placeOptions.map((opt) => {
+                  const on = place === opt;
+                  return (
                     <TouchableOpacity
                       key={opt}
-                      style={[styles.option, place === opt && styles.optionSelected]}
+                      style={[styles.placeRow, on && styles.placeRowSelected]}
                       onPress={() => setPlace(opt)}
-                      activeOpacity={0.8}>
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={opt}
+                      accessibilityState={{ selected: on }}>
                       <ThemedText
-                        style={[styles.optionText, place === opt && styles.optionTextSelected]}>
+                        style={[styles.placeRowText, on && styles.placeRowTextSelected]}
+                        numberOfLines={2}>
                         {opt}
                       </ThemedText>
+                      {on ? (
+                        <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                      ) : null}
                     </TouchableOpacity>
-                  ))
-                )}
+                  );
+                })}
                 {place === CUSTOM_PLACE_OPTION ? (
                   <TextInput
                     style={styles.customInput}
                     placeholder="Place name and area…"
-                    placeholderTextColor="#AAAAAA"
+                    placeholderTextColor={colors.textMuted}
                     value={customPlace}
                     onChangeText={setCustomPlace}
                   />
                 ) : null}
               </View>
-            </>
-          ) : (
-            <>
-              <ThemedText style={styles.question}>Pick 1-3 time options</ThemedText>
-              <ThemedText style={styles.hint}>
-                Suggested from your availability. More options make it easier for them to say
-                yes — {selectedSlots.length}/{MAX_SLOTS} selected.
-              </ThemedText>
-              <View style={styles.optionsWrap}>
-                {slotOptions.map((opt) => {
-                  const on = selectedSlots.includes(opt);
-                  return (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[styles.option, on && styles.optionSelected]}
-                      onPress={() => toggleSlot(opt)}
-                      activeOpacity={0.8}>
-                      <ThemedText style={[styles.optionText, on && styles.optionTextSelected]}>
-                        {on ? '✓ ' : ''}
-                        {formatMeetingTime(opt)}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  );
-                })}
-                {selectedSlots
-                  .filter((s) => !slotOptions.includes(s))
-                  .map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[styles.option, styles.optionSelected]}
-                      onPress={() => toggleSlot(opt)}
-                      activeOpacity={0.8}>
-                      <ThemedText style={[styles.optionText, styles.optionTextSelected]}>
-                        ✓ {formatMeetingTime(opt)}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  ))}
+            )}
+          </View>
 
-                {showTimePicker ? (
-                  <View style={styles.customSlotColumn}>
-                    <DateTimePicker
-                      value={timePickerDraft}
-                      mode="datetime"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      minimumDate={new Date()}
-                      onChange={onTimePickerChange}
-                      style={styles.timePickerSpinner}
-                      themeVariant="light"
-                      textColor="#1A1A1A"
-                    />
-                    {Platform.OS === 'ios' ? (
-                      <TouchableOpacity
-                        style={styles.addSlotBtnWide}
-                        onPress={() => {
-                          addPickedSlot(timePickerDraft.toISOString());
-                          setShowTimePicker(false);
-                        }}
-                        activeOpacity={0.85}>
-                        <ThemedText style={styles.addSlotBtnText}>Add this time</ThemedText>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                ) : (
+          <View style={styles.card}>
+            <ThemedText style={styles.cardTitle}>🕐 When</ThemedText>
+            <ThemedText style={styles.hint}>
+              Suggested from your availability. More options make it easier for them to say
+              yes — {selectedSlots.length}/{MAX_SLOTS} selected.
+            </ThemedText>
+            <View style={styles.slotChipsRow}>
+              {slotOptions.map((opt) => {
+                const on = selectedSlots.includes(opt);
+                return (
                   <TouchableOpacity
-                    style={[styles.option, styles.customTimeOption]}
-                    onPress={openTimePicker}
-                    disabled={selectedSlots.length >= MAX_SLOTS}
-                    activeOpacity={0.8}>
-                    <ThemedText style={styles.optionText}>+ Pick another time</ThemedText>
+                    key={opt}
+                    style={[styles.slotChip, on && styles.slotChipSelected]}
+                    onPress={() => toggleSlot(opt)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={formatMeetingTime(opt)}
+                    accessibilityState={{ selected: on }}>
+                    <ThemedText style={[styles.slotChipText, on && styles.slotChipTextSelected]}>
+                      {formatMeetingTime(opt)}
+                    </ThemedText>
                   </TouchableOpacity>
-                )}
+                );
+              })}
+              {selectedSlots
+                .filter((s) => !slotOptions.includes(s))
+                .map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.slotChip, styles.slotChipSelected]}
+                    onPress={() => toggleSlot(opt)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={formatMeetingTime(opt)}
+                    accessibilityState={{ selected: true }}>
+                    <ThemedText style={[styles.slotChipText, styles.slotChipTextSelected]}>
+                      {formatMeetingTime(opt)}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              {selectedSlots.length < MAX_SLOTS ? (
+                <TouchableOpacity
+                  style={[styles.slotChip, styles.slotChipDashed]}
+                  onPress={openTimePicker}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick another time">
+                  <ThemedText style={styles.slotChipText}>+ Pick another time</ThemedText>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {showTimePicker ? (
+              <View style={styles.timePickerColumn}>
+                <DateTimePicker
+                  value={timePickerDraft}
+                  mode="datetime"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  minimumDate={new Date()}
+                  onChange={onTimePickerChange}
+                  style={styles.timePickerSpinner}
+                  themeVariant="light"
+                  textColor="#1A1A1A"
+                />
+                {Platform.OS === 'ios' ? (
+                  <TouchableOpacity
+                    style={styles.addSlotBtnWide}
+                    onPress={() => {
+                      addPickedSlot(timePickerDraft.toISOString());
+                      setShowTimePicker(false);
+                    }}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Use this time">
+                    <ThemedText style={styles.addSlotBtnText}>Use this time</ThemedText>
+                  </TouchableOpacity>
+                ) : null}
               </View>
-            </>
-          )}
+            ) : null}
+          </View>
         </ScrollView>
 
         <View style={styles.footer}>
-          {step === 1 ? (
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep(0)} activeOpacity={0.85}>
-              <ThemedText style={styles.secondaryBtnText}>Back</ThemedText>
-            </TouchableOpacity>
-          ) : null}
-          {step === 0 ? (
-            <TouchableOpacity
-              style={[styles.primaryBtn, placeNextDisabled && styles.btnDisabled]}
-              disabled={placeNextDisabled}
-              onPress={() => setStep(1)}
-              activeOpacity={0.85}>
-              <ThemedText style={styles.primaryBtnText}>Next</ThemedText>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.primaryBtn, (!slotsReady || sending) && styles.btnDisabled]}
-              disabled={!slotsReady || sending}
-              onPress={() => void handleSendInvite()}
-              activeOpacity={0.85}>
-              <ThemedText style={styles.primaryBtnText}>
-                {sending ? 'Sending…' : "Let's meet"}
-              </ThemedText>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.primaryBtn, !canSend && styles.btnDisabled]}
+            disabled={!canSend || sending}
+            onPress={() => void handleSendInvite()}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Let's meet"
+            accessibilityState={{ disabled: !canSend || sending }}>
+            {sending ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <ThemedText style={styles.primaryBtnText}>☕ Let&apos;s meet</ThemedText>
+            )}
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </ScreenContainer>
@@ -573,19 +588,21 @@ export default function MicroIntroScreen() {
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  backText: { color: colors.accent, fontSize: 16 },
   scroll: { flex: 1 },
-  content: { paddingBottom: 24, gap: 12 },
+  content: { paddingBottom: 24, gap: 14 },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 8,
+    marginTop: 4,
   },
   profilePhoto: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#DDD' },
   photoFallback: { backgroundColor: '#E8E8E8' },
   profileInfo: { flex: 1 },
   profileName: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
-  profileCity: { fontSize: 13, color: '#888', marginTop: 2 },
+  profileCity: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   percentBadge: {
     backgroundColor: colors.accent,
     borderRadius: 12,
@@ -593,58 +610,64 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   percentText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
-  dotsRow: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginVertical: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E0E0E0' },
-  dotActive: { backgroundColor: colors.accent, width: 24 },
-  dotDone: { backgroundColor: colors.accent, opacity: 0.4 },
-  question: {
-    fontSize: 20,
-    fontWeight: '600',
+  introLine: {
+    fontSize: 15,
     color: colors.textPrimary,
-    marginBottom: 4,
+    lineHeight: 21,
   },
-  hint: { fontSize: 13, color: '#888', marginBottom: 8 },
-  optionsWrap: { gap: 10 },
-  option: {
+  card: {
     backgroundColor: colors.bgCard,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderRadius: 14,
+    padding: 16,
+    gap: 10,
   },
-  // Was a pale gold fill (`#FFF8E1`) left over from before the black-identity
-  // migration — clashed with the now-black accent border (2026-09-11).
-  optionSelected: { borderColor: colors.accent, backgroundColor: colors.accent },
-  optionText: { fontSize: 15, color: colors.textPrimary },
-  optionTextSelected: { color: '#FFF', fontWeight: '700' },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
+  hint: { fontSize: 12.5, color: colors.textMuted, marginTop: -4 },
+  placeLoading: { marginVertical: 12 },
+  placeList: { gap: 8 },
+  placeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: colors.bgSubtle,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  placeRowSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+  placeRowText: { flex: 1, fontSize: 14.5, color: colors.textPrimary },
+  placeRowTextSelected: { color: '#FFFFFF', fontWeight: '700' },
   customInput: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.bgSubtle,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: colors.textPrimary,
+    fontSize: 14.5,
     borderWidth: 1,
     borderColor: colors.accent,
-    marginTop: 4,
   },
-  customSlotRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  slotChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  slotChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: colors.bgSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  slotChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+  slotChipDashed: { borderStyle: 'dashed', borderColor: colors.accent },
+  slotChipText: { fontSize: 13.5, fontWeight: '600', color: colors.textPrimary },
+  slotChipTextSelected: { color: '#FFFFFF' },
   // Picker stacked above its confirm button — side-by-side pushed the button
   // off-screen since the spinner (3 columns: day/hour/minute) is wider than
   // it looks and doesn't shrink to share a row (2026-08-25, device testing).
-  customSlotColumn: { gap: 8, alignItems: 'stretch' },
-  timePickerSpinner: { alignSelf: 'center' },
-  customTimeOption: {
-    borderStyle: 'dashed',
-    borderColor: colors.accent,
-    alignItems: 'center',
-  },
-  addSlotBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
+  timePickerColumn: { gap: 8, alignItems: 'stretch', marginTop: 4 },
+  timePickerSpinner: { alignSelf: 'stretch', width: '100%', height: 180, backgroundColor: '#FFFFFF' },
   addSlotBtnWide: {
     backgroundColor: colors.accent,
     borderRadius: 12,
@@ -652,8 +675,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addSlotBtnText: { color: '#FFF', fontWeight: '600' },
-  loadingText: { color: '#888', textAlign: 'center', marginTop: 12 },
-  footer: { gap: 10, paddingTop: 8, paddingBottom: 8 },
+  footer: { paddingTop: 8, paddingBottom: 8 },
   primaryBtn: {
     backgroundColor: colors.accent,
     borderRadius: 12,
@@ -661,14 +683,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
-  secondaryBtn: {
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  secondaryBtnText: { color: colors.textPrimary, fontWeight: '600' },
   btnDisabled: { opacity: 0.45 },
   doneWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 12 },
   doneEmoji: { fontSize: 48 },
@@ -678,7 +692,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     textAlign: 'center',
   },
-  doneSubtitle: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22 },
+  doneSubtitle: { fontSize: 15, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
   confirmedBox: {
     width: '100%',
     backgroundColor: colors.bgCard,
