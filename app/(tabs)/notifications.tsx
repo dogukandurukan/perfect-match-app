@@ -20,6 +20,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors, radius } from '@/lib/designTokens';
+import { hingeSafeAge } from '@/lib/hingeProfile';
 import { formatRelativeTime } from '@/lib/labels';
 import {
   acceptMatchInvite,
@@ -63,7 +64,13 @@ type LikerRow = {
 };
 
 // Resolved-for-render version of a premium (unlocked) liker tile.
-type UnlockedLiker = { likerId: string; firstName: string | null; photoUrl: string | null };
+type UnlockedLiker = {
+  likerId: string;
+  firstName: string | null;
+  age: number;
+  photoUrl: string | null;
+  hasNote: boolean;
+};
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 type IconSpec = { name: IoniconName; color: string; bg: string };
@@ -84,9 +91,6 @@ const FEATURED_TYPES = new Set([
 ]);
 const isLikeType = (t: NotificationType) => LIKE_TYPES.has(t);
 const isFeaturedType = (t: NotificationType) => FEATURED_TYPES.has(t);
-
-// Blurred face tiles shown before the "+N" counter tile in the likes strip.
-const LIKE_FACE_TILES = 3;
 
 function typeIcon(type: NotificationType): IconSpec {
   switch (type) {
@@ -218,6 +222,54 @@ function routeForType(
 // liker's identity to anyone inspecting the response; anonymous tiles fix that).
 // Unlocked (premium): RPC returns real liker_id/first_name/photo_path — tiles
 // show the real (unblurred) photo and are tappable straight to their profile.
+// Locked placeholder count — real grid feel even before unlocking, capped so
+// a very high like count doesn't produce an absurdly long anonymous list.
+const LOCKED_GRID_TILES = 8;
+
+function LikeGridCard({
+  liker,
+  onPress,
+}: {
+  liker: UnlockedLiker;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.likeGridCard}
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${liker.firstName ?? 'their'} profile`}>
+      {liker.photoUrl ? (
+        <Image
+          source={{ uri: liker.photoUrl }}
+          style={styles.likeGridImg}
+          contentFit="cover"
+          transition={150}
+        />
+      ) : (
+        <View style={[styles.likeGridImg, styles.likeTileFallback]}>
+          <ThemedText style={styles.likeTileInitial}>
+            {(liker.firstName ?? '♥').charAt(0).toUpperCase()}
+          </ThemedText>
+        </View>
+      )}
+      {liker.hasNote ? (
+        <View style={styles.likeGridNotePill}>
+          <Ionicons name="chatbubble-ellipses" size={11} color="#FFFFFF" />
+          <ThemedText style={styles.likeGridNoteText}>Note</ThemedText>
+        </View>
+      ) : null}
+      <View style={styles.likeGridScrim}>
+        <ThemedText style={styles.likeGridName} numberOfLines={1}>
+          {liker.firstName ?? 'Someone'}
+          {liker.age > 0 ? `, ${liker.age}` : ''}
+        </ThemedText>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function LikesSection({
   count,
   unlocked,
@@ -235,79 +287,55 @@ function LikesSection({
   const title = count === 1 ? '1 person likes you' : `${count} people like you`;
 
   if (!unlocked) {
-    const anonymousTiles = Math.min(count, LIKE_FACE_TILES);
+    const anonymousTiles = Math.min(count, LOCKED_GRID_TILES);
     const remainder = count - anonymousTiles;
     return (
-      <TouchableOpacity
-        style={styles.likes}
-        onPress={onPressLocked}
-        activeOpacity={0.9}
-        accessibilityRole="button"
-        accessibilityLabel={`${title}. Unlock to see who.`}>
+      <View style={styles.likes}>
         <ThemedText style={styles.likesTitle}>{title}</ThemedText>
         <ThemedText style={styles.likesSub}>Someone new is into you — unlock to see who</ThemedText>
 
-        <View style={styles.likesStrip}>
+        <View style={styles.likesGrid}>
           {Array.from({ length: anonymousTiles }).map((_, i) => (
-            <View key={i} style={[styles.likeTile, styles.likeTileFallback]}>
-              <Ionicons name="heart" size={22} color="#1A1A1A" />
+            <View key={i} style={[styles.likeGridCard, styles.likeTileFallback]}>
+              <Ionicons name="heart" size={26} color="#1A1A1A" />
             </View>
           ))}
           {remainder > 0 ? (
-            <View style={[styles.likeTile, styles.likeTileMore]}>
+            <View style={[styles.likeGridCard, styles.likeTileMore]}>
               <ThemedText style={styles.likeTileMoreText}>+{remainder}</ThemedText>
             </View>
           ) : null}
         </View>
 
-        <View style={styles.likesUnlock}>
+        <TouchableOpacity
+          style={styles.likesUnlock}
+          onPress={onPressLocked}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Unlock to see who likes you">
           <Ionicons name="lock-closed" size={15} color="#FFFFFF" />
           <ThemedText style={styles.likesUnlockText}>Unlock to see who likes you</ThemedText>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     );
   }
 
-  const faces = likers.slice(0, LIKE_FACE_TILES);
-  const remainder = count - faces.length;
   const unlockedTitle =
-    count === 1 && faces[0]?.firstName ? `${faces[0].firstName} likes you` : title;
+    count === 1 && likers[0]?.firstName ? `${likers[0].firstName} likes you` : title;
 
   return (
     <View style={styles.likes}>
       <ThemedText style={styles.likesTitle}>{unlockedTitle}</ThemedText>
       <ThemedText style={styles.likesSub}>Tap someone to see their profile</ThemedText>
 
-      <View style={styles.likesStrip}>
-        {faces.map((liker) => (
-          <TouchableOpacity
+      <View style={styles.likesGrid}>
+        {likers.map((liker) => (
+          <LikeGridCard
             key={liker.likerId}
-            style={styles.likeTile}
+            liker={liker}
             onPress={() => onPressLiker(liker.likerId)}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${liker.firstName ?? 'their'} profile`}>
-            {liker.photoUrl ? (
-              <Image
-                source={{ uri: liker.photoUrl }}
-                style={styles.likeTileImg}
-                contentFit="cover"
-                transition={150}
-              />
-            ) : (
-              <View style={[styles.likeTileImg, styles.likeTileFallback]}>
-                <ThemedText style={styles.likeTileInitial}>
-                  {(liker.firstName ?? '♥').charAt(0).toUpperCase()}
-                </ThemedText>
-              </View>
-            )}
-          </TouchableOpacity>
+          />
         ))}
-        {remainder > 0 ? (
-          <View style={[styles.likeTile, styles.likeTileMore]}>
-            <ThemedText style={styles.likeTileMoreText}>+{remainder}</ThemedText>
-          </View>
-        ) : null}
       </View>
     </View>
   );
@@ -862,7 +890,9 @@ export default function NotificationsScreen() {
       total_count: number;
       liker_id: string | null;
       first_name: string | null;
+      date_of_birth: string | null;
       photo_path: string | null;
+      note: string | null;
       created_at: string;
     }[];
     const unlocked = rows.some((r) => r.liker_id != null);
@@ -874,10 +904,11 @@ export default function NotificationsScreen() {
       return;
     }
 
+    // Real grid now (Hinge reference, 2026-09-12) — no longer capped to 3
+    // tiles. RPC's own p_limit (default 50) already bounds this.
     const resolved = await Promise.all(
       rows
         .filter((r): r is typeof r & { liker_id: string } => r.liker_id != null)
-        .slice(0, LIKE_FACE_TILES)
         .map(async (r) => {
           let photoUrl: string | null = null;
           if (r.photo_path) {
@@ -887,7 +918,13 @@ export default function NotificationsScreen() {
               /* skip broken photo */
             }
           }
-          return { likerId: r.liker_id, firstName: r.first_name, photoUrl };
+          return {
+            likerId: r.liker_id,
+            firstName: r.first_name,
+            age: hingeSafeAge(r.date_of_birth),
+            photoUrl,
+            hasNote: !!r.note?.trim(),
+          };
         }),
     );
     setLikers(resolved);
@@ -1539,7 +1576,10 @@ export default function NotificationsScreen() {
       likers={likers}
       onPressLocked={() => router.push('/premium' as never)}
       onPressLiker={(likerId) =>
-        router.push({ pathname: '/user-profile', params: { userId: likerId } } as never)
+        router.push({
+          pathname: '/user-profile',
+          params: { userId: likerId, context: 'liked_you' },
+        } as never)
       }
     />
   );
@@ -1641,27 +1681,53 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 14,
   },
-  likesStrip: {
+  // Real 2-column grid (Hinge reference, 2026-09-12) — replaced the old
+  // 3-tile-plus-counter strip, which read as "too few photos" for a dating
+  // app even once unlocked.
+  likesGrid: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 10,
     marginBottom: 14,
   },
-  likeTile: {
-    flex: 1,
-    maxWidth: 110,
-    aspectRatio: 0.9,
-    borderRadius: 12,
+  likeGridCard: {
+    width: '48%',
+    aspectRatio: 0.72,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#EDE2C2',
   },
-  likeTileImg: { width: '100%', height: '100%' },
+  likeGridImg: { width: '100%', height: '100%' },
+  likeGridScrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  likeGridName: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  likeGridNotePill: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  likeGridNoteText: { fontSize: 10.5, fontWeight: '700', color: '#FFFFFF' },
   likeTileFallback: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#E6D6A8',
   },
   likeTileInitial: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '800',
     color: '#1A1A1A',
   },
@@ -1671,7 +1737,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   likeTileMoreText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
   },

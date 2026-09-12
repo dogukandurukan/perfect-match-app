@@ -115,6 +115,10 @@ export default function UserProfileScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const userId = firstParam(params.userId);
+  // Set only when reached from Activity's "Liked You" grid (2026-09-12) —
+  // this person already liked me and there's no match yet, so instead of
+  // the usual message/report/block row this shows Like-back/Not-for-me.
+  const fromLikedYou = firstParam(params.context) === 'liked_you';
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -126,6 +130,7 @@ export default function UserProfileScreen() {
   const [reportReason, setReportReason] = useState('');
   const [blocked, setBlocked] = useState(false);
   const [matchStatus, setMatchStatus] = useState<'pending' | 'accepted' | null>(null);
+  const [likingBack, setLikingBack] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -265,6 +270,47 @@ export default function UserProfileScreen() {
       return;
     }
     Alert.alert('Report sent', 'Thanks for letting us know.');
+  }
+
+  // Liked-You review — this person already liked me, so liking back is a
+  // real profile-level like into the same `likes` table Home writes to.
+  // That's enough to trigger handle_mutual_like() server-side (the reverse
+  // row already exists) — instant match, chat opens, both sides notified.
+  // No new backend work needed, this just exercises the existing path from
+  // a different entry point. Deliberately NOT gated behind the daily like
+  // quota — liking someone who already likes you isn't "browsing" (same
+  // reasoning as mutual-like chats skipping the invite quota, CLAUDE.md §4).
+  async function handleLikeBack() {
+    if (!currentUserId || !userId) return;
+    setLikingBack(true);
+    const { error } = await supabase.from('likes').upsert(
+      {
+        liker_id: currentUserId,
+        likee_id: userId,
+        target_type: 'profile',
+        target_key: null,
+        status: 'sent',
+      },
+      { onConflict: 'liker_id,likee_id' },
+    );
+    setLikingBack(false);
+    if (error) {
+      Alert.alert('Could not like back', 'Please try again.');
+      return;
+    }
+    Alert.alert("It's a match! 💛", `You and ${profile?.first_name ?? 'them'} liked each other.`, [
+      { text: 'OK', onPress: () => router.back() },
+    ]);
+  }
+
+  // Local-only dismiss — no "declined" state exists for an incoming like
+  // (mirrors Matches' "Maybe later" and Activity's non-accept decline,
+  // neither of which persist either). Revisiting Activity may show them
+  // again; a real fix needs a SECURITY DEFINER RPC (I can't UPDATE a likes
+  // row where I'm the likee under today's RLS) — deferred as a small,
+  // separate follow-up rather than folded into this pass.
+  function handleNotForMe() {
+    router.back();
   }
 
   if (loading) {
@@ -426,6 +472,52 @@ export default function UserProfileScreen() {
         ) : null}
       </ScrollView>
 
+      {!blocked && fromLikedYou && matchStatus === null && (
+        <View style={styles.actionsWrap}>
+          <View style={styles.likeReviewRow}>
+            <TouchableOpacity
+              style={styles.notForMeBtn}
+              onPress={handleNotForMe}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Not for me">
+              <Ionicons name="close" size={26} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.likeBackBtn, likingBack && styles.likeBackBtnDisabled]}
+              onPress={() => void handleLikeBack()}
+              disabled={likingBack}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Like back">
+              {likingBack ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Ionicons name="heart" size={26} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={styles.reportBtn}
+              onPress={() => setReportModalVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Report this person">
+              <Ionicons name="warning-outline" size={15} color={colors.textPrimary} />
+              <ThemedText style={styles.reportBtnText}>Report</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.blockBtn}
+              onPress={handleBlock}
+              accessibilityRole="button"
+              accessibilityLabel="Block this person">
+              <Ionicons name="ban-outline" size={15} color="#C0392B" />
+              <ThemedText style={styles.blockBtnText}>Block</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {!blocked && (matchStatus === 'accepted' || matchStatus === 'pending') && (
         <View style={styles.actionsWrap}>
           {matchStatus === 'accepted' ? (
@@ -558,6 +650,32 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 32,
   },
+  likeReviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 24,
+    paddingVertical: 8,
+  },
+  notForMeBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  likeBackBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+  },
+  likeBackBtnDisabled: { opacity: 0.6 },
   pendingRow: {
     flexDirection: 'row',
     alignItems: 'center',
