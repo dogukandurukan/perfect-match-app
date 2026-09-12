@@ -942,9 +942,22 @@ export default function MatchesTab() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ThemedText style={styles.pageTitle}>Matches</ThemedText>
         {dailyInvites ? (
-          <ThemedText style={styles.invitesLeftText}>
-            {remainingInvitesLabel(dailyInvites)}
-          </ThemedText>
+          <View
+            style={styles.invitesLeftBar}
+            accessibilityRole="progressbar"
+            accessibilityLabel={remainingInvitesLabel(dailyInvites)}
+            accessibilityValue={{ min: 0, max: dailyInvites.limit, now: dailyInvites.count }}>
+            <View style={styles.invitesLeftTrack}>
+              <View
+                style={[
+                  styles.invitesLeftFill,
+                  {
+                    width: `${Math.min(100, Math.max(0, (dailyInvites.count / dailyInvites.limit) * 100))}%`,
+                  },
+                ]}
+              />
+            </View>
+          </View>
         ) : null}
 
         {loading ? (
@@ -1120,12 +1133,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
-  invitesLeftText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: ACCENT,
-    textAlign: 'center',
-    marginBottom: 12,
+  // Bumble-style horizontal progress bar instead of "N invites left" text —
+  // same pattern as Home's daily-like bar (2026-09-12, user request).
+  invitesLeftBar: { paddingBottom: 12 },
+  invitesLeftTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E8E8E8',
+    overflow: 'hidden',
+  },
+  invitesLeftFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: ACCENT,
   },
 
   section: { gap: 12 },
