@@ -28,7 +28,7 @@ import {
   type ProfileSettingsRow,
 } from '@/lib/profileSettings';
 import { supabase } from '@/lib/supabaseClient';
-import { CITY_OPTIONS, type CityOption } from '@/lib/turkishGeo';
+import { CITY_OPTIONS, DISTRICTS_BY_CITY, type CityOption } from '@/lib/turkishGeo';
 
 const ACCENT = '#1A1A1A';
 
@@ -82,6 +82,7 @@ export default function FiltersScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [settings, setSettings] = useState<ProfileSettingsRow>(DEFAULT_SETTINGS);
   const [city, setCity] = useState<CityOption | null>(null);
+  const [district, setDistrict] = useState<string | null>(null);
   const [intent, setIntent] = useState<IntentKey | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -100,12 +101,19 @@ export default function FiltersScreen() {
 
     const [row, { data: profileRow }, { data: intentRow }] = await Promise.all([
       fetchProfileSettings(user.id),
-      supabase.from('profiles').select('city, is_premium').eq('id', user.id).maybeSingle(),
+      supabase.from('profiles').select('city, district, is_premium').eq('id', user.id).maybeSingle(),
       supabase.from('onboarding_answers').select('intent').eq('user_id', user.id).maybeSingle(),
     ]);
     if (row) setSettings(row);
     const rowCity = typeof profileRow?.city === 'string' ? profileRow.city : null;
-    setCity(CITY_OPTIONS.find((c) => c === rowCity) ?? null);
+    const resolvedCity = CITY_OPTIONS.find((c) => c === rowCity) ?? null;
+    setCity(resolvedCity);
+    const rowDistrict = typeof profileRow?.district === 'string' ? profileRow.district : null;
+    setDistrict(
+      resolvedCity && rowDistrict && DISTRICTS_BY_CITY[resolvedCity].includes(rowDistrict)
+        ? rowDistrict
+        : null,
+    );
     setIsPremium(profileRow?.is_premium === true);
     setIntent((intentRow?.intent as IntentKey | null) ?? null);
     setLoading(false);
@@ -181,12 +189,32 @@ export default function FiltersScreen() {
   };
 
   const pickCity = async (opt: CityOption) => {
-    const prev = city;
+    const prevCity = city;
+    const prevDistrict = district;
+    // Changing city invalidates the old district (it belongs to the
+    // previous city's list) — clear it so city/district never mismatch
+    // the way the test account's Izmir/Kadıköy combo did.
     setCity(opt);
+    setDistrict(null);
     if (!userId) return;
-    const { error } = await supabase.from('profiles').update({ city: opt }).eq('id', userId);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ city: opt, district: null })
+      .eq('id', userId);
     if (error) {
-      setCity(prev);
+      setCity(prevCity);
+      setDistrict(prevDistrict);
+      Alert.alert("Couldn't save", error.message);
+    }
+  };
+
+  const pickDistrict = async (opt: string) => {
+    const prev = district;
+    setDistrict(opt);
+    if (!userId) return;
+    const { error } = await supabase.from('profiles').update({ district: opt }).eq('id', userId);
+    if (error) {
+      setDistrict(prev);
       Alert.alert("Couldn't save", error.message);
     }
   };
@@ -263,6 +291,23 @@ export default function FiltersScreen() {
                   />
                 ))}
               </View>
+
+              <ThemedText style={styles.subLabel}>Your district</ThemedText>
+              {city ? (
+                <View style={styles.chipRow}>
+                  {DISTRICTS_BY_CITY[city].map((opt) => (
+                    <Chip
+                      key={opt}
+                      label={opt}
+                      selected={district === opt}
+                      onPress={() => void pickDistrict(opt)}
+                      style={styles.chip}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <ThemedText style={styles.hint}>Pick a city first</ThemedText>
+              )}
             </View>
 
             <View style={styles.card}>
@@ -340,6 +385,15 @@ export default function FiltersScreen() {
               </View>
               <ThemedText style={styles.hint}>Current: {distanceLabel}</ThemedText>
             </View>
+
+            <TouchableOpacity
+              style={styles.applyBtn}
+              activeOpacity={0.85}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Apply filters">
+              <ThemedText style={styles.applyBtnText}>Apply filters</ThemedText>
+            </TouchableOpacity>
           </>
         ) : (
           <View style={styles.advancedWrap}>
@@ -509,6 +563,19 @@ export default function FiltersScreen() {
                   ))}
                 </View>
               </View>
+
+              {/* Every advanced toggle/chip already saves instantly (same
+                  live-save pattern as Basic) — this button doesn't defer
+                  anything, it's a closing action so the flow doesn't feel
+                  like it trails off (user feedback, 2026-09-13). */}
+              <TouchableOpacity
+                style={styles.applyBtn}
+                activeOpacity={0.85}
+                onPress={() => router.back()}
+                accessibilityRole="button"
+                accessibilityLabel="Apply filters">
+                <ThemedText style={styles.applyBtnText}>Apply filters</ThemedText>
+              </TouchableOpacity>
             </View>
 
             {!isPremium ? (
@@ -614,4 +681,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   premiumLockBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  applyBtn: {
+    backgroundColor: ACCENT,
+    borderRadius: 26,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  applyBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });
