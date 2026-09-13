@@ -1,4 +1,4 @@
-// Step3 screen 9/9 — pets, last screen. Optional. NOT scored in
+// Step3 screen 8/8 — pets, last screen. Optional. NOT scored in
 // get_top_matches — filter-only (Advanced filters, premium). Finish
 // triggers submitAll() (upserts profiles.current_step=4, then pushes to
 // step4).
@@ -13,7 +13,7 @@ export default function Step3Pets() {
 
   return (
     <QuestionScreen
-      step={9}
+      step={8}
       totalSteps={TOTAL_SCREENS}
       macroStep={3}
       title="Do you have any pets?"

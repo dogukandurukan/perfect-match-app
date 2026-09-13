@@ -1,4 +1,4 @@
-// Step3 screen 8/9 — height. Next goes to pets (last screen). Optional,
+// Step3 screen 7/8 — height. Next goes to pets (last screen). Optional,
 // self-reported, NOT scored in get_top_matches — filter-only (Advanced
 // filters, premium).
 import { StyleSheet, TextInput, View } from 'react-native';
@@ -15,7 +15,7 @@ export default function Step3Height() {
 
   return (
     <QuestionScreen
-      step={8}
+      step={7}
       totalSteps={TOTAL_SCREENS}
       macroStep={3}
       title="How tall are you?"

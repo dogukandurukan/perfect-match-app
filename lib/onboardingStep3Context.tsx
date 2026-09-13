@@ -25,7 +25,6 @@ export type RechargeOption =
   | 'Depends on the day';
 export type DrinkingSmoking = 'Both' | 'Only drinking' | 'Only smoking' | 'When socializing' | 'Neither';
 export type EducationOption = 'High school' | 'University' | "Master's" | 'Other';
-export type ReligionOption = 'Spiritual' | 'Religious' | 'Agnostic' | 'Atheist' | 'Prefer not to say';
 
 export const MORNING_NIGHT_OPTIONS = ['Morning person', 'Night owl', 'Depends on the day'] as const;
 export const RECHARGE_OPTIONS: readonly RechargeOption[] = [
@@ -45,11 +44,11 @@ export const EDUCATION_FOLLOWUP_PLACEHOLDER: Record<EducationOption, string> = {
   "Master's": 'Which university / field? (optional)',
   Other: "Any details you'd like to share? (optional)",
 };
-export const RELIGION_OPTIONS: readonly ReligionOption[] = [
-  'Spiritual', 'Religious', 'Agnostic', 'Atheist', 'Prefer not to say',
-];
-
-export const TOTAL_SCREENS = 9;
+// religion/beliefs screen removed 2026-09-13 (KVKK: religion is "özel
+// nitelikli veri" under Turkish law — collecting it would've forced a
+// VERBİS data-controller registration; it never fed get_top_matches
+// scoring, so cutting it cost no matching quality, see CLAUDE.md §5).
+export const TOTAL_SCREENS = 8;
 
 export const PETS_OPTIONS = ['Dog', 'Cat', 'Both', 'Other', 'None'] as const;
 export type PetsOption = (typeof PETS_OPTIONS)[number];
@@ -74,8 +73,6 @@ type Step3ContextValue = {
   setEducationDetail: (v: string) => void;
   occupation: string;
   setOccupation: (v: string) => void;
-  religion: ReligionOption | null;
-  setReligion: (v: ReligionOption) => void;
   heightCm: string;
   setHeightCm: (v: string) => void;
   pets: PetsOption | null;
@@ -107,7 +104,6 @@ export function Step3Provider({ children }: { children: ReactNode }) {
   const [education, setEducation] = useState<EducationOption | null>(null);
   const [educationDetail, setEducationDetail] = useState('');
   const [occupation, setOccupation] = useState('');
-  const [religion, setReligion] = useState<ReligionOption | null>(null);
   const [heightCm, setHeightCm] = useState('');
   const [pets, setPets] = useState<PetsOption | null>(null);
   const [saving, setSaving] = useState(false);
@@ -211,7 +207,6 @@ export function Step3Provider({ children }: { children: ReactNode }) {
         education,
         education_detail: educationDetailOut,
         occupation: occupation.trim() || null,
-        religion,
         height_cm: heightOut,
         pets,
         current_step: 4,
@@ -250,8 +245,6 @@ export function Step3Provider({ children }: { children: ReactNode }) {
     setEducationDetail,
     occupation,
     setOccupation,
-    religion,
-    setReligion,
     heightCm,
     setHeightCm,
     pets,

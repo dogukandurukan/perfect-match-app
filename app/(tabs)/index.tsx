@@ -239,7 +239,6 @@ export default function HomeScreen() {
           zodiac_sign: null,
           gender: null,
           pets: null,
-          religion: null,
           morning_night: null,
           core_value: null,
           impressed_by: null,
@@ -254,7 +253,7 @@ export default function HomeScreen() {
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
       .select(
-        'id, languages, bio, first_date_expectation, favorite_spots, education, education_detail, occupation, zodiac_sign, gender, pets, religion, morning_night, core_value, impressed_by, favorite_activity, vibe, photo_verified',
+        'id, languages, bio, first_date_expectation, favorite_spots, education, education_detail, occupation, zodiac_sign, gender, pets, morning_night, core_value, impressed_by, favorite_activity, vibe, photo_verified',
       )
       .in('id', userIds);
 
@@ -270,7 +269,6 @@ export default function HomeScreen() {
       zodiac_sign: string | null;
       gender: string | null;
       pets: string | null;
-      religion: string | null;
       morning_night: string | null;
       core_value: string | null;
       impressed_by: string | null;
@@ -300,7 +298,6 @@ export default function HomeScreen() {
         zodiac_sign: null,
         gender: null,
         pets: null,
-        religion: null,
         morning_night: null,
         core_value: null,
         impressed_by: null,
@@ -326,7 +323,6 @@ export default function HomeScreen() {
         zodiac_sign: extra?.zodiac_sign ?? null,
         gender: extra?.gender ?? null,
         pets: extra?.pets ?? null,
-        religion: extra?.religion ?? null,
         morning_night: extra?.morning_night ?? null,
         core_value: extra?.core_value ?? null,
         impressed_by: extra?.impressed_by ?? null,

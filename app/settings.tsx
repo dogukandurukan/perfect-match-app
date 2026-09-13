@@ -45,7 +45,6 @@ const DEFAULT_SETTINGS: ProfileSettingsRow = {
   discovery_zodiac_signs: [],
   discovery_pets: [],
   discovery_education: [],
-  discovery_religion: [],
   discovery_active_today: false,
 };
 

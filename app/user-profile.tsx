@@ -65,7 +65,6 @@ type UserProfile = {
   smoking: string | null;
   intent: string | null;
   education: string | null;
-  religion: string | null;
   availability_days: string[] | null;
   availability_hours: string[] | null;
   meeting_environment: string[] | null;
@@ -151,7 +150,7 @@ export default function UserProfileScreen() {
             first_name, last_name, date_of_birth, zodiac_sign,
             city, district, gender, languages, meeting_preferences, photos,
             morning_night, recharge_style, hobbies, drinking, smoking,
-            education, religion, availability_days, availability_hours,
+            education, availability_days, availability_hours,
             meeting_environment, first_date_expectation, bio,
             favorite_music, favorite_movie, favorite_book, favorite_activity,
             core_value, impressed_by, dealbreaker, pets, vibe, photo_verified
@@ -354,7 +353,6 @@ export default function UserProfileScreen() {
     zodiac_sign: profile.zodiac_sign,
     gender: profile.gender,
     pets: profile.pets,
-    religion: profile.religion,
     morning_night: profile.morning_night,
     core_value: profile.core_value,
     impressed_by: profile.impressed_by,

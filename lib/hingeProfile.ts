@@ -43,7 +43,6 @@ export type HingeProfilePerson = {
   zodiac_sign?: string | null;
   gender?: string | null;
   pets?: string | null;
-  religion?: string | null;
   morning_night?: string | null;
   core_value?: string | null;
   impressed_by?: string | null;
@@ -178,8 +177,6 @@ export function buildAboutMeChips(person: HingeProfilePerson): ProfileChip[] {
   const smoke = formatSmokingLabel(person.smoking);
   if (smoke) push({ key: 'smoke', icon: 'cloud-outline', label: stripLeadingEmoji(smoke) });
   if (person.pets?.trim()) push({ key: 'pets', icon: 'paw-outline', label: cap(person.pets) });
-  if (person.religion?.trim())
-    push({ key: 'rel', icon: 'book-outline', label: cap(person.religion) });
   return chips;
 }
 

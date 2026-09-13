@@ -1,7 +1,12 @@
-// Step3 screen 6/7 — occupation. Right after education (user request,
+// Step3 screen 6/8 — occupation. Right after education (user request,
 // 2026-09-07: kept separate from education's own follow-up detail since
 // you can have a job without matching the education-level context, and
 // separate from Instagram too — different kind of field, different screen).
+// Next goes straight to height — the religion/beliefs screen that used to
+// sit here was removed (2026-09-13, KVKK: religion is "özel nitelikli
+// veri" under Turkish law, its presence would've forced VERBİS
+// registration; it never fed get_top_matches scoring, so cutting it cost
+// no matching quality).
 import { StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -20,7 +25,7 @@ export default function Step3Occupation() {
       macroStep={3}
       title="What do you do for work?"
       subtitle="Optional"
-      onNext={() => router.push('/profile-setup/step3/religion' as never)}>
+      onNext={() => router.push('/profile-setup/step3/height' as never)}>
       <View style={styles.inputWrap}>
         <TextInput
           style={styles.input}

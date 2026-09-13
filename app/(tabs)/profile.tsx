@@ -29,7 +29,6 @@ type Profile = {
   drinking: string | null;
   smoking: string | null;
   education: string | null;
-  religion: string | null;
   pets: string | null;
   vibe: string | null;
   photo_verified: boolean | null;
@@ -77,7 +76,7 @@ const PROFILE_SELECT = `
   id, first_name, date_of_birth, city, district,
   gender, languages, photos, bio,
   morning_night, hobbies, drinking, smoking,
-  education, religion, pets, vibe, photo_verified,
+  education, pets, vibe, photo_verified,
   availability_days, favorite_spots, first_date_expectation,
   favorite_music, favorite_movie, favorite_book, favorite_activity,
   zodiac_sign, core_value, impressed_by
@@ -197,7 +196,6 @@ export default function ProfileTab() {
     zodiac_sign: profile?.zodiac_sign ?? null,
     gender: profile?.gender ?? null,
     pets: profile?.pets ?? null,
-    religion: profile?.religion ?? null,
     morning_night: profile?.morning_night ?? null,
     core_value: profile?.core_value ?? null,
     impressed_by: profile?.impressed_by ?? null,
