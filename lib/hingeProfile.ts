@@ -24,6 +24,8 @@ export type HingeProfilePerson = {
   district: string | null;
   city: string | null;
   match_percentage?: number | null;
+  match_category?: string | null;
+  reasons?: string[] | null;
   intent: string | null;
   availability_days: string[] | null;
   drinking: string | null;

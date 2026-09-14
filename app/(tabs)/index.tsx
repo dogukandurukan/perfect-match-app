@@ -59,6 +59,8 @@ type TopMatchRow = {
   district: string | null;
   city: string | null;
   match_percentage: number;
+  match_category: string | null;
+  reasons: string[] | null;
   availability_days: string[] | null;
   drinking: string | null;
   smoking: string | null;
@@ -221,6 +223,8 @@ export default function HomeScreen() {
           district: row.district,
           city: row.city,
           match_percentage: row.match_percentage,
+          match_category: row.match_category,
+          reasons: row.reasons,
           intent: intentMap.get(row.user_id) ?? null,
           availability_days: row.availability_days,
           drinking: row.drinking,

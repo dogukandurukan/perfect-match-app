@@ -169,6 +169,12 @@ export function HingeProfileCard({
     typeof person.match_percentage === 'number' && Number.isFinite(person.match_percentage)
       ? Math.round(person.match_percentage)
       : null;
+  // "Why" line (2026-09-14) — get_top_matches now returns real, priority-
+  // ordered reasons instead of an unused placeholder; showing them next to
+  // the % is what makes today's scoring rewrite actually visible to users.
+  const categoryLabel = person.match_category?.trim() || null;
+  const reasonsLine =
+    (person.reasons ?? []).filter((r) => !!r && r.trim().length > 0).join(' · ') || null;
 
   const interleavedBlocks: {
     type: 'prompt' | 'photo';
@@ -220,6 +226,11 @@ export function HingeProfileCard({
               {person.first_name ?? 'Someone'}
               {age > 0 ? `, ${age}` : ''}
             </ThemedText>
+            {reasonsLine ? (
+              <ThemedText style={styles.overlayReasons} numberOfLines={1}>
+                {reasonsLine}
+              </ThemedText>
+            ) : null}
             {occupationLine ? (
               <View style={styles.overlayInfoRow}>
                 <Ionicons name="briefcase-outline" size={14} color="#FFFFFF" />
@@ -236,6 +247,11 @@ export function HingeProfileCard({
           {pct !== null ? (
             <View style={styles.matchBadge}>
               <ThemedText style={styles.matchBadgeText}>%{pct}</ThemedText>
+              {categoryLabel ? (
+                <ThemedText style={styles.matchBadgeCategory} numberOfLines={1}>
+                  {categoryLabel}
+                </ThemedText>
+              ) : null}
             </View>
           ) : null}
           {onNoteTarget ? (
@@ -429,6 +445,14 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
+  overlayReasons: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 13,
+    fontWeight: '500',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
   matchBadge: {
     position: 'absolute',
     top: 16,
@@ -439,8 +463,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    alignItems: 'center',
+    maxWidth: 140,
   },
   matchBadgeText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  matchBadgeCategory: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 1,
+  },
   overlayInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
