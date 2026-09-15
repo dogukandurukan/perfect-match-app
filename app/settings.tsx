@@ -16,8 +16,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import {
+  deleteAccountPermanently,
   fetchProfileSettings,
-  softDeleteAccount,
   updateProfileSettings,
   type ProfileSettingsRow,
 } from '@/lib/profileSettings';
@@ -196,22 +196,25 @@ export default function SettingsScreen() {
   );
 
   const handleDeleteAccount = () => {
-    Alert.alert('Delete your account?', "This can't be undone.", [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          if (!userId) return;
-          const { error } = await softDeleteAccount(userId);
-          if (error) {
-            Alert.alert('Error', error);
-            return;
-          }
-          router.replace('/(auth)/login');
+    Alert.alert(
+      'Delete your account?',
+      'This permanently deletes your profile, photos, and messages. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await deleteAccountPermanently();
+            if (error) {
+              Alert.alert('Error', error);
+              return;
+            }
+            router.replace('/(auth)/login');
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const handleSignOut = () => {

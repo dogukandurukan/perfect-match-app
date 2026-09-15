@@ -77,14 +77,19 @@ export async function updateProfileSettings(
   return { error: error?.message ?? null };
 }
 
-export async function softDeleteAccount(userId: string): Promise<{ error: string | null }> {
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ deleted_at: new Date().toISOString(), is_hidden: true })
-    .eq('id', userId);
+// Real deletion (2026-09-15) — was a soft-delete (deleted_at/is_hidden flags
+// only, auth identity and data untouched) which doesn't satisfy Apple's
+// "must actually delete, not just deactivate" requirement. Now calls the
+// delete-account Edge Function (service-role — needed to remove the
+// auth.users row and Storage objects, neither reachable from the client).
+// The function identifies the caller from their own JWT; no id is passed.
+export async function deleteAccountPermanently(): Promise<{ error: string | null }> {
+  const { data, error } = await supabase.functions.invoke('delete-account');
+  if (error) return { error: error.message };
+  if (data?.error) return { error: data.error };
 
-  if (profileError) return { error: profileError.message };
-
-  const { error: signOutError } = await supabase.auth.signOut();
-  return { error: signOutError?.message ?? null };
+  // The account is already gone server-side; this just clears the local
+  // session so the client doesn't hold a token for a deleted user.
+  await supabase.auth.signOut();
+  return { error: null };
 }
