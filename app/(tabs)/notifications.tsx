@@ -940,9 +940,13 @@ export default function NotificationsScreen() {
   });
 
   const fetchChecklist = useCallback(async () => {
+    // getSession() (local, no network) instead of getUser() — this, plus
+    // fetchNotifications and fetchLikers below, all independently called
+    // getUser() on every Activity focus (2026-09-15 fix).
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     const [{ data: prof }, { count: sentCount }] = await Promise.all([
@@ -969,8 +973,9 @@ export default function NotificationsScreen() {
     setLoading(true);
     setError(false);
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
 
     if (!user) {
       setItems([]);
@@ -1240,8 +1245,9 @@ export default function NotificationsScreen() {
 
     setRespondingId(item.id);
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       setRespondingId(null);
       return;
@@ -1350,8 +1356,9 @@ export default function NotificationsScreen() {
     }
 
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
 
     setRespondingId(item.id);
     if (action === 'yes') {
@@ -1496,8 +1503,9 @@ export default function NotificationsScreen() {
 
   async function handleMarkAllRead() {
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     setMarkingAll(true);

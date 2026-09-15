@@ -98,8 +98,9 @@ export default function ProfileTab() {
         setLoading(true);
         setError(false);
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
         if (!user || !mounted) {
           setLoading(false);
           return;

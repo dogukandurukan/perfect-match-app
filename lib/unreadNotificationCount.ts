@@ -20,9 +20,12 @@ export function onUnreadNotificationCountChange(listener: UnreadListener) {
 const HIDDEN_FROM_BADGE = '(like,new_like,someone_liked,new_match)';
 
 export async function fetchUnreadNotificationCount(): Promise<number> {
+  // getSession() (local, no network) instead of getUser() (network round
+  // trip every call) — same fix as unreadMessageCount.ts, 2026-09-15.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) return 0;
 
   const { count, error } = await supabase

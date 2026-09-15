@@ -384,9 +384,12 @@ export default function MatchesTab() {
         setError(false);
 
         try {
+        // getSession() (local, no network) instead of getUser() — ran on
+        // every Matches focus, 2026-09-15.
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
         if (!user || !mounted) {
           setLoading(false);
           return;

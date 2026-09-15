@@ -35,8 +35,8 @@ export default function MessagesScreen() {
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    void supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data.user?.id ?? null);
+    void supabase.auth.getSession().then(({ data }) => {
+      setCurrentUserId(data.session?.user?.id ?? null);
     });
   }, []);
 

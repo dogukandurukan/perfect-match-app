@@ -113,10 +113,13 @@ export function Step4Provider({ children }: { children: ReactNode }) {
 
     let mounted = true;
     (async () => {
+      // getSession() (local, no network) instead of getUser() — ran on
+      // every entry into step4, 2026-09-15.
       const {
-        data: { user },
+        data: { session },
         error,
-      } = await supabase.auth.getUser();
+      } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!mounted) return;
       if (error || !user) {
         router.replace('/(auth)/login');

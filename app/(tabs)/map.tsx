@@ -188,8 +188,9 @@ export default function MapScreen() {
 
     (async () => {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
 
       const initial = await getInitialLocation();
 
@@ -291,8 +292,9 @@ export default function MapScreen() {
         style: 'destructive',
         onPress: async () => {
           const {
-            data: { user },
-          } = await supabase.auth.getUser();
+            data: { session },
+          } = await supabase.auth.getSession();
+          const user = session?.user;
           if (!user) return;
           const { error } = await supabase.from('reports').insert({
             reporter_id: user.id,

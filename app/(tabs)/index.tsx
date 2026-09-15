@@ -142,14 +142,23 @@ export default function HomeScreen() {
     };
   });
 
-  const refreshProfileState = useCallback(async (): Promise<ProfileSetupState | null> => {
+  const refreshProfileState = useCallback(async (): Promise<{
+    state: ProfileSetupState | null;
+    userId: string | null;
+  }> => {
+    // getSession() (local, no network) instead of getUser() — this ran on
+    // every Home focus, twice in the same effect below (found via
+    // systematic debugging, 2026-09-15 — user-reported app-wide nav lag).
+    // Now returns userId too, so the focus effect below can reuse it
+    // instead of calling auth a second time.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       setProfileState(null);
       setChecking(false);
-      return null;
+      return { state: null, userId: null };
     }
     const state = await getProfileSetupState(user.id);
     if (state === 'setup1') router.replace('/profile-setup/step1');
@@ -158,7 +167,7 @@ export default function HomeScreen() {
     else if (state === 'setup4') router.replace('/profile-setup/step4');
     setProfileState(state);
     setChecking(false);
-    return state;
+    return { state, userId: user.id };
   }, [router]);
 
   useEffect(() => {
@@ -341,19 +350,15 @@ export default function HomeScreen() {
     useCallback(() => {
       let mounted = true;
       (async () => {
-        const state = await refreshProfileState();
+        const { state, userId } = await refreshProfileState();
         if (!mounted) return;
+        if (!userId || state !== 'complete') return;
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user || state !== 'complete') return;
-
-        setAuthUserId(user.id);
+        setAuthUserId(userId);
 
         const [{ data: meRow }, viewsState] = await Promise.all([
-          supabase.from('profiles').select('city').eq('id', user.id).maybeSingle(),
-          getDailyViewsState(user.id),
+          supabase.from('profiles').select('city').eq('id', userId).maybeSingle(),
+          getDailyViewsState(userId),
         ]);
         if (!mounted) return;
         setMyCity(typeof meRow?.city === 'string' ? meRow.city : null);
@@ -364,7 +369,7 @@ export default function HomeScreen() {
           .select(
             'id, status, user_a_id, user_b_id, user_a_accepted, user_b_accepted, user_a_intro_answers, user_b_intro_answers, profiles!matches_user_b_id_fkey (first_name)',
           )
-          .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+          .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
           .eq('status', 'accepted')
           .limit(1)
           .single();
@@ -372,7 +377,7 @@ export default function HomeScreen() {
         if (!mounted) return;
 
         if (accepted) {
-          const isUserA = accepted.user_a_id === user.id;
+          const isUserA = accepted.user_a_id === userId;
           const otherProfile = accepted.profiles as { first_name?: string } | null;
           setActiveMatch({
             matchId: accepted.id,
@@ -387,7 +392,7 @@ export default function HomeScreen() {
             .select(
               'id, status, user_a_id, user_b_id, user_a_accepted, user_b_accepted, profiles!matches_user_b_id_fkey (first_name)',
             )
-            .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+            .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
             .eq('status', 'pending')
             .eq('user_a_accepted', true)
             .limit(1)
@@ -395,7 +400,7 @@ export default function HomeScreen() {
 
           if (!mounted) return;
           if (pending) {
-            const isUserA = pending.user_a_id === user.id;
+            const isUserA = pending.user_a_id === userId;
             const otherProfile = pending.profiles as { first_name?: string } | null;
             setActiveMatch({
               matchId: pending.id,
@@ -426,7 +431,7 @@ export default function HomeScreen() {
         setFeedLoading(true);
         setFeedError(false);
         try {
-          const nextUsers = await loadFeed(user.id);
+          const nextUsers = await loadFeed(userId);
           if (!mounted) return;
 
           setFeedUsers(nextUsers);

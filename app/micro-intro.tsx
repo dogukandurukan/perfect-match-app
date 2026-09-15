@@ -166,8 +166,9 @@ export default function MicroIntroScreen() {
       setVenuesLoading(true);
       try {
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
 
         let userDistrict: string | null = null;
         if (user) {
@@ -286,8 +287,9 @@ export default function MicroIntroScreen() {
     setSending(true);
     try {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('You need to be signed in.');
 
       const introAnswers: IntroAnswers = {

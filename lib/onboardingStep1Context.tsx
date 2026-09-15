@@ -211,14 +211,16 @@ export function Step1Provider({ children }: { children: ReactNode }) {
 
     let mounted = true;
     (async () => {
+      // Was also calling getUser() right after (network round trip) as a
+      // fallback for session?.user — redundant, session already has it,
+      // and getUser()'s extra latency here was blocking every entry into
+      // onboarding behind checkingAuth (found via systematic debugging,
+      // 2026-09-15).
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
 
-      const uid = session?.user?.id ?? user?.id;
+      const uid = session?.user?.id;
       if (!mounted) return;
 
       if (!uid) {

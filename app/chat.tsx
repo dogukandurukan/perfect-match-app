@@ -105,8 +105,10 @@ export default function ChatScreen() {
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    void supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data.user?.id ?? null);
+    // getSession() (local, no network) instead of getUser() — this fires
+    // every time a chat is opened, a very frequent action (2026-09-15 fix).
+    void supabase.auth.getSession().then(({ data }) => {
+      setCurrentUserId(data.session?.user?.id ?? null);
     });
   }, []);
 

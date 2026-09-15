@@ -7,8 +7,9 @@ import { supabase } from '@/lib/supabaseClient';
 export function logEvent(name: string, properties: Record<string, unknown> = {}): void {
   void (async () => {
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
     const { error } = await supabase.from('events').insert({
       user_id: user.id,

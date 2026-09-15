@@ -19,9 +19,14 @@ export function onUnreadMessageCountChange(listener: UnreadListener) {
  * displayed.
  */
 export async function fetchUnreadMessageCount(): Promise<number> {
+  // getSession() reads the cached session locally (no network round trip);
+  // getUser() re-validates against the Auth server every call — this runs
+  // on every tab-bar mount, so the difference is directly felt as app-wide
+  // navigation lag (found via systematic debugging, 2026-09-15).
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) return 0;
 
   const { data: msgs, error } = await supabase

@@ -163,7 +163,8 @@ export default function ProfileEditScreen() {
     useCallback(() => {
       let mounted = true;
       (async () => {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         if (!user || !mounted) return;
 
         const { data } = await supabase
@@ -249,7 +250,8 @@ export default function ProfileEditScreen() {
   }
 
   async function persistPhotosOnly(refs: string[]) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     const { error } = await supabase
@@ -283,7 +285,8 @@ export default function ProfileEditScreen() {
 
     setUploading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('No active session.');
 
       const uri = result.assets[0].uri;
@@ -323,7 +326,8 @@ export default function ProfileEditScreen() {
   async function handleSave() {
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) throw new Error('No active session.');
 
       const cleanedSpots = Object.fromEntries(
