@@ -72,6 +72,19 @@ type UnlockedLiker = {
   hasNote: boolean;
 };
 
+// "Waiting on them" (2026-09-16) — outgoing "Let's meet" invites you sent,
+// still unanswered. Moved here from Matches (was a plain list row there,
+// duplicated the "Open chats" section which Chats already covers) — same
+// photo-grid treatment as the Liked You section below, since that's the
+// layout that reads best for "here are people" on this screen.
+type WaitingOnInvite = {
+  matchId: string;
+  userId: string;
+  firstName: string | null;
+  age: number;
+  photoUrl: string | null;
+};
+
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 type IconSpec = { name: IoniconName; color: string; bg: string };
 
@@ -267,6 +280,69 @@ function LikeGridCard({
         </ThemedText>
       </View>
     </TouchableOpacity>
+  );
+}
+
+// --- "Waiting on them" (2026-09-16) — same grid treatment as the Liked
+// You section, just no lock state (these are your own sent invites).
+function WaitingGridCard({ invite, onPress }: { invite: WaitingOnInvite; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      style={styles.likeGridCard}
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${invite.firstName ?? 'their'} profile`}>
+      {invite.photoUrl ? (
+        <Image
+          source={{ uri: invite.photoUrl }}
+          style={styles.likeGridImg}
+          contentFit="cover"
+          transition={150}
+        />
+      ) : (
+        <View style={[styles.likeGridImg, styles.likeTileFallback]}>
+          <ThemedText style={styles.likeTileInitial}>
+            {(invite.firstName ?? '⏳').charAt(0).toUpperCase()}
+          </ThemedText>
+        </View>
+      )}
+      <View style={styles.likeGridScrim}>
+        <ThemedText style={styles.likeGridName} numberOfLines={1}>
+          {invite.firstName ?? 'Someone'}
+          {invite.age > 0 ? `, ${invite.age}` : ''}
+        </ThemedText>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function WaitingOnThemSection({
+  invites,
+  onPressInvite,
+}: {
+  invites: WaitingOnInvite[];
+  onPressInvite: (userId: string) => void;
+}) {
+  if (invites.length === 0) return null;
+  return (
+    <View style={styles.waitingSection}>
+      <ThemedText style={styles.waitingTitle}>Waiting on them</ThemedText>
+      <ThemedText style={styles.waitingSub}>
+        {invites.length === 1
+          ? "You're waiting for a response"
+          : `You're waiting on ${invites.length} responses`}
+      </ThemedText>
+      <View style={styles.likesGrid}>
+        {invites.map((invite) => (
+          <WaitingGridCard
+            key={invite.matchId}
+            invite={invite}
+            onPress={() => onPressInvite(invite.userId)}
+          />
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -930,6 +1006,71 @@ export default function NotificationsScreen() {
     setLikers(resolved);
   }, []);
 
+  // "Waiting on them" (2026-09-16, moved from Matches) — outgoing invites
+  // I sent (invited_by = me) that aren't answered yet. Mirrors the
+  // exclusion logic matches.tsx used to apply: exclude anything already
+  // chat-opened (that's in Chats now) and expired/passed matches.
+  const [waitingOnThem, setWaitingOnThem] = useState<WaitingOnInvite[]>([]);
+
+  const fetchWaitingOnThem = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
+    if (!user) return;
+
+    const { data: rows, error } = await supabase
+      .from('matches')
+      .select('id, user_a_id, user_b_id, status, invited_by, chat_opened')
+      .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+      .eq('invited_by', user.id)
+      .not('status', 'in', '(expired,passed)');
+
+    if (error || !rows?.length) {
+      setWaitingOnThem([]);
+      return;
+    }
+
+    const pending = rows.filter((r) => r.chat_opened !== true);
+    if (pending.length === 0) {
+      setWaitingOnThem([]);
+      return;
+    }
+
+    const otherIds = pending.map(
+      (r) => (r.user_a_id === user.id ? r.user_b_id : r.user_a_id) as string,
+    );
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, first_name, date_of_birth, photos')
+      .in('id', otherIds);
+    const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+    const resolved = await Promise.all(
+      pending.map(async (row) => {
+        const otherId = (row.user_a_id === user.id ? row.user_b_id : row.user_a_id) as string;
+        const profile = profileById.get(otherId);
+        const firstPhoto = profile?.photos?.[0];
+        let photoUrl: string | null = null;
+        if (firstPhoto) {
+          try {
+            photoUrl = await resolveProfilePhotoUrl(firstPhoto, 3600);
+          } catch {
+            /* skip broken photo */
+          }
+        }
+        return {
+          matchId: row.id as string,
+          userId: otherId,
+          firstName: profile?.first_name ?? null,
+          age: hingeSafeAge(profile?.date_of_birth ?? null),
+          photoUrl,
+        };
+      }),
+    );
+    setWaitingOnThem(resolved);
+  }, []);
+
   // UI-3: activation checklist for the 0-activity empty state. Cheap (one
   // profiles row + one count query) so it's fetched every focus alongside the
   // rest — no separate gating on emptiness.
@@ -1154,7 +1295,8 @@ export default function NotificationsScreen() {
       void fetchNotifications();
       void fetchLikers();
       void fetchChecklist();
-    }, [fetchNotifications, fetchLikers, fetchChecklist]),
+      void fetchWaitingOnThem();
+    }, [fetchNotifications, fetchLikers, fetchChecklist, fetchWaitingOnThem]),
   );
 
   // Derived zones — recompute on items change (read-state edits included).
@@ -1574,6 +1716,12 @@ export default function NotificationsScreen() {
           responding={respondingId === item.id}
         />
       ))}
+      <WaitingOnThemSection
+        invites={waitingOnThem}
+        onPressInvite={(userId) =>
+          router.push({ pathname: '/user-profile', params: { userId } } as never)
+        }
+      />
     </View>
   );
 
@@ -1667,6 +1815,29 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     marginTop: 14,
     marginBottom: 8,
+  },
+
+  // --- Waiting on them (moved from Matches, 2026-09-16) — neutral/dark
+  // treatment (not the gold "premium teaser" look of the likes card below,
+  // this isn't a monetization surface) ---
+  waitingSection: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    padding: 16,
+    marginTop: 14,
+  },
+  waitingTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  waitingSub: {
+    fontSize: 12.5,
+    color: colors.textMuted,
+    marginTop: 2,
+    marginBottom: 14,
   },
 
   // --- Likes premium teaser (footer) ---

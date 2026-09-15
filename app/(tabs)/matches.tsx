@@ -96,22 +96,6 @@ type IncomingInvite = {
   introAnswers: IntroAnswers | null;
 };
 
-type OutgoingInvite = {
-  matchId: string;
-  userId: string;
-  firstName: string | null;
-  age: number;
-  displayPhotoUrl: string;
-};
-
-type OpenChatRow = {
-  matchId: string;
-  userId: string;
-  firstName: string | null;
-  age: number;
-  displayPhotoUrl: string;
-};
-
 type AcceptedMatch = {
   matchId: string;
   userId: string;
@@ -357,8 +341,6 @@ export default function MatchesTab() {
   const insets = useSafeAreaInsets();
   const [cards, setCards] = useState<MatchCardData[]>([]);
   const [incoming, setIncoming] = useState<IncomingInvite[]>([]);
-  const [outgoing, setOutgoing] = useState<OutgoingInvite[]>([]);
-  const [openChats, setOpenChats] = useState<OpenChatRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -614,8 +596,6 @@ export default function MatchesTab() {
         }
 
         const nextIncoming: IncomingInvite[] = [];
-        const nextOutgoing: OutgoingInvite[] = [];
-        const nextOpen: OpenChatRow[] = [];
         const nextAccepted: AcceptedMatch[] = [];
 
         for (const row of rows) {
@@ -633,14 +613,15 @@ export default function MatchesTab() {
           // both link straight into the same conversation, a third copy
           // here was redundant (user feedback, 2026-09-09). Matches' own
           // invite-flow opens (invited_by set) still show as before.
+          //
+          // Two more categories deliberately excluded here too (2026-09-16,
+          // user feedback): chat-opened invite matches — Chats tab already
+          // lists every open conversation, this was a second copy — and
+          // outgoing ("waiting on them") invites, moved to Activity's own
+          // "Waiting on them" grid instead (same page as Liked You, visually
+          // matches better there).
           if (chatOpened && invitedBy) {
-            nextOpen.push({
-              matchId: row.id,
-              userId: otherId,
-              firstName,
-              age,
-              displayPhotoUrl,
-            });
+            // now shown in Chats — nothing to do here
           } else if (invitedBy && invitedBy !== userId) {
             const inviterAnswers = introAnswersForUser(
               {
@@ -661,15 +642,9 @@ export default function MatchesTab() {
               matchScore: Math.round(Number(row.match_score) || 0),
               introAnswers: inviterAnswers,
             });
-          } else if (invitedBy === userId) {
-            nextOutgoing.push({
-              matchId: row.id,
-              userId: otherId,
-              firstName,
-              age,
-              displayPhotoUrl,
-            });
           }
+          // else invitedBy === userId (outgoing, awaiting their response) —
+          // now shown in Activity, nothing to do here.
 
           if (row.status === 'accepted') {
             const isUserA = row.user_a_id === userId;
@@ -687,8 +662,6 @@ export default function MatchesTab() {
         }
 
         setIncoming(nextIncoming);
-        setOutgoing(nextOutgoing);
-        setOpenChats(nextOpen);
         setAcceptedMatches(nextAccepted);
         setInviteByOtherId(inviteMap);
 
@@ -937,8 +910,7 @@ export default function MatchesTab() {
     );
   }
 
-  const hasAnyContent =
-    openChats.length > 0 || incoming.length > 0 || outgoing.length > 0 || cards.length > 0;
+  const hasAnyContent = incoming.length > 0 || cards.length > 0;
 
   return (
     <ScreenContainer style={styles.container}>
@@ -969,41 +941,6 @@ export default function MatchesTab() {
           <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
         ) : (
           <>
-            {openChats.length > 0 ? (
-              <View style={styles.section}>
-                <ThemedText style={styles.sectionTitle}>Open chats</ThemedText>
-                {openChats.map((chat) => (
-                  <TouchableOpacity
-                    key={chat.matchId}
-                    style={styles.acceptedCard}
-                    activeOpacity={0.85}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/chat',
-                        params: {
-                          userId: chat.userId,
-                          userName: chat.firstName ?? 'Chat',
-                          matchId: chat.matchId,
-                        },
-                      })
-                    }>
-                    <Image
-                      source={{ uri: chat.displayPhotoUrl }}
-                      style={styles.acceptedPhoto}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.acceptedInfo}>
-                      <ThemedText style={styles.acceptedName}>
-                        {chat.firstName ?? 'Someone'}
-                        {chat.age > 0 ? `, ${chat.age}` : ''}
-                      </ThemedText>
-                      <ThemedText style={styles.acceptedStatus}>Tap to open chat</ThemedText>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : null}
-
             {incoming.length > 0 ? (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
@@ -1059,29 +996,6 @@ export default function MatchesTab() {
                     </View>
                   );
                 })}
-              </View>
-            ) : null}
-
-            {outgoing.length > 0 ? (
-              <View style={styles.section}>
-                <ThemedText style={styles.sectionTitle}>Waiting on them</ThemedText>
-                {outgoing.map((invite) => (
-                  <View key={invite.matchId} style={styles.acceptedCard}>
-                    <Image
-                      source={{ uri: invite.displayPhotoUrl }}
-                      style={styles.acceptedPhoto}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.acceptedInfo}>
-                      <ThemedText style={styles.acceptedName}>
-                        {invite.firstName ?? 'Someone'}, {invite.age}
-                      </ThemedText>
-                      <ThemedText style={styles.acceptedStatus}>
-                        Waiting for {invite.firstName ?? 'them'} to accept ⏳
-                      </ThemedText>
-                    </View>
-                  </View>
-                ))}
               </View>
             ) : null}
 
@@ -1170,25 +1084,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
-  acceptedCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    gap: 12,
-  },
-  acceptedPhoto: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#DDD',
-  },
-  acceptedInfo: { flex: 1, gap: 4 },
-  acceptedName: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
-  acceptedStatus: { fontSize: 13, color: '#888' },
   checkinBtn: {
     backgroundColor: colors.accent,
     borderRadius: 10,
