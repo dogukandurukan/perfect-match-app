@@ -372,8 +372,13 @@ function LikesSection({
 
         <View style={styles.likesGrid}>
           {Array.from({ length: anonymousTiles }).map((_, i) => (
-            <View key={i} style={[styles.likeGridCard, styles.likeTileFallback]}>
-              <Ionicons name="heart" size={26} color="#1A1A1A" />
+            <View key={i} style={[styles.likeGridCard, styles.likeTileLocked]}>
+              <View style={styles.likeTileLockBadge}>
+                <Ionicons name="lock-closed" size={18} color="#FFFFFF" />
+              </View>
+              <View style={styles.likeGridScrim}>
+                <View style={styles.likeTileLockedNameBar} />
+              </View>
             </View>
           ))}
           {remainder > 0 ? (
@@ -389,7 +394,7 @@ function LikesSection({
           activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel="Unlock to see who likes you">
-          <Ionicons name="lock-closed" size={15} color="#FFFFFF" />
+          <Ionicons name="lock-closed" size={17} color="#FFFFFF" />
           <ThemedText style={styles.likesUnlockText}>Unlock to see who likes you</ThemedText>
         </TouchableOpacity>
       </View>
@@ -1841,11 +1846,15 @@ const styles = StyleSheet.create({
   },
 
   // --- Likes premium teaser (footer) ---
+  // Was still on the pre-black-identity gold palette (#FFFBF0/#EBD9A6/
+  // #9A7B2E, left over from 2026-08-16) — every other card on this screen
+  // (waitingSection, featured) moved to the neutral bgCard/border tokens
+  // during the 2026-09-03/04 identity pass; this one got missed.
   likes: {
-    backgroundColor: '#FFFBF0',
+    backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#EBD9A6',
+    borderColor: '#E8E8E8',
     padding: 16,
     marginTop: 6,
   },
@@ -1856,7 +1865,7 @@ const styles = StyleSheet.create({
   },
   likesSub: {
     fontSize: 12.5,
-    color: '#9A7B2E',
+    color: colors.textMuted,
     marginTop: 2,
     marginBottom: 14,
   },
@@ -1872,7 +1881,7 @@ const styles = StyleSheet.create({
   likeGridCard: {
     width: '48%',
     aspectRatio: 0.72,
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
     backgroundColor: '#EDE2C2',
   },
@@ -1905,6 +1914,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#E6D6A8',
   },
+  // Locked "who likes you" placeholder tile — distinct from likeTileFallback
+  // (that one's for a real, unlocked person who just has no photo; reusing
+  // it here would make a real person's initials read as "locked"). Dark
+  // card + lock badge + a blurred-looking name bar in the same scrim slot
+  // real tiles use, so locked and unlocked tiles share the same rhythm.
+  likeTileLocked: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#26262A',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  likeTileLockBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likeTileLockedNameBar: {
+    width: '55%',
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
   likeTileInitial: {
     fontSize: 26,
     fontWeight: '800',
@@ -1924,13 +1959,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 13,
+    gap: 9,
+    paddingVertical: 16,
     borderRadius: radius.pill,
     backgroundColor: colors.accent,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 4,
   },
   likesUnlockText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: '#FFFFFF',
   },
