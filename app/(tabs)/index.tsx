@@ -1,11 +1,19 @@
 // Screen: Ana sayfa sekmesi | Status: stable | Last updated: Mayıs 2026
 import { DailyLimitEmptyState } from '@/components/DailyLimitEmptyState';
 import { ErrorState } from '@/components/ErrorState';
-import { HingeProfileCard, type NoteTarget } from '@/components/profile/HingeProfileCard';
+import { HomeHeader } from '@/components/home/HomeHeader';
+import { ProfileActionButtons } from '@/components/home/ProfileActionButtons';
+import { ProfileFacts } from '@/components/home/ProfileFacts';
+import { ProfileHeroCard } from '@/components/home/ProfileHeroCard';
+import { ProfilePromptCard } from '@/components/home/ProfilePromptCard';
+import { SecondaryPhotoCard } from '@/components/home/SecondaryPhotoCard';
+import { WhyYouMatchCard } from '@/components/home/WhyYouMatchCard';
+import type { NoteTarget } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { logEvent } from '@/lib/analytics';
 import { colors } from '@/lib/designTokens';
+import { homeColors } from '@/lib/homeTheme';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompletion';
 import {
@@ -15,7 +23,7 @@ import {
   remainingDailyViews,
   type DailyViewsState,
 } from '@/lib/dailyViews';
-import { parseFavoriteSpots, type HingeProfilePerson } from '@/lib/hingeProfile';
+import { buildPromptCards, parseFavoriteSpots, type HingeProfilePerson } from '@/lib/hingeProfile';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -29,7 +37,6 @@ import {
   Modal,
   Platform,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -562,15 +569,10 @@ export default function HomeScreen() {
   // the top card away reveals the next profile instead of blank white
   // (Bumble reference — user feedback, 2026-09-07).
   const nextUser = feedUsers[currentIndex + 1] ?? null;
+  // Real daily-like state, fed straight into HomeHeader's DailyLikeQuota —
+  // "N likes left today" + segments (brief), not a used-up progress bar.
   const likesLeft = remainingDailyViews(dailyViews);
-  const likesLeftLabel = `${likesLeft} ${likesLeft === 1 ? 'like' : 'likes'} left today`;
-  // Bumble-style horizontal progress bar instead of text (user request,
-  // 2026-09-10) — fills as the daily like allowance gets used up.
   const likesLimit = dailyViews?.limit ?? DAILY_VIEW_LIMIT;
-  const likesUsedPct = Math.min(
-    100,
-    Math.max(0, ((dailyViews?.count ?? 0) / likesLimit) * 100),
-  );
 
   // activeOffsetX/failOffsetY: only claim the gesture once movement is
   // clearly horizontal, otherwise fail immediately and let the ScrollView
@@ -701,121 +703,107 @@ export default function HomeScreen() {
     return null;
   }
 
+  const promptCards = currentUser ? buildPromptCards(currentUser) : [];
+  const extraPhotos = currentUser ? currentUser.photoUrls.slice(1) : [];
+
   return (
     <View style={styles.feedRoot}>
-      {dailyViews?.limitReached ? (
-        <DailyLimitEmptyState resetAt={dailyViews.resetAt} limit={dailyViews.limit} />
-      ) : feedError && feedUsers.length === 0 ? (
-        <ErrorState onRetry={retryFeed} />
-      ) : feedLoading && feedUsers.length === 0 ? (
-        <View style={styles.loadingFeed}>
-          <ActivityIndicator color={ACCENT} size="large" />
-        </View>
-      ) : !currentUser ? (
-        <View style={styles.noMoreWrap}>
-          <ThemedText style={styles.noMoreTitle}>That&apos;s everyone for today 🌙</ThemedText>
-          <ThemedText style={styles.noMoreSubtitle}>Come back tomorrow for new faces</ThemedText>
-        </View>
-      ) : (
-        <>
-          {/* Sıradaki kişi — kart sürüklenip uçarken arkada gerçek bir foto
-              görünsün diye (boş beyaz ekran yerine, Bumble referansı). */}
-          {nextUser?.photoUrls[0] ? (
-            <View style={styles.nextCardPeek} pointerEvents="none">
-              <Image
-                source={{ uri: nextUser.photoUrls[0] }}
-                style={styles.nextCardPeekImage}
-                contentFit="cover"
-                contentPosition="top"
-              />
-            </View>
-          ) : null}
-
-          <View
-            style={styles.likesLeftBar}
-            accessibilityRole="progressbar"
-            accessibilityLabel={likesLeftLabel}
-            accessibilityValue={{ min: 0, max: likesLimit, now: dailyViews?.count ?? 0 }}>
-            <View style={styles.likesLeftTrack}>
-              <View style={[styles.likesLeftFill, { width: `${likesUsedPct}%` }]} />
-            </View>
+      <HomeHeader
+        likesRemaining={likesLeft}
+        likesLimit={likesLimit}
+        likesLoading={dailyViews === null}
+      />
+      <View style={styles.body}>
+        {dailyViews?.limitReached ? (
+          <DailyLimitEmptyState resetAt={dailyViews.resetAt} limit={dailyViews.limit} />
+        ) : feedError && feedUsers.length === 0 ? (
+          <ErrorState onRetry={retryFeed} />
+        ) : feedLoading && feedUsers.length === 0 ? (
+          <View style={styles.loadingFeed}>
+            <ActivityIndicator color={homeColors.accent} size="large" />
           </View>
-          <GestureDetector gesture={swipeGesture}>
-            <Animated.View style={[styles.swipeCard, cardSwipeStyle]}>
-              {/* Bumble tarzı karar damgası — tam ekran beyaz overlay yerine
-                  kartın kendisine binen, sürükleme mesafesiyle beliren rozet. */}
-              <Animated.View style={[styles.decisionStamp, passStampStyle]} pointerEvents="none">
-                <View style={styles.stampCircle}>
-                  <Ionicons name="close" size={38} color="#1A1A1A" />
-                </View>
-              </Animated.View>
-              <Animated.View style={[styles.decisionStamp, likeStampStyle]} pointerEvents="none">
-                <View style={styles.stampCircle}>
-                  <Ionicons name="heart" size={34} color="#FF3B5C" />
-                </View>
-              </Animated.View>
-              <ScrollView
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}>
-                <HingeProfileCard
-                  person={currentUser}
-                  viewerCity={myCity}
-                  onNoteTarget={handleOpenNote}
-                  heroFullScreen
-                  footer={
-                <View style={styles.footerActions}>
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={styles.passBtn}
-                      activeOpacity={0.85}
-                      disabled={animating}
-                      accessibilityRole="button"
-                      accessibilityLabel="Pass"
-                      onPress={() => flyOffAndDecide(-1, currentUser.user_id)}>
-                      <Text style={styles.passIcon}>✕</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.likeBtn}
-                      activeOpacity={0.85}
-                      disabled={animating}
-                      accessibilityRole="button"
-                      accessibilityLabel="Like"
-                      onPress={() => flyOffAndDecide(1, currentUser.user_id)}>
-                      <Text style={styles.likeIcon}>❤️</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.blockLink}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Block this person"
-                    onPress={handleBlockCurrentUser}>
-                    <ThemedText style={styles.blockLinkText}>Block</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.reportLink}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Report this person"
-                    onPress={() => setReportModalVisible(true)}>
-                    <ThemedText style={styles.reportLinkText}>Report</ThemedText>
-                  </TouchableOpacity>
-                </View>
-              }
+        ) : !currentUser ? (
+          <View style={styles.noMoreWrap}>
+            <ThemedText style={styles.noMoreTitle}>That&apos;s everyone for today 🌙</ThemedText>
+            <ThemedText style={styles.noMoreSubtitle}>Come back tomorrow for new faces</ThemedText>
+          </View>
+        ) : (
+          <>
+            {/* Sıradaki kişi — kart sürüklenip uçarken arkada gerçek bir foto
+                görünsün diye (boş beyaz ekran yerine, Bumble referansı). */}
+            {nextUser?.photoUrls[0] ? (
+              <View style={styles.nextCardPeek} pointerEvents="none">
+                <Image
+                  source={{ uri: nextUser.photoUrls[0] }}
+                  style={styles.nextCardPeekImage}
+                  contentFit="cover"
+                  contentPosition="top"
                 />
-              </ScrollView>
-            </Animated.View>
-          </GestureDetector>
+              </View>
+            ) : null}
 
-          {/* Bağlamlı beğeni (Note) skeleton toast */}
-          {noteBanner ? (
-            <View style={styles.noteToast} pointerEvents="none">
-              <ThemedText style={styles.noteToastText}>{noteBanner}</ThemedText>
-            </View>
-          ) : null}
-        </>
-      )}
+            <GestureDetector gesture={swipeGesture}>
+              <Animated.View style={[styles.swipeCard, cardSwipeStyle]}>
+                {/* Bumble tarzı karar damgası — tam ekran beyaz overlay yerine
+                    kartın kendisine binen, sürükleme mesafesiyle beliren rozet. */}
+                <Animated.View style={[styles.decisionStamp, passStampStyle]} pointerEvents="none">
+                  <View style={styles.stampCircle}>
+                    <Ionicons name="close" size={38} color="#1A1A1A" />
+                  </View>
+                </Animated.View>
+                <Animated.View style={[styles.decisionStamp, likeStampStyle]} pointerEvents="none">
+                  <View style={styles.stampCircle}>
+                    <Ionicons name="heart" size={34} color="#FF3B5C" />
+                  </View>
+                </Animated.View>
+                <ScrollView
+                  style={styles.scroll}
+                  contentContainerStyle={styles.scrollContent}
+                  showsVerticalScrollIndicator={false}>
+                  {/* Editorial rhythm (brief §"Profil içeriği"): hero photo →
+                      why-you-match → first prompt → second photo → facts →
+                      remaining prompts → remaining photos → actions. Empty
+                      sections (no prompts, one photo, no reasons) render
+                      nothing rather than an empty card. */}
+                  <ProfileHeroCard
+                    person={currentUser}
+                    viewerCity={myCity}
+                    onNoteTarget={handleOpenNote}
+                  />
+                  <WhyYouMatchCard reasons={currentUser.reasons} />
+                  {promptCards[0] ? (
+                    <ProfilePromptCard card={promptCards[0]} onNoteTarget={handleOpenNote} />
+                  ) : null}
+                  {extraPhotos[0] ? (
+                    <SecondaryPhotoCard uri={extraPhotos[0]} index={1} onNoteTarget={handleOpenNote} />
+                  ) : null}
+                  <ProfileFacts name={currentUser.first_name ?? 'them'} person={currentUser} />
+                  {promptCards.slice(1).map((card) => (
+                    <ProfilePromptCard key={card.id} card={card} onNoteTarget={handleOpenNote} />
+                  ))}
+                  {extraPhotos.slice(1).map((uri, i) => (
+                    <SecondaryPhotoCard key={uri} uri={uri} index={i + 2} onNoteTarget={handleOpenNote} />
+                  ))}
+                  <ProfileActionButtons
+                    disabled={animating}
+                    onPass={() => flyOffAndDecide(-1, currentUser.user_id)}
+                    onLike={() => flyOffAndDecide(1, currentUser.user_id)}
+                    onBlock={handleBlockCurrentUser}
+                    onReport={() => setReportModalVisible(true)}
+                  />
+                </ScrollView>
+              </Animated.View>
+            </GestureDetector>
+
+            {/* Bağlamlı beğeni (Note) skeleton toast */}
+            {noteBanner ? (
+              <View style={styles.noteToast} pointerEvents="none">
+                <ThemedText style={styles.noteToastText}>{noteBanner}</ThemedText>
+              </View>
+            ) : null}
+          </>
+        )}
+      </View>
 
       {/* Note composer — foto/prompt beğen + opsiyonel yorum (Bumble like-with-comment) */}
       <Modal
@@ -919,26 +907,12 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
-  feedRoot: { flex: 1, backgroundColor: '#FAFAFA' },
-  likesLeftBar: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E8E8E8',
-  },
-  likesLeftTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E8E8E8',
-    overflow: 'hidden',
-  },
-  likesLeftFill: {
-    height: '100%',
-    borderRadius: 2,
-    backgroundColor: ACCENT,
-  },
+  feedRoot: { flex: 1, backgroundColor: homeColors.background },
+  // Header is fixed chrome outside the card stack; body is everything below
+  // it (loading/error/empty/active-card states) — gives nextCardPeek's
+  // absoluteFill a clean positioning container that excludes the header
+  // instead of covering the whole screen including it.
+  body: { flex: 1 },
   // Opaque bg required — without it, a shorter profile (fewer chips/photos,
   // ScrollView content ending above the viewport bottom) let the
   // nextCardPeek backdrop bleed through the empty gap at rest, not just
@@ -946,10 +920,10 @@ const styles = StyleSheet.create({
   // screenshot, 2026-09-09 — someone else's photo showing through under the
   // real X/❤/Block/Report footer). Matches feedRoot's own background so the
   // seam is invisible.
-  swipeCard: { flex: 1, backgroundColor: '#FAFAFA' },
+  swipeCard: { flex: 1, backgroundColor: homeColors.background },
   scroll: { flex: 1 },
-  // Was 120 — footerActions below (Block/Report) already adds its own
-  // paddingBottom:24, so the two stacked left ~144px of dead space after
+  // Was 120 — ProfileActionButtons below (Block/Report) already adds its
+  // own paddingVertical, so the two stacked left ~144px of dead space after
   // Report (user feedback, 2026-09-03).
   scrollContent: { paddingBottom: 24 },
 
@@ -980,46 +954,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: homeColors.background,
   },
 
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 24,
-    paddingVertical: 18,
-    marginHorizontal: 12,
-  },
-  passBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#E8E8E8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  passIcon: { fontSize: 28, color: '#888888' },
-  likeBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: ACCENT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  likeIcon: { fontSize: 32 },
-
-  footerActions: {
-    alignItems: 'center',
-    paddingBottom: 24,
-  },
-  blockLink: { paddingVertical: 10 },
-  blockLinkText: { fontSize: 14, fontWeight: '500', color: '#8A8A8A' },
-  reportLink: { paddingVertical: 6 },
-  reportLinkText: { fontSize: 14, fontWeight: '600', color: '#C0392B' },
-
-  nextCardPeek: { ...StyleSheet.absoluteFillObject, backgroundColor: '#DDDDDD' },
+  nextCardPeek: { ...StyleSheet.absoluteFillObject, backgroundColor: homeColors.mutedSurface },
   nextCardPeekImage: { width: '100%', height: SCREEN_HEIGHT * 0.7 },
 
   // Dead-center of the whole swipeable area (not pinned near the top) — a
@@ -1051,8 +989,8 @@ const styles = StyleSheet.create({
   },
 
   noMoreWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  noMoreTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '600' },
-  noMoreSubtitle: { color: '#999999', fontSize: 14, marginTop: 6, textAlign: 'center' },
+  noMoreTitle: { color: homeColors.textPrimary, fontSize: 18, fontWeight: '600' },
+  noMoreSubtitle: { color: homeColors.textSecondary, fontSize: 14, marginTop: 6, textAlign: 'center' },
 
   // Note composer (bağlamlı beğeni)
   noteBackdrop: {

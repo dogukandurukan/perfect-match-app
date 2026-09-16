@@ -11,7 +11,6 @@ import {
   TabBarNotificationsIcon,
 } from '@/components/ui/TabBarBadgedIcon';
 import {
-  HomeHeaderActions,
   ProfileHeaderActions,
   TabHeaderActions,
 } from '@/components/ui/TabHeaderActions';
@@ -72,7 +71,12 @@ export default function TabLayout() {
               <IconSymbol size={22} name={focused ? 'house.fill' : 'house'} color={color} />
             </ActiveTabIcon>
           ),
-          headerRight: () => <HomeHeaderActions />,
+          // Home builds its own in-body header (wordmark + filters + daily
+          // like quota, "Warm Editorial" redesign 2026-09-16) — same
+          // approach Activity already uses, needed here so the quota row
+          // can sit fixed under the wordmark instead of inside react-
+          // navigation's more constrained native header API.
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -137,14 +141,18 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          // Reached via the header avatar icon (TabHeaderActions) now, not
-          // the bottom bar — Profile isn't a check-repeatedly feed like
-          // Matches/Activity/Chats, so it doesn't need equal billing there
-          // (user request, 2026-09-06; matches Hinge/Tinder's own pattern
-          // of a header-icon profile instead of a 5th bottom tab).
-          href: null,
+          // Back in the bottom bar as a real 5th tab (2026-09-16, Home
+          // redesign brief) — supersedes the 2026-09-06 header-avatar-only
+          // decision above. The header avatar route (TabHeaderActions'
+          // ProfileHeaderActions) still exists and still works, just isn't
+          // the only way in anymore.
           title: 'Profile',
           headerTitle: 'Profile',
+          tabBarIcon: ({ color, size, focused }) => (
+            <ActiveTabIcon focused={focused}>
+              <Ionicons name={focused ? 'person' : 'person-outline'} size={size ?? 24} color={color} />
+            </ActiveTabIcon>
+          ),
           headerRight: () => <ProfileHeaderActions />,
         }}
       />

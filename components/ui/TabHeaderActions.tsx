@@ -27,33 +27,11 @@ export function TabHeaderActions() {
   );
 }
 
-// Home gets its own Filters icon alongside the Profile avatar — matching
-// Bumble's People screen, which keeps a filter icon right next to the
-// profile avatar in its top bar (user reference screenshot, 2026-09-10).
-export function HomeHeaderActions() {
-  const router = useRouter();
-
-  return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.iconBtn}
-        activeOpacity={0.7}
-        onPress={() => router.push('/filters' as Parameters<typeof router.push>[0])}
-        hitSlop={8}
-        accessibilityLabel="Filters">
-        <Ionicons name="options-outline" size={24} color={ACCENT} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.iconBtn}
-        activeOpacity={0.7}
-        onPress={() => router.push('/(tabs)/profile' as Parameters<typeof router.push>[0])}
-        hitSlop={8}
-        accessibilityLabel="Profile">
-        <Ionicons name="person-circle-outline" size={28} color={ACCENT} />
-      </TouchableOpacity>
-    </View>
-  );
-}
+// Home no longer needs a header-icon row at all (2026-09-16 redesign) — it
+// builds its own in-body header with the filters icon, and Profile now
+// lives in the bottom tab bar instead of behind an avatar icon. The old
+// HomeHeaderActions (filters + profile avatar) was removed rather than
+// left unused.
 
 // While already ON Profile, a Profile-avatar icon pointing at itself is
 // pointless (same lesson as the removed HomeTopIcon) — Filters + Settings
