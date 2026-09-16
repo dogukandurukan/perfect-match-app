@@ -8,7 +8,9 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Platform,
+  ScrollView,
   SectionList,
   StyleSheet,
   TextInput,
@@ -238,50 +240,12 @@ function routeForType(
 // Locked placeholder count — real grid feel even before unlocking, capped so
 // a very high like count doesn't produce an absurdly long anonymous list.
 const LOCKED_GRID_TILES = 8;
-
-function LikeGridCard({
-  liker,
-  onPress,
-}: {
-  liker: UnlockedLiker;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={styles.likeGridCard}
-      onPress={onPress}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${liker.firstName ?? 'their'} profile`}>
-      {liker.photoUrl ? (
-        <Image
-          source={{ uri: liker.photoUrl }}
-          style={styles.likeGridImg}
-          contentFit="cover"
-          transition={150}
-        />
-      ) : (
-        <View style={[styles.likeGridImg, styles.likeTileFallback]}>
-          <ThemedText style={styles.likeTileInitial}>
-            {(liker.firstName ?? '♥').charAt(0).toUpperCase()}
-          </ThemedText>
-        </View>
-      )}
-      {liker.hasNote ? (
-        <View style={styles.likeGridNotePill}>
-          <Ionicons name="chatbubble-ellipses" size={11} color="#FFFFFF" />
-          <ThemedText style={styles.likeGridNoteText}>Note</ThemedText>
-        </View>
-      ) : null}
-      <View style={styles.likeGridScrim}>
-        <ThemedText style={styles.likeGridName} numberOfLines={1}>
-          {liker.firstName ?? 'Someone'}
-          {liker.age > 0 ? `, ${liker.age}` : ''}
-        </ThemedText>
-      </View>
-    </TouchableOpacity>
-  );
-}
+// Bumble reference (2026-09-16): "Liked You" is a horizontal row of big,
+// photo-forward cards ("Must-see profiles"), not a small static 2-column
+// grid — the small grid read as sparse/empty whenever the rest of the
+// screen (Featured/Waiting on them) had little else on it. One card
+// dominates the screen with a peek of the next, same as the reference.
+const LIKE_CAROUSEL_CARD_WIDTH = Math.round(Dimensions.get('window').width * 0.58);
 
 // --- "Waiting on them" (2026-09-16) — same grid treatment as the Liked
 // You section, just no lock state (these are your own sent invites).
@@ -346,6 +310,57 @@ function WaitingOnThemSection({
   );
 }
 
+function LikeCarouselCard({
+  liker,
+  onPress,
+}: {
+  liker: UnlockedLiker;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.likeCarouselCard}
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${liker.firstName ?? 'their'} profile`}>
+      {liker.photoUrl ? (
+        <Image
+          source={{ uri: liker.photoUrl }}
+          style={styles.likeCarouselImg}
+          contentFit="cover"
+          transition={150}
+        />
+      ) : (
+        <View style={[styles.likeCarouselImg, styles.likeTileFallback]}>
+          <ThemedText style={styles.likeTileInitial}>
+            {(liker.firstName ?? '♥').charAt(0).toUpperCase()}
+          </ThemedText>
+        </View>
+      )}
+      {liker.hasNote ? (
+        <View style={styles.likeGridNotePill}>
+          <Ionicons name="chatbubble-ellipses" size={11} color="#FFFFFF" />
+          <ThemedText style={styles.likeGridNoteText}>Note</ThemedText>
+        </View>
+      ) : null}
+      <View style={styles.likeCarouselScrim}>
+        <ThemedText style={styles.likeGridName} numberOfLines={1}>
+          {liker.firstName ?? 'Someone'}
+          {liker.age > 0 ? `, ${liker.age}` : ''}
+        </ThemedText>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// Bumble reference (2026-09-16): "Liked You" moved from a small static
+// 2-column grid to a horizontal row of big cards ("Must-see profiles" in
+// their app) — the small grid read as sparse whenever the rest of the
+// screen (Featured/Waiting on them) had little else going on. This section
+// also moved to render FIRST on the screen (see ListHeader below), ahead
+// of Featured, instead of sitting in the footer — it's the single most
+// photo-forward thing Activity has, so it's what should greet you first.
 function LikesSection({
   count,
   unlocked,
@@ -370,23 +385,26 @@ function LikesSection({
         <ThemedText style={styles.likesTitle}>{title}</ThemedText>
         <ThemedText style={styles.likesSub}>Someone new is into you — unlock to see who</ThemedText>
 
-        <View style={styles.likesGrid}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.likesCarousel}>
           {Array.from({ length: anonymousTiles }).map((_, i) => (
-            <View key={i} style={[styles.likeGridCard, styles.likeTileLocked]}>
+            <View key={i} style={[styles.likeCarouselCard, styles.likeTileLocked]}>
               <View style={styles.likeTileLockBadge}>
-                <Ionicons name="lock-closed" size={18} color="#FFFFFF" />
+                <Ionicons name="lock-closed" size={22} color="#FFFFFF" />
               </View>
-              <View style={styles.likeGridScrim}>
+              <View style={styles.likeCarouselScrim}>
                 <View style={styles.likeTileLockedNameBar} />
               </View>
             </View>
           ))}
           {remainder > 0 ? (
-            <View style={[styles.likeGridCard, styles.likeTileMore]}>
+            <View style={[styles.likeCarouselCard, styles.likeTileMore]}>
               <ThemedText style={styles.likeTileMoreText}>+{remainder}</ThemedText>
             </View>
           ) : null}
-        </View>
+        </ScrollView>
 
         <TouchableOpacity
           style={styles.likesUnlock}
@@ -409,15 +427,18 @@ function LikesSection({
       <ThemedText style={styles.likesTitle}>{unlockedTitle}</ThemedText>
       <ThemedText style={styles.likesSub}>Tap someone to see their profile</ThemedText>
 
-      <View style={styles.likesGrid}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.likesCarousel}>
         {likers.map((liker) => (
-          <LikeGridCard
+          <LikeCarouselCard
             key={liker.likerId}
             liker={liker}
             onPress={() => onPressLiker(liker.likerId)}
           />
         ))}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -1696,8 +1717,32 @@ export default function NotificationsScreen() {
   const hasUnread = items.some((n) => !n.is_read);
 
   // Top: high-signal event cards. Bottom (footer): the premium likes teaser.
+  // Order (2026-09-16, Bumble reference): Liked You first (most
+  // photo-forward, single biggest draw on the screen) — then Waiting on
+  // them, then Featured invite/reminder cards, then the plain-text feed.
+  // Liked You used to be the ListFooterComponent (bottom of everything);
+  // that read as "empty/all text" whenever Featured/Waiting had little on
+  // them, since the photo content was the very last thing on the page.
   const ListHeader = (
     <View>
+      <LikesSection
+        count={likeCount}
+        unlocked={likeUnlocked}
+        likers={likers}
+        onPressLocked={() => router.push('/premium' as never)}
+        onPressLiker={(likerId) =>
+          router.push({
+            pathname: '/user-profile',
+            params: { userId: likerId, context: 'liked_you' },
+          } as never)
+        }
+      />
+      <WaitingOnThemSection
+        invites={waitingOnThem}
+        onPressInvite={(userId) =>
+          router.push({ pathname: '/user-profile', params: { userId } } as never)
+        }
+      />
       {featured.map((item) => (
         <FeaturedCard
           key={item.id}
@@ -1721,28 +1766,7 @@ export default function NotificationsScreen() {
           responding={respondingId === item.id}
         />
       ))}
-      <WaitingOnThemSection
-        invites={waitingOnThem}
-        onPressInvite={(userId) =>
-          router.push({ pathname: '/user-profile', params: { userId } } as never)
-        }
-      />
     </View>
-  );
-
-  const ListFooter = (
-    <LikesSection
-      count={likeCount}
-      unlocked={likeUnlocked}
-      likers={likers}
-      onPressLocked={() => router.push('/premium' as never)}
-      onPressLiker={(likerId) =>
-        router.push({
-          pathname: '/user-profile',
-          params: { userId: likerId, context: 'liked_you' },
-        } as never)
-      }
-    />
   );
 
   return (
@@ -1780,7 +1804,6 @@ export default function NotificationsScreen() {
             <ThemedText style={styles.sectionLabel}>{section.title}</ThemedText>
           )}
           ListHeaderComponent={ListHeader}
-          ListFooterComponent={ListFooter}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
@@ -1896,6 +1919,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   likeGridName: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  // "Liked You" carousel (2026-09-16, Bumble reference) — big, horizontally
+  // scrolling cards instead of a small static 2-column grid. Waiting on
+  // them keeps the small grid above (likesGrid/likeGridCard) unchanged;
+  // these are separate, larger-format siblings just for this section.
+  likesCarousel: {
+    gap: 12,
+    paddingRight: 4,
+    marginBottom: 14,
+  },
+  likeCarouselCard: {
+    width: LIKE_CAROUSEL_CARD_WIDTH,
+    aspectRatio: 0.72,
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#EDE2C2',
+  },
+  likeCarouselImg: { width: '100%', height: '100%' },
+  likeCarouselScrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   likeGridNotePill: {
     position: 'absolute',
     top: 8,
