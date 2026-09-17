@@ -248,7 +248,12 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: homeSpacing.lg, paddingTop: homeSpacing.sm, gap: homeSpacing.lg },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: homeSpacing.md },
   profileInfo: { gap: 6 },
-  name: { fontSize: 20, fontWeight: '800', color: homeColors.textPrimary },
+  // Explicit lineHeight — same missing-lineHeight class of bug found
+  // elsewhere in Matches (MatchesHeader's title, PersonAvatar's initial,
+  // ReadyMatchCard's name); 20px/800 sits right at ThemedText's default
+  // 24px lineHeight boundary, so it gets a real value instead of relying
+  // on the default happening to be enough.
+  name: { fontSize: 20, lineHeight: 25, fontWeight: '800', color: homeColors.textPrimary },
   meetingLine: { fontSize: 15, color: homeColors.textSecondary },
 
   planCard: {

@@ -145,22 +145,16 @@ type ProfileForCard = {
   favorite_spots: Record<string, string> | null;
 };
 
-/** Most seed profiles store a pravatar.cc URL directly as their "photo" —
- * getProfilePhotoPublicUrl passes any http(s) URL through unchanged, so
- * this can't be caught by an empty-array check alone. Filtered out at every
- * point a photo URL is produced in this file (PersonAvatar also guards
- * independently as a second line of defense — see its own comment). */
-function isRandomAvatarUrl(url: string): boolean {
-  return url.includes('pravatar.cc');
-}
-
-/** Real photo URL, or null if genuinely missing/a random-avatar-service
- * fallback — never a third-party avatar (2026-09-18 brief). */
+/** Real photo URL, or null if this person genuinely has no photo path
+ * saved. 2026-09-18 (corrected): this used to ALSO reject any pravatar.cc
+ * URL by domain name — wrong. This app's current demo data legitimately
+ * uses pravatar URLs as real, reachable photos (curl-verified: HTTP 200
+ * image/jpeg). Whether an image actually renders is PersonAvatar's job now
+ * (real `onError`), not a guess based on the hostname here. */
 function photoFor(photos: string[] | null | undefined): string | null {
   const first = photos?.[0];
   if (!first?.trim()) return null;
-  const url = getProfilePhotoPublicUrl(first);
-  return isRandomAvatarUrl(url) ? null : url;
+  return getProfilePhotoPublicUrl(first);
 }
 
 function buildCardFromPending(
@@ -170,8 +164,7 @@ function buildCardFromPending(
 ): MatchCardData {
   const signedPhotos = (profile.photos ?? [])
     .filter((p) => p?.trim())
-    .map((path) => getProfilePhotoPublicUrl(path))
-    .filter((url) => !isRandomAvatarUrl(url));
+    .map((path) => getProfilePhotoPublicUrl(path));
 
   return {
     user_id: profile.id,
@@ -209,9 +202,7 @@ function buildCardFromPending(
 }
 
 function matchToHingePerson(match: MatchCardData): HingeProfilePerson {
-  const photos = (match.photos ?? []).filter(
-    (u) => typeof u === 'string' && u.trim().length > 0 && !isRandomAvatarUrl(u),
-  );
+  const photos = (match.photos ?? []).filter((u) => typeof u === 'string' && u.trim().length > 0);
   return {
     first_name: match.first_name,
     date_of_birth: match.date_of_birth,
@@ -254,10 +245,7 @@ type LiteProfile = {
  * overlay + "Waiting for {name}" footer that Ready cards already use,
  * not to show a full rich profile. */
 function buildLiteCard(matchId: string, matchScore: number, profile: LiteProfile): MatchCardData {
-  const signedPhotos = (profile.photos ?? [])
-    .filter((p) => p?.trim())
-    .map((path) => getProfilePhotoPublicUrl(path))
-    .filter((url) => !isRandomAvatarUrl(url));
+  const signedPhotos = (profile.photos ?? []).filter((p) => p?.trim()).map((path) => getProfilePhotoPublicUrl(path));
   return {
     user_id: profile.id,
     first_name: profile.first_name,
@@ -950,7 +938,12 @@ export default function MatchesTab() {
     </>
   );
 
-  const listFooterSpace = <View style={{ height: tabBarHeight + homeSpacing.lg }} />;
+  // Real tab bar height + homeSpacing.xxl(24) — the SAME margin value
+  // Home's index.tsx already uses for its own list bottom padding
+  // (`tabBarHeight + homeSpacing.xxl`), confirmed working on a real device
+  // per that screen's own history, rather than picking an untested number
+  // here.
+  const listFooterSpace = <View style={{ height: tabBarHeight + homeSpacing.xxl }} />;
 
   if (loading && !hasLoadedRef.current) {
     return (
@@ -981,17 +974,13 @@ export default function MatchesTab() {
           data={readyItems}
           keyExtractor={(item) => item.key}
           renderItem={({ item }) => <ReadyMatchCard item={item} onPress={() => openDetailFor(item)} />}
-          // flexGrow separators (2026-09-18, user device feedback): with
-          // only up to MATCH_SLOT_COUNT (3) short cards, a fixed small gap
-          // left a large dead gap below the last card and above the tab
-          // bar. contentContainerStyle's flexGrow:1 lets the whole column
-          // stretch to fill the viewport when it's short, and each
-          // separator flex-growing (instead of a fixed height) is what
-          // actually spends that extra space — spreading the cards evenly
-          // down the page instead of bunching them at the top. Each
-          // separator keeps a real minHeight so cards never touch if there
-          // ISN'T extra space (a long list would just scroll normally).
-          ItemSeparatorComponent={() => <View style={{ flexGrow: 1, minHeight: homeSpacing.sm + 2 }} />}
+          // Fixed 12pt gap (2026-09-18, reverted the flexGrow attempt — it
+          // stretched the GAPS, not the cards, which never made the 3 cards
+          // denser and didn't match the mockup's tight spacing at all; see
+          // the report for the actual height math showing 3×146pt cards +
+          // fixed 12pt gaps already fit one viewport on a real device without
+          // needing to manufacture extra space).
+          ItemSeparatorComponent={() => <View style={{ height: homeSpacing.sm + 2 }} />}
           ListHeaderComponent={listHeader}
           ListFooterComponent={listFooterSpace}
           ListEmptyComponent={
@@ -1003,7 +992,7 @@ export default function MatchesTab() {
               </ThemedText>
             </View>
           }
-          contentContainerStyle={[styles.content, { flexGrow: 1 }]}
+          contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         />
       </View>

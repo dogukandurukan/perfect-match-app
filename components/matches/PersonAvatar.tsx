@@ -1,24 +1,20 @@
 import { Image } from 'expo-image';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { homeColors } from '@/lib/homeTheme';
 
 /**
- * Real photo, or a neutral initials placeholder — never a random third-party
- * avatar (pravatar.cc etc). 2026-09-18 Matches redesign brief: "Missing
- * photo durumunda çocuk veya rastgele üçüncü taraf avatar gösterme...
- * neutral initials placeholder oluştur."
- *
- * 2026-09-18 (devam) — found live via DB query: the empty-array guard alone
- * wasn't enough. Most seed profiles (~500/502, per `seed.ts`) store a
- * `https://i.pravatar.cc/...` URL DIRECTLY as `photos[0]` — not an empty
- * array — and `getProfilePhotoPublicUrl` passes any http(s) URL through
- * unchanged, so those photos were never actually caught by the "missing"
- * check upstream. This is the single enforcement point instead (every
- * screen renders avatars through this component) — a pravatar.cc URL is
- * treated exactly like a missing photo, regardless of what any caller
- * passes in. Not a seed-data or shared-helper change — scoped here only.
+ * Real photo when there is one, initials fallback only when there genuinely
+ * isn't a usable image. 2026-09-18 (devam 3, corrected): an earlier version
+ * of this component ALSO treated any pravatar.cc URL as "missing" — that
+ * was wrong. This app's current demo/seed data legitimately uses pravatar
+ * URLs as the photo; they're real, reachable images (verified with curl —
+ * Ceren/Sinem/Buse's URLs all return HTTP 200 image/jpeg). Domain-name
+ * guessing isn't a signal of image validity, so it's gone. The only
+ * fallback triggers now are: no URL at all, or the URL failed to actually
+ * load (`onError`) — verified per-instance, not by inspecting the string.
  */
 export function PersonAvatar({
   photoUrl,
@@ -36,44 +32,48 @@ export function PersonAvatar({
 }) {
   const r = radius ?? size / 2;
   const initial = (name?.trim()?.[0] ?? '?').toUpperCase();
-  const isRandomAvatarService = !!photoUrl && photoUrl.includes('pravatar.cc');
+  const [loadFailed, setLoadFailed] = useState(false);
 
-  if (photoUrl && !isRandomAvatarService) {
-    return (
-      <Image
-        source={{ uri: photoUrl }}
-        // ViewStyle/ImageStyle differ only in `overflow`'s type strictness
-        // here, not in any actually-incompatible runtime prop — safe cast.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        style={[{ width: size, height: size, borderRadius: r }, style] as any}
-        contentFit="cover"
-      />
-    );
-  }
+  // A new photoUrl (e.g. this card now shows a different person after a
+  // list re-render) deserves a fresh attempt — otherwise a previous
+  // person's load failure would permanently hide this one's real photo.
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [photoUrl]);
 
-  // Explicit lineHeight required — same bug this app already hit on
-  // MatchesHeader's title and (originally) HingeProfileCard's name line:
-  // ThemedText's inherited default lineHeight is too short for this large
-  // a fontSize, clipping the top of the glyph so only its bottom curve
-  // showed (found from a real device screenshot, 2026-09-18 — every
-  // initials fallback rendered as an unreadable partial shape).
-  const initialFontSize = size * 0.38;
+  const showImage = !!photoUrl && !loadFailed;
+
   return (
-    <View
-      style={[
-        styles.fallback,
-        { width: size, height: size, borderRadius: r },
-        style,
-      ]}>
-      <ThemedText style={[styles.initial, { fontSize: initialFontSize, lineHeight: initialFontSize * 1.2 }]}>
-        {initial}
-      </ThemedText>
+    <View style={[styles.wrap, { width: size, height: size, borderRadius: r }, style]}>
+      {showImage ? (
+        <Image
+          source={{ uri: photoUrl }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          onError={() => setLoadFailed(true)}
+        />
+      ) : (
+        <View style={styles.fallback}>
+          <ThemedText style={[styles.initial, { fontSize: size * 0.38, lineHeight: size * 0.38 * 1.2 }]}>
+            {initial}
+          </ThemedText>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // overflow:hidden here (not on the Image itself) is what actually clips
+  // both the real photo AND the fallback to the rounded shape — and, with
+  // the fallback and the Image as siblings inside this one clipped box
+  // instead of the caller juggling two differently-styled elements, there
+  // is never a moment where both are visually present at once (the brief's
+  // "placeholder fotoğrafın üzerinde kalmamalı" requirement) — `showImage`
+  // switches which single child renders, nothing stacks.
+  wrap: { overflow: 'hidden' },
   fallback: {
+    flex: 1,
     backgroundColor: homeColors.mutedSurface,
     alignItems: 'center',
     justifyContent: 'center',

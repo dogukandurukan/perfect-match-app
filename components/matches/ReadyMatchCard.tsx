@@ -126,7 +126,12 @@ const styles = StyleSheet.create({
   photoWrap: { alignSelf: 'stretch', width: 96 },
   photo: { width: 96, height: '100%' },
   info: { flex: 1, justifyContent: 'center', gap: 5 },
-  name: { fontSize: 21, fontWeight: '800', color: homeColors.textPrimary },
+  // Explicit lineHeight (same fix as MatchesHeader's title / PersonAvatar's
+  // initial) — ThemedText's inherited default lineHeight (24) is tight
+  // enough at 21px bold that ascenders/descenders could clip on some
+  // devices; a real value removes the ambiguity instead of relying on the
+  // default happening to be just barely enough.
+  name: { fontSize: 21, lineHeight: 26, fontWeight: '800', color: homeColors.textPrimary },
   scorePill: {
     alignSelf: 'flex-start',
     backgroundColor: homeColors.accentSoft,
