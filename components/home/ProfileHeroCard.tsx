@@ -1,5 +1,4 @@
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -41,19 +40,17 @@ export function ProfileHeroCard({
         <View style={[styles.photo, styles.photoFallback]} />
       )}
 
-      {/* 2026-09-17: was a single flat rgba(0,0,0,0.38) band over the
-          bottom 45% — read as a hard, visible dark bar (especially obvious
-          on light/mid-tone photos, reported as a stark line across a
-          face). Real LinearGradient now, confined to the bottom ~28%, that
-          starts fully transparent at its own top — no visible seam because
-          there's no opacity jump at the boundary, just a continuous fade
-          to a moderate 0.5 at the very bottom for text contrast. */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.5)']}
-        locations={[0, 0.5, 1]}
-        style={styles.overlay}
-        pointerEvents="none"
-      />
+      {/* 2026-09-17 (reverted same day): tried a real LinearGradient here,
+          but expo-linear-gradient is a native module and this app runs on
+          an already-built dev-client — without rebuilding it, RN renders
+          "Unimplemented component: <ViewManagerAdapter_ExpoLinearGradient>"
+          literally on screen, which is worse than the original problem.
+          User declined a rebuild for this, so: no overlay of any kind
+          spanning the photo (flat or gradient) — readability now comes
+          from textShadow alone on name/meta, plus a small LOCAL
+          semi-transparent surface sized to the text itself (not the photo
+          width) for genuinely hard cases. Package uninstalled again
+          (package.json) since this was its only use. */}
 
       {/* 2026-09-17: info row — text column (badges pretitle → name/age →
           location/occupation) on the left, Note as a bottom-right action
@@ -72,15 +69,17 @@ export function ProfileHeroCard({
               {hasScore ? <MatchScoreBadge percentage={person.match_percentage as number} /> : null}
             </View>
           ) : null}
-          <ThemedText style={styles.name} numberOfLines={1}>
-            {person.first_name ?? 'Someone'}
-            {age > 0 ? `, ${age}` : ''}
-          </ThemedText>
-          {metaLine ? (
-            <ThemedText style={styles.meta} numberOfLines={1}>
-              {metaLine}
+          <View style={styles.textSurface}>
+            <ThemedText style={styles.name} numberOfLines={1}>
+              {person.first_name ?? 'Someone'}
+              {age > 0 ? `, ${age}` : ''}
             </ThemedText>
-          ) : null}
+            {metaLine ? (
+              <ThemedText style={styles.meta} numberOfLines={1}>
+                {metaLine}
+              </ThemedText>
+            ) : null}
+          </View>
         </View>
         {onNoteTarget ? (
           <ContextualNoteButton
@@ -106,13 +105,6 @@ const styles = StyleSheet.create({
   },
   photo: { ...StyleSheet.absoluteFillObject },
   photoFallback: { backgroundColor: homeColors.mutedSurface },
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '28%',
-  },
   infoBlock: {
     position: 'absolute',
     left: homeSpacing.lg,
@@ -128,9 +120,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
   },
-  // Subtle text shadow (2026-09-17) — the gradient alone is tuned for a
-  // "barely there" look, so this is the safety net that keeps name/location
-  // readable over a bright patch of an unusually light photo.
+  // No overlay spans the photo anymore (2026-09-17, reverted gradient) —
+  // textShadow below is the primary readability mechanism. This wraps just
+  // the name+location text (shrink-to-fit via alignSelf, never the photo's
+  // width) in a small, local semi-transparent surface as a second line of
+  // defense for genuinely hard photos — self-contained, unlike a band.
+  textSurface: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    borderRadius: 12,
+    paddingHorizontal: homeSpacing.sm,
+    paddingVertical: 4,
+    gap: 2,
+  },
   name: {
     fontSize: 26,
     fontWeight: '800',

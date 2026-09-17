@@ -2,8 +2,14 @@
 import { DailyLimitEmptyState } from '@/components/DailyLimitEmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { HomeHeader } from '@/components/home/HomeHeader';
+import { PersonalTastesCard } from '@/components/home/PersonalTastesCard';
 import { ProfileActionButtons } from '@/components/home/ProfileActionButtons';
-import { ProfileFacts } from '@/components/home/ProfileFacts';
+import {
+  InterestsCard,
+  LanguagesCard,
+  LookingForCard,
+  ProfileFacts,
+} from '@/components/home/ProfileFacts';
 import { ProfileHeroCard } from '@/components/home/ProfileHeroCard';
 import { ProfilePromptCard } from '@/components/home/ProfilePromptCard';
 import { SecondaryPhotoCard } from '@/components/home/SecondaryPhotoCard';
@@ -784,11 +790,20 @@ export default function HomeScreen() {
                       exactly the reason in the comment above — see
                       HomeHeader's own doc comment for the full story. */}
                   <HomeHeader {...headerProps} />
-                  {/* Editorial rhythm (brief §"Profil içeriği"): hero photo →
-                      why-you-match → first prompt → second photo → facts →
-                      remaining prompts → remaining photos → actions. Empty
-                      sections (no prompts, one photo, no reasons) render
-                      nothing rather than an empty card. */}
+                  {/* Editorial rhythm (2026-09-17 revision — added the
+                      sections a real-device audit found present in data but
+                      never rendered anywhere in the first redesign pass:
+                      LookingForCard, InterestsCard (was silently capped to 2
+                      and usually crowded out entirely), PersonalTastesCard
+                      (music/movie/book — existed in the shared
+                      HingeProfileCard, had zero renderer here), LanguagesCard.
+                      hero → why-you-match → 1st prompt → 2nd photo → about →
+                      looking-for → interests → 2nd prompt → 3rd photo →
+                      taste → languages → remaining prompts/photos →
+                      actions. Every section renders nothing (not an empty
+                      card) when its underlying data is empty — a candidate
+                      with a genuinely thin profile still gets a short page,
+                      on purpose. */}
                   <ProfileHeroCard
                     person={currentUser}
                     viewerCity={myCity}
@@ -802,11 +817,21 @@ export default function HomeScreen() {
                     <SecondaryPhotoCard uri={extraPhotos[0]} index={1} onNoteTarget={handleOpenNote} />
                   ) : null}
                   <ProfileFacts name={currentUser.first_name ?? 'them'} person={currentUser} />
-                  {promptCards.slice(1).map((card) => (
+                  <LookingForCard person={currentUser} />
+                  <InterestsCard person={currentUser} />
+                  {promptCards[1] ? (
+                    <ProfilePromptCard card={promptCards[1]} onNoteTarget={handleOpenNote} />
+                  ) : null}
+                  {extraPhotos[1] ? (
+                    <SecondaryPhotoCard uri={extraPhotos[1]} index={2} onNoteTarget={handleOpenNote} />
+                  ) : null}
+                  <PersonalTastesCard person={currentUser} />
+                  <LanguagesCard person={currentUser} />
+                  {promptCards.slice(2).map((card) => (
                     <ProfilePromptCard key={card.id} card={card} onNoteTarget={handleOpenNote} />
                   ))}
-                  {extraPhotos.slice(1).map((uri, i) => (
-                    <SecondaryPhotoCard key={uri} uri={uri} index={i + 2} onNoteTarget={handleOpenNote} />
+                  {extraPhotos.slice(2).map((uri, i) => (
+                    <SecondaryPhotoCard key={uri} uri={uri} index={i + 3} onNoteTarget={handleOpenNote} />
                   ))}
                   <ProfileActionButtons
                     disabled={animating}
