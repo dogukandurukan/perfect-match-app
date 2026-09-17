@@ -1,4 +1,4 @@
-// Screen: Micro-intro (invite: place + 1-3 time slots) | Status: stable | Last updated: 2026-09-12
+// Screen: Plan your date (invite: place + 1-3 time slots) | Status: stable | Last updated: 2026-09-18 (Warm Editorial redesign)
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,10 +14,16 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DatePlanProgress, type DatePlanStep } from '@/components/matches/DatePlanProgress';
+import { MatchScoreBadge } from '@/components/matches/MatchScoreBadge';
+import { PersonAvatar } from '@/components/matches/PersonAvatar';
+import { TimeOptionChip } from '@/components/matches/TimeOptionChip';
+import { VenueOptionCard } from '@/components/matches/VenueOptionCard';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { colors, radius } from '@/lib/designTokens';
+import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
 import {
   formatIntroLines,
   formatMeetingTime,
@@ -51,14 +56,6 @@ function normalizePlace(raw: string): string {
   return capitalizeWords(cleaned);
 }
 
-const CUSTOM_PLACE_OPTION = '📍 Suggest another place';
-
-const FALLBACK_PLACE_OPTIONS = [
-  '☕ Mandabatmaz — Beyoğlu',
-  "☕ Walter's Coffee — Kadıköy",
-  '☕ Kronotrop — Nişantaşı',
-];
-
 type VenueRow = {
   name: string;
   district: string;
@@ -67,14 +64,6 @@ type VenueRow = {
 
 type VenueReason = 'both' | 'you' | 'them' | null;
 type PickedVenue = VenueRow & { reason: VenueReason };
-
-function formatVenueOption(venue: PickedVenue, otherName: string): string {
-  const base = `${venue.emoji ?? '☕'} ${venue.name} — ${venue.district}`;
-  if (venue.reason === 'both') return `${base} · Near both of you`;
-  if (venue.reason === 'you') return `${base} · Near you`;
-  if (venue.reason === 'them') return `${base} · Near ${otherName}`;
-  return base;
-}
 
 /** Prefer a venue near both people over one only near you — otherwise the
  * suggestion ignores where the other person actually is (2026-08-24). */
@@ -86,9 +75,7 @@ const TR_DIACRITICS: Record<string, string> = {
 /** `venues.district` uses proper Turkish diacritics ("Beşiktaş");
  * `profiles.district` is stored ASCII-only ("Besiktas") — raw `===` never
  * matched, silently degrading every suggestion to the generic fallback
- * (2026-08-25, found via device testing). Neighborhood-level values like
- * "Moda" still won't match a district name — that needs a neighborhood→
- * district lookup, separate/bigger fix, not attempted here. */
+ * (2026-08-25, found via device testing). */
 function normalizeDistrict(raw: string): string {
   return raw
     .trim()
@@ -128,9 +115,12 @@ function pickVenues(
 }
 
 const MAX_SLOTS = 3;
+const CUSTOM_VENUE = 'custom' as const;
+type VenueSelection = PickedVenue | typeof CUSTOM_VENUE | null;
 
 export default function MicroIntroScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
 
   const matchUserId = firstParam(params.matchUserId);
@@ -141,7 +131,7 @@ export default function MicroIntroScreen() {
   const matchPercentage = firstParam(params.matchPercentage);
   const matchIdParam = firstParam(params.matchId);
 
-  const [place, setPlace] = useState<string | null>(null);
+  const [venue, setVenue] = useState<VenueSelection>(null);
   const [customPlace, setCustomPlace] = useState('');
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -151,10 +141,7 @@ export default function MicroIntroScreen() {
   const [done, setDone] = useState(false);
   const [chatOpened, setChatOpened] = useState(false);
   const [savedAnswers, setSavedAnswers] = useState<IntroAnswers | null>(null);
-  const [placeOptions, setPlaceOptions] = useState<string[]>([
-    ...FALLBACK_PLACE_OPTIONS,
-    CUSTOM_PLACE_OPTION,
-  ]);
+  const [venueOptions, setVenueOptions] = useState<PickedVenue[]>([]);
   const [venuesLoading, setVenuesLoading] = useState(true);
   const [myGender, setMyGender] = useState<string | null>(null);
   const [otherGender, setOtherGender] = useState<string | null>(null);
@@ -207,23 +194,14 @@ export default function MicroIntroScreen() {
         if (!mounted) return;
 
         if (error || !venues || venues.length === 0) {
-          setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
+          setVenueOptions([]);
           return;
         }
 
-        const picked = pickVenues(venues as VenueRow[], userDistrict, otherDistrict);
-        if (picked.length === 0) {
-          setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
-          return;
-        }
-
-        setPlaceOptions([
-          ...picked.map((v) => formatVenueOption(v, matchName)),
-          CUSTOM_PLACE_OPTION,
-        ]);
+        setVenueOptions(pickVenues(venues as VenueRow[], userDistrict, otherDistrict));
       } catch {
         if (mounted) {
-          setPlaceOptions([...FALLBACK_PLACE_OPTIONS, CUSTOM_PLACE_OPTION]);
+          setVenueOptions([]);
           setSlotOptions(suggestMeetingTimes(null, null));
         }
       } finally {
@@ -236,14 +214,21 @@ export default function MicroIntroScreen() {
     };
   }, [matchUserId]);
 
+  // Persisted to `matches.confirmed_place` — same existing free-text column,
+  // just a cleaner format than before (no emoji, no embedded "near who"
+  // reason — that context only matters during selection, not in a saved
+  // plan). "Name — District" is also what plan-detail.tsx/matches.tsx parse
+  // back out to show Venue/District as separate rows.
   const resolvedPlace = useMemo(() => {
-    if (!place) return null;
-    if (place === CUSTOM_PLACE_OPTION) {
+    if (!venue) return null;
+    if (venue === CUSTOM_VENUE) {
       const t = customPlace.trim();
-      return t ? `☕ ${normalizePlace(t)}` : null;
+      return t ? normalizePlace(t) : null;
     }
-    return place;
-  }, [place, customPlace]);
+    return `${venue.name} — ${venue.district}`;
+  }, [venue, customPlace]);
+
+  const progressStep: DatePlanStep = !resolvedPlace ? 'place' : selectedSlots.length === 0 ? 'time' : 'review';
 
   function toggleSlot(slot: string) {
     setSelectedSlots((prev) => {
@@ -297,7 +282,6 @@ export default function MicroIntroScreen() {
         slot1: selectedSlots[0],
         slot2: selectedSlots[1],
         slot3: selectedSlots[2],
-        // legacy mirrors for older readers
         kafe: resolvedPlace,
         gun: selectedSlots[0],
         saat: selectedSlots[1],
@@ -341,14 +325,18 @@ export default function MicroIntroScreen() {
     return (
       <ScreenContainer style={styles.container}>
         <View style={styles.doneWrap}>
-          <ThemedText style={styles.doneEmoji}>{chatOpened ? '💬' : '⏳'}</ThemedText>
+          <View style={styles.doneIconWrap}>
+            <Ionicons name={chatOpened ? 'chatbubbles-outline' : 'paper-plane-outline'} size={30} color={homeColors.accent} />
+          </View>
           <ThemedText style={styles.doneTitle}>
-            {chatOpened ? `Chat with ${matchName} is open` : `Invite sent to ${matchName}`}
+            {chatOpened ? `Chat with ${matchName} is open` : `Invitation sent to ${matchName}`}
           </ThemedText>
+          {/* Deliberately NOT styled/worded as a confirmed plan (brief:
+              "Bu state'i confirmed gibi gösterme") — even when the chat
+              opens immediately, the meeting time itself is only an offer
+              until the other side accepts it. */}
           <ThemedText style={styles.doneSubtitle}>
-            {chatOpened
-              ? 'You can message them now.'
-              : `Waiting for ${matchName} to accept.`}
+            {chatOpened ? 'You can message them now.' : `Waiting for ${matchName} to accept.`}
           </ThemedText>
 
           {lines.length > 0 ? (
@@ -367,11 +355,7 @@ export default function MicroIntroScreen() {
               onPress={() =>
                 router.replace({
                   pathname: '/chat',
-                  params: {
-                    userId: matchUserId,
-                    userName: matchName,
-                    matchId: matchIdParam || '',
-                  },
+                  params: { userId: matchUserId, userName: matchName, matchId: matchIdParam || '' },
                 })
               }
               activeOpacity={0.85}
@@ -387,16 +371,15 @@ export default function MicroIntroScreen() {
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel="Back to matches">
-            <ThemedText style={styles.doneBtnSecondaryText}>Back to matches</ThemedText>
+            <ThemedText style={styles.doneBtnSecondaryText}>Back to Matches</ThemedText>
           </TouchableOpacity>
         </View>
       </ScreenContainer>
     );
   }
 
-  // resolvedPlace is already null while CUSTOM_PLACE_OPTION is picked but
-  // its text field is still empty, so this alone covers both cases.
   const canSend = !!resolvedPlace && selectedSlots.length >= 1 && !venuesLoading;
+  const showCustomInput = venue === CUSTOM_VENUE;
 
   return (
     <ScreenContainer style={styles.container}>
@@ -406,77 +389,81 @@ export default function MicroIntroScreen() {
         hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel="Back">
-        <Ionicons name="chevron-back" size={24} color={colors.accent} />
-        <ThemedText style={styles.backText}>Back</ThemedText>
+        <Ionicons name="chevron-back" size={24} color={homeColors.textPrimary} />
       </TouchableOpacity>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
           <View style={styles.profileRow}>
-            {matchPhoto ? (
-              <Image source={{ uri: matchPhoto }} style={styles.profilePhoto} />
-            ) : (
-              <View style={[styles.profilePhoto, styles.photoFallback]} />
-            )}
+            <PersonAvatar photoUrl={matchPhoto || null} name={matchName} size={56} />
             <View style={styles.profileInfo}>
               <ThemedText style={styles.profileName}>
                 {matchName}
                 {matchAge ? `, ${matchAge}` : ''}
               </ThemedText>
-              {matchCity ? (
-                <ThemedText style={styles.profileCity}>📍 {matchCity}</ThemedText>
-              ) : null}
+              {matchPercentage ? <MatchScoreBadge percentage={Number(matchPercentage) || 0} /> : null}
             </View>
-            {matchPercentage ? (
-              <View style={styles.percentBadge}>
-                <ThemedText style={styles.percentText}>%{matchPercentage}</ThemedText>
-              </View>
-            ) : null}
           </View>
 
-          <ThemedText style={styles.introLine}>
-            Suggest a place and a time — {matchName} can pick what works for them.
-          </ThemedText>
+          <View>
+            <ThemedText style={styles.title}>Plan your date</ThemedText>
+            <ThemedText style={styles.subtitle}>Choose a place and offer a few times.</ThemedText>
+          </View>
 
-          <View style={styles.card}>
-            <ThemedText style={styles.cardTitle}>📍 Where</ThemedText>
+          <DatePlanProgress current={progressStep} />
+
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Near both of you</ThemedText>
             {venuesLoading ? (
-              <ActivityIndicator color={colors.accent} style={styles.placeLoading} />
+              <ActivityIndicator color={homeColors.accent} style={styles.placeLoading} />
             ) : (
-              <View style={styles.placeList}>
-                {placeOptions.map((opt) => {
-                  const on = place === opt;
+              <View style={styles.venueList}>
+                {venueOptions.map((v) => {
+                  const key = `${v.name}|${v.district}`;
+                  const selected = venue !== null && venue !== CUSTOM_VENUE && `${venue.name}|${venue.district}` === key;
                   return (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[styles.placeRow, on && styles.placeRowSelected]}
-                      onPress={() => setPlace(opt)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel={opt}
-                      accessibilityState={{ selected: on }}>
-                      <ThemedText
-                        style={[styles.placeRowText, on && styles.placeRowTextSelected]}
-                        numberOfLines={2}>
-                        {opt}
-                      </ThemedText>
-                      {on ? (
-                        <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                      ) : null}
-                    </TouchableOpacity>
+                    <VenueOptionCard
+                      key={key}
+                      name={v.name}
+                      district={v.district}
+                      reason={v.reason}
+                      otherName={matchName}
+                      selected={selected}
+                      onPress={() => setVenue(v)}
+                    />
                   );
                 })}
-                {place === CUSTOM_PLACE_OPTION ? (
+                {venueOptions.length === 0 ? (
+                  <ThemedText style={styles.emptyHint}>
+                    No suggested venues nearby yet — pick your own place below.
+                  </ThemedText>
+                ) : null}
+
+                <TouchableOpacity
+                  style={styles.customToggle}
+                  onPress={() => setVenue(CUSTOM_VENUE)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Suggest another place"
+                  accessibilityState={{ selected: showCustomInput }}>
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={16}
+                    color={showCustomInput ? homeColors.accent : homeColors.textSecondary}
+                  />
+                  <ThemedText style={[styles.customToggleText, showCustomInput && styles.customToggleTextActive]}>
+                    Suggest another place
+                  </ThemedText>
+                </TouchableOpacity>
+                {showCustomInput ? (
                   <TextInput
                     style={styles.customInput}
                     placeholder="Place name and area…"
-                    placeholderTextColor={colors.textMuted}
+                    placeholderTextColor={homeColors.textSecondary}
                     value={customPlace}
                     onChangeText={setCustomPlace}
                   />
@@ -485,55 +472,27 @@ export default function MicroIntroScreen() {
             )}
           </View>
 
-          <View style={styles.card}>
-            <ThemedText style={styles.cardTitle}>🕐 When</ThemedText>
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>When works?</ThemedText>
             <ThemedText style={styles.hint}>
-              Suggested from your availability. More options make it easier for them to say
-              yes — {selectedSlots.length}/{MAX_SLOTS} selected.
+              More options make it easier for them to say yes — {selectedSlots.length} of {MAX_SLOTS} selected.
             </ThemedText>
             <View style={styles.slotChipsRow}>
-              {slotOptions.map((opt) => {
-                const on = selectedSlots.includes(opt);
-                return (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[styles.slotChip, on && styles.slotChipSelected]}
-                    onPress={() => toggleSlot(opt)}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    accessibilityLabel={formatMeetingTime(opt)}
-                    accessibilityState={{ selected: on }}>
-                    <ThemedText style={[styles.slotChipText, on && styles.slotChipTextSelected]}>
-                      {formatMeetingTime(opt)}
-                    </ThemedText>
-                  </TouchableOpacity>
-                );
-              })}
+              {slotOptions.map((opt) => (
+                <TimeOptionChip
+                  key={opt}
+                  label={formatMeetingTime(opt)}
+                  selected={selectedSlots.includes(opt)}
+                  onPress={() => toggleSlot(opt)}
+                />
+              ))}
               {selectedSlots
                 .filter((s) => !slotOptions.includes(s))
                 .map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[styles.slotChip, styles.slotChipSelected]}
-                    onPress={() => toggleSlot(opt)}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    accessibilityLabel={formatMeetingTime(opt)}
-                    accessibilityState={{ selected: true }}>
-                    <ThemedText style={[styles.slotChipText, styles.slotChipTextSelected]}>
-                      {formatMeetingTime(opt)}
-                    </ThemedText>
-                  </TouchableOpacity>
+                  <TimeOptionChip key={opt} label={formatMeetingTime(opt)} selected onPress={() => toggleSlot(opt)} />
                 ))}
               {selectedSlots.length < MAX_SLOTS ? (
-                <TouchableOpacity
-                  style={[styles.slotChip, styles.slotChipDashed]}
-                  onPress={openTimePicker}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Pick another time">
-                  <ThemedText style={styles.slotChipText}>+ Pick another time</ThemedText>
-                </TouchableOpacity>
+                <TimeOptionChip label="+ Pick another time" selected={false} dashed onPress={openTimePicker} />
               ) : null}
             </View>
 
@@ -567,19 +526,19 @@ export default function MicroIntroScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, homeSpacing.md) }]}>
           <TouchableOpacity
-            style={[styles.primaryBtn, !canSend && styles.btnDisabled]}
+            style={[styles.primaryBtn, (!canSend || sending) && styles.btnDisabled]}
             disabled={!canSend || sending}
             onPress={() => void handleSendInvite()}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Let's meet"
+            accessibilityLabel="Send invitation"
             accessibilityState={{ disabled: !canSend || sending }}>
             {sending ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
-              <ThemedText style={styles.primaryBtnText}>☕ Let&apos;s meet</ThemedText>
+              <ThemedText style={styles.primaryBtnText}>Send invitation</ThemedText>
             )}
           </TouchableOpacity>
         </View>
@@ -589,125 +548,97 @@ export default function MicroIntroScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { justifyContent: 'flex-start' },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
-  backText: { color: colors.accent, fontSize: 16 },
+  container: { justifyContent: 'flex-start', backgroundColor: homeColors.background },
+  backBtn: { padding: 8, alignSelf: 'flex-start' },
   scroll: { flex: 1 },
-  content: { paddingBottom: 24, gap: 14 },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
-  },
-  profilePhoto: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#DDD' },
-  photoFallback: { backgroundColor: '#E8E8E8' },
-  profileInfo: { flex: 1 },
-  profileName: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
-  profileCity: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  percentBadge: {
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  percentText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
-  introLine: {
-    fontSize: 15,
-    color: colors.textPrimary,
-    lineHeight: 21,
-  },
-  card: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 14,
-    padding: 16,
-    gap: 10,
-  },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  hint: { fontSize: 12.5, color: colors.textMuted, marginTop: -4 },
+  content: { paddingHorizontal: homeSpacing.lg, paddingBottom: 24, gap: homeSpacing.lg },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: homeSpacing.sm + 2 },
+  profileInfo: { flex: 1, gap: 6 },
+  profileName: { fontSize: 17, fontWeight: '700', color: homeColors.textPrimary },
+  title: { fontSize: 24, fontWeight: '800', color: homeColors.textPrimary },
+  subtitle: { fontSize: 14.5, color: homeColors.textSecondary, marginTop: 3 },
+
+  section: { gap: homeSpacing.sm + 2 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: homeColors.textPrimary },
+  hint: { fontSize: 12.5, color: homeColors.textSecondary, marginTop: -4 },
   placeLoading: { marginVertical: 12 },
-  placeList: { gap: 8 },
-  placeRow: {
+  venueList: { gap: homeSpacing.sm },
+  emptyHint: { fontSize: 13, color: homeColors.textSecondary, fontStyle: 'italic' },
+  customToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    backgroundColor: colors.bgSubtle,
-    borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: 6,
+    paddingVertical: 8,
+    minHeight: 44,
   },
-  placeRowSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-  placeRowText: { flex: 1, fontSize: 14.5, color: colors.textPrimary },
-  placeRowTextSelected: { color: '#FFFFFF', fontWeight: '700' },
+  customToggleText: { fontSize: 13.5, fontWeight: '600', color: homeColors.textSecondary },
+  customToggleTextActive: { color: homeColors.accent },
   customInput: {
-    backgroundColor: colors.bgSubtle,
-    borderRadius: 12,
+    backgroundColor: homeColors.surface,
+    borderRadius: homeRadius.cardSmall,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: colors.textPrimary,
+    color: homeColors.textPrimary,
     fontSize: 14.5,
-    borderWidth: 1,
-    borderColor: colors.accent,
+    borderWidth: 1.5,
+    borderColor: homeColors.accent,
   },
+
   slotChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  slotChip: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bgSubtle,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  slotChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-  slotChipDashed: { borderStyle: 'dashed', borderColor: colors.accent },
-  slotChipText: { fontSize: 13.5, fontWeight: '600', color: colors.textPrimary },
-  slotChipTextSelected: { color: '#FFFFFF' },
-  // Picker stacked above its confirm button — side-by-side pushed the button
-  // off-screen since the spinner (3 columns: day/hour/minute) is wider than
-  // it looks and doesn't shrink to share a row (2026-08-25, device testing).
   timePickerColumn: { gap: 8, alignItems: 'stretch', marginTop: 4 },
   timePickerSpinner: { alignSelf: 'stretch', width: '100%', height: 180, backgroundColor: '#FFFFFF' },
   addSlotBtnWide: {
-    backgroundColor: colors.accent,
-    borderRadius: 12,
+    backgroundColor: homeColors.accent,
+    borderRadius: homeRadius.cardSmall,
     paddingVertical: 14,
     alignItems: 'center',
   },
   addSlotBtnText: { color: '#FFF', fontWeight: '600' },
-  footer: { paddingTop: 8, paddingBottom: 8 },
+
+  footer: {
+    paddingTop: 10,
+    paddingHorizontal: homeSpacing.lg,
+    backgroundColor: homeColors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: homeColors.border,
+  },
   primaryBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingVertical: 16,
+    minHeight: 52,
+    backgroundColor: homeColors.accent,
+    borderRadius: homeRadius.pill,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
   btnDisabled: { opacity: 0.45 },
-  doneWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 12 },
-  doneEmoji: { fontSize: 48 },
-  doneTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    textAlign: 'center',
+
+  doneWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
+  doneIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: homeColors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
-  doneSubtitle: { fontSize: 15, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  doneTitle: { fontSize: 22, fontWeight: '800', color: homeColors.textPrimary, textAlign: 'center' },
+  doneSubtitle: { fontSize: 15, color: homeColors.textSecondary, textAlign: 'center', lineHeight: 22 },
   confirmedBox: {
     width: '100%',
-    backgroundColor: colors.bgCard,
-    borderRadius: 12,
+    backgroundColor: homeColors.surface,
+    borderRadius: homeRadius.card,
+    borderWidth: 1,
+    borderColor: homeColors.border,
     padding: 16,
     gap: 8,
     marginTop: 8,
   },
-  confirmedText: { fontSize: 14, color: colors.textPrimary },
+  confirmedText: { fontSize: 14, color: homeColors.textPrimary },
   doneBtn: {
     marginTop: 16,
-    backgroundColor: colors.accent,
-    borderRadius: 12,
+    backgroundColor: homeColors.accent,
+    borderRadius: homeRadius.pill,
     paddingVertical: 14,
     paddingHorizontal: 24,
     width: '100%',
@@ -715,5 +646,5 @@ const styles = StyleSheet.create({
   },
   doneBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
   doneBtnSecondary: { marginTop: 8, paddingVertical: 12 },
-  doneBtnSecondaryText: { color: colors.accent, fontWeight: '600', fontSize: 15 },
+  doneBtnSecondaryText: { color: homeColors.accent, fontWeight: '600', fontSize: 15 },
 });

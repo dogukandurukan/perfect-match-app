@@ -1,12 +1,15 @@
-// Screen: Eşleşmeler sekmesi | Status: stable | Last updated: Temmuz 2026
-import { useCallback, useEffect, useState } from 'react';
+// Screen: Eşleşmeler sekmesi | Status: stable | Last updated: 2026-09-18 (Warm Editorial redesign)
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
-  Image,
+  LayoutAnimation,
+  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  UIManager,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,33 +17,33 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ErrorState } from '@/components/ErrorState';
+import { MatchesHeader } from '@/components/matches/MatchesHeader';
+import { MatchesSegmentedControl, type MatchesTabKey } from '@/components/matches/MatchesSegmentedControl';
+import { ReadyMatchCard, type ReadyCardCta, type ReadyItem } from '@/components/matches/ReadyMatchCard';
+import { UpcomingPlanCard, type UpcomingPlan } from '@/components/matches/UpcomingPlanCard';
 import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
-import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { colors } from '@/lib/designTokens';
+import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
 import {
-  formatIntroLines,
+  formatMeetingTime,
   introAnswersForUser,
   orderedPair,
   upsertMatchPair,
   type IntroAnswers,
 } from '@/lib/matchInvite';
-import {
-  getDailyInvitesState,
-  remainingInvitesLabel,
-  type DailyInvitesState,
-} from '@/lib/dailyInvites';
+import { getDailyInvitesState, type DailyInvitesState } from '@/lib/dailyInvites';
+import { strongestReason } from '@/lib/matchReason';
 import {
   hingeSafeAge,
   parseFavoriteSpots,
-  strongestCommonLine,
-  type CommonSelf,
   type HingeProfilePerson,
 } from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 
-const ACCENT = '#1A1A1A';
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 function matchCategory(score: number): string {
   if (score >= 85) return '🔥 Perfect match';
@@ -76,13 +79,21 @@ type MatchResultItem = {
 
 type MatchCardData = MatchResultItem & {
   matchId: string;
-  displayPhotoUrl: string;
+  displayPhotoUrl: string | null;
   intent: string | null;
   languages: string[] | null;
   recharge_style: string | string[] | null;
   bio: string | null;
   first_date_expectation: string | null;
   favorite_spots: Record<string, string> | null;
+  /** Only ever populated for candidates freshly returned by get_top_matches
+   * THIS session — existing, already-persisted pending matches have no
+   * stored reasons (the RPC computes them on the fly, doesn't write them to
+   * the matches row, and deliberately excludes already-matched pairs from
+   * its own result set, so there is no way to recover a real reason for an
+   * older pending row). Left undefined/empty in that case — the UI hides
+   * the reason line rather than fabricating one. */
+  reason: string | null;
 };
 
 type IncomingInvite = {
@@ -91,55 +102,20 @@ type IncomingInvite = {
   firstName: string | null;
   age: number;
   city: string | null;
-  displayPhotoUrl: string;
+  displayPhotoUrl: string | null;
   matchScore: number;
   introAnswers: IntroAnswers | null;
 };
 
-type AcceptedMatch = {
+type WaitingInvite = {
   matchId: string;
   userId: string;
   firstName: string | null;
-  age: number;
-  displayPhotoUrl: string;
-  isUserA: boolean;
-  checkinDone: boolean;
+  displayPhotoUrl: string | null;
 };
 
 const MATCH_SLOT_COUNT = 3;
 const MATCH_TTL_MS = 24 * 60 * 60 * 1000;
-
-function formatCountdown(expiresAt: string): string | null {
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return 'Expired';
-
-  const totalMinutes = Math.floor(diff / (1000 * 60));
-  const totalHours = Math.floor(diff / (1000 * 60 * 60));
-
-  if (totalHours >= 24) return null;
-
-  if (totalMinutes >= 60) {
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `⏳ ${hours}h ${minutes}m left`;
-  }
-
-  return `⏳ ${totalMinutes}m left`;
-}
-
-function CountdownText({ expiresAt }: { expiresAt: string }) {
-  const [text, setText] = useState(() => formatCountdown(expiresAt));
-
-  useEffect(() => {
-    const update = () => setText(formatCountdown(expiresAt));
-    update();
-    const id = setInterval(update, 60_000);
-    return () => clearInterval(id);
-  }, [expiresAt]);
-
-  if (!text) return null;
-  return <ThemedText style={styles.timeLeftText}>{text}</ThemedText>;
-}
 
 type PendingMatchRow = {
   id: string;
@@ -147,6 +123,7 @@ type PendingMatchRow = {
   match_score: number;
   expires_at: string;
   status: string;
+  reasons?: string[] | null;
 };
 
 type ProfileForCard = {
@@ -174,23 +151,23 @@ type ProfileForCard = {
   favorite_spots: Record<string, string> | null;
 };
 
-async function buildCardFromPending(
+/** Real photo URL, or null if genuinely missing — no more pravatar.cc
+ * fallback (2026-09-18 brief: no random third-party avatars, use a neutral
+ * initials placeholder instead — see components/matches/PersonAvatar). */
+function photoFor(photos: string[] | null | undefined): string | null {
+  const first = photos?.[0];
+  if (!first?.trim()) return null;
+  return getProfilePhotoPublicUrl(first);
+}
+
+function buildCardFromPending(
   row: PendingMatchRow,
   profile: ProfileForCard,
   intent: string | null,
-): Promise<MatchCardData> {
-  const signedPhotos =
-    profile.photos && profile.photos.length > 0
-      ? profile.photos.map((path, i) => {
-          if (!path?.trim()) {
-            return `https://i.pravatar.cc/300?u=${profile.id}&n=${i}`;
-          }
-          return getProfilePhotoPublicUrl(path);
-        })
-      : [];
-  const displayPhotoUrl = signedPhotos[0]
-    ? getProfilePhotoPublicUrl(signedPhotos[0])
-    : `https://i.pravatar.cc/300?u=${profile.id}`;
+): MatchCardData {
+  const signedPhotos = (profile.photos ?? [])
+    .filter((p) => p?.trim())
+    .map((path) => getProfilePhotoPublicUrl(path));
 
   return {
     user_id: profile.id,
@@ -203,6 +180,7 @@ async function buildCardFromPending(
     match_percentage: Math.round(row.match_score),
     match_category: matchCategory(Math.round(row.match_score)),
     reasons: [],
+    reason: strongestReason(row.reasons),
     favorite_music: profile.favorite_music,
     favorite_movie: profile.favorite_movie,
     favorite_book: profile.favorite_book,
@@ -219,7 +197,7 @@ async function buildCardFromPending(
     intent,
     languages: profile.languages,
     recharge_style: profile.recharge_style,
-    displayPhotoUrl,
+    displayPhotoUrl: signedPhotos[0] ?? null,
     bio: profile.bio,
     first_date_expectation: profile.first_date_expectation,
     favorite_spots: parseFavoriteSpots(profile.favorite_spots),
@@ -245,115 +223,66 @@ function matchToHingePerson(match: MatchCardData): HingeProfilePerson {
     bio: match.bio,
     first_date_expectation: match.first_date_expectation,
     favorite_spots: match.favorite_spots,
-    photoUrls: photos.length > 0 ? photos : [match.displayPhotoUrl],
+    photoUrls: photos.length > 0 ? photos : match.displayPhotoUrl ? [match.displayPhotoUrl] : [],
   };
 }
 
-type CompactMatchCardProps = {
-  match: MatchCardData;
-  commonLine: string | null;
-  inviteState: 'none' | 'sent' | 'open';
-  timeLeft: string | null;
-  onOpenDetail: () => void;
-  onLetsMeet: () => void;
-  onOpenChat: () => void;
-  onPass: () => void;
-};
-
-function CompactMatchCard({
-  match,
-  commonLine,
-  inviteState,
-  timeLeft,
-  onOpenDetail,
-  onLetsMeet,
-  onOpenChat,
-  onPass,
-}: CompactMatchCardProps) {
-  const displayName = match.first_name ?? 'Someone';
-  const displayAge = safeAge(match.date_of_birth);
-
-  return (
-    <View style={styles.compactCard}>
-      <TouchableOpacity
-        style={styles.compactMain}
-        activeOpacity={0.85}
-        onPress={onOpenDetail}>
-        <Image
-          source={{ uri: match.displayPhotoUrl }}
-          style={styles.compactPhoto}
-          resizeMode="cover"
-        />
-        <View style={styles.compactInfo}>
-          <ThemedText style={styles.compactName}>
-            {displayName}
-            {displayAge > 0 ? `, ${displayAge}` : ''}
-          </ThemedText>
-          <View style={styles.compactPctBadge}>
-            <ThemedText style={styles.compactPctText}>%{match.match_percentage}</ThemedText>
-          </View>
-          {commonLine ? (
-            <ThemedText style={styles.compactCommon} numberOfLines={1}>
-              {commonLine}
-            </ThemedText>
-          ) : null}
-          {timeLeft ? <CountdownText expiresAt={timeLeft} /> : null}
-        </View>
-      </TouchableOpacity>
-
-      <View style={styles.compactActions}>
-        {inviteState === 'sent' ? (
-          <ThemedText style={styles.compactWaiting}>
-            Waiting for {displayName} ⏳
-          </ThemedText>
-        ) : inviteState === 'open' ? (
-          <TouchableOpacity style={styles.compactMeetBtn} onPress={onOpenChat} activeOpacity={0.85}>
-            <ThemedText style={styles.compactMeetText}>💬 Message</ThemedText>
-          </TouchableOpacity>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={styles.compactMeetBtn}
-              onPress={onLetsMeet}
-              activeOpacity={0.85}>
-              <ThemedText style={styles.compactMeetText}>☕ Let&apos;s meet</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.compactPassBtn} onPress={onPass} activeOpacity={0.85}>
-              <ThemedText style={styles.compactPassText}>👋</ThemedText>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-    </View>
-  );
+function safeAge(dob: string | null): number {
+  return hingeSafeAge(dob);
 }
 
-function safeAge(dob: string | null): number {
-  // Was fabricating 28 for a missing/invalid DOB — every other screen shows
-  // nothing in that case (hingeSafeAge's 0 sentinel), this one silently
-  // showed a confident, wrong age instead (found in codebase audit,
-  // 2026-08-29). Render sites below now guard on `> 0` to match.
-  return hingeSafeAge(dob);
+/** "Walter's Coffee — Kadıköy · Near both of you" (older rows) or
+ * "Walter's Coffee — Kadıköy" (rows saved by the redesigned Plan-your-date
+ * screen) → { venue: "Walter's Coffee", district: "Kadıköy" }. A plain
+ * custom-typed place with no " — " separator returns just `venue`, no
+ * fabricated district. Real-text parsing of an existing free-text column,
+ * not new data. */
+function splitVenueText(raw: string | null): { venue: string | null; district: string | null } {
+  if (!raw?.trim()) return { venue: null, district: null };
+  const idx = raw.indexOf(' — ');
+  if (idx === -1) return { venue: raw.trim(), district: null };
+  const venue = raw.slice(0, idx).trim();
+  let rest = raw.slice(idx + 3).trim();
+  const dotIdx = rest.indexOf(' · ');
+  if (dotIdx !== -1) rest = rest.slice(0, dotIdx).trim();
+  return { venue: venue || null, district: rest || null };
 }
 
 export default function MatchesTab() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState<MatchesTabKey>('ready');
   const [cards, setCards] = useState<MatchCardData[]>([]);
   const [incoming, setIncoming] = useState<IncomingInvite[]>([]);
+  const [waiting, setWaiting] = useState<WaitingInvite[]>([]);
+  const [plans, setPlans] = useState<UpcomingPlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [noMatches, setNoMatches] = useState(false);
-  const [acceptedMatches, setAcceptedMatches] = useState<AcceptedMatch[]>([]);
   const [inviteByOtherId, setInviteByOtherId] = useState<
     Record<string, { matchId: string; invitedBy: string | null; chatOpened: boolean }>
   >({});
-  const [myGender, setMyGender] = useState<string | null>(null);
   const [myCity, setMyCity] = useState<string | null>(null);
-  const [commonSelf, setCommonSelf] = useState<CommonSelf | null>(null);
   const [dailyInvites, setDailyInvites] = useState<DailyInvitesState | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<MatchCardData | null>(null);
+  const hasLoadedRef = useRef(false);
+  // Ready/Plans switch below skips the fade entirely when the OS "Reduce
+  // Motion" setting is on, per the brief's accessibility requirement.
+  const reduceMotionRef = useRef(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
+      if (mounted) reduceMotionRef.current = v;
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => {
+      reduceMotionRef.current = v;
+    });
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -362,402 +291,357 @@ export default function MatchesTab() {
 
       (async () => {
         setLoading(true);
-        setNoMatches(false);
         setError(false);
 
         try {
-        // getSession() (local, no network) instead of getUser() — ran on
-        // every Matches focus, 2026-09-15.
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const user = session?.user;
-        if (!user || !mounted) {
-          setLoading(false);
-          return;
-        }
-
-        const userId = user.id;
-
-        // meProfile / invitesState / myMatches / pendingRows are all
-        // independent of each other (each only needs userId) — was 3
-        // sequential round-trip stages one after another, now a single
-        // parallel batch (2026-09-06, user-reported Matches-tab slowness).
-        const nowIso = new Date().toISOString();
-        const [
-          { data: meProfile },
-          invitesState,
-          { data: myMatches, error: myMatchesError },
-          { data: pendingRows, error: pendingError },
-        ] = await Promise.all([
-          supabase
-            .from('profiles')
-            .select('gender, city, district, hobbies, favorite_music, favorite_movie, favorite_book')
-            .eq('id', userId)
-            .maybeSingle(),
-          getDailyInvitesState(userId, false),
-          supabase
-            .from('matches')
-            .select(
-              `
-            id,
-            user_a_id,
-            user_b_id,
-            match_score,
-            status,
-            invited_by,
-            chat_opened,
-            user_a_intro_answers,
-            user_b_intro_answers,
-            checkin_a,
-            checkin_b
-          `,
-            )
-            .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
-            .not('status', 'in', '(expired,passed)'),
-          supabase
-            .from('matches')
-            .select('id, user_a_id, user_b_id, match_score, expires_at, status, invited_by, chat_opened')
-            .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
-            .eq('status', 'pending')
-            .is('invited_by', null)
-            .gt('expires_at', nowIso)
-            .order('created_at', { ascending: true })
-            .limit(MATCH_SLOT_COUNT),
-        ]);
-
-        if (!mounted) return;
-        setMyGender(meProfile?.gender ?? null);
-        setMyCity(typeof meProfile?.city === 'string' ? meProfile.city : null);
-        setCommonSelf({
-          hobbies: Array.isArray(meProfile?.hobbies) ? (meProfile.hobbies as string[]) : null,
-          favorite_music:
-            typeof meProfile?.favorite_music === 'string' ? meProfile.favorite_music : null,
-          favorite_movie:
-            typeof meProfile?.favorite_movie === 'string' ? meProfile.favorite_movie : null,
-          favorite_book:
-            typeof meProfile?.favorite_book === 'string' ? meProfile.favorite_book : null,
-          district: typeof meProfile?.district === 'string' ? meProfile.district : null,
-        });
-        setDailyInvites(invitesState);
-        if (myMatchesError) {
-          setError(true);
-          setLoading(false);
-          return;
-        }
-
-        const rows = myMatches ?? [];
-        const otherIds = [
-          ...new Set(
-            rows.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id) as string),
-          ),
-        ];
-
-        // inviteMap only needs `rows` (no profile data) — build it up front,
-        // synchronously, so candidate generation below (RPC + backfill) can
-        // start immediately instead of waiting on the profiles(otherIds)
-        // fetch it has nothing to do with (2026-09-06, Matches-tab slowness,
-        // round 2).
-        const inviteMap: Record<
-          string,
-          { matchId: string; invitedBy: string | null; chatOpened: boolean }
-        > = {};
-        for (const row of rows) {
-          const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
-          inviteMap[otherId] = {
-            matchId: row.id,
-            invitedBy: (row.invited_by as string | null) ?? null,
-            chatOpened: row.chat_opened === true,
-          };
-        }
-
-        if (pendingError) {
-          setError(true);
-          setLoading(false);
-          return;
-        }
-
-        type ProfileRow = {
-          id: string;
-          first_name: string | null;
-          date_of_birth: string | null;
-          city: string | null;
-          photos: string[] | null;
-          gender: string | null;
-        };
-        type PendingRow = {
-          id: string;
-          user_a_id: string;
-          user_b_id: string;
-          match_score: number;
-          expires_at: string;
-          status: string;
-        };
-
-        // Two independent pieces of work: (a) profiles for existing match
-        // partners, used to render the invite/chat lists below, and
-        // (b) generating fresh discovery candidates (RPC + backfill) for
-        // the pending card slots. Neither needs the other's result — was
-        // sequential (profiles fetch, then RPC, then backfill loop), now
-        // run together.
-        const [profilesOutcome, candidatesOutcome] = await Promise.all([
-          (async () => {
-            if (otherIds.length === 0) {
-              return { profileById: new Map<string, ProfileRow>(), error: null as string | null };
-            }
-            const { data: profiles, error: profilesError } = await supabase
-              .from('profiles')
-              .select('id, first_name, date_of_birth, city, district, photos, gender')
-              .in('id', otherIds);
-            if (profilesError) {
-              return { profileById: new Map<string, ProfileRow>(), error: profilesError.message };
-            }
-            const map = new Map<string, ProfileRow>();
-            for (const p of profiles ?? []) map.set(p.id, p as ProfileRow);
-            return { profileById: map, error: null as string | null };
-          })(),
-          (async () => {
-            const activePending: PendingRow[] = (pendingRows ?? []) as PendingRow[];
-            const existingOtherIds = new Set(
-              activePending.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id)),
-            );
-
-            const missingCount = MATCH_SLOT_COUNT - activePending.length;
-            if (missingCount > 0) {
-              const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_matches', {
-                p_user_id: userId,
-                p_limit: missingCount + 5,
-              });
-              if (rpcError) return { activePending, error: rpcError.message };
-
-              const candidates = ((rpcData ?? []) as MatchResultItem[]).filter(
-                (c) => !existingOtherIds.has(c.user_id) && !inviteMap[c.user_id],
-              );
-
-              const backfilled = await Promise.all(
-                candidates.slice(0, missingCount).map(async (candidate) => {
-                  const upserted = await upsertMatchPair(
-                    userId,
-                    candidate.user_id,
-                    candidate.match_percentage,
-                  );
-                  if (!upserted.matchId) return null;
-
-                  const expiresAt = new Date(Date.now() + MATCH_TTL_MS).toISOString();
-                  await supabase
-                    .from('matches')
-                    .update({ expires_at: expiresAt, status: 'pending', algo_version: 'v1' })
-                    .eq('id', upserted.matchId)
-                    .is('invited_by', null);
-
-                  const [a, b] = orderedPair(userId, candidate.user_id);
-                  return {
-                    otherId: candidate.user_id,
-                    row: {
-                      id: upserted.matchId,
-                      user_a_id: a,
-                      user_b_id: b,
-                      match_score: candidate.match_percentage,
-                      expires_at: expiresAt,
-                      status: 'pending',
-                    } as PendingRow,
-                  };
-                }),
-              );
-
-              for (const item of backfilled) {
-                if (!item) continue;
-                activePending.push(item.row);
-                existingOtherIds.add(item.otherId);
-              }
-            }
-
-            return { activePending, error: null as string | null };
-          })(),
-        ]);
-
-        if (!mounted) return;
-
-        if (profilesOutcome.error || candidatesOutcome.error) {
-          setError(true);
-          setLoading(false);
-          return;
-        }
-
-        const profileById = profilesOutcome.profileById;
-        const activePending = candidatesOutcome.activePending;
-
-        function photoFor(uid: string, photos: string[] | null | undefined): string {
-          const first = photos?.[0];
-          if (!first?.trim()) {
-            return `https://i.pravatar.cc/300?u=${uid}`;
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          const user = session?.user;
+          if (!user || !mounted) {
+            setLoading(false);
+            return;
           }
-          return getProfilePhotoPublicUrl(first);
-        }
 
-        const nextIncoming: IncomingInvite[] = [];
-        const nextAccepted: AcceptedMatch[] = [];
+          const userId = user.id;
+          const nowIso = new Date().toISOString();
 
-        for (const row of rows) {
-          const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
-          const profile = profileById.get(otherId);
-          const displayPhotoUrl = photoFor(otherId, profile?.photos);
-          const firstName = profile?.first_name ?? null;
-          const age = safeAge(profile?.date_of_birth ?? null);
-          const invitedBy = (row.invited_by as string | null) ?? null;
-          const chatOpened = row.chat_opened === true;
+          const [
+            { data: meProfile },
+            invitesState,
+            { data: myMatches, error: myMatchesError },
+            { data: pendingRows, error: pendingError },
+          ] = await Promise.all([
+            supabase.from('profiles').select('city').eq('id', userId).maybeSingle(),
+            getDailyInvitesState(userId, false),
+            supabase
+              .from('matches')
+              .select(
+                `
+              id,
+              user_a_id,
+              user_b_id,
+              match_score,
+              status,
+              invited_by,
+              chat_opened,
+              user_a_intro_answers,
+              user_b_intro_answers,
+              meeting_at,
+              confirmed_place,
+              meetup_confirmed,
+              meetup_proposed_by
+            `,
+              )
+              .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+              .not('status', 'in', '(expired,passed)'),
+            supabase
+              .from('matches')
+              .select('id, user_a_id, user_b_id, match_score, expires_at, status, invited_by, chat_opened')
+              .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+              .eq('status', 'pending')
+              .is('invited_by', null)
+              .order('created_at', { ascending: true })
+              .limit(MATCH_SLOT_COUNT),
+          ]);
 
-          // Mutual-like matches (invited_by never set — no one "invited" the
-          // other, they liked each other) are left out of this list on
-          // purpose: Activity's "You matched!" card and the Chats tab already
-          // both link straight into the same conversation, a third copy
-          // here was redundant (user feedback, 2026-09-09). Matches' own
-          // invite-flow opens (invited_by set) still show as before.
-          //
-          // Two more categories deliberately excluded here too (2026-09-16,
-          // user feedback): chat-opened invite matches — Chats tab already
-          // lists every open conversation, this was a second copy — and
-          // outgoing ("waiting on them") invites, moved to Activity's own
-          // "Waiting on them" grid instead (same page as Liked You, visually
-          // matches better there).
-          if (chatOpened && invitedBy) {
-            // now shown in Chats — nothing to do here
-          } else if (invitedBy && invitedBy !== userId) {
-            const inviterAnswers = introAnswersForUser(
-              {
-                user_a_id: row.user_a_id,
-                user_b_id: row.user_b_id,
-                user_a_intro_answers: row.user_a_intro_answers as IntroAnswers | null,
-                user_b_intro_answers: row.user_b_intro_answers as IntroAnswers | null,
-              },
-              invitedBy,
-            );
-            nextIncoming.push({
-              matchId: row.id,
-              userId: otherId,
-              firstName,
-              age,
-              city: profile?.city ?? null,
-              displayPhotoUrl,
-              matchScore: Math.round(Number(row.match_score) || 0),
-              introAnswers: inviterAnswers,
-            });
-          }
-          // else invitedBy === userId (outgoing, awaiting their response) —
-          // now shown in Activity, nothing to do here.
-
-          if (row.status === 'accepted') {
-            const isUserA = row.user_a_id === userId;
-            const checkinDone = isUserA ? row.checkin_a !== null : row.checkin_b !== null;
-            nextAccepted.push({
-              matchId: row.id,
-              userId: otherId,
-              firstName,
-              age,
-              displayPhotoUrl,
-              isUserA,
-              checkinDone,
-            });
-          }
-        }
-
-        setIncoming(nextIncoming);
-        setAcceptedMatches(nextAccepted);
-        setInviteByOtherId(inviteMap);
-
-        if (activePending.length === 0) {
-          setCards([]);
-          setNoMatches(true);
-          setLoading(false);
-          return;
-        }
-
-        const cardOtherIds = activePending.map((r) =>
-          r.user_a_id === userId ? r.user_b_id : r.user_a_id,
-        );
-        // profileRows and intentRows both only depend on cardOtherIds, not
-        // on each other — run together (2026-09-06, Matches-tab slowness).
-        const [
-          { data: profileRows, error: profileError },
-          { data: intentRows, error: intentError },
-        ] = await Promise.all([
-          supabase
-            .from('profiles')
-            .select(
-              'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots',
-            )
-            .in('id', cardOtherIds),
-          supabase.from('onboarding_answers').select('user_id, intent').in('user_id', cardOtherIds),
-        ]);
-
-        if (!mounted) return;
-
-        if (intentError) {
-          console.warn('[Matches] intent fetch failed', intentError);
-        }
-
-        let profilesForCards: ProfileForCard[] = [];
-        if (profileError) {
-          const { data: fallbackRows, error: fallbackError } = await supabase
-            .from('profiles')
-            .select(
-              'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style',
-            )
-            .in('id', cardOtherIds);
-          if (fallbackError) {
+          if (!mounted) return;
+          setMyCity(typeof meProfile?.city === 'string' ? meProfile.city : null);
+          setDailyInvites(invitesState);
+          if (myMatchesError) {
             setError(true);
             setLoading(false);
             return;
           }
-          profilesForCards = (fallbackRows ?? []).map((p) => ({
-            ...(p as Omit<ProfileForCard, 'bio' | 'first_date_expectation' | 'favorite_spots'>),
-            bio: null,
-            first_date_expectation: null,
-            favorite_spots: null,
-          }));
-        } else {
-          profilesForCards = (profileRows ?? []).map((p) => ({
-            ...(p as ProfileForCard),
-            favorite_spots: parseFavoriteSpots((p as ProfileForCard).favorite_spots),
-          }));
-        }
 
-        const intentMap = new Map<string, string | null>(
-          (intentRows ?? []).map((row: { user_id: string; intent: string | null }) => [
-            row.user_id,
-            row.intent,
-          ]),
-        );
+          const rows = myMatches ?? [];
+          const otherIds = [
+            ...new Set(rows.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id) as string)),
+          ];
 
-        const cardProfileById = new Map(profilesForCards.map((p) => [p.id, p]));
+          const inviteMap: Record<string, { matchId: string; invitedBy: string | null; chatOpened: boolean }> = {};
+          for (const row of rows) {
+            const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
+            inviteMap[otherId] = {
+              matchId: row.id,
+              invitedBy: (row.invited_by as string | null) ?? null,
+              chatOpened: row.chat_opened === true,
+            };
+          }
 
-        const mappedCards = (
-          await Promise.all(
-            activePending.map(async (row) => {
-              const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
-              const profile = cardProfileById.get(otherId);
-              if (!profile) return null;
-              const pendingForCard: PendingMatchRow = {
-                id: row.id,
-                user_b_id: otherId,
-                match_score: row.match_score,
-                expires_at: row.expires_at,
-                status: row.status,
-              };
-              return buildCardFromPending(
-                pendingForCard,
-                profile,
-                intentMap.get(profile.id) ?? null,
+          if (pendingError) {
+            setError(true);
+            setLoading(false);
+            return;
+          }
+
+          type ProfileRow = {
+            id: string;
+            first_name: string | null;
+            date_of_birth: string | null;
+            city: string | null;
+            district: string | null;
+            photos: string[] | null;
+            gender: string | null;
+          };
+          type PendingRow = {
+            id: string;
+            user_a_id: string;
+            user_b_id: string;
+            match_score: number;
+            expires_at: string;
+            status: string;
+            reasons?: string[] | null;
+          };
+
+          const [profilesOutcome, candidatesOutcome] = await Promise.all([
+            (async () => {
+              if (otherIds.length === 0) {
+                return { profileById: new Map<string, ProfileRow>(), error: null as string | null };
+              }
+              const { data: profiles, error: profilesError } = await supabase
+                .from('profiles')
+                .select('id, first_name, date_of_birth, city, district, photos, gender')
+                .in('id', otherIds);
+              if (profilesError) {
+                return { profileById: new Map<string, ProfileRow>(), error: profilesError.message };
+              }
+              const map = new Map<string, ProfileRow>();
+              for (const p of profiles ?? []) map.set(p.id, p as ProfileRow);
+              return { profileById: map, error: null as string | null };
+            })(),
+            (async () => {
+              const activePending: PendingRow[] = (pendingRows ?? []) as PendingRow[];
+              const existingOtherIds = new Set(
+                activePending.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id)),
               );
-            }),
-          )
-        ).filter((card): card is MatchCardData => card !== null);
 
-        if (mounted) {
-          setCards(mappedCards);
-          setNoMatches(mappedCards.length === 0);
-          setLoading(false);
-        }
+              const missingCount = MATCH_SLOT_COUNT - activePending.length;
+              if (missingCount > 0) {
+                const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_matches', {
+                  p_user_id: userId,
+                  p_limit: missingCount + 5,
+                });
+                if (rpcError) return { activePending, error: rpcError.message };
+
+                const candidates = ((rpcData ?? []) as MatchResultItem[]).filter(
+                  (c) => !existingOtherIds.has(c.user_id) && !inviteMap[c.user_id],
+                );
+
+                const backfilled = await Promise.all(
+                  candidates.slice(0, missingCount).map(async (candidate) => {
+                    const upserted = await upsertMatchPair(userId, candidate.user_id, candidate.match_percentage);
+                    if (!upserted.matchId) return null;
+
+                    const expiresAt = new Date(Date.now() + MATCH_TTL_MS).toISOString();
+                    await supabase
+                      .from('matches')
+                      .update({ expires_at: expiresAt, status: 'pending', algo_version: 'v1' })
+                      .eq('id', upserted.matchId)
+                      .is('invited_by', null);
+
+                    const [a, b] = orderedPair(userId, candidate.user_id);
+                    return {
+                      otherId: candidate.user_id,
+                      row: {
+                        id: upserted.matchId,
+                        user_a_id: a,
+                        user_b_id: b,
+                        match_score: candidate.match_percentage,
+                        expires_at: expiresAt,
+                        status: 'pending',
+                        reasons: candidate.reasons ?? null,
+                      } as PendingRow,
+                    };
+                  }),
+                );
+
+                for (const item of backfilled) {
+                  if (!item) continue;
+                  activePending.push(item.row);
+                  existingOtherIds.add(item.otherId);
+                }
+              }
+
+              return { activePending, error: null as string | null };
+            })(),
+          ]);
+
+          if (!mounted) return;
+
+          if (profilesOutcome.error || candidatesOutcome.error) {
+            setError(true);
+            setLoading(false);
+            return;
+          }
+
+          const profileById = profilesOutcome.profileById;
+          const activePending = candidatesOutcome.activePending;
+
+          const nextIncoming: IncomingInvite[] = [];
+          const nextWaiting: WaitingInvite[] = [];
+          const nextPlans: UpcomingPlan[] = [];
+
+          for (const row of rows) {
+            const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
+            const profile = profileById.get(otherId);
+            const displayPhotoUrl = photoFor(profile?.photos);
+            const firstName = profile?.first_name ?? null;
+            const age = safeAge(profile?.date_of_birth ?? null);
+            const invitedBy = (row.invited_by as string | null) ?? null;
+            const chatOpened = row.chat_opened === true;
+
+            const meetingAt = (row.meeting_at as string | null) ?? null;
+            const meetupConfirmed = (row.meetup_confirmed as boolean | null) ?? null;
+            const isConfirmedPlan = !!meetingAt && meetupConfirmed === true;
+
+            if (isConfirmedPlan) {
+              // "Cancelled veya geçmiş planları upcoming olarak gösterme" —
+              // a meeting time already in the past is neither upcoming nor
+              // does this app have a separate past-dates history screen to
+              // route it to, so it's simply excluded here (not fabricated
+              // as upcoming, not silently mis-shown elsewhere).
+              if (new Date(meetingAt).getTime() > Date.now()) {
+                const { venue, district } = splitVenueText((row.confirmed_place as string | null) ?? null);
+                nextPlans.push({
+                  matchId: row.id,
+                  userId: otherId,
+                  name: firstName ?? 'Someone',
+                  photoUrl: displayPhotoUrl,
+                  venue,
+                  district,
+                  whenLabel: formatMeetingTime(meetingAt),
+                  canMessage: chatOpened,
+                });
+              }
+              continue;
+            }
+
+            // Mutual-like open chats (invited_by never set) and algo-invite
+            // chats already open (chat_opened && invited_by) are both
+            // deliberately excluded here — Chats already lists every open
+            // conversation, a second copy in Matches was redundant
+            // (pre-existing decision, unchanged by this redesign).
+            if (chatOpened && invitedBy) {
+              // shown in Chats — nothing to do here
+            } else if (invitedBy && invitedBy !== userId) {
+              const inviterAnswers = introAnswersForUser(
+                {
+                  user_a_id: row.user_a_id,
+                  user_b_id: row.user_b_id,
+                  user_a_intro_answers: row.user_a_intro_answers as IntroAnswers | null,
+                  user_b_intro_answers: row.user_b_intro_answers as IntroAnswers | null,
+                },
+                invitedBy,
+              );
+              nextIncoming.push({
+                matchId: row.id,
+                userId: otherId,
+                firstName,
+                age,
+                city: profile?.city ?? null,
+                displayPhotoUrl,
+                matchScore: Math.round(Number(row.match_score) || 0),
+                introAnswers: inviterAnswers,
+              });
+            } else if (invitedBy === userId) {
+              // Outgoing, awaiting their response — surfaced back in the
+              // Ready tab as a "Waiting for {name}" card per this redesign
+              // brief (previously moved out to Activity's own "Waiting on
+              // them" grid, 2026-09-15 — that grid still exists too; this
+              // is a deliberate, brief-requested overlap, see report).
+              nextWaiting.push({ matchId: row.id, userId: otherId, firstName, displayPhotoUrl });
+            }
+          }
+
+          setIncoming(nextIncoming);
+          setWaiting(nextWaiting);
+          setPlans(nextPlans);
+          setInviteByOtherId(inviteMap);
+
+          if (activePending.length === 0) {
+            setCards([]);
+            setLoading(false);
+            hasLoadedRef.current = true;
+            return;
+          }
+
+          const cardOtherIds = activePending.map((r) => (r.user_a_id === userId ? r.user_b_id : r.user_a_id));
+          const [
+            { data: profileRows, error: profileError },
+            { data: intentRows, error: intentError },
+          ] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select(
+                'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots',
+              )
+              .in('id', cardOtherIds),
+            supabase.from('onboarding_answers').select('user_id, intent').in('user_id', cardOtherIds),
+          ]);
+
+          if (!mounted) return;
+
+          if (intentError) {
+            console.warn('[Matches] intent fetch failed', intentError);
+          }
+
+          let profilesForCards: ProfileForCard[] = [];
+          if (profileError) {
+            const { data: fallbackRows, error: fallbackError } = await supabase
+              .from('profiles')
+              .select(
+                'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style',
+              )
+              .in('id', cardOtherIds);
+            if (fallbackError) {
+              setError(true);
+              setLoading(false);
+              return;
+            }
+            profilesForCards = (fallbackRows ?? []).map((p) => ({
+              ...(p as Omit<ProfileForCard, 'bio' | 'first_date_expectation' | 'favorite_spots'>),
+              bio: null,
+              first_date_expectation: null,
+              favorite_spots: null,
+            }));
+          } else {
+            profilesForCards = (profileRows ?? []).map((p) => ({
+              ...(p as ProfileForCard),
+              favorite_spots: parseFavoriteSpots((p as ProfileForCard).favorite_spots),
+            }));
+          }
+
+          const intentMap = new Map<string, string | null>(
+            (intentRows ?? []).map((row: { user_id: string; intent: string | null }) => [row.user_id, row.intent]),
+          );
+
+          const cardProfileById = new Map(profilesForCards.map((p) => [p.id, p]));
+
+          const mappedCards = (
+            await Promise.all(
+              activePending.map(async (row) => {
+                const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
+                const profile = cardProfileById.get(otherId);
+                if (!profile) return null;
+                const pendingForCard: PendingMatchRow = {
+                  id: row.id,
+                  user_b_id: otherId,
+                  match_score: row.match_score,
+                  expires_at: row.expires_at,
+                  status: row.status,
+                  reasons: row.reasons,
+                };
+                return buildCardFromPending(pendingForCard, profile, intentMap.get(profile.id) ?? null);
+              }),
+            )
+          ).filter((card): card is MatchCardData => card !== null);
+
+          if (mounted) {
+            setCards(mappedCards);
+            setLoading(false);
+            hasLoadedRef.current = true;
+          }
         } catch {
           if (mounted) {
             setError(true);
@@ -772,16 +656,9 @@ export default function MatchesTab() {
     }, [reloadKey]),
   );
 
-  async function handleMaybeLater(invite: IncomingInvite) {
-    setIncoming((prev) => prev.filter((i) => i.matchId !== invite.matchId));
-  }
-
-  function handleLetsMeet(match: MatchCardData) {
+  function handleLetsMeet(match: { user_id: string; first_name: string | null; date_of_birth: string | null; city: string | null; displayPhotoUrl: string | null; match_percentage: number; matchId: string }) {
     if (dailyInvites?.limitReached) {
-      Alert.alert(
-        "You've used your invite for today",
-        'Come back tomorrow, or go Premium for 3/day ✨',
-      );
+      Alert.alert("You've used your invite for today", 'Come back tomorrow, or go Premium for 3/day ✨');
       return;
     }
     router.push({
@@ -794,65 +671,104 @@ export default function MatchesTab() {
           return age > 0 ? String(age) : '';
         })(),
         matchCity: match.city ?? '',
-        matchPhoto: match.displayPhotoUrl,
+        matchPhoto: match.displayPhotoUrl ?? '',
         matchPercentage: String(match.match_percentage),
         matchId: match.matchId,
       },
     });
   }
 
-  function handleOpenChat(match: MatchCardData) {
+  function handleReviewInvite() {
+    router.push('/(tabs)/notifications' as never);
+  }
+
+  function handleOpenChat(userId: string, firstName: string | null, matchId: string) {
     router.push({
       pathname: '/chat',
-      params: {
-        userId: match.user_id,
-        userName: match.first_name ?? 'Chat',
-        matchId: match.matchId,
-      },
+      params: { userId, userName: firstName ?? 'Chat', matchId },
     });
   }
 
-  function handlePass(match: MatchCardData) {
-    Alert.alert('Maybe later', `Pass on ${match.first_name ?? 'this person'}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Maybe later',
-        onPress: () => {
-          void (async () => {
-            const { error } = await supabase
-              .from('matches')
-              .update({ status: 'passed' })
-              .eq('id', match.matchId);
-            if (error) {
-              // Don't remove the card locally on failure — it would silently
-              // reappear on the next reload anyway, better to leave it in
-              // place so the pass can be retried right away.
-              Alert.alert('Could not pass', 'Please try again.');
-              return;
-            }
-            setSelectedMatch(null);
-            setCards((prev) => {
-              const next = prev.filter((c) => c.matchId !== match.matchId);
-              if (next.length === 0) setNoMatches(true);
-              return next;
-            });
-          })();
-        },
-      },
-    ]);
+  function handleViewPlan(plan: UpcomingPlan) {
+    router.push({
+      pathname: '/plan-detail',
+      params: { matchId: plan.matchId, otherUserId: plan.userId },
+    });
   }
 
-  function cardInviteState(match: MatchCardData): 'none' | 'sent' | 'open' {
-    const info = inviteByOtherId[match.user_id];
-    if (!info) return 'none';
-    if (info.chatOpened) return 'open';
-    if (info.invitedBy) return 'sent';
-    return 'none';
+  function switchTab(next: MatchesTabKey) {
+    if (!reduceMotionRef.current) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+    setTab(next);
   }
 
+  // --- Build the unified Ready list -----------------------------------
+  const now = Date.now();
+  const readyItems: ReadyItem[] = [];
+
+  for (const match of cards) {
+    const isExpired = !!match.expires_at && new Date(match.expires_at).getTime() < now;
+    const cta: ReadyCardCta = isExpired
+      ? { kind: 'expired', label: 'Expired' }
+      : { kind: 'plan', label: 'Plan a date', onPress: () => handleLetsMeet(match) };
+    readyItems.push({
+      key: match.matchId,
+      userId: match.user_id,
+      name: match.first_name ?? 'Someone',
+      age: safeAge(match.date_of_birth),
+      photoUrl: match.displayPhotoUrl,
+      matchPercentage: match.match_percentage,
+      reason: match.reason,
+      expiresAt: isExpired ? null : match.expires_at ?? null,
+      cta,
+    });
+  }
+
+  for (const invite of incoming) {
+    readyItems.push({
+      key: invite.matchId,
+      userId: invite.userId,
+      name: invite.firstName ?? 'Someone',
+      age: invite.age,
+      photoUrl: invite.displayPhotoUrl,
+      matchPercentage: invite.matchScore > 0 ? invite.matchScore : null,
+      reason: null,
+      expiresAt: null,
+      cta: { kind: 'review', label: 'Review invitation', onPress: handleReviewInvite },
+    });
+  }
+
+  for (const w of waiting) {
+    readyItems.push({
+      key: w.matchId,
+      userId: w.userId,
+      name: w.firstName ?? 'Someone',
+      age: 0,
+      photoUrl: w.displayPhotoUrl,
+      matchPercentage: null,
+      reason: null,
+      expiresAt: null,
+      cta: { kind: 'waiting', label: `Waiting for ${w.firstName ?? 'them'}` },
+    });
+  }
+
+  function openDetailFor(readyItem: ReadyItem) {
+    const found = cards.find((c) => c.matchId === readyItem.key);
+    if (found) setSelectedMatch(found);
+    // Incoming/waiting items don't have full profile data loaded here (no
+    // reasons/bio/etc. fetched for them) — tapping those opens the invite
+    // review flow (incoming) or does nothing extra (waiting, already showing
+    // everything relevant on the card) rather than a half-populated detail.
+    else if (readyItem.cta.kind === 'review') handleReviewInvite();
+  }
+
+  // --- Detail overlay (unchanged behavior, re-skinned) ------------------
   if (selectedMatch) {
-    const inviteState = cardInviteState(selectedMatch);
+    const info = inviteByOtherId[selectedMatch.user_id];
+    const inviteState: 'none' | 'sent' | 'open' = !info ? 'none' : info.chatOpened ? 'open' : info.invitedBy ? 'sent' : 'none';
     const displayName = selectedMatch.first_name ?? 'Someone';
+    const isExpired = !!selectedMatch.expires_at && new Date(selectedMatch.expires_at).getTime() < now;
     return (
       <View style={[styles.detailRoot, { paddingTop: insets.top }]}>
         <View style={styles.detailHeader}>
@@ -861,7 +777,7 @@ export default function MatchesTab() {
             hitSlop={12}
             style={styles.detailBackBtn}
             accessibilityLabel="Back to matches">
-            <Ionicons name="chevron-back" size={28} color={ACCENT} />
+            <Ionicons name="chevron-back" size={28} color={homeColors.textPrimary} />
           </TouchableOpacity>
           <ThemedText style={styles.detailHeaderTitle}>Profile</ThemedText>
           <View style={styles.detailHeaderSpacer} />
@@ -876,31 +792,28 @@ export default function MatchesTab() {
             footer={
               <View style={styles.detailFooter}>
                 {inviteState === 'sent' ? (
-                  <ThemedText style={styles.compactWaiting}>
-                    Waiting for {displayName} ⏳
-                  </ThemedText>
+                  <View style={styles.detailWaiting}>
+                    <Ionicons name="hourglass-outline" size={16} color={homeColors.textSecondary} />
+                    <ThemedText style={styles.detailWaitingText}>Waiting for {displayName}</ThemedText>
+                  </View>
                 ) : inviteState === 'open' ? (
                   <TouchableOpacity
                     style={styles.detailPrimaryBtn}
-                    onPress={() => handleOpenChat(selectedMatch)}
+                    onPress={() => handleOpenChat(selectedMatch.user_id, selectedMatch.first_name, selectedMatch.matchId)}
                     activeOpacity={0.85}>
-                    <ThemedText style={styles.detailPrimaryText}>💬 Message</ThemedText>
+                    <ThemedText style={styles.detailPrimaryText}>Message</ThemedText>
                   </TouchableOpacity>
+                ) : isExpired ? (
+                  <View style={[styles.detailPrimaryBtn, styles.detailPrimaryBtnDisabled]}>
+                    <ThemedText style={styles.detailPrimaryTextDisabled}>Expired</ThemedText>
+                  </View>
                 ) : (
-                  <>
-                    <TouchableOpacity
-                      style={styles.detailPrimaryBtn}
-                      onPress={() => handleLetsMeet(selectedMatch)}
-                      activeOpacity={0.85}>
-                      <ThemedText style={styles.detailPrimaryText}>☕ Let&apos;s meet</ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.detailSecondaryBtn}
-                      onPress={() => handlePass(selectedMatch)}
-                      activeOpacity={0.85}>
-                      <ThemedText style={styles.detailSecondaryText}>👋 Maybe later</ThemedText>
-                    </TouchableOpacity>
-                  </>
+                  <TouchableOpacity
+                    style={styles.detailPrimaryBtn}
+                    onPress={() => handleLetsMeet(selectedMatch)}
+                    activeOpacity={0.85}>
+                    <ThemedText style={styles.detailPrimaryText}>Plan a date</ThemedText>
+                  </TouchableOpacity>
                 )}
               </View>
             }
@@ -910,328 +823,122 @@ export default function MatchesTab() {
     );
   }
 
-  const hasAnyContent = incoming.length > 0 || cards.length > 0;
-
   return (
-    <ScreenContainer style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ThemedText style={styles.pageTitle}>Matches</ThemedText>
-        {dailyInvites ? (
-          <View
-            style={styles.invitesLeftBar}
-            accessibilityRole="progressbar"
-            accessibilityLabel={remainingInvitesLabel(dailyInvites)}
-            accessibilityValue={{ min: 0, max: dailyInvites.limit, now: dailyInvites.count }}>
-            <View style={styles.invitesLeftTrack}>
-              <View
-                style={[
-                  styles.invitesLeftFill,
-                  {
-                    width: `${Math.min(100, Math.max(0, (dailyInvites.count / dailyInvites.limit) * 100))}%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        ) : null}
+    // Not ScreenContainer here on purpose — it applies its own insets.top +
+    // 12 AND paddingHorizontal:24, which would double-count against
+    // MatchesHeader's own insets.top handling and each section's own
+    // homeSpacing.lg gutter below (single safe-area/gutter source, same
+    // discipline Home's index.tsx already follows).
+    <View style={styles.container}>
+      <MatchesHeader />
+      <View style={styles.segmentWrap}>
+        <MatchesSegmentedControl
+          value={tab}
+          onChange={switchTab}
+          readyCount={hasLoadedRef.current ? readyItems.length : undefined}
+          plansCount={hasLoadedRef.current ? plans.length : undefined}
+        />
+      </View>
 
-        {loading ? (
-          <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
-        ) : error && !hasAnyContent ? (
-          <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
-        ) : (
-          <>
-            {incoming.length > 0 ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <ThemedText style={styles.sectionTitle}>Invites for you</ThemedText>
-                  <View style={styles.badge}>
-                    <ThemedText style={styles.badgeText}>{incoming.length}</ThemedText>
-                  </View>
-                </View>
-                {incoming.map((invite) => {
-                  const lines = formatIntroLines(invite.introAnswers);
-                  return (
-                    <View key={invite.matchId} style={styles.inviteCard}>
-                      <Image
-                        source={{ uri: invite.displayPhotoUrl }}
-                        style={styles.invitePhoto}
-                        resizeMode="cover"
-                      />
-                      <View style={styles.inviteInfo}>
-                        <ThemedText style={styles.inviteName}>
-                          {invite.firstName ?? 'Someone'}
-                          {invite.age > 0 ? `, ${invite.age}` : ''}
-                        </ThemedText>
-                        <ThemedText style={styles.inviteCity}>
-                          📍 {invite.city ?? 'Unknown'}
-                        </ThemedText>
-                        {lines.length > 0 ? (
-                          <View style={styles.inviteAnswers}>
-                            {lines.map((line) => (
-                              <ThemedText key={line} style={styles.inviteAnswer}>
-                                {line}
-                              </ThemedText>
-                            ))}
-                          </View>
-                        ) : null}
-                      </View>
-                      <View style={styles.inviteScoreBadge}>
-                        <ThemedText style={styles.inviteScore}>%{invite.matchScore}</ThemedText>
-                      </View>
-                      <View style={styles.inviteActions}>
-                        <TouchableOpacity
-                          style={styles.acceptBtn}
-                          onPress={() => router.push('/(tabs)/notifications' as never)}
-                          activeOpacity={0.8}>
-                          <ThemedText style={styles.acceptBtnText}>Review invite</ThemedText>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.rejectBtn}
-                          onPress={() => void handleMaybeLater(invite)}
-                          activeOpacity={0.8}>
-                          <ThemedText style={styles.rejectBtnText}>Maybe later</ThemedText>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })}
+      {loading && !hasLoadedRef.current ? (
+        <ActivityIndicator color={homeColors.accent} style={{ marginTop: 40 }} />
+      ) : error && readyItems.length === 0 && plans.length === 0 ? (
+        <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
+      ) : (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {tab === 'ready' ? (
+            readyItems.length === 0 ? (
+              <View style={styles.emptyWrap}>
+                <Ionicons name="heart-outline" size={40} color={homeColors.textSecondary} />
+                <ThemedText style={styles.emptyText}>No one&apos;s ready yet</ThemedText>
+                <ThemedText style={styles.emptySubtext}>
+                  Keep exploring on Discover — new matches will show up here
+                </ThemedText>
               </View>
-            ) : null}
-
-            <View style={styles.section}>
-              {noMatches ? (
-                <View style={styles.emptyWrap}>
-                  <ThemedText style={styles.emptyText}>No matches yet</ThemedText>
-                  <ThemedText style={styles.emptySubtext}>
-                    Keep exploring — they&apos;ll show up here
-                  </ThemedText>
-                </View>
-              ) : (
-                cards.map((match) => {
-                  const now = new Date();
-                  const isExpired = match.expires_at && new Date(match.expires_at) < now;
-                  if (isExpired) return null;
-
-                  const timeLeft =
-                    match.status === 'pending' && match.expires_at ? match.expires_at : null;
-
-                  return (
-                    <CompactMatchCard
-                      key={match.matchId}
-                      match={match}
-                      commonLine={strongestCommonLine(commonSelf, match)}
-                      timeLeft={timeLeft}
-                      inviteState={cardInviteState(match)}
-                      onOpenDetail={() => setSelectedMatch(match)}
-                      onLetsMeet={() => handleLetsMeet(match)}
-                      onOpenChat={() => handleOpenChat(match)}
-                      onPass={() => handlePass(match)}
-                    />
-                  );
-                })
-              )}
+            ) : (
+              <View style={styles.list}>
+                {readyItems.map((item) => (
+                  <ReadyMatchCard key={item.key} item={item} onPress={() => openDetailFor(item)} />
+                ))}
+              </View>
+            )
+          ) : plans.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Ionicons name="calendar-outline" size={40} color={homeColors.textSecondary} />
+              <ThemedText style={styles.emptyText}>No plans yet</ThemedText>
+              <ThemedText style={styles.emptySubtext}>
+                When you both confirm a date, it&apos;ll appear here.
+              </ThemedText>
+              <TouchableOpacity
+                style={styles.emptyCta}
+                onPress={() => switchTab('ready')}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Go to Ready matches">
+                <ThemedText style={styles.emptyCtaText}>See who&apos;s ready</ThemedText>
+              </TouchableOpacity>
             </View>
-          </>
-        )}
-      </ScrollView>
-    </ScreenContainer>
+          ) : (
+            <View style={styles.list}>
+              {plans.map((plan) => (
+                <UpcomingPlanCard
+                  key={plan.matchId}
+                  plan={plan}
+                  onViewPlan={() => handleViewPlan(plan)}
+                  onMessage={() => handleOpenChat(plan.userId, plan.name, plan.matchId)}
+                />
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { justifyContent: 'flex-start' },
-  content: { paddingBottom: 40, gap: 16 },
+  container: { flex: 1, justifyContent: 'flex-start', backgroundColor: homeColors.background },
+  segmentWrap: { paddingHorizontal: homeSpacing.lg, paddingBottom: homeSpacing.md },
+  content: { paddingHorizontal: homeSpacing.lg, paddingBottom: 40 },
+  list: { gap: homeSpacing.md },
 
-  pageTitle: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  // Bumble-style horizontal progress bar instead of "N invites left" text —
-  // same pattern as Home's daily-like bar (2026-09-12, user request).
-  invitesLeftBar: { paddingBottom: 12 },
-  invitesLeftTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E8E8E8',
-    overflow: 'hidden',
-  },
-  invitesLeftFill: {
-    height: '100%',
-    borderRadius: 2,
-    backgroundColor: ACCENT,
-  },
-
-  section: { gap: 12 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  badge: {
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-
-  checkinBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  checkinBtnText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
-
-  // Gelen davet kartı
-  inviteCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
-    padding: 12,
-    gap: 10,
-  },
-  invitePhoto: {
-    width: '100%',
-    height: 160,
-    borderRadius: 10,
-    backgroundColor: '#DDD',
-  },
-  inviteInfo: { gap: 4 },
-  inviteName: { fontSize: 17, fontWeight: '600', color: colors.textPrimary },
-  inviteCity: { fontSize: 13, color: '#888' },
-  inviteAnswers: { marginTop: 6, gap: 3 },
-  inviteAnswer: { fontSize: 13, color: colors.accent },
-  inviteScoreBadge: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: colors.accent,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  inviteScore: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  inviteActions: { flexDirection: 'row', gap: 8 },
-  acceptBtn: {
-    flex: 1,
-    backgroundColor: colors.accent,
-    borderRadius: 10,
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
-  acceptBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  rejectBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
-  rejectBtnText: { color: '#888', fontSize: 14 },
-
-  compactCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EDEDED',
-    padding: 12,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  compactMain: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  compactPhoto: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
-    backgroundColor: '#DDD',
-  },
-  compactInfo: { flex: 1, gap: 6 },
-  compactName: {
+  emptyWrap: { marginTop: 48, alignItems: 'center', paddingHorizontal: 32, gap: 8 },
+  emptyText: {
+    color: homeColors.textPrimary,
     fontSize: 18,
     fontWeight: '700',
-    color: colors.textPrimary,
+    textAlign: 'center',
+    marginTop: 4,
   },
-  compactPctBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: ACCENT,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  compactPctText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  compactCommon: {
-    fontSize: 13,
-    color: '#666666',
-    lineHeight: 18,
-  },
-  compactActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  compactMeetBtn: {
-    flex: 1,
-    backgroundColor: ACCENT,
-    borderRadius: 12,
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
-  compactMeetText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
-  compactPassBtn: {
-    width: 48,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+  emptySubtext: { color: homeColors.textSecondary, fontSize: 14.5, textAlign: 'center', lineHeight: 21 },
+  emptyCta: {
+    marginTop: 12,
+    minHeight: 44,
+    paddingHorizontal: 20,
+    borderRadius: homeRadius.pill,
+    backgroundColor: homeColors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  compactPassText: { fontSize: 18 },
-  compactWaiting: {
-    flex: 1,
-    textAlign: 'center',
-    color: '#888',
-    fontSize: 14,
-    paddingVertical: 8,
-  },
+  emptyCtaText: { color: '#FFFFFF', fontSize: 14.5, fontWeight: '700' },
 
-  detailRoot: { flex: 1, backgroundColor: '#FAFAFA' },
+  detailRoot: { flex: 1, backgroundColor: homeColors.background },
   detailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: homeColors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E8E8E8',
+    borderBottomColor: homeColors.border,
   },
   detailBackBtn: { padding: 8 },
   detailHeaderTitle: {
     flex: 1,
     textAlign: 'center',
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontWeight: '700',
+    color: homeColors.textPrimary,
   },
   detailHeaderSpacer: { width: 44 },
   detailScroll: { flex: 1 },
@@ -1242,32 +949,23 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   detailPrimaryBtn: {
-    backgroundColor: ACCENT,
-    borderRadius: 14,
+    backgroundColor: homeColors.accent,
+    borderRadius: homeRadius.pill,
     paddingVertical: 15,
     alignItems: 'center',
   },
+  detailPrimaryBtnDisabled: { backgroundColor: homeColors.mutedSurface },
   detailPrimaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  detailSecondaryBtn: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    paddingVertical: 14,
+  detailPrimaryTextDisabled: { color: homeColors.textSecondary, fontSize: 16, fontWeight: '700' },
+  detailWaiting: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 15,
+    borderRadius: homeRadius.pill,
+    borderWidth: 1,
+    borderColor: homeColors.border,
   },
-  detailSecondaryText: { color: '#666666', fontSize: 15, fontWeight: '500' },
-
-  timeLeftText: {
-    color: '#888',
-    fontSize: 12,
-  },
-
-  emptyWrap: { marginTop: 20, alignItems: 'center', paddingHorizontal: 32, gap: 8 },
-  emptyText: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  emptySubtext: { color: '#888', fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  detailWaitingText: { color: homeColors.textSecondary, fontSize: 15, fontWeight: '600' },
 });

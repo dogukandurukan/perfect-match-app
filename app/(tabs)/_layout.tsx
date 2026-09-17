@@ -5,7 +5,6 @@ import { StyleSheet, Text } from 'react-native';
 
 import { ActiveTabIcon } from '@/components/ui/ActiveTabIcon';
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import {
   TabBarMessagesIcon,
   TabBarNotificationsIcon,
@@ -16,6 +15,7 @@ import {
 } from '@/components/ui/TabHeaderActions';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { homeColors } from '@/lib/homeTheme';
 
 const ACCENT = '#1A1A1A';
 
@@ -64,11 +64,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          // 2026-09-18: label-only rename (Matches redesign brief) — the
+          // route file stays `index`/`/(tabs)`, only the user-visible label
+          // changed. "Discover" better matches what this screen actually
+          // does (browse/discovery feed) now that Matches owns the
+          // post-match planning flow.
+          title: 'Discover',
           href: '/(tabs)',
           tabBarIcon: ({ color, focused }) => (
             <ActiveTabIcon focused={focused}>
-              <IconSymbol size={22} name={focused ? 'house.fill' : 'house'} color={color} />
+              <Ionicons name={focused ? 'compass' : 'compass-outline'} size={22} color={color} />
             </ActiveTabIcon>
           ),
           // Home builds its own in-body header (wordmark + filters + daily
@@ -100,6 +105,22 @@ export default function TabLayout() {
         name="matches"
         options={{
           title: 'Matches',
+          // 2026-09-18: Matches moved to the "Warm Editorial" coral system
+          // (matches redesign brief) — its own active tint overrides the
+          // Navigator-wide black ACCENT below, matching the mockup's coral
+          // heart/label when this tab is active. Every other tab keeps the
+          // shared black active tint.
+          tabBarActiveTintColor: homeColors.accent,
+          // Matches now builds its own in-body header (wordmark + big
+          // title + subtitle, MatchesHeader component) with its own
+          // insets.top handling — same reasoning as Home's headerShown:
+          // false. Keeping the shared native header (empty title + the
+          // generic "go to Profile" shortcut from TabHeaderActions) would
+          // both double-count the top safe area against MatchesHeader's
+          // own padding and stack a redundant, mockup-mismatched bar above
+          // it. The Profile shortcut this drops is still reachable via the
+          // bottom tab bar itself (5th tab).
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <ActiveTabIcon focused={focused}>
               {/* 2026-09-17: was sparkles/sparkles-outline — Ionicons draws
