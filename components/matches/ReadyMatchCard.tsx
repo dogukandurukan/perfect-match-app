@@ -100,9 +100,16 @@ function CtaButton({ cta }: { cta: ReadyCardCta }) {
 }
 
 const styles = StyleSheet.create({
+  // Fixed height, not minHeight — `photo` below sizes itself to
+  // height:'100%' of `photoWrap`, which itself stretches to `card`'s
+  // height; with only a minHeight (no definite height) that chain has no
+  // resolvable value to stretch against, and RN's layout engine blew the
+  // photo (and the whole card) up to a runaway size on-device (found via
+  // screenshot, 2026-09-18) instead of the intended ~140pt row. A definite
+  // height makes every percentage resolution in this card well-defined.
   card: {
     flexDirection: 'row',
-    minHeight: 138,
+    height: 146,
     backgroundColor: homeColors.surface,
     borderRadius: homeRadius.card - 2,
     borderWidth: 1,

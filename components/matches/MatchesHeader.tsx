@@ -41,8 +41,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: homeColors.accent,
   },
+  // Explicit lineHeight required — ThemedText's inherited default is too
+  // short for a 34px bold weight, clipping the top of ascenders/tall
+  // glyphs (the exact same bug this app hit on HingeProfileCard's name
+  // line, 2026-09-03/04, fixed the same way there).
   title: {
     fontSize: 34,
+    lineHeight: 40,
     fontWeight: '800',
     color: homeColors.textPrimary,
     marginTop: 6,
