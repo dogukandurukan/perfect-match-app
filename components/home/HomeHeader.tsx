@@ -8,10 +8,22 @@ import { DailyLikeQuota } from '@/components/home/DailyLikeQuota';
 import { HOME_BRAND_NAME, homeColors, homeSpacing } from '@/lib/homeTheme';
 
 /**
- * Custom in-body header (native header hidden for this screen, see
- * `_layout.tsx`) — same approach Activity already uses for its own header,
- * needed here so the daily-like quota can sit fixed under the wordmark
- * without living inside the scrollable profile card.
+ * In-body header (native header hidden for this screen, see `_layout.tsx`).
+ *
+ * 2026-09-17 fix: this used to be a fixed sibling above a separately-scrolled
+ * `body`, and real-device testing found the profile card scrolling underneath
+ * it (top of `WhyYouMatchCard` hidden behind the header). Root cause wasn't
+ * pinned down with certainty, so the robust fix (explicitly an acceptable
+ * fallback per the redesign brief, prioritized over precise scroll
+ * animation) was taken instead: this component no longer owns its own top
+ * safe-area handling as a "floating over everything" assumption — it is
+ * rendered as the very first item inside the same ScrollView as the rest of
+ * the profile card (see index.tsx), so it can never overlap content by
+ * construction. It's still used standalone (not inside a ScrollView) for the
+ * loading/error/empty states, which is safe since those never scroll.
+ * Compacted at the same time (brief: header took too much vertical space) —
+ * smaller wordmark, filter button's tap target now comes from `hitSlop`
+ * instead of a fixed 44×44 box, tighter paddings throughout.
  */
 export function HomeHeader({
   likesRemaining,
@@ -26,17 +38,17 @@ export function HomeHeader({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + homeSpacing.sm }]}>
+    <View style={[styles.wrap, { paddingTop: insets.top + homeSpacing.xs }]}>
       <View style={styles.row}>
         <ThemedText style={styles.wordmark}>{HOME_BRAND_NAME}</ThemedText>
         <TouchableOpacity
           style={styles.filterBtn}
           activeOpacity={0.7}
           onPress={() => router.push('/filters' as Parameters<typeof router.push>[0])}
-          hitSlop={8}
+          hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Filters">
-          <Ionicons name="options-outline" size={22} color={homeColors.textPrimary} />
+          <Ionicons name="options-outline" size={20} color={homeColors.textPrimary} />
         </TouchableOpacity>
       </View>
       <DailyLikeQuota remaining={likesRemaining} limit={likesLimit} loading={likesLoading} />
@@ -48,8 +60,8 @@ const styles = StyleSheet.create({
   wrap: {
     backgroundColor: homeColors.background,
     paddingHorizontal: homeSpacing.lg,
-    paddingBottom: homeSpacing.md,
-    gap: homeSpacing.sm,
+    paddingBottom: homeSpacing.sm,
+    gap: homeSpacing.xs + 2,
   },
   row: {
     flexDirection: 'row',
@@ -57,15 +69,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   wordmark: {
-    fontSize: 24,
+    fontSize: 19,
     fontWeight: '800',
     color: homeColors.textPrimary,
     textTransform: 'lowercase',
   },
   filterBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 4,
   },
 });

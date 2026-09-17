@@ -7,6 +7,11 @@ import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
  * Small, confident accent-colored pill — replaces the old large black
  * score box. Accent color is reserved for exactly this kind of primary
  * signal (brief: "match score, like action, daily like indicator").
+ *
+ * 2026-09-17: was noticeably oversized/dominant on real devices (too much
+ * padding + font size for a secondary hero signal) — shrunk to match
+ * VerifiedBadge's exact scale (same padding/font values) so the two read as
+ * one badge family instead of two different sizes competing for attention.
  */
 export function MatchScoreBadge({ percentage }: { percentage: number }) {
   return (
@@ -18,10 +23,10 @@ export function MatchScoreBadge({ percentage }: { percentage: number }) {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: homeSpacing.md,
-    paddingVertical: homeSpacing.xs + 2,
+    paddingHorizontal: homeSpacing.sm + 2,
+    paddingVertical: 4,
     borderRadius: homeRadius.pill,
     backgroundColor: homeColors.accent,
   },
-  text: { fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' },
+  text: { fontSize: 11.5, fontWeight: '700', color: '#FFFFFF' },
 });

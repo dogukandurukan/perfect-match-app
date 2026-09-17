@@ -27,6 +27,7 @@ import { buildPromptCards, parseFavoriteSpots, type HingeProfilePerson } from '@
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -706,13 +707,32 @@ export default function HomeScreen() {
   const promptCards = currentUser ? buildPromptCards(currentUser) : [];
   const extraPhotos = currentUser ? currentUser.photoUrls.slice(1) : [];
 
+  const headerProps = {
+    likesRemaining: likesLeft,
+    likesLimit,
+    likesLoading: dailyViews === null,
+  };
+  // Mirrors the `body` ternary chain below EXACTLY (De Morgan of its "active
+  // card" branch) — must stay in lockstep with it, otherwise a case that
+  // falls into the active-card render (HomeHeader lives inside its
+  // ScrollView) could ALSO satisfy this condition and render the fixed
+  // header at the same time, doubling it up.
+  const showFixedHeader =
+    !!dailyViews?.limitReached ||
+    (feedError && feedUsers.length === 0) ||
+    (feedLoading && feedUsers.length === 0) ||
+    !currentUser;
+
   return (
     <View style={styles.feedRoot}>
-      <HomeHeader
-        likesRemaining={likesLeft}
-        likesLimit={likesLimit}
-        likesLoading={dailyViews === null}
-      />
+      <StatusBar style="dark" />
+      {/* 2026-09-17: header is fixed chrome ONLY for the non-scrolling states
+          below (loading/error/empty) — safe since nothing scrolls under it
+          there. For the active-card state it's rendered as the first item
+          INSIDE the ScrollView instead (see below) so it can never overlap
+          the profile content; real-device testing found it doing exactly
+          that when it lived here unconditionally. */}
+      {showFixedHeader ? <HomeHeader {...headerProps} /> : null}
       <View style={styles.body}>
         {dailyViews?.limitReached ? (
           <DailyLimitEmptyState resetAt={dailyViews.resetAt} limit={dailyViews.limit} />
@@ -760,6 +780,10 @@ export default function HomeScreen() {
                   style={styles.scroll}
                   contentContainerStyle={styles.scrollContent}
                   showsVerticalScrollIndicator={false}>
+                  {/* Header renders here, as ordinary scroll content, for
+                      exactly the reason in the comment above — see
+                      HomeHeader's own doc comment for the full story. */}
+                  <HomeHeader {...headerProps} />
                   {/* Editorial rhythm (brief §"Profil içeriği"): hero photo →
                       why-you-match → first prompt → second photo → facts →
                       remaining prompts → remaining photos → actions. Empty
