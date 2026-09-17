@@ -489,6 +489,8 @@ Cihazda tüm gün boyunca (gündüz + gece karanlık-mod testi dahil) adım adı
 5. **Yeni render sırası (index.tsx):** hero → why-you-match → 1. prompt → 2. foto → About → Looking for → Interests → 2. prompt → 3. foto → Taste (müzik/film/kitap) → Languages → kalan prompt/fotolar → aksiyonlar.
 - **Doğrulama:** `npx tsc --noEmit` temiz. Lint/test script'i yok (proje genelinde tanımlı değil). **Cihazda henüz görülmedi.**
 
+**✅ 2026-09-17 (devam 4) — Altıncı tur, küçük: isim/konumun üstündeki küçük yarı-saydam yüzey (`textSurface`) de kaldırıldı.** Kullanıcı: "Derya 39 Uskudar yazan yerin üstünde kısa bir gölgelendirme/kutu kalmış, o da olmasın." Bir önceki turda LinearGradient'in yerine eklediğim "küçük, içeriğe-sığan yarı-saydam yüzey" (`rgba(0,0,0,0.22)`, `borderRadius:12`) de görünür bir kutu/gölge gibi duruyormuş — tamamen kaldırıldı. `ProfileHeroCard`'da artık fotoğrafın üstünde HİÇBİR overlay/yüzey/bant yok — okunabilirlik tamamen `textShadow`'a dayanıyor, güvenlik payı için biraz güçlendirildi (`opacity 0.35→0.55`, `radius 4→6`). `tsc` temiz. **Cihazda henüz görülmedi.**
+
 ---
 
 ## 5. Ürün kararları (log)

@@ -40,17 +40,16 @@ export function ProfileHeroCard({
         <View style={[styles.photo, styles.photoFallback]} />
       )}
 
-      {/* 2026-09-17 (reverted same day): tried a real LinearGradient here,
-          but expo-linear-gradient is a native module and this app runs on
-          an already-built dev-client — without rebuilding it, RN renders
-          "Unimplemented component: <ViewManagerAdapter_ExpoLinearGradient>"
-          literally on screen, which is worse than the original problem.
-          User declined a rebuild for this, so: no overlay of any kind
-          spanning the photo (flat or gradient) — readability now comes
-          from textShadow alone on name/meta, plus a small LOCAL
-          semi-transparent surface sized to the text itself (not the photo
-          width) for genuinely hard cases. Package uninstalled again
-          (package.json) since this was its only use. */}
+      {/* 2026-09-17: tried a real LinearGradient here, but expo-linear-
+          gradient is a native module and this app runs on an already-built
+          dev-client — without rebuilding it, RN renders "Unimplemented
+          component: <ViewManagerAdapter_ExpoLinearGradient>" literally on
+          screen. Reverted (package uninstalled too). Next tried a small
+          local semi-transparent surface behind just the name/location text
+          — still read as a visible box/shading on real photos, also
+          reverted. There is now NO overlay, surface, or band of any kind
+          over the photo — textShadow on name/meta (below) is the only
+          readability mechanism. */}
 
       {/* 2026-09-17: info row — text column (badges pretitle → name/age →
           location/occupation) on the left, Note as a bottom-right action
@@ -69,17 +68,15 @@ export function ProfileHeroCard({
               {hasScore ? <MatchScoreBadge percentage={person.match_percentage as number} /> : null}
             </View>
           ) : null}
-          <View style={styles.textSurface}>
-            <ThemedText style={styles.name} numberOfLines={1}>
-              {person.first_name ?? 'Someone'}
-              {age > 0 ? `, ${age}` : ''}
+          <ThemedText style={styles.name} numberOfLines={1}>
+            {person.first_name ?? 'Someone'}
+            {age > 0 ? `, ${age}` : ''}
+          </ThemedText>
+          {metaLine ? (
+            <ThemedText style={styles.meta} numberOfLines={1}>
+              {metaLine}
             </ThemedText>
-            {metaLine ? (
-              <ThemedText style={styles.meta} numberOfLines={1}>
-                {metaLine}
-              </ThemedText>
-            ) : null}
-          </View>
+          ) : null}
         </View>
         {onNoteTarget ? (
           <ContextualNoteButton
@@ -120,34 +117,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
   },
-  // No overlay spans the photo anymore (2026-09-17, reverted gradient) —
-  // textShadow below is the primary readability mechanism. This wraps just
-  // the name+location text (shrink-to-fit via alignSelf, never the photo's
-  // width) in a small, local semi-transparent surface as a second line of
-  // defense for genuinely hard photos — self-contained, unlike a band.
-  textSurface: {
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    borderRadius: 12,
-    paddingHorizontal: homeSpacing.sm,
-    paddingVertical: 4,
-    gap: 2,
-  },
+  // No overlay or surface behind the text at all (2026-09-17, twice reverted
+  // now) — the earlier "small local surface" still read as a visible box/
+  // shading right above the name on real photos. textShadow alone is the
+  // only readability mechanism left.
   name: {
     fontSize: 26,
     fontWeight: '800',
     color: '#FFFFFF',
-    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowColor: 'rgba(0,0,0,0.55)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
   },
   meta: {
     fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.92)',
-    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowColor: 'rgba(0,0,0,0.55)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
   },
 });
