@@ -981,7 +981,17 @@ export default function MatchesTab() {
           data={readyItems}
           keyExtractor={(item) => item.key}
           renderItem={({ item }) => <ReadyMatchCard item={item} onPress={() => openDetailFor(item)} />}
-          ItemSeparatorComponent={() => <View style={{ height: homeSpacing.sm + 2 }} />}
+          // flexGrow separators (2026-09-18, user device feedback): with
+          // only up to MATCH_SLOT_COUNT (3) short cards, a fixed small gap
+          // left a large dead gap below the last card and above the tab
+          // bar. contentContainerStyle's flexGrow:1 lets the whole column
+          // stretch to fill the viewport when it's short, and each
+          // separator flex-growing (instead of a fixed height) is what
+          // actually spends that extra space — spreading the cards evenly
+          // down the page instead of bunching them at the top. Each
+          // separator keeps a real minHeight so cards never touch if there
+          // ISN'T extra space (a long list would just scroll normally).
+          ItemSeparatorComponent={() => <View style={{ flexGrow: 1, minHeight: homeSpacing.sm + 2 }} />}
           ListHeaderComponent={listHeader}
           ListFooterComponent={listFooterSpace}
           ListEmptyComponent={
@@ -993,7 +1003,7 @@ export default function MatchesTab() {
               </ThemedText>
             </View>
           }
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { flexGrow: 1 }]}
           showsVerticalScrollIndicator={false}
         />
       </View>

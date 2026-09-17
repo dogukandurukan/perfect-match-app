@@ -51,6 +51,13 @@ export function PersonAvatar({
     );
   }
 
+  // Explicit lineHeight required — same bug this app already hit on
+  // MatchesHeader's title and (originally) HingeProfileCard's name line:
+  // ThemedText's inherited default lineHeight is too short for this large
+  // a fontSize, clipping the top of the glyph so only its bottom curve
+  // showed (found from a real device screenshot, 2026-09-18 — every
+  // initials fallback rendered as an unreadable partial shape).
+  const initialFontSize = size * 0.38;
   return (
     <View
       style={[
@@ -58,7 +65,9 @@ export function PersonAvatar({
         { width: size, height: size, borderRadius: r },
         style,
       ]}>
-      <ThemedText style={[styles.initial, { fontSize: size * 0.38 }]}>{initial}</ThemedText>
+      <ThemedText style={[styles.initial, { fontSize: initialFontSize, lineHeight: initialFontSize * 1.2 }]}>
+        {initial}
+      </ThemedText>
     </View>
   );
 }
