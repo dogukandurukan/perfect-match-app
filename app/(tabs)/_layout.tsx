@@ -102,11 +102,13 @@ export default function TabLayout() {
           title: 'Matches',
           tabBarIcon: ({ color, size, focused }) => (
             <ActiveTabIcon focused={focused}>
-              <Ionicons
-                name={focused ? 'sparkles' : 'sparkles-outline'}
-                size={size ?? 24}
-                color={color}
-              />
+              {/* 2026-09-17: was sparkles/sparkles-outline — Ionicons draws
+                  that glyph with a visibly thinner stroke than the rest of
+                  the bar's outline icons (house/person-outline/chatbubble-
+                  outline/notifications-outline), reported as inconsistent
+                  on a real device. heart-outline matches their stroke
+                  weight and reads clearly as "Matches" in a dating app. */}
+              <Ionicons name={focused ? 'heart' : 'heart-outline'} size={size ?? 24} color={color} />
             </ActiveTabIcon>
           ),
         }}

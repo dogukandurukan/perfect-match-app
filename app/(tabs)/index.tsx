@@ -19,7 +19,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { logEvent } from '@/lib/analytics';
 import { colors } from '@/lib/designTokens';
-import { homeColors } from '@/lib/homeTheme';
+import { homeColors, homeSpacing } from '@/lib/homeTheme';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompletion';
 import {
@@ -29,13 +29,15 @@ import {
   remainingDailyViews,
   type DailyViewsState,
 } from '@/lib/dailyViews';
-import { buildPromptCards, parseFavoriteSpots, type HingeProfilePerson } from '@/lib/hingeProfile';
+import { buildPromptCards, parseFavoriteSpots, type HingeProfilePerson, type PromptCard } from '@/lib/hingeProfile';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
@@ -65,6 +67,44 @@ const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.28;
 const SWIPE_VELOCITY_THRESHOLD = 800;
 
 const ACCENT = '#1A1A1A';
+
+// Turkish-diacritic-safe fold, same normalization pattern already used
+// server-side for text comparisons (get_top_matches' favorite_spots match)
+// — mirrored here in JS since this is presentation-layer dedup, not a
+// backend change.
+const TR_FOLD: Record<string, string> = { ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' };
+function normalizeForCompare(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[çğıöşü]/g, (ch) => TR_FOLD[ch] ?? ch);
+}
+
+// 2026-09-17: presentation-only dedup, doesn't touch lib/hingeProfile.ts or
+// any data — purely which of the already-built cards gets rendered here.
+//
+// `hangout` (buildPromptCards' "Where I hang out") is ALWAYS excluded: it's
+// literally `person.district` with no extra formatting, and Home's own hero
+// already shows that same district (via formatFeedLocation) on every card —
+// not a sometimes-collision, a guaranteed one by construction, so it never
+// adds information the hero hasn't already shown.
+//
+// The remaining cards (ideal_date/about/spot) go through a general
+// normalized-answer dedup — covers the reported case ("My go-to spot:
+// Sisli" vs the old "Where I hang out: Sisli") plus any other incidental
+// match, keeping the FIRST occurrence in buildPromptCards' fixed emit order.
+function dedupePromptCards(cards: PromptCard[]): PromptCard[] {
+  const seen = new Set<string>();
+  const result: PromptCard[] = [];
+  for (const card of cards) {
+    if (card.id === 'hangout') continue;
+    const key = normalizeForCompare(card.answer);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    result.push(card);
+  }
+  return result;
+}
 
 type TopMatchRow = {
   user_id: string;
@@ -100,6 +140,8 @@ type FeedUser = HingeProfilePerson & {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
 
   const [profileState, setProfileState] = useState<ProfileSetupState | null>(null);
   const [checking, setChecking] = useState(true);
@@ -710,7 +752,7 @@ export default function HomeScreen() {
     return null;
   }
 
-  const promptCards = currentUser ? buildPromptCards(currentUser) : [];
+  const promptCards = currentUser ? dedupePromptCards(buildPromptCards(currentUser)) : [];
   const extraPhotos = currentUser ? currentUser.photoUrls.slice(1) : [];
 
   const headerProps = {
@@ -737,7 +779,17 @@ export default function HomeScreen() {
           there. For the active-card state it's rendered as the first item
           INSIDE the ScrollView instead (see below) so it can never overlap
           the profile content; real-device testing found it doing exactly
-          that when it lived here unconditionally. */}
+          that when it lived here unconditionally. That fix introduced a
+          new one, found on a real device: once the header (which used to
+          double as an opaque cap over the status bar) scrolls away with
+          the rest of the content, whatever scrolls up next passes directly
+          under the status bar icons. Fix: a persistent, always-rendered
+          backdrop exactly `insets.top` tall, painted on top of everything
+          (high zIndex/elevation, pointerEvents none so it never blocks
+          touches) — pure paint, not a layout inset, so it doesn't stack
+          with HomeHeader's own `insets.top` padding (single safe-area
+          source, per the brief). */}
+      <View style={[styles.statusBarBackdrop, { height: insets.top }]} pointerEvents="none" />
       {showFixedHeader ? <HomeHeader {...headerProps} /> : null}
       <View style={styles.body}>
         {dailyViews?.limitReached ? (
@@ -784,7 +836,15 @@ export default function HomeScreen() {
                 </Animated.View>
                 <ScrollView
                   style={styles.scroll}
-                  contentContainerStyle={styles.scrollContent}
+                  contentContainerStyle={[
+                    styles.scrollContent,
+                    // Real tab bar height (includes its own bottom safe-area
+                    // inset already — react-navigation's own hook) instead
+                    // of the flat 24 this had before, which is why Pass/
+                    // Like/Block/Report could end up rendered underneath
+                    // the tab bar on a real device.
+                    { paddingBottom: tabBarHeight + homeSpacing.xxl },
+                  ]}
                   showsVerticalScrollIndicator={false}>
                   {/* Header renders here, as ordinary scroll content, for
                       exactly the reason in the comment above — see
@@ -957,6 +1017,15 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
   feedRoot: { flex: 1, backgroundColor: homeColors.background },
+  statusBarBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: homeColors.background,
+    zIndex: 20,
+    elevation: 20,
+  },
   // Header is fixed chrome outside the card stack; body is everything below
   // it (loading/error/empty/active-card states) — gives nextCardPeek's
   // absoluteFill a clean positioning container that excludes the header
