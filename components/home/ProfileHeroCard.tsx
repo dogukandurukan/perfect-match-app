@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -40,7 +41,19 @@ export function ProfileHeroCard({
         <View style={[styles.photo, styles.photoFallback]} />
       )}
 
-      <View style={styles.overlay} pointerEvents="none" />
+      {/* 2026-09-17: was a single flat rgba(0,0,0,0.38) band over the
+          bottom 45% — read as a hard, visible dark bar (especially obvious
+          on light/mid-tone photos, reported as a stark line across a
+          face). Real LinearGradient now, confined to the bottom ~28%, that
+          starts fully transparent at its own top — no visible seam because
+          there's no opacity jump at the boundary, just a continuous fade
+          to a moderate 0.5 at the very bottom for text contrast. */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.5)']}
+        locations={[0, 0.5, 1]}
+        style={styles.overlay}
+        pointerEvents="none"
+      />
 
       {/* 2026-09-17: info row — text column (badges pretitle → name/age →
           location/occupation) on the left, Note as a bottom-right action
@@ -93,17 +106,12 @@ const styles = StyleSheet.create({
   },
   photo: { ...StyleSheet.absoluteFillObject },
   photoFallback: { backgroundColor: homeColors.mutedSurface },
-  // Controlled gradient-like readability layer — no expo-linear-gradient
-  // dependency, a single tuned flat scrim over just the lower half reads
-  // fine at this photo's typical exposure range and keeps the dependency
-  // surface unchanged.
   overlay: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '45%',
-    backgroundColor: 'rgba(0,0,0,0.38)',
+    height: '28%',
   },
   infoBlock: {
     position: 'absolute',
@@ -120,14 +128,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
   },
+  // Subtle text shadow (2026-09-17) — the gradient alone is tuned for a
+  // "barely there" look, so this is the safety net that keeps name/location
+  // readable over a bright patch of an unusually light photo.
   name: {
     fontSize: 26,
     fontWeight: '800',
     color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   meta: {
     fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.92)',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });

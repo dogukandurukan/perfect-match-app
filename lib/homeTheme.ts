@@ -20,7 +20,9 @@ export const homeColors = {
   border: '#E8E2DD',
   mutedSurface: '#F1EEEA',
   verifiedBadge: 'rgba(23,23,23,0.88)',
-  photoOverlay: 'rgba(0,0,0,0.55)',
+  // Unfilled daily-like segment track — a step darker than `border` so the
+  // used/remaining split reads clearly at a glance (2026-09-17 contrast fix).
+  segmentTrack: '#DCD1C6',
 } as const;
 
 // 4px-based scale (brief asks for 4/8/12/16/20/24/32 — the shared
