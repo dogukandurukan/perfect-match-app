@@ -313,7 +313,8 @@ export default function MatchesTab() {
             { data: pendingRows, error: pendingError },
           ] = await Promise.all([
             supabase.from('profiles').select('city').eq('id', userId).maybeSingle(),
-            getDailyInvitesState(userId, false),
+            // No override — reads the real is_premium itself now (2026-09-18 fix).
+            getDailyInvitesState(userId),
             supabase
               .from('matches')
               .select(
