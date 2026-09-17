@@ -1,28 +1,24 @@
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { homeColors, homeSpacing } from '@/lib/homeTheme';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-// ~45% of screen width (brief's 42-48% range) — a fixed track width so 5
-// and 10 segment counts both get a deliberately-sized, easy-to-read row
-// instead of shrinking to whatever the label's leftover space happens to be.
-const SEGMENTS_WIDTH = Math.round(SCREEN_WIDTH * 0.45);
+// 2026-09-17: fixed, deliberately compact track width — this now lives in
+// the CENTER slot of a single utility header row (wordmark | quota |
+// filter), not its own full-width row, so it can no longer claim ~45% of
+// the screen the way the two-row layout did. `flex:1` segments still split
+// this evenly for both the 5-segment free tier and the 10-segment premium
+// tier, just within a smaller budget.
+const SEGMENTS_WIDTH = 96;
+const SEGMENT_HEIGHT = 7;
 
 /**
- * "N likes left today" + a row of small segments — real daily-like state,
- * not profile-scroll progress (must NOT change while scrolling the current
+ * Compact "N left" + a row of small segments — real daily-like state, not
+ * profile-scroll progress (must NOT change while scrolling the current
  * card). Filled/accent segments = likes still available; muted segments =
  * already used today. `loading` renders a stable-height all-muted
  * placeholder at the free-tier width so nothing jumps once real data
  * arrives.
- *
- * 2026-09-17: label and segments share one row (was stacked). Segments
- * were also too small/faint to register at a glance — track is now a fixed
- * ~45%-of-screen width with `flex:1` segments splitting it evenly (works
- * for both the 5-segment free tier and the 10-segment premium tier without
- * a min-width squeeze), taller (7pt vs 4pt), and the unfilled state uses a
- * more visible `segmentTrack` tone instead of the barely-there `border`.
  */
 export function DailyLikeQuota({
   remaining,
@@ -36,7 +32,11 @@ export function DailyLikeQuota({
   const segmentCount = loading ? 5 : limit;
   const filled = loading ? 0 : remaining;
 
-  const label = loading
+  // Short label for the compact single-row header (brief: "6 left" or
+  // "6 likes left" if space allows) — full accessibility phrasing still
+  // goes on accessibilityLabel below.
+  const label = loading ? '…' : remaining === 1 ? '1 left' : `${remaining} left`;
+  const a11yLabel = loading
     ? 'Loading your daily likes'
     : remaining === 1
       ? '1 like left today'
@@ -44,11 +44,13 @@ export function DailyLikeQuota({
 
   return (
     <View style={styles.wrap}>
-      <ThemedText style={styles.label}>{label}</ThemedText>
+      <ThemedText style={styles.label} numberOfLines={1}>
+        {label}
+      </ThemedText>
       <View
         style={styles.segments}
         accessibilityRole="progressbar"
-        accessibilityLabel={label}
+        accessibilityLabel={a11yLabel}
         accessibilityValue={{ min: 0, max: segmentCount, now: filled }}>
         {Array.from({ length: segmentCount }).map((_, i) => (
           <View
@@ -61,25 +63,22 @@ export function DailyLikeQuota({
   );
 }
 
-const SEGMENT_HEIGHT = 7;
-
 const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: homeSpacing.sm,
+    gap: homeSpacing.xs + 2,
   },
   label: {
     fontSize: 12.5,
-    fontWeight: '600',
+    fontWeight: '700',
     color: homeColors.textSecondary,
   },
   segments: {
     width: SEGMENTS_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   segment: {
     flex: 1,
