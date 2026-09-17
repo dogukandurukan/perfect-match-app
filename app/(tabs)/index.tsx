@@ -48,6 +48,7 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
   ScrollView,
 } from 'react-native';
@@ -65,6 +66,22 @@ import Animated, {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.28;
 const SWIPE_VELOCITY_THRESHOLD = 800;
+
+// Hero height (2026-09-17): must match the ScrollView's own
+// contentContainerStyle.paddingTop (insets.top + HERO_TOP_GAP below) so the
+// hero's bottom edge actually lands HERO_BOTTOM_GAP above the tab bar in
+// the FIRST, unscrolled viewport — the two are two different spacings
+// (top-of-hero vs bottom-of-hero) computed from the same anchor points, not
+// a duplicate of one another.
+const HERO_TOP_GAP = 10;
+const HERO_BOTTOM_GAP = 12;
+// Floors/ceilings so a landscape rotation or an unusually short/tall
+// viewport (or a tablet — this app has no existing tablet-specific layout
+// system to defer to) can't collapse the card to nothing or stretch it
+// absurdly tall. Phone portrait sizes in practice land well inside this
+// band untouched by either clamp.
+const HERO_HEIGHT_MIN = 380;
+const HERO_HEIGHT_MAX = 640;
 
 const ACCENT = '#1A1A1A';
 
@@ -142,6 +159,17 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  // useWindowDimensions (not the static Dimensions.get used elsewhere in
+  // this file for the swipe-peek backdrop) so this recomputes on rotation/
+  // window-size change, per the brief.
+  const { height: viewportHeight } = useWindowDimensions();
+  const heroHeight = Math.min(
+    HERO_HEIGHT_MAX,
+    Math.max(
+      HERO_HEIGHT_MIN,
+      viewportHeight - insets.top - tabBarHeight - HERO_TOP_GAP - HERO_BOTTOM_GAP,
+    ),
+  );
 
   const [profileState, setProfileState] = useState<ProfileSetupState | null>(null);
   const [checking, setChecking] = useState(true);
@@ -839,9 +867,10 @@ export default function HomeScreen() {
                       // is now the ONLY source of the gap between the
                       // status bar and the hero photo (ProfileHeroCard's
                       // own marginTop was removed to avoid stacking a
-                      // second one). insets.top + 10 lands in the
-                      // requested ~8-12pt band.
-                      paddingTop: insets.top + 10,
+                      // second one). Same HERO_TOP_GAP the heroHeight
+                      // formula above assumes — must stay in sync, they're
+                      // two views of the same anchor point.
+                      paddingTop: insets.top + HERO_TOP_GAP,
                       // Real tab bar height (includes its own bottom safe-
                       // area inset already — react-navigation's own hook)
                       // instead of the flat 24 this had before, which is
@@ -872,6 +901,7 @@ export default function HomeScreen() {
                     person={currentUser}
                     viewerCity={myCity}
                     onNoteTarget={handleOpenNote}
+                    heroHeight={heroHeight}
                     likesRemaining={likesLeft}
                     likesLimit={likesLimit}
                     likesLoading={dailyViews === null}

@@ -21,6 +21,11 @@ const SEGMENT_HEIGHT = 6;
  * reusable visual unit rather than baking in "floats over a photo"
  * as an assumption. No `variant` prop: there is exactly one consumer
  * and one look now, so a variant switch would be speculative.
+ *
+ * 2026-09-17 (dynamic hero pass): re-tuned smaller/more refined now that
+ * the hero fills nearly the whole first viewport — height 40->38pt, label
+ * 12.5->14.5pt (was reading too small at this scale), lighter shadow
+ * (opacity 0.15->0.10, radius 6->4), surface opacity 0.92->0.90.
  */
 export function DailyLikeQuota({
   remaining,
@@ -67,20 +72,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: homeSpacing.xs + 2,
-    height: 40,
+    height: 38,
     paddingHorizontal: homeSpacing.md,
     borderRadius: homeRadius.pill,
-    backgroundColor: 'rgba(255,253,252,0.92)',
+    backgroundColor: 'rgba(255,253,252,0.9)',
     borderWidth: 1,
     borderColor: 'rgba(23,23,23,0.08)',
     shadowColor: '#3A2A24',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   label: {
-    fontSize: 12.5,
+    fontSize: 14.5,
     fontWeight: '700',
     color: homeColors.textPrimary,
   },

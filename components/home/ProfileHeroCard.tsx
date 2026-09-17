@@ -15,6 +15,7 @@ export function ProfileHeroCard({
   person,
   viewerCity,
   onNoteTarget,
+  heroHeight,
   likesRemaining,
   likesLimit,
   likesLoading,
@@ -22,6 +23,12 @@ export function ProfileHeroCard({
   person: HingeProfilePerson;
   viewerCity: string | null;
   onNoteTarget?: (target: NoteTarget) => void;
+  // 2026-09-17: computed by the caller from real viewport/inset/tab-bar
+  // values (index.tsx) so the hero fills the first viewport instead of a
+  // fixed aspect ratio that left "Why you match" visible on load. Kept as
+  // a plain number prop (not hooks in here) so this component doesn't need
+  // to know about navigation/safe-area context itself.
+  heroHeight: number;
   // 2026-09-17: the old separate header row is gone — quota + filters now
   // float directly over the hero photo (top-left/top-right), which is why
   // this card takes the quota's data as props at all. Optional: index.tsx's
@@ -40,7 +47,7 @@ export function ProfileHeroCard({
   const hasScore = typeof person.match_percentage === 'number';
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { height: heroHeight }]}>
       {person.photoUrls[0] ? (
         <Image
           source={{ uri: person.photoUrls[0] }}
@@ -116,8 +123,6 @@ export function ProfileHeroCard({
   );
 }
 
-const HERO_ASPECT = 0.78;
-
 const styles = StyleSheet.create({
   wrap: {
     marginHorizontal: homeSpacing.lg,
@@ -125,18 +130,24 @@ const styles = StyleSheet.create({
     // above the hero is now entirely owned by the ScrollView's own
     // contentContainerStyle.paddingTop in index.tsx (single source, no
     // stacking) now that there's no header row handing off a margin here.
+    // 2026-09-17: height is now a per-instance inline style (see the
+    // `heroHeight` prop above) computed by the caller from real viewport/
+    // inset/tab-bar values, replacing a fixed aspectRatio that left "Why
+    // you match" visible on load instead of the hero filling the screen.
     borderRadius: homeRadius.heroPhoto,
     overflow: 'hidden',
-    aspectRatio: HERO_ASPECT,
     backgroundColor: homeColors.mutedSurface,
   },
   photo: { ...StyleSheet.absoluteFillObject },
   photoFallback: { backgroundColor: homeColors.mutedSurface },
   topControls: {
     position: 'absolute',
-    top: homeSpacing.lg,
-    left: homeSpacing.lg,
-    right: homeSpacing.lg,
+    // 2026-09-17: tightened from homeSpacing.lg (16pt) to homeSpacing.md
+    // (12pt) — brief asked for a 12-14pt inset now that the controls read
+    // smaller/more refined floating directly on the photo.
+    top: homeSpacing.md,
+    left: homeSpacing.md,
+    right: homeSpacing.md,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',

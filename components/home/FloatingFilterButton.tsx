@@ -10,8 +10,12 @@ import { homeColors } from '@/lib/homeTheme';
  * longer exists on Home. 44×44 is the actual visual size here (not a
  * smaller box padded out with hitSlop) since, floating alone with nothing
  * else in its row to compete with for height, there's no "keep the row
- * short" tension to trade against the real touch-target requirement.
- * Same surface/border/shadow language as DailyLikeQuota's capsule.
+ * short" tension to trade against the real touch-target requirement — it
+ * also sits right at the top of the 40-44pt "smaller/more refined" range
+ * requested for the dynamic-hero pass (2026-09-17), so it stayed put
+ * rather than shrinking below the real minimum touch target.
+ * Same surface/border/shadow language as DailyLikeQuota's capsule
+ * (lightened together, 2026-09-17: opacity 0.15->0.10, radius 6->4).
  */
 export function FloatingFilterButton() {
   const router = useRouter();
@@ -22,7 +26,7 @@ export function FloatingFilterButton() {
       onPress={() => router.push('/filters' as Parameters<typeof router.push>[0])}
       accessibilityRole="button"
       accessibilityLabel="Filters">
-      <Ionicons name="options-outline" size={20} color={homeColors.textPrimary} />
+      <Ionicons name="options-outline" size={21} color={homeColors.textPrimary} />
     </TouchableOpacity>
   );
 }
@@ -34,13 +38,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 22,
-    backgroundColor: 'rgba(255,253,252,0.92)',
+    backgroundColor: 'rgba(255,253,252,0.9)',
     borderWidth: 1,
     borderColor: 'rgba(23,23,23,0.08)',
     shadowColor: '#3A2A24',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });

@@ -519,6 +519,14 @@ Cihazda tüm gün boyunca (gündüz + gece karanlık-mod testi dahil) adım adı
 - **Not kontrolü:** Fotoğrafın üstünde hâlâ tek bir `ContextualNoteButton` var (alt bilgi bloğunda, isim/konumun yanında) — yeni üst kontroller (kota+filtre) Note içermiyor, çift Note riski yok.
 - **Doğrulama:** `npx tsc --noEmit` temiz. **Cihazda henüz görülmedi — ekran görüntüsü de veremiyorum, cihaz erişimim yok, bir sonraki test senden gelmeli.**
 
+**✅ 2026-09-17 (devam 8) — Onuncu tur: hero yüksekliği artık gerçek viewport'a göre dinamik, floating kontroller bir tık daha küçültüldü.** Kullanıcı: "image-first yerleşim doğru ama hero hâlâ ilk viewport'u kaplamıyor, sorun başlangıç konumu değil YÜKSEKLİĞİ" — kendi formülünü de verdi (`viewportHeight - insets.top - tabBarHeight - topGap - bottomGap`).
+- **`app/(tabs)/index.tsx`:** `useWindowDimensions()` eklendi (dönüşte/pencere boyutu değişince yeniden hesaplansın diye — dosyanın başka yerindeki statik `Dimensions.get('window')` bilinçli olarak KULLANILMADI, o sadece swipe-peek arka planı için bir kerelik alınıyor). Yeni modül-seviyesi sabitler: `HERO_TOP_GAP=10`, `HERO_BOTTOM_GAP=12`, `HERO_HEIGHT_MIN=380`, `HERO_HEIGHT_MAX=640` (döngüye/tablete karşı taban-tavan — bu projede hiç tablet-özel bir düzen yok, üst sınır sadece aşırı uzamayı önlüyor). Formül birebir: `heroHeight = clamp(viewportHeight - insets.top - tabBarHeight - HERO_TOP_GAP - HERO_BOTTOM_GAP, MIN, MAX)`.
+- **Çift-sayım YOK, doğrulandı:** `insets.top` sadece burada bir kez çıkarılıyor (ScrollView'ın `paddingTop`'u da aynı `HERO_TOP_GAP` sabitini paylaşıyor — iki ayrı yer değil, tek anchor'ın iki görünümü). `useBottomTabBarHeight()` react-navigation'ın kendi hook'u — **kendi alt safe-area inset'ini zaten içeriyor** (resmi davranış), üstüne ayrıca `insets.bottom` eklenmedi.
+- **`ProfileHeroCard.tsx`:** yeni `heroHeight: number` prop'u eklendi, `styles.wrap`'teki sabit `aspectRatio: HERO_ASPECT (0.78)` tamamen kaldırıldı, yerine caller'dan gelen `{ height: heroHeight }` inline style. `topControls`'un inset'i `homeSpacing.lg` (16pt) → `homeSpacing.md` (12pt) — brief'in istediği 12-14pt aralığına çekildi.
+- **`DailyLikeQuota.tsx`:** kapsül yüksekliği 40→38pt, etiket yazısı 12.5→14.5pt (istenen 14-15pt aralığına), gölge hafifletildi (`opacity 0.15→0.10`, `radius 6→4`), yüzey opaklığı 0.92→0.90.
+- **`FloatingFilterButton.tsx`:** görsel/dokunma kutusu 44×44'te bilinçli olarak SABİT bırakıldı (brief'in kendi 40-44pt aralığının tavanında zaten, ayrıca gerçek 44×44 minimum dokunma hedefini `hitSlop` numarasına gerek kalmadan doğrudan karşılıyor) — sadece ikon 20→21pt, aynı hafifletilmiş gölge dili (`opacity 0.10`, `radius 4`) quota ile eşleştirildi.
+- **Doğrulama:** `npx tsc --noEmit` temiz. **Cihazda henüz görülmedi** — ekran görüntüsü/cihaz erişimim yok, bir sonraki test kullanıcıdan gelmeli.
+
 ---
 
 ## 5. Ürün kararları (log)
