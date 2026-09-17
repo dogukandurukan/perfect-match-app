@@ -1,24 +1,26 @@
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { homeColors, homeSpacing } from '@/lib/homeTheme';
+import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
 
-// 2026-09-17: fixed, deliberately compact track width — this now lives in
-// the CENTER slot of a single utility header row (wordmark | quota |
-// filter), not its own full-width row, so it can no longer claim ~45% of
-// the screen the way the two-row layout did. `flex:1` segments still split
-// this evenly for both the 5-segment free tier and the 10-segment premium
-// tier, just within a smaller budget.
-const SEGMENTS_WIDTH = 96;
-const SEGMENT_HEIGHT = 7;
+const SEGMENTS_WIDTH = 84;
+const SEGMENT_HEIGHT = 6;
 
 /**
- * Compact "N left" + a row of small segments — real daily-like state, not
- * profile-scroll progress (must NOT change while scrolling the current
- * card). Filled/accent segments = likes still available; muted segments =
- * already used today. `loading` renders a stable-height all-muted
- * placeholder at the free-tier width so nothing jumps once real data
- * arrives.
+ * Floating capsule showing "N left" + a row of small segments — real
+ * daily-like state, not profile-scroll progress (must NOT change while
+ * scrolling the current card). Filled/accent segments = likes still
+ * available; muted segments = already used today.
+ *
+ * 2026-09-17: this is now the ONLY place this renders (was a two-row
+ * in-body header, then a compact single-row header — both retired; the
+ * header no longer exists as a separate visual area at all, per the
+ * brief). Positioning (top-left over the hero photo) is the CALLER's
+ * job (see ProfileHeroCard) — this component only renders the capsule's
+ * own surface/border/shadow, not its placement, so it stays a plain,
+ * reusable visual unit rather than baking in "floats over a photo"
+ * as an assumption. No `variant` prop: there is exactly one consumer
+ * and one look now, so a variant switch would be speculative.
  */
 export function DailyLikeQuota({
   remaining,
@@ -32,9 +34,6 @@ export function DailyLikeQuota({
   const segmentCount = loading ? 5 : limit;
   const filled = loading ? 0 : remaining;
 
-  // Short label for the compact single-row header (brief: "6 left" or
-  // "6 likes left" if space allows) — full accessibility phrasing still
-  // goes on accessibilityLabel below.
   const label = loading ? '…' : remaining === 1 ? '1 left' : `${remaining} left`;
   const a11yLabel = loading
     ? 'Loading your daily likes'
@@ -43,7 +42,7 @@ export function DailyLikeQuota({
       : `${remaining} likes left today`;
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.capsule}>
       <ThemedText style={styles.label} numberOfLines={1}>
         {label}
       </ThemedText>
@@ -64,15 +63,26 @@ export function DailyLikeQuota({
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  capsule: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: homeSpacing.xs + 2,
+    height: 40,
+    paddingHorizontal: homeSpacing.md,
+    borderRadius: homeRadius.pill,
+    backgroundColor: 'rgba(255,253,252,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(23,23,23,0.08)',
+    shadowColor: '#3A2A24',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   label: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: homeColors.textSecondary,
+    color: homeColors.textPrimary,
   },
   segments: {
     width: SEGMENTS_WIDTH,

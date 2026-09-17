@@ -1,7 +1,7 @@
 // Screen: Ana sayfa sekmesi | Status: stable | Last updated: Mayıs 2026
 import { DailyLimitEmptyState } from '@/components/DailyLimitEmptyState';
 import { ErrorState } from '@/components/ErrorState';
-import { HomeHeader } from '@/components/home/HomeHeader';
+import { FloatingFilterButton } from '@/components/home/FloatingFilterButton';
 import { PersonalTastesCard } from '@/components/home/PersonalTastesCard';
 import { ProfileActionButtons } from '@/components/home/ProfileActionButtons';
 import {
@@ -618,8 +618,8 @@ export default function HomeScreen() {
   // the top card away reveals the next profile instead of blank white
   // (Bumble reference — user feedback, 2026-09-07).
   const nextUser = feedUsers[currentIndex + 1] ?? null;
-  // Real daily-like state, fed straight into HomeHeader's DailyLikeQuota —
-  // "N likes left today" + segments (brief), not a used-up progress bar.
+  // Real daily-like state, fed straight into ProfileHeroCard's floating
+  // DailyLikeQuota capsule — "N left" + segments, not a used-up progress bar.
   const likesLeft = remainingDailyViews(dailyViews);
   const likesLimit = dailyViews?.limit ?? DAILY_VIEW_LIMIT;
 
@@ -755,17 +755,13 @@ export default function HomeScreen() {
   const promptCards = currentUser ? dedupePromptCards(buildPromptCards(currentUser)) : [];
   const extraPhotos = currentUser ? currentUser.photoUrls.slice(1) : [];
 
-  const headerProps = {
-    likesRemaining: likesLeft,
-    likesLimit,
-    likesLoading: dailyViews === null,
-  };
   // Mirrors the `body` ternary chain below EXACTLY (De Morgan of its "active
-  // card" branch) — must stay in lockstep with it, otherwise a case that
-  // falls into the active-card render (HomeHeader lives inside its
-  // ScrollView) could ALSO satisfy this condition and render the fixed
-  // header at the same time, doubling it up.
-  const showFixedHeader =
+  // card" branch) — the loading/error/empty states have no hero photo to
+  // float the filter button over, so they get a standalone floating one
+  // instead (see fallbackFilterWrap below). Must stay in lockstep with
+  // `body`'s own chain, otherwise both a fallback AND the hero's own
+  // floating filter could render at once.
+  const showFallbackFilter =
     !!dailyViews?.limitReached ||
     (feedError && feedUsers.length === 0) ||
     (feedLoading && feedUsers.length === 0) ||
@@ -774,23 +770,23 @@ export default function HomeScreen() {
   return (
     <View style={styles.feedRoot}>
       <StatusBar style="dark" />
-      {/* 2026-09-17: header is fixed chrome ONLY for the non-scrolling states
-          below (loading/error/empty) — safe since nothing scrolls under it
-          there. For the active-card state it's rendered as the first item
-          INSIDE the ScrollView instead (see below) so it can never overlap
-          the profile content; real-device testing found it doing exactly
-          that when it lived here unconditionally. That fix introduced a
-          new one, found on a real device: once the header (which used to
-          double as an opaque cap over the status bar) scrolls away with
-          the rest of the content, whatever scrolls up next passes directly
-          under the status bar icons. Fix: a persistent, always-rendered
-          backdrop exactly `insets.top` tall, painted on top of everything
-          (high zIndex/elevation, pointerEvents none so it never blocks
-          touches) — pure paint, not a layout inset, so it doesn't stack
-          with HomeHeader's own `insets.top` padding (single safe-area
-          source, per the brief). */}
+      {/* 2026-09-17: this backdrop predates the header row's removal and is
+          UNCHANGED by it — still the single thing keeping the status bar
+          readable regardless of scroll position. Pure paint (high zIndex/
+          elevation, pointerEvents none), not a layout inset — doesn't stack
+          with the ScrollView's own `insets.top` padding below (single
+          safe-area source). */}
       <View style={[styles.statusBarBackdrop, { height: insets.top }]} pointerEvents="none" />
-      {showFixedHeader ? <HomeHeader {...headerProps} /> : null}
+      {/* No separate header row exists on Home anymore (2026-09-17) — quota
+          + filter float directly over the hero photo instead (see
+          ProfileHeroCard). The loading/error/empty states below have no
+          photo to float over, so Filters stays reachable there via this
+          standalone floating button in the same top-right spot. */}
+      {showFallbackFilter ? (
+        <View style={[styles.fallbackFilterWrap, { top: insets.top + homeSpacing.sm }]}>
+          <FloatingFilterButton />
+        </View>
+      ) : null}
       <View style={styles.body}>
         {dailyViews?.limitReached ? (
           <DailyLimitEmptyState resetAt={dailyViews.resetAt} limit={dailyViews.limit} />
@@ -838,18 +834,23 @@ export default function HomeScreen() {
                   style={styles.scroll}
                   contentContainerStyle={[
                     styles.scrollContent,
-                    // Real tab bar height (includes its own bottom safe-area
-                    // inset already — react-navigation's own hook) instead
-                    // of the flat 24 this had before, which is why Pass/
-                    // Like/Block/Report could end up rendered underneath
-                    // the tab bar on a real device.
-                    { paddingBottom: tabBarHeight + homeSpacing.xxl },
+                    {
+                      // 2026-09-17: the separate header row is gone — this
+                      // is now the ONLY source of the gap between the
+                      // status bar and the hero photo (ProfileHeroCard's
+                      // own marginTop was removed to avoid stacking a
+                      // second one). insets.top + 10 lands in the
+                      // requested ~8-12pt band.
+                      paddingTop: insets.top + 10,
+                      // Real tab bar height (includes its own bottom safe-
+                      // area inset already — react-navigation's own hook)
+                      // instead of the flat 24 this had before, which is
+                      // why Pass/Like/Block/Report could end up rendered
+                      // underneath the tab bar on a real device.
+                      paddingBottom: tabBarHeight + homeSpacing.xxl,
+                    },
                   ]}
                   showsVerticalScrollIndicator={false}>
-                  {/* Header renders here, as ordinary scroll content, for
-                      exactly the reason in the comment above — see
-                      HomeHeader's own doc comment for the full story. */}
-                  <HomeHeader {...headerProps} />
                   {/* Editorial rhythm (2026-09-17 revision — added the
                       sections a real-device audit found present in data but
                       never rendered anywhere in the first redesign pass:
@@ -863,11 +864,17 @@ export default function HomeScreen() {
                       actions. Every section renders nothing (not an empty
                       card) when its underlying data is empty — a candidate
                       with a genuinely thin profile still gets a short page,
-                      on purpose. */}
+                      on purpose. Hero photo is now the first real thing on
+                      screen — quota/filter float over it directly (see
+                      ProfileHeroCard), no separate header row exists
+                      anymore. */}
                   <ProfileHeroCard
                     person={currentUser}
                     viewerCity={myCity}
                     onNoteTarget={handleOpenNote}
+                    likesRemaining={likesLeft}
+                    likesLimit={likesLimit}
+                    likesLoading={dailyViews === null}
                   />
                   <WhyYouMatchCard reasons={currentUser.reasons} />
                   {promptCards[0] ? (
@@ -1025,6 +1032,14 @@ const styles = StyleSheet.create({
     backgroundColor: homeColors.background,
     zIndex: 20,
     elevation: 20,
+  },
+  // Only used for the loading/error/empty states — the active-card state's
+  // filter button lives inside ProfileHeroCard instead (floats over the
+  // photo). `top` is set inline (needs insets.top).
+  fallbackFilterWrap: {
+    position: 'absolute',
+    right: homeSpacing.lg,
+    zIndex: 15,
   },
   // Header is fixed chrome outside the card stack; body is everything below
   // it (loading/error/empty/active-card states) — gives nextCardPeek's

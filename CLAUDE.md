@@ -509,6 +509,16 @@ Cihazda tüm gün boyunca (gündüz + gece karanlık-mod testi dahil) adım adı
 - **Status bar backdrop fix'ine (bir önceki tur) hiç dokunulmadı** — `index.tsx` bu turda hiç değiştirilmedi, sadece `HomeHeader.tsx`/`DailyLikeQuota.tsx`.
 - **Doğrulama:** `npx tsc --noEmit` temiz. **Cihazda henüz görülmedi.**
 
+**✅ 2026-09-17 (devam 7) — Dokuzuncu tur: ayrı header satırı TAMAMEN kaldırıldı, kota+filtre hero fotoğrafının üstüne floating kontrol olarak taşındı.** Kullanıcı: "teknik olarak doğru ama image-first etki oluşmadı, tempa+quota+filter hâlâ fotoğrafın üstünde ayrı bir satır." Bir önceki turda header'ı tek satıra indirmiştim ama satır hâlâ VARDI — bu tur onu tamamen ortadan kaldırdı.
+- **`HomeHeader.tsx` silindi** (artık hiçbir yerde import edilmiyor, `grep` ile doğrulandı — sadece iki eski YORUM satırında ismi geçiyordu, onlar da güncellendi).
+- **Yeni `components/home/FloatingFilterButton.tsx`** — filtre ikonunu kendi başına, `44×44` GERÇEK görsel boyutta (bu turda satır-yüksekliği kısıtlaması yok, bağımsız yüzen bir buton olduğu için `hitSlop` numarasına gerek kalmadı), aynı kapsül yüzey/border/gölge diliyle.
+- **`DailyLikeQuota` yeniden tasarlandı — artık sadece görsel kapsül**, konumlandırma çağıranın işi (`variant` prop'una gerek kalmadı, tek tüketici/tek görünüm var artık): `rgba(255,253,252,0.92)` sıcak yüzey, ince border, hafif gölge, yükseklik 40, yatay padding 12, tam pill radius — brief'in istediği değerlerle birebir.
+- **`ProfileHeroCard`** artık `likesRemaining`/`likesLimit`/`likesLoading` prop'larını alıyor ve fotoğrafın kendi üstüne (`position:absolute, top/left/right: 16`) `DailyLikeQuota` (sol) + `FloatingFilterButton` (sağ) render ediyor — `pointerEvents="box-none"` ile aradaki boş alan dokunuşları fotoğrafa değil hiçbir yere geçirmiyor (ikisi de kendi dokunma alanını koruyor). Hero'nun kendi `marginTop`'u (8px) kaldırıldı — status bar'dan foto'ya boşluk artık TEK kaynaktan geliyor (aşağıya bak).
+- **`index.tsx`:** `ScrollView`'ın `contentContainerStyle`'ına `paddingTop: insets.top + 10` eklendi — istenen "insets.top + 8-12pt" aralığının ortasında, TEK safe-area kaynağı (ProfileHeroCard'ın kendi margin'i kaldırıldığı için artık çakışma/toplanma yok). Loading/error/empty durumları için (fotoğraf olmadığından üstüne bindirilecek bir şey yok) aynı `FloatingFilterButton` bağımsız bir `position:absolute` sarmalayıcıda sağ üstte render ediliyor (`showFallbackFilter` — eski `showFixedHeader` ile aynı koşul, sadece artık header değil tek bir buton gösteriyor, çift-render riski aynı De Morgan mantığıyla önlendi).
+- **Status bar backdrop (`statusBarBackdrop`, iki tur önceki fix) hiç değişmedi** — hâlâ `insets.top` yüksekliğinde, opak, yüksek z-index'li, `pointerEvents="none"` kalıcı katman.
+- **Not kontrolü:** Fotoğrafın üstünde hâlâ tek bir `ContextualNoteButton` var (alt bilgi bloğunda, isim/konumun yanında) — yeni üst kontroller (kota+filtre) Note içermiyor, çift Note riski yok.
+- **Doğrulama:** `npx tsc --noEmit` temiz. **Cihazda henüz görülmedi — ekran görüntüsü de veremiyorum, cihaz erişimim yok, bir sonraki test senden gelmeli.**
+
 ---
 
 ## 5. Ürün kararları (log)

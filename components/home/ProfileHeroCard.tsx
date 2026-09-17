@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ContextualNoteButton } from '@/components/home/ContextualNoteButton';
+import { DailyLikeQuota } from '@/components/home/DailyLikeQuota';
+import { FloatingFilterButton } from '@/components/home/FloatingFilterButton';
 import { MatchScoreBadge } from '@/components/home/MatchScoreBadge';
 import { VerifiedBadge } from '@/components/home/VerifiedBadge';
 import type { NoteTarget } from '@/components/profile/HingeProfileCard';
@@ -13,10 +15,21 @@ export function ProfileHeroCard({
   person,
   viewerCity,
   onNoteTarget,
+  likesRemaining,
+  likesLimit,
+  likesLoading,
 }: {
   person: HingeProfilePerson;
   viewerCity: string | null;
   onNoteTarget?: (target: NoteTarget) => void;
+  // 2026-09-17: the old separate header row is gone — quota + filters now
+  // float directly over the hero photo (top-left/top-right), which is why
+  // this card takes the quota's data as props at all. Optional: index.tsx's
+  // loading/error/empty states have no photo to float over, so they render
+  // a standalone FloatingFilterButton instead and never pass these.
+  likesRemaining?: number;
+  likesLimit?: number;
+  likesLoading?: boolean;
 }) {
   const age = hingeSafeAge(person.date_of_birth);
   const location = formatFeedLocation(person.district, person.city, viewerCity);
@@ -39,6 +52,20 @@ export function ProfileHeroCard({
       ) : (
         <View style={[styles.photo, styles.photoFallback]} />
       )}
+
+      {/* 2026-09-17: the old separate header row (wordmark/quota/filter)
+          is gone entirely — quota floats top-left, filter top-right,
+          directly over the photo, so the hero is the first real thing on
+          screen after the status bar. Only rendered when the caller
+          passes quota data (the loading/error/empty states in index.tsx
+          don't have a photo to float over and render their own filter-
+          only control there instead). */}
+      {typeof likesRemaining === 'number' && typeof likesLimit === 'number' ? (
+        <View style={styles.topControls} pointerEvents="box-none">
+          <DailyLikeQuota remaining={likesRemaining} limit={likesLimit} loading={!!likesLoading} />
+          <FloatingFilterButton />
+        </View>
+      ) : null}
 
       {/* 2026-09-17: tried a real LinearGradient here, but expo-linear-
           gradient is a native module and this app runs on an already-built
@@ -94,7 +121,10 @@ const HERO_ASPECT = 0.78;
 const styles = StyleSheet.create({
   wrap: {
     marginHorizontal: homeSpacing.lg,
-    marginTop: homeSpacing.sm,
+    // No marginTop (was homeSpacing.sm) — the "insets.top + 8-12pt" gap
+    // above the hero is now entirely owned by the ScrollView's own
+    // contentContainerStyle.paddingTop in index.tsx (single source, no
+    // stacking) now that there's no header row handing off a margin here.
     borderRadius: homeRadius.heroPhoto,
     overflow: 'hidden',
     aspectRatio: HERO_ASPECT,
@@ -102,6 +132,15 @@ const styles = StyleSheet.create({
   },
   photo: { ...StyleSheet.absoluteFillObject },
   photoFallback: { backgroundColor: homeColors.mutedSurface },
+  topControls: {
+    position: 'absolute',
+    top: homeSpacing.lg,
+    left: homeSpacing.lg,
+    right: homeSpacing.lg,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
   infoBlock: {
     position: 'absolute',
     left: homeSpacing.lg,
