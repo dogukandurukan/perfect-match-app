@@ -23,10 +23,10 @@ export function MatchScoreBadge({ percentage }: { percentage: number }) {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: homeSpacing.sm + 2,
-    paddingVertical: 4,
+    paddingHorizontal: homeSpacing.sm,
+    paddingVertical: 3,
     borderRadius: homeRadius.pill,
     backgroundColor: homeColors.accent,
   },
-  text: { fontSize: 11.5, fontWeight: '700', color: '#FFFFFF' },
+  text: { fontSize: 10, fontWeight: '700', color: '#FFFFFF' },
 });

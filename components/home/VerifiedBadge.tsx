@@ -8,7 +8,7 @@ import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
 export function VerifiedBadge() {
   return (
     <View style={styles.badge} accessibilityLabel="Photo verified">
-      <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
+      <Ionicons name="checkmark-circle" size={10} color="#FFFFFF" />
       <ThemedText style={styles.text}>Photo verified</ThemedText>
     </View>
   );
@@ -20,11 +20,11 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: homeSpacing.xs,
-    paddingHorizontal: homeSpacing.sm + 2,
-    paddingVertical: 4,
+    gap: 4,
+    paddingHorizontal: homeSpacing.sm,
+    paddingVertical: 3,
     borderRadius: homeRadius.pill,
     backgroundColor: homeColors.verifiedBadge,
   },
-  text: { fontSize: 11.5, fontWeight: '700', color: '#FFFFFF' },
+  text: { fontSize: 10, fontWeight: '700', color: '#FFFFFF' },
 });

@@ -42,42 +42,38 @@ export function ProfileHeroCard({
 
       <View style={styles.overlay} pointerEvents="none" />
 
-      {/* Note is a floating corner action, not part of the identity text
-          stack below — brief's priority order (name/age > location >
-          verified+score > Note) applies to the info block, and the
-          contextual-like affordance reads fine as a separate layer, the
-          same way it would as a corner icon on any photo app. */}
-      {onNoteTarget ? (
-        <View style={styles.noteWrap}>
+      {/* 2026-09-17: info row — text column (badges pretitle → name/age →
+          location/occupation) on the left, Note as a bottom-right action
+          balanced against it on the right, both bottom-aligned. Replaces
+          the previous top-right-corner Note placement (risked landing over
+          the main photo subject) and the previous badges-after-meta order
+          (brief now wants badges immediately before/above the name). Row
+          layout (not two independently-positioned absolute elements) is
+          what actually reserves space for Note so a long name/location
+          truncates instead of rendering underneath it. */}
+      <View style={styles.infoBlock}>
+        <View style={styles.textColumn}>
+          {hasVerified || hasScore ? (
+            <View style={styles.badgeRow}>
+              {hasVerified ? <VerifiedBadge /> : null}
+              {hasScore ? <MatchScoreBadge percentage={person.match_percentage as number} /> : null}
+            </View>
+          ) : null}
+          <ThemedText style={styles.name} numberOfLines={1}>
+            {person.first_name ?? 'Someone'}
+            {age > 0 ? `, ${age}` : ''}
+          </ThemedText>
+          {metaLine ? (
+            <ThemedText style={styles.meta} numberOfLines={1}>
+              {metaLine}
+            </ThemedText>
+          ) : null}
+        </View>
+        {onNoteTarget ? (
           <ContextualNoteButton
             target={{ type: 'photo', key: 'photo-0', label: 'this photo' }}
             onPress={onNoteTarget}
           />
-        </View>
-      ) : null}
-
-      {/* Info hierarchy (2026-09-17, per real-device feedback): name/age →
-          location/occupation → verified+score. Badges moved down from a
-          top-corner overlay (used to risk landing on the face on some
-          photo crops) into this already-scrimmed lower band, sized to
-          match VerifiedBadge/MatchScoreBadge's shared small scale instead
-          of dominating the card. No badge row rendered at all if the
-          person is neither verified nor scored — never an empty gap. */}
-      <View style={styles.infoBlock}>
-        <ThemedText style={styles.name} numberOfLines={1}>
-          {person.first_name ?? 'Someone'}
-          {age > 0 ? `, ${age}` : ''}
-        </ThemedText>
-        {metaLine ? (
-          <ThemedText style={styles.meta} numberOfLines={1}>
-            {metaLine}
-          </ThemedText>
-        ) : null}
-        {hasVerified || hasScore ? (
-          <View style={styles.badgeRow}>
-            {hasVerified ? <VerifiedBadge /> : null}
-            {hasScore ? <MatchScoreBadge percentage={person.match_percentage as number} /> : null}
-          </View>
         ) : null}
       </View>
     </View>
@@ -109,16 +105,19 @@ const styles = StyleSheet.create({
     height: '45%',
     backgroundColor: 'rgba(0,0,0,0.38)',
   },
-  noteWrap: {
-    position: 'absolute',
-    top: homeSpacing.md,
-    right: homeSpacing.md,
-  },
   infoBlock: {
     position: 'absolute',
     left: homeSpacing.lg,
     right: homeSpacing.lg,
     bottom: homeSpacing.lg,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: homeSpacing.sm,
+  },
+  textColumn: { flex: 1, gap: 4 },
+  badgeRow: {
+    flexDirection: 'row',
     gap: 4,
   },
   name: {
@@ -130,10 +129,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.92)',
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    gap: homeSpacing.xs,
-    marginTop: 2,
   },
 });

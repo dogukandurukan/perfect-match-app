@@ -462,6 +462,14 @@ Cihazda tüm gün boyunca (gündüz + gece karanlık-mod testi dahil) adım adı
 - **Yol boyunca kendi kendine yakalanan CLAUDE.md bug'ı:** Bir önceki oturumun Home-redesign kaydını eklerken (`devam 4`) "---\n## 5. Ürün kararları" başlığı yanlışlıkla silinmiş, §5 içeriği başlıksız §4'e karışmış kalmıştı — fark edilip düzeltildi (bu paragrafın hemen üstünde).
 - **Doğrulama:** `npx tsc --noEmit` temiz. **Cihazda henüz görülmedi** — bu ikinci tur da test bekliyor.
 
+**✅ 2026-09-17 (devam) — Üçüncü tur: header yoğunluğu + hero badge/Note yerleşimi (bu sefer kullanıcı tam ve net talimat verdi, ekran görüntüsüyle).** İkinci turun 3 sonucu doğrulandı (status bar okunur, rozet yerleşimi iyi, scroll-kapatma artık ana sorun değil), ama header hâlâ "gereğinden yüksek" bulundu — somut hedef verildi: safe-area hariç header içerik yüksekliği ~100-115pt'yi geçmemeli, `DailyLikeQuota` tek satıra insin (etiket solda, segmentler sağda — önceden alt alta iki satırdı).
+- **`DailyLikeQuota`** — `wrap` `flexDirection:'row', justifyContent:'space-between'`e çevrildi (etiket + segmentler artık aynı satırda). Segment genişliği daraltıldı (free 22→14, premium 12→8) tek satıra rahat sığsın diye.
+- **`HomeHeader`** — `paddingTop` fazlası `insets.top + xs(4)` → `insets.top + 2`; satırlar arası `gap` 6→4; fotoğraftan önceki `paddingBottom` 8→4 (ProfileHeroCard'ın kendi 8px üst margin'iyle birleşince toplam ~12px — istenen 12-16px aralığında). **Double safe-area kontrolü yapıldı ve DEĞİL olduğu doğrulandı** — `feedRoot`/`body`/`swipeCard` hepsi düz `View`, `ScreenContainer` değil; tek safe-area kaynağı `HomeHeader`'ın kendi `insets.top`'u.
+- **`MatchScoreBadge`/`VerifiedBadge`** — bir tur daha küçültüldü (~%20): dolgu `10px→8px yatay, 4px→3px dikey`, yazı `11.5→10pt`, verified ikonu `12→10pt`.
+- **`ProfileHeroCard` bilgi bloğu yeniden düzenlendi** — kullanıcı bu turda net bir sıra istedi: rozetler artık isimden HEMEN ÖNCE (küçük bir "pretitle" satırı), sonra isim+yaş, sonra konum/meslek — bir önceki turdaki "isim/konumdan sonra" sırasının üstüne yazıldı. **Not butonu üst-sağ köşeden alt-sağa taşındı** — artık ayrı, bağımsız-konumlu bir eleman değil, tüm alt bilgi bloğuyla AYNI `flexDirection:'row'` satırında (`textColumn` solda `flex:1`, Note sağda, `alignItems:'flex-end'`) — bu sadece görsel bir taşıma değil, gerçek bir bug'ı da önlüyor: önceki ayrı-absolute-konumlama düzeninde uzun bir isim/konum metni Note butonunun ALTINDA/ARKASINDA render olup kesilebilirdi (numberOfLines=1 metnin genişliğini sınırlamıyordu); şimdi `flex:1` metin sütunu için gerçek bir genişlik sınırı çiziyor, Note için yer ayrılmış oluyor.
+- **`WhyYouMatchCard`'a dokunulmadı** (kullanıcı: "iyi görünüyor, değiştirme"). Alt navigasyon yapısı da aynen kaldı.
+- **Doğrulama:** `npx tsc --noEmit` temiz. **Cihazda henüz görülmedi** — kullanıcı ilk açılış ekran görüntüsünü tekrar paylaşacak.
+
 ---
 
 ## 5. Ürün kararları (log)

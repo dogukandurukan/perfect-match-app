@@ -38,7 +38,7 @@ export function HomeHeader({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + homeSpacing.xs }]}>
+    <View style={[styles.wrap, { paddingTop: insets.top + 2 }]}>
       <View style={styles.row}>
         <ThemedText style={styles.wordmark}>{HOME_BRAND_NAME}</ThemedText>
         <TouchableOpacity
@@ -56,12 +56,20 @@ export function HomeHeader({
   );
 }
 
+// 2026-09-17: only ONE source of top spacing here — `insets.top` (+2px
+// buffer) on `wrap` — nothing else in the render tree (feedRoot/body/
+// swipeCard are all plain Views, not ScreenContainer) adds its own safe-area
+// padding on top of this, so there's no double safe-area inset stacking.
+// Vertical rhythm tightened per real-device feedback: gap between the
+// wordmark row and the quota row down to 4, bottom gap down to 4 (paired
+// with ProfileHeroCard's own 8px top margin, giving ~12px total before the
+// photo — was reading as too much empty space at ~14px+8px before).
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: homeColors.background,
     paddingHorizontal: homeSpacing.lg,
-    paddingBottom: homeSpacing.sm,
-    gap: homeSpacing.xs + 2,
+    paddingBottom: homeSpacing.xs,
+    gap: homeSpacing.xs,
   },
   row: {
     flexDirection: 'row',

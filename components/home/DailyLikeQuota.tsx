@@ -10,6 +10,9 @@ import { homeColors, homeSpacing } from '@/lib/homeTheme';
  * already used today. `loading` renders a stable-height all-muted
  * placeholder at the free-tier width so nothing jumps once real data
  * arrives.
+ *
+ * 2026-09-17: label and segments now share ONE row (was stacked) — part of
+ * compacting the header's total height per real-device feedback.
  */
 export function DailyLikeQuota({
   remaining,
@@ -23,8 +26,8 @@ export function DailyLikeQuota({
   const segmentCount = loading ? 5 : limit;
   const filled = loading ? 0 : remaining;
   // Premium's 10-segment row needs thinner segments than free's 5 to stay
-  // a compact single line instead of wrapping/crowding.
-  const segmentWidth = segmentCount > 6 ? 12 : 22;
+  // compact next to the label on the same line.
+  const segmentWidth = segmentCount > 6 ? 8 : 14;
 
   const label = loading
     ? 'Loading your daily likes'
@@ -56,13 +59,18 @@ export function DailyLikeQuota({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: homeSpacing.xs },
+  wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: homeSpacing.sm,
+  },
   label: {
     fontSize: 12.5,
     fontWeight: '600',
     color: homeColors.textSecondary,
   },
-  segments: { flexDirection: 'row', gap: 4 },
+  segments: { flexDirection: 'row', gap: 3, alignItems: 'center' },
   segment: { height: 4, borderRadius: 2 },
   segmentFilled: { backgroundColor: homeColors.accent },
   segmentEmpty: { backgroundColor: homeColors.border },
