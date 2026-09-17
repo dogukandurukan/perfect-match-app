@@ -54,25 +54,28 @@ function Segment({
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
       accessibilityLabel={typeof count === 'number' ? `${label}, ${count}` : label}>
-      <ThemedText style={[styles.label, active && styles.labelActive]}>
+      <ThemedText style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
         {label}
-        {typeof count === 'number' && count > 0 ? ` (${count})` : ''}
+        {typeof count === 'number' ? ` (${count})` : ''}
       </ThemedText>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
+  // 2026-09-18 (V2): tightened from a much taller control — total height is
+  // now 2 (outer padding) + 44 (segment, the real touch target) + 2 = 48pt,
+  // the top of the brief's requested 44-48pt band, without shrinking the
+  // actual tappable area below the 44pt minimum.
   track: {
     flexDirection: 'row',
     backgroundColor: homeColors.mutedSurface,
     borderRadius: homeRadius.pill,
-    padding: 4,
+    padding: 2,
     gap: 4,
   },
   segment: {
     flex: 1,
-    paddingVertical: 11,
     borderRadius: homeRadius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -82,11 +85,12 @@ const styles = StyleSheet.create({
     backgroundColor: homeColors.accent,
   },
   label: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14.5,
+    fontWeight: '600',
     color: homeColors.textSecondary,
   },
   labelActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
   },
 });

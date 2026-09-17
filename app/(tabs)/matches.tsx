@@ -1,26 +1,26 @@
 // Screen: Eşleşmeler sekmesi | Status: stable | Last updated: 2026-09-18 (Warm Editorial redesign)
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
-  AccessibilityInfo,
   ActivityIndicator,
   Alert,
-  LayoutAnimation,
-  Platform,
+  FlatList,
   ScrollView,
+  SectionList,
   StyleSheet,
   TouchableOpacity,
-  UIManager,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ErrorState } from '@/components/ErrorState';
+import { ConfirmedPlanCard, type ConfirmedPlan } from '@/components/matches/ConfirmedPlanCard';
 import { MatchesHeader } from '@/components/matches/MatchesHeader';
 import { MatchesSegmentedControl, type MatchesTabKey } from '@/components/matches/MatchesSegmentedControl';
+import { PendingPlanCard, type PendingPlan } from '@/components/matches/PendingPlanCard';
 import { ReadyMatchCard, type ReadyCardCta, type ReadyItem } from '@/components/matches/ReadyMatchCard';
-import { UpcomingPlanCard, type UpcomingPlan } from '@/components/matches/UpcomingPlanCard';
 import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
@@ -40,10 +40,6 @@ import {
 } from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 function matchCategory(score: number): string {
   if (score >= 85) return '🔥 Perfect match';
@@ -96,22 +92,20 @@ type MatchCardData = MatchResultItem & {
   reason: string | null;
 };
 
-type IncomingInvite = {
+/** A date-planning process has started with this person — either direction.
+ * Never appears alongside the same person in `cards` (Ready) by
+ * construction: a `matches` row with `invited_by` set is excluded from the
+ * uninvited-candidates query that feeds `cards` (see `pendingRows` below). */
+type PendingPlanRaw = {
   matchId: string;
   userId: string;
-  firstName: string | null;
+  name: string | null;
   age: number;
-  city: string | null;
-  displayPhotoUrl: string | null;
-  matchScore: number;
-  introAnswers: IntroAnswers | null;
-};
-
-type WaitingInvite = {
-  matchId: string;
-  userId: string;
-  firstName: string | null;
-  displayPhotoUrl: string | null;
+  photoUrl: string | null;
+  venue: string | null;
+  district: string | null;
+  whenLabel: string | null;
+  direction: 'outgoing' | 'incoming';
 };
 
 const MATCH_SLOT_COUNT = 3;
@@ -151,13 +145,22 @@ type ProfileForCard = {
   favorite_spots: Record<string, string> | null;
 };
 
-/** Real photo URL, or null if genuinely missing — no more pravatar.cc
- * fallback (2026-09-18 brief: no random third-party avatars, use a neutral
- * initials placeholder instead — see components/matches/PersonAvatar). */
+/** Most seed profiles store a pravatar.cc URL directly as their "photo" —
+ * getProfilePhotoPublicUrl passes any http(s) URL through unchanged, so
+ * this can't be caught by an empty-array check alone. Filtered out at every
+ * point a photo URL is produced in this file (PersonAvatar also guards
+ * independently as a second line of defense — see its own comment). */
+function isRandomAvatarUrl(url: string): boolean {
+  return url.includes('pravatar.cc');
+}
+
+/** Real photo URL, or null if genuinely missing/a random-avatar-service
+ * fallback — never a third-party avatar (2026-09-18 brief). */
 function photoFor(photos: string[] | null | undefined): string | null {
   const first = photos?.[0];
   if (!first?.trim()) return null;
-  return getProfilePhotoPublicUrl(first);
+  const url = getProfilePhotoPublicUrl(first);
+  return isRandomAvatarUrl(url) ? null : url;
 }
 
 function buildCardFromPending(
@@ -167,7 +170,8 @@ function buildCardFromPending(
 ): MatchCardData {
   const signedPhotos = (profile.photos ?? [])
     .filter((p) => p?.trim())
-    .map((path) => getProfilePhotoPublicUrl(path));
+    .map((path) => getProfilePhotoPublicUrl(path))
+    .filter((url) => !isRandomAvatarUrl(url));
 
   return {
     user_id: profile.id,
@@ -205,7 +209,9 @@ function buildCardFromPending(
 }
 
 function matchToHingePerson(match: MatchCardData): HingeProfilePerson {
-  const photos = (match.photos ?? []).filter((u) => typeof u === 'string' && u.trim().length > 0);
+  const photos = (match.photos ?? []).filter(
+    (u) => typeof u === 'string' && u.trim().length > 0 && !isRandomAvatarUrl(u),
+  );
   return {
     first_name: match.first_name,
     date_of_birth: match.date_of_birth,
@@ -231,6 +237,80 @@ function safeAge(dob: string | null): number {
   return hingeSafeAge(dob);
 }
 
+type LiteProfile = {
+  id: string;
+  first_name: string | null;
+  date_of_birth: string | null;
+  city: string | null;
+  district: string | null;
+  photos: string[] | null;
+};
+
+/** A MatchCardData-shaped object for an OUTGOING-pending person (someone
+ * already invited, not a fresh candidate) — built from the same light
+ * profile fields already fetched for every `matches` row's other party (no
+ * extra query). Rich optional fields (bio/hobbies/etc) are null: this
+ * exists only so "View invitation" can reuse the exact same profile-detail
+ * overlay + "Waiting for {name}" footer that Ready cards already use,
+ * not to show a full rich profile. */
+function buildLiteCard(matchId: string, matchScore: number, profile: LiteProfile): MatchCardData {
+  const signedPhotos = (profile.photos ?? [])
+    .filter((p) => p?.trim())
+    .map((path) => getProfilePhotoPublicUrl(path))
+    .filter((url) => !isRandomAvatarUrl(url));
+  return {
+    user_id: profile.id,
+    first_name: profile.first_name,
+    date_of_birth: profile.date_of_birth,
+    city: profile.city,
+    district: profile.district,
+    zodiac_sign: null,
+    photos: signedPhotos.length > 0 ? signedPhotos : null,
+    match_percentage: Math.round(matchScore) || 0,
+    match_category: matchCategory(Math.round(matchScore) || 0),
+    reasons: [],
+    reason: null,
+    favorite_music: null,
+    favorite_movie: null,
+    favorite_book: null,
+    hobbies: null,
+    availability_days: null,
+    drinking: null,
+    smoking: null,
+    education: null,
+    education_detail: null,
+    morning_night: null,
+    expires_at: null,
+    status: 'pending',
+    matchId,
+    intent: null,
+    languages: null,
+    recharge_style: null,
+    displayPhotoUrl: signedPhotos[0] ?? null,
+    bio: null,
+    first_date_expectation: null,
+    favorite_spots: null,
+  };
+}
+
+/** The proposed venue + first offered time from a set of intro answers
+ * (already-existing `place`/`slot1` fields, see lib/matchInvite.ts) — the
+ * same real data the "Plan your date" screen writes when an invite is
+ * sent. Used for the Plans pending-card face (venue/date/district rows),
+ * not a separate fetch. */
+function proposedVenueAndTime(answers: IntroAnswers | null): {
+  venue: string | null;
+  district: string | null;
+  whenLabel: string | null;
+} {
+  if (!answers) return { venue: null, district: null, whenLabel: null };
+  const place = answers.place ?? answers.kafe ?? null;
+  const { venue, district } = splitVenueText(place);
+  const slot = answers.slot1 ?? answers.gun ?? null;
+  const whenLabel = slot ? formatMeetingTime(slot) : null;
+  return { venue, district, whenLabel };
+}
+
 /** "Walter's Coffee — Kadıköy · Near both of you" (older rows) or
  * "Walter's Coffee — Kadıköy" (rows saved by the redesigned Plan-your-date
  * screen) → { venue: "Walter's Coffee", district: "Kadıköy" }. A plain
@@ -251,38 +331,30 @@ function splitVenueText(raw: string | null): { venue: string | null; district: s
 export default function MatchesTab() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Real tab bar height (react-navigation's own hook, already includes its
+  // own bottom safe-area inset) — used as the list's bottom footer space so
+  // the last Ready card's CTA / last Plans card's actions never render
+  // underneath the tab bar (2026-09-18 V2 explicit requirement).
+  const tabBarHeight = useBottomTabBarHeight();
   const [tab, setTab] = useState<MatchesTabKey>('ready');
   const [cards, setCards] = useState<MatchCardData[]>([]);
-  const [incoming, setIncoming] = useState<IncomingInvite[]>([]);
-  const [waiting, setWaiting] = useState<WaitingInvite[]>([]);
-  const [plans, setPlans] = useState<UpcomingPlan[]>([]);
+  const [pendingPlans, setPendingPlans] = useState<PendingPlanRaw[]>([]);
+  const [waitingCards, setWaitingCards] = useState<Record<string, MatchCardData>>({});
+  const [confirmedPlans, setConfirmedPlans] = useState<ConfirmedPlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [inviteByOtherId, setInviteByOtherId] = useState<
-    Record<string, { matchId: string; invitedBy: string | null; chatOpened: boolean }>
-  >({});
   const [myCity, setMyCity] = useState<string | null>(null);
   const [dailyInvites, setDailyInvites] = useState<DailyInvitesState | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<MatchCardData | null>(null);
+  // Which footer the detail overlay shows for `selectedMatch` — set at open
+  // time based on WHERE the tap came from, rather than re-deriving it from
+  // invite state (Ready cards are, by construction, never-invited — see
+  // `pendingRows`'s `.is('invited_by', null)` filter — so a live lookup
+  // would always resolve to "none" there; 'waiting' is only ever set when
+  // opened from a Plans "View invitation" tap).
+  const [selectedMatchMode, setSelectedMatchMode] = useState<'candidate' | 'waiting'>('candidate');
   const hasLoadedRef = useRef(false);
-  // Ready/Plans switch below skips the fade entirely when the OS "Reduce
-  // Motion" setting is on, per the brief's accessibility requirement.
-  const reduceMotionRef = useRef(false);
-
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
-      if (mounted) reduceMotionRef.current = v;
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => {
-      reduceMotionRef.current = v;
-    });
-    return () => {
-      mounted = false;
-      sub.remove();
-    };
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -479,9 +551,9 @@ export default function MatchesTab() {
           const profileById = profilesOutcome.profileById;
           const activePending = candidatesOutcome.activePending;
 
-          const nextIncoming: IncomingInvite[] = [];
-          const nextWaiting: WaitingInvite[] = [];
-          const nextPlans: UpcomingPlan[] = [];
+          const nextPending: PendingPlanRaw[] = [];
+          const nextWaitingCards: Record<string, MatchCardData> = {};
+          const nextConfirmed: ConfirmedPlan[] = [];
 
           for (const row of rows) {
             const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
@@ -494,6 +566,13 @@ export default function MatchesTab() {
 
             const meetingAt = (row.meeting_at as string | null) ?? null;
             const meetupConfirmed = (row.meetup_confirmed as boolean | null) ?? null;
+            // Confirmed = meeting_at set AND meetup_confirmed===true — NOT
+            // `status`, deliberately: picking one of the inviter's own
+            // offered time chips at accept time sets meetup_confirmed=true
+            // immediately (see notifications.tsx's handleRespond) while
+            // `status` can still read 'pending' under the gendered
+            // chat-open rule. Checking status here would wrongly drop a
+            // genuinely confirmed plan.
             const isConfirmedPlan = !!meetingAt && meetupConfirmed === true;
 
             if (isConfirmedPlan) {
@@ -504,7 +583,7 @@ export default function MatchesTab() {
               // as upcoming, not silently mis-shown elsewhere).
               if (new Date(meetingAt).getTime() > Date.now()) {
                 const { venue, district } = splitVenueText((row.confirmed_place as string | null) ?? null);
-                nextPlans.push({
+                nextConfirmed.push({
                   matchId: row.id,
                   userId: otherId,
                   name: firstName ?? 'Someone',
@@ -526,6 +605,10 @@ export default function MatchesTab() {
             if (chatOpened && invitedBy) {
               // shown in Chats — nothing to do here
             } else if (invitedBy && invitedBy !== userId) {
+              // Incoming — someone invited ME, awaiting my decision. Goes to
+              // Plans (2026-09-18 V2: NOT Ready — a pending invitation is a
+              // date-planning process already in motion, not a candidate
+              // still awaiting "Plan a date").
               const inviterAnswers = introAnswersForUser(
                 {
                   user_a_id: row.user_a_id,
@@ -535,30 +618,54 @@ export default function MatchesTab() {
                 },
                 invitedBy,
               );
-              nextIncoming.push({
+              const proposal = proposedVenueAndTime(inviterAnswers);
+              nextPending.push({
                 matchId: row.id,
                 userId: otherId,
-                firstName,
+                name: firstName,
                 age,
-                city: profile?.city ?? null,
-                displayPhotoUrl,
-                matchScore: Math.round(Number(row.match_score) || 0),
-                introAnswers: inviterAnswers,
+                photoUrl: displayPhotoUrl,
+                ...proposal,
+                direction: 'incoming',
               });
             } else if (invitedBy === userId) {
-              // Outgoing, awaiting their response — surfaced back in the
-              // Ready tab as a "Waiting for {name}" card per this redesign
-              // brief (previously moved out to Activity's own "Waiting on
-              // them" grid, 2026-09-15 — that grid still exists too; this
-              // is a deliberate, brief-requested overlap, see report).
-              nextWaiting.push({ matchId: row.id, userId: otherId, firstName, displayPhotoUrl });
+              // Outgoing — I invited them, awaiting their response. Also
+              // Plans now (was briefly surfaced in Ready as a "Waiting for
+              // {name}" card in the previous round — this V2 brief
+              // explicitly corrects that: Ready must only hold uninvited
+              // candidates). My OWN intro answers are what I proposed.
+              const myAnswers = introAnswersForUser(
+                {
+                  user_a_id: row.user_a_id,
+                  user_b_id: row.user_b_id,
+                  user_a_intro_answers: row.user_a_intro_answers as IntroAnswers | null,
+                  user_b_intro_answers: row.user_b_intro_answers as IntroAnswers | null,
+                },
+                userId,
+              );
+              const proposal = proposedVenueAndTime(myAnswers);
+              nextPending.push({
+                matchId: row.id,
+                userId: otherId,
+                name: firstName,
+                age,
+                photoUrl: displayPhotoUrl,
+                ...proposal,
+                direction: 'outgoing',
+              });
+              // Lightweight profile-detail-shaped object so "View
+              // invitation" can reuse the exact same overlay Ready cards
+              // use, without a second query — same light fields already
+              // fetched above for every row's other party.
+              if (profile) {
+                nextWaitingCards[otherId] = buildLiteCard(row.id, Number(row.match_score) || 0, profile);
+              }
             }
           }
 
-          setIncoming(nextIncoming);
-          setWaiting(nextWaiting);
-          setPlans(nextPlans);
-          setInviteByOtherId(inviteMap);
+          setPendingPlans(nextPending);
+          setWaitingCards(nextWaitingCards);
+          setConfirmedPlans(nextConfirmed);
 
           if (activePending.length === 0) {
             setCards([]);
@@ -690,30 +797,45 @@ export default function MatchesTab() {
     });
   }
 
-  function handleViewPlan(plan: UpcomingPlan) {
+  function handleViewPlan(plan: ConfirmedPlan) {
     router.push({
       pathname: '/plan-detail',
       params: { matchId: plan.matchId, otherUserId: plan.userId },
     });
   }
 
+  function handleViewInvitation(userId: string) {
+    const found = waitingCards[userId];
+    if (!found) return;
+    setSelectedMatchMode('waiting');
+    setSelectedMatch(found);
+  }
+
   function switchTab(next: MatchesTabKey) {
-    if (!reduceMotionRef.current) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
+    // No LayoutAnimation here (2026-09-18 V2 fix) — it was a real
+    // contributor to the reported header/card overlap: `configureNext`
+    // animates ANY layout change in the next render pass, and combined
+    // with the previous View+ScrollView structure this could visibly
+    // overlap elements mid-transition. Each tab now renders its own
+    // FlatList/SectionList, which unmounts/remounts cleanly on switch
+    // (also resetting scroll position for free — no manual scrollTo
+    // needed) instead of animating in place.
     setTab(next);
   }
 
-  // --- Build the unified Ready list -----------------------------------
+  // --- Build the Ready list — candidates ONLY (2026-09-18 V2 fix) -------
+  // Pending invitations (either direction) no longer feed into Ready at
+  // all — they moved to Plans (see `pendingPlans` below). `cards` is
+  // already guaranteed uninvited by construction (`pendingRows`'s
+  // `.is('invited_by', null)` filter), so every item here is a genuine,
+  // still-undecided candidate.
   const now = Date.now();
-  const readyItems: ReadyItem[] = [];
-
-  for (const match of cards) {
+  const readyItems: ReadyItem[] = cards.map((match) => {
     const isExpired = !!match.expires_at && new Date(match.expires_at).getTime() < now;
     const cta: ReadyCardCta = isExpired
       ? { kind: 'expired', label: 'Expired' }
       : { kind: 'plan', label: 'Plan a date', onPress: () => handleLetsMeet(match) };
-    readyItems.push({
+    return {
       key: match.matchId,
       userId: match.user_id,
       name: match.first_name ?? 'Someone',
@@ -723,51 +845,44 @@ export default function MatchesTab() {
       reason: match.reason,
       expiresAt: isExpired ? null : match.expires_at ?? null,
       cta,
-    });
-  }
+    };
+  });
 
-  for (const invite of incoming) {
-    readyItems.push({
-      key: invite.matchId,
-      userId: invite.userId,
-      name: invite.firstName ?? 'Someone',
-      age: invite.age,
-      photoUrl: invite.displayPhotoUrl,
-      matchPercentage: invite.matchScore > 0 ? invite.matchScore : null,
-      reason: null,
-      expiresAt: null,
-      cta: { kind: 'review', label: 'Review invitation', onPress: handleReviewInvite },
-    });
-  }
-
-  for (const w of waiting) {
-    readyItems.push({
-      key: w.matchId,
-      userId: w.userId,
-      name: w.firstName ?? 'Someone',
-      age: 0,
-      photoUrl: w.displayPhotoUrl,
-      matchPercentage: null,
-      reason: null,
-      expiresAt: null,
-      cta: { kind: 'waiting', label: `Waiting for ${w.firstName ?? 'them'}` },
-    });
-  }
+  const pendingPlanItems: PendingPlan[] = pendingPlans.map((p) => ({
+    matchId: p.matchId,
+    userId: p.userId,
+    name: p.name ?? 'Someone',
+    age: p.age,
+    photoUrl: p.photoUrl,
+    venue: p.venue,
+    district: p.district,
+    whenLabel: p.whenLabel,
+    direction: p.direction,
+  }));
+  // Mockup copy assumes the outgoing case ("Waiting for them / We'll let
+  // you know when they respond.") — when an incoming invitation is mixed
+  // in too, that copy would be actively wrong (they're not the one
+  // waiting), so the header falls back to a neutral label in that case.
+  const allOutgoing = pendingPlanItems.every((p) => p.direction === 'outgoing');
+  const pendingSectionTitle = allOutgoing ? 'Waiting for them' : 'Pending invitations';
+  const pendingSectionSubtitle = allOutgoing
+    ? "We'll let you know when they respond."
+    : 'Respond to invitations or wait for updates.';
 
   function openDetailFor(readyItem: ReadyItem) {
     const found = cards.find((c) => c.matchId === readyItem.key);
-    if (found) setSelectedMatch(found);
-    // Incoming/waiting items don't have full profile data loaded here (no
-    // reasons/bio/etc. fetched for them) — tapping those opens the invite
-    // review flow (incoming) or does nothing extra (waiting, already showing
-    // everything relevant on the card) rather than a half-populated detail.
-    else if (readyItem.cta.kind === 'review') handleReviewInvite();
+    if (!found) return;
+    setSelectedMatchMode('candidate');
+    setSelectedMatch(found);
+  }
+
+  function handlePendingPrimaryAction(plan: PendingPlan) {
+    if (plan.direction === 'incoming') handleReviewInvite();
+    else handleViewInvitation(plan.userId);
   }
 
   // --- Detail overlay (unchanged behavior, re-skinned) ------------------
   if (selectedMatch) {
-    const info = inviteByOtherId[selectedMatch.user_id];
-    const inviteState: 'none' | 'sent' | 'open' = !info ? 'none' : info.chatOpened ? 'open' : info.invitedBy ? 'sent' : 'none';
     const displayName = selectedMatch.first_name ?? 'Someone';
     const isExpired = !!selectedMatch.expires_at && new Date(selectedMatch.expires_at).getTime() < now;
     return (
@@ -792,18 +907,15 @@ export default function MatchesTab() {
             viewerCity={myCity}
             footer={
               <View style={styles.detailFooter}>
-                {inviteState === 'sent' ? (
+                {selectedMatchMode === 'waiting' ? (
+                  // An outgoing-pending person's detail is always "waiting"
+                  // — `cards` (mode 'candidate') and `waitingCards` (mode
+                  // 'waiting') are mutually exclusive sets by construction,
+                  // no live invite-state lookup needed.
                   <View style={styles.detailWaiting}>
-                    <Ionicons name="hourglass-outline" size={16} color={homeColors.textSecondary} />
+                    <Ionicons name="time-outline" size={16} color={homeColors.textSecondary} />
                     <ThemedText style={styles.detailWaitingText}>Waiting for {displayName}</ThemedText>
                   </View>
-                ) : inviteState === 'open' ? (
-                  <TouchableOpacity
-                    style={styles.detailPrimaryBtn}
-                    onPress={() => handleOpenChat(selectedMatch.user_id, selectedMatch.first_name, selectedMatch.matchId)}
-                    activeOpacity={0.85}>
-                    <ThemedText style={styles.detailPrimaryText}>Message</ThemedText>
-                  </TouchableOpacity>
                 ) : isExpired ? (
                   <View style={[styles.detailPrimaryBtn, styles.detailPrimaryBtnDisabled]}>
                     <ThemedText style={styles.detailPrimaryTextDisabled}>Expired</ThemedText>
@@ -824,84 +936,155 @@ export default function MatchesTab() {
     );
   }
 
-  return (
-    // Not ScreenContainer here on purpose — it applies its own insets.top +
-    // 12 AND paddingHorizontal:24, which would double-count against
-    // MatchesHeader's own insets.top handling and each section's own
-    // homeSpacing.lg gutter below (single safe-area/gutter source, same
-    // discipline Home's index.tsx already follows).
-    <View style={styles.container}>
+  const listHeader = (
+    <>
       <MatchesHeader />
       <View style={styles.segmentWrap}>
         <MatchesSegmentedControl
           value={tab}
           onChange={switchTab}
           readyCount={hasLoadedRef.current ? readyItems.length : undefined}
-          plansCount={hasLoadedRef.current ? plans.length : undefined}
+          plansCount={hasLoadedRef.current ? pendingPlanItems.length + confirmedPlans.length : undefined}
         />
       </View>
+    </>
+  );
 
-      {loading && !hasLoadedRef.current ? (
+  const listFooterSpace = <View style={{ height: tabBarHeight + homeSpacing.lg }} />;
+
+  if (loading && !hasLoadedRef.current) {
+    return (
+      <View style={styles.container}>
+        {listHeader}
         <ActivityIndicator color={homeColors.accent} style={{ marginTop: 40 }} />
-      ) : error && readyItems.length === 0 && plans.length === 0 ? (
+      </View>
+    );
+  }
+
+  if (error && readyItems.length === 0 && pendingPlanItems.length === 0 && confirmedPlans.length === 0) {
+    return (
+      <View style={styles.container}>
+        {listHeader}
         <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
-      ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {tab === 'ready' ? (
-            readyItems.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <Ionicons name="heart-outline" size={40} color={homeColors.textSecondary} />
-                <ThemedText style={styles.emptyText}>No one&apos;s ready yet</ThemedText>
-                <ThemedText style={styles.emptySubtext}>
-                  Keep exploring on Discover — new matches will show up here
-                </ThemedText>
-              </View>
-            ) : (
-              <View style={styles.list}>
-                {readyItems.map((item) => (
-                  <ReadyMatchCard key={item.key} item={item} onPress={() => openDetailFor(item)} />
-                ))}
-              </View>
-            )
-          ) : plans.length === 0 ? (
+      </View>
+    );
+  }
+
+  if (tab === 'ready') {
+    return (
+      // Not ScreenContainer here on purpose — it applies its own insets.top
+      // + 12 AND paddingHorizontal:24, which would double-count against
+      // MatchesHeader's own insets.top handling and this list's own
+      // horizontal padding (single safe-area/gutter source).
+      <View style={styles.container}>
+        <FlatList
+          data={readyItems}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) => <ReadyMatchCard item={item} onPress={() => openDetailFor(item)} />}
+          ItemSeparatorComponent={() => <View style={{ height: homeSpacing.sm + 2 }} />}
+          ListHeaderComponent={listHeader}
+          ListFooterComponent={listFooterSpace}
+          ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Ionicons name="calendar-outline" size={40} color={homeColors.textSecondary} />
-              <ThemedText style={styles.emptyText}>No plans yet</ThemedText>
+              <Ionicons name="heart-outline" size={40} color={homeColors.textSecondary} />
+              <ThemedText style={styles.emptyText}>No one&apos;s ready yet</ThemedText>
               <ThemedText style={styles.emptySubtext}>
-                When you both confirm a date, it&apos;ll appear here.
+                Keep exploring on Discover — new matches will show up here
               </ThemedText>
-              <TouchableOpacity
-                style={styles.emptyCta}
-                onPress={() => switchTab('ready')}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="Go to Ready matches">
-                <ThemedText style={styles.emptyCtaText}>See who&apos;s ready</ThemedText>
-              </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.list}>
-              {plans.map((plan) => (
-                <UpcomingPlanCard
-                  key={plan.matchId}
-                  plan={plan}
-                  onViewPlan={() => handleViewPlan(plan)}
-                  onMessage={() => handleOpenChat(plan.userId, plan.name, plan.matchId)}
-                />
-              ))}
+          }
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    );
+  }
+
+  const plansSections: {
+    key: string;
+    title: string;
+    subtitle: string | null;
+    data: PlansSectionRow[];
+  }[] = [];
+  if (pendingPlanItems.length > 0) {
+    plansSections.push({
+      key: 'pending',
+      title: pendingSectionTitle,
+      subtitle: pendingSectionSubtitle,
+      data: pendingPlanItems.map((plan) => ({ kind: 'pending' as const, plan })),
+    });
+  }
+  plansSections.push({
+    key: 'confirmed',
+    title: 'Confirmed',
+    subtitle: null,
+    data:
+      confirmedPlans.length > 0
+        ? confirmedPlans.map((plan) => ({ kind: 'confirmed' as const, plan }))
+        : [{ kind: 'confirmedEmpty' as const }],
+  });
+
+  return (
+    <View style={styles.container}>
+      <SectionList
+        sections={plansSections}
+        keyExtractor={(row, i) =>
+          row.kind === 'pending' ? row.plan.matchId : row.kind === 'confirmed' ? row.plan.matchId : `empty-${i}`
+        }
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeaderWrap}>
+            <ThemedText style={styles.sectionHeaderTitle}>{section.title}</ThemedText>
+            {section.subtitle ? (
+              <ThemedText style={styles.sectionHeaderSubtitle}>{section.subtitle}</ThemedText>
+            ) : null}
+          </View>
+        )}
+        renderItem={({ item }) => {
+          if (item.kind === 'pending') {
+            return (
+              <PendingPlanCard plan={item.plan} onPrimaryAction={() => handlePendingPrimaryAction(item.plan)} />
+            );
+          }
+          if (item.kind === 'confirmed') {
+            return (
+              <ConfirmedPlanCard
+                plan={item.plan}
+                onViewPlan={() => handleViewPlan(item.plan)}
+                onMessage={() => handleOpenChat(item.plan.userId, item.plan.name, item.plan.matchId)}
+              />
+            );
+          }
+          return (
+            <View style={styles.confirmedEmptyWrap}>
+              <Ionicons name="calendar-outline" size={28} color={homeColors.textSecondary} />
+              <ThemedText style={styles.confirmedEmptyText}>Confirmed dates will appear here</ThemedText>
             </View>
-          )}
-        </ScrollView>
-      )}
+          );
+        }}
+        ItemSeparatorComponent={() => <View style={{ height: homeSpacing.sm + 2 }} />}
+        SectionSeparatorComponent={() => <View style={{ height: homeSpacing.lg }} />}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooterSpace}
+        contentContainerStyle={styles.content}
+        stickySectionHeadersEnabled={false}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
 
+type PlansSectionRow =
+  | { kind: 'pending'; plan: PendingPlan }
+  | { kind: 'confirmed'; plan: ConfirmedPlan }
+  | { kind: 'confirmedEmpty' };
+
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'flex-start', backgroundColor: homeColors.background },
-  segmentWrap: { paddingHorizontal: homeSpacing.lg, paddingBottom: homeSpacing.md },
-  content: { paddingHorizontal: homeSpacing.lg, paddingBottom: 40 },
-  list: { gap: homeSpacing.md },
+  // No horizontal padding here either — `content`'s paddingHorizontal
+  // below is the single gutter source for the whole list (header +
+  // segmented control + cards), so nothing here stacks a second one.
+  segmentWrap: { paddingBottom: homeSpacing.md },
+  content: { paddingHorizontal: homeSpacing.xl },
 
   emptyWrap: { marginTop: 48, alignItems: 'center', paddingHorizontal: 32, gap: 8 },
   emptyText: {
@@ -912,16 +1095,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   emptySubtext: { color: homeColors.textSecondary, fontSize: 14.5, textAlign: 'center', lineHeight: 21 },
-  emptyCta: {
-    marginTop: 12,
-    minHeight: 44,
-    paddingHorizontal: 20,
-    borderRadius: homeRadius.pill,
-    backgroundColor: homeColors.accent,
+
+  sectionHeaderWrap: {
+    backgroundColor: homeColors.background,
+    paddingBottom: homeSpacing.sm,
+  },
+  sectionHeaderTitle: { fontSize: 18, fontWeight: '800', color: homeColors.textPrimary },
+  sectionHeaderSubtitle: { fontSize: 13.5, color: homeColors.textSecondary, marginTop: 2 },
+  confirmedEmptyWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    paddingVertical: homeSpacing.lg,
+    borderRadius: homeRadius.card,
+    borderWidth: 1,
+    borderColor: homeColors.border,
+    backgroundColor: homeColors.surface,
   },
-  emptyCtaText: { color: '#FFFFFF', fontSize: 14.5, fontWeight: '700' },
+  confirmedEmptyText: { fontSize: 13.5, color: homeColors.textSecondary, fontWeight: '600' },
 
   detailRoot: { flex: 1, backgroundColor: homeColors.background },
   detailHeader: {

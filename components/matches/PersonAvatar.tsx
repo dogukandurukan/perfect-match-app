@@ -8,9 +8,17 @@ import { homeColors } from '@/lib/homeTheme';
  * Real photo, or a neutral initials placeholder — never a random third-party
  * avatar (pravatar.cc etc). 2026-09-18 Matches redesign brief: "Missing
  * photo durumunda çocuk veya rastgele üçüncü taraf avatar gösterme...
- * neutral initials placeholder oluştur." `photoUrl` is expected to already
- * be null/undefined for a genuinely missing photo (see matches.tsx's
- * `photoFor` — no longer falls back to pravatar.cc itself).
+ * neutral initials placeholder oluştur."
+ *
+ * 2026-09-18 (devam) — found live via DB query: the empty-array guard alone
+ * wasn't enough. Most seed profiles (~500/502, per `seed.ts`) store a
+ * `https://i.pravatar.cc/...` URL DIRECTLY as `photos[0]` — not an empty
+ * array — and `getProfilePhotoPublicUrl` passes any http(s) URL through
+ * unchanged, so those photos were never actually caught by the "missing"
+ * check upstream. This is the single enforcement point instead (every
+ * screen renders avatars through this component) — a pravatar.cc URL is
+ * treated exactly like a missing photo, regardless of what any caller
+ * passes in. Not a seed-data or shared-helper change — scoped here only.
  */
 export function PersonAvatar({
   photoUrl,
@@ -28,8 +36,9 @@ export function PersonAvatar({
 }) {
   const r = radius ?? size / 2;
   const initial = (name?.trim()?.[0] ?? '?').toUpperCase();
+  const isRandomAvatarService = !!photoUrl && photoUrl.includes('pravatar.cc');
 
-  if (photoUrl) {
+  if (photoUrl && !isRandomAvatarService) {
     return (
       <Image
         source={{ uri: photoUrl }}

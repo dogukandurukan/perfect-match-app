@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { MatchCountdown } from '@/components/matches/MatchCountdown';
-import { MatchScoreBadge } from '@/components/matches/MatchScoreBadge';
 import { PersonAvatar } from '@/components/matches/PersonAvatar';
 import { ThemedText } from '@/components/themed-text';
 import { reasonIcon } from '@/lib/matchReason';
@@ -10,8 +9,6 @@ import { homeColors, homeRadius, homeShadow, homeSpacing } from '@/lib/homeTheme
 
 export type ReadyCardCta =
   | { kind: 'plan'; label: string; onPress: () => void }
-  | { kind: 'waiting'; label: string }
-  | { kind: 'review'; label: string; onPress: () => void }
   | { kind: 'expired'; label: string };
 
 export type ReadyItem = {
@@ -28,118 +25,127 @@ export type ReadyItem = {
 };
 
 /**
- * Unified Ready-tab card — the SAME visual card renders a fresh candidate
- * ("Plan a date"), a pending outgoing invite ("Waiting for {name}"), or an
- * incoming invite awaiting my response ("Review invitation"), only the
- * `cta` differs. Matches the mockup's single continuous card list instead
- * of the old two-section split (a separate "Invites for you" block above a
- * separate candidate list) — CTA state alone communicates what's needed.
+ * Compact horizontal Ready card — Matches is a comparison list of up to 3
+ * candidates, not a discovery feed, so the whole point of this layout is
+ * fitting several at once (2026-09-18 V2 brief: no full-bleed photo, no
+ * full-width CTA bar). Ready only ever holds fresh, never-invited
+ * candidates now (see matches.tsx) — the `cta` union dropped 'waiting' and
+ * 'review', which moved to Plans as `PendingPlanCard`.
  */
 export function ReadyMatchCard({ item, onPress }: { item: ReadyItem; onPress: () => void }) {
   return (
     <View style={styles.card}>
       <TouchableOpacity
-        style={styles.pressable}
+        style={styles.photoWrap}
         activeOpacity={0.85}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={`View ${item.name}'s profile`}>
-        <PersonAvatar photoUrl={item.photoUrl} name={item.name} size={104} radius={homeRadius.cardSmall} />
-        <View style={styles.info}>
-          <ThemedText style={styles.name} numberOfLines={1}>
-            {item.name}
-            {item.age > 0 ? `, ${item.age}` : ''}
-          </ThemedText>
-          {typeof item.matchPercentage === 'number' ? (
-            <MatchScoreBadge percentage={item.matchPercentage} />
-          ) : null}
-          {item.reason ? (
-            <View style={styles.reasonRow}>
-              <Ionicons name={reasonIcon(item.reason)} size={13} color={homeColors.textSecondary} />
-              <ThemedText style={styles.reasonText} numberOfLines={1}>
-                {item.reason}
-              </ThemedText>
-            </View>
-          ) : null}
-          {item.expiresAt ? <MatchCountdown expiresAt={item.expiresAt} /> : null}
-        </View>
+        <PersonAvatar
+          photoUrl={item.photoUrl}
+          name={item.name}
+          size={96}
+          radius={homeRadius.cardSmall}
+          style={styles.photo}
+        />
       </TouchableOpacity>
 
-      <CtaButton cta={item.cta} name={item.name} />
+      <TouchableOpacity style={styles.info} activeOpacity={0.85} onPress={onPress}>
+        <ThemedText style={styles.name} numberOfLines={1}>
+          {item.name}
+          {item.age > 0 ? `, ${item.age}` : ''}
+        </ThemedText>
+        {typeof item.matchPercentage === 'number' ? (
+          <View style={styles.scorePill}>
+            <ThemedText style={styles.scorePillText}>{Math.round(item.matchPercentage)}% match</ThemedText>
+          </View>
+        ) : null}
+        {item.reason ? (
+          <View style={styles.reasonRow}>
+            <Ionicons name={reasonIcon(item.reason)} size={13} color={homeColors.textSecondary} />
+            <ThemedText style={styles.reasonText} numberOfLines={2}>
+              {item.reason}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        <View style={styles.bottomRow}>
+          {item.expiresAt ? <MatchCountdown expiresAt={item.expiresAt} /> : <View />}
+          <CtaButton cta={item.cta} />
+        </View>
+      </TouchableOpacity>
     </View>
   );
 }
 
-function CtaButton({ cta, name }: { cta: ReadyCardCta; name: string }) {
-  if (cta.kind === 'waiting') {
-    return (
-      <View style={styles.waitingWrap} accessibilityLabel={`Waiting for ${name} to respond`}>
-        <Ionicons name="hourglass-outline" size={15} color={homeColors.textSecondary} />
-        <ThemedText style={styles.waitingText}>{cta.label}</ThemedText>
-      </View>
-    );
-  }
+function CtaButton({ cta }: { cta: ReadyCardCta }) {
   if (cta.kind === 'expired') {
     return (
-      <View style={[styles.btn, styles.btnDisabled]}>
-        <ThemedText style={styles.btnTextDisabled}>{cta.label}</ThemedText>
+      <View style={[styles.cta, styles.ctaDisabled]}>
+        <ThemedText style={styles.ctaTextDisabled}>{cta.label}</ThemedText>
       </View>
     );
   }
   return (
     <TouchableOpacity
-      style={[styles.btn, cta.kind === 'review' && styles.btnReview]}
+      style={styles.cta}
       onPress={cta.onPress}
       activeOpacity={0.85}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
       accessibilityRole="button"
       accessibilityLabel={cta.label}>
-      <ThemedText style={styles.btnText}>{cta.label}</ThemedText>
+      <ThemedText style={styles.ctaText}>{cta.label}</ThemedText>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    flexDirection: 'row',
+    minHeight: 138,
     backgroundColor: homeColors.surface,
-    borderRadius: homeRadius.card,
+    borderRadius: homeRadius.card - 2,
     borderWidth: 1,
     borderColor: homeColors.border,
-    padding: homeSpacing.md,
-    gap: homeSpacing.md,
+    padding: homeSpacing.sm + 2,
+    gap: homeSpacing.sm + 2,
     ...homeShadow,
+    // Lighter than the shared homeShadow default — this is a compact list
+    // row, not a hero card.
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  pressable: {
+  photoWrap: { alignSelf: 'stretch', width: 96 },
+  photo: { width: 96, height: '100%' },
+  info: { flex: 1, justifyContent: 'center', gap: 5 },
+  name: { fontSize: 21, fontWeight: '800', color: homeColors.textPrimary },
+  scorePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: homeColors.accentSoft,
+    borderRadius: homeRadius.pill,
+    paddingHorizontal: homeSpacing.sm,
+    paddingVertical: 3,
+  },
+  scorePillText: { fontSize: 13, fontWeight: '700', color: homeColors.accent },
+  reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
+  reasonText: { flex: 1, fontSize: 13, color: homeColors.textSecondary, lineHeight: 17 },
+  bottomRow: {
     flexDirection: 'row',
-    gap: homeSpacing.md,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+    gap: homeSpacing.sm,
   },
-  info: { flex: 1, gap: 5, justifyContent: 'center' },
-  name: { fontSize: 18, fontWeight: '800', color: homeColors.textPrimary },
-  reasonRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  reasonText: { flex: 1, fontSize: 13, color: homeColors.textSecondary },
-  btn: {
-    minHeight: 44,
+  cta: {
+    minHeight: 40,
+    paddingHorizontal: homeSpacing.md,
     borderRadius: homeRadius.pill,
     backgroundColor: homeColors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnReview: {
-    backgroundColor: homeColors.textPrimary,
-  },
-  btnDisabled: {
-    backgroundColor: homeColors.mutedSurface,
-  },
-  btnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  btnTextDisabled: { color: homeColors.textSecondary, fontSize: 15, fontWeight: '700' },
-  waitingWrap: {
-    minHeight: 44,
-    borderRadius: homeRadius.pill,
-    borderWidth: 1,
-    borderColor: homeColors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  waitingText: { fontSize: 14.5, fontWeight: '600', color: homeColors.textSecondary },
+  ctaDisabled: { backgroundColor: homeColors.mutedSurface },
+  ctaText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '700' },
+  ctaTextDisabled: { color: homeColors.textSecondary, fontSize: 13.5, fontWeight: '700' },
 });

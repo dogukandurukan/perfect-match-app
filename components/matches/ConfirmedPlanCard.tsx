@@ -5,7 +5,7 @@ import { PersonAvatar } from '@/components/matches/PersonAvatar';
 import { ThemedText } from '@/components/themed-text';
 import { homeColors, homeRadius, homeShadow, homeSpacing } from '@/lib/homeTheme';
 
-export type UpcomingPlan = {
+export type ConfirmedPlan = {
   matchId: string;
   userId: string;
   name: string;
@@ -16,13 +16,14 @@ export type UpcomingPlan = {
   canMessage: boolean;
 };
 
-/** Confirmed/upcoming date card for the Plans tab — never renders an expired/cancelled/past plan (filtered by the caller). */
-export function UpcomingPlanCard({
+/** Confirmed/upcoming date card for the Plans tab's "Confirmed" section —
+ * never renders an expired/cancelled/past plan (filtered by the caller). */
+export function ConfirmedPlanCard({
   plan,
   onViewPlan,
   onMessage,
 }: {
-  plan: UpcomingPlan;
+  plan: ConfirmedPlan;
   onViewPlan: () => void;
   onMessage: () => void;
 }) {
