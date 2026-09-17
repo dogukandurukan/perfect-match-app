@@ -1,7 +1,7 @@
 // Screen: Ana sayfa sekmesi | Status: stable | Last updated: Mayıs 2026
 import { DailyLimitEmptyState } from '@/components/DailyLimitEmptyState';
 import { ErrorState } from '@/components/ErrorState';
-import { FloatingFilterButton } from '@/components/home/FloatingFilterButton';
+import { APP_BAR_CONTENT_HEIGHT, APP_BAR_HERO_GAP, HomeHeader } from '@/components/home/HomeHeader';
 import { PersonalTastesCard } from '@/components/home/PersonalTastesCard';
 import { ProfileActionButtons } from '@/components/home/ProfileActionButtons';
 import {
@@ -67,13 +67,14 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.28;
 const SWIPE_VELOCITY_THRESHOLD = 800;
 
-// Hero height (2026-09-17): must match the ScrollView's own
-// contentContainerStyle.paddingTop (insets.top + HERO_TOP_GAP below) so the
-// hero's bottom edge actually lands HERO_BOTTOM_GAP above the tab bar in
-// the FIRST, unscrolled viewport — the two are two different spacings
-// (top-of-hero vs bottom-of-hero) computed from the same anchor points, not
-// a duplicate of one another.
-const HERO_TOP_GAP = 10;
+// Hero height (2026-09-17, dynamic viewport pass; revised same day once
+// HomeHeader came back as a persistent, non-scrolling utility bar above the
+// ScrollView instead of floating controls on the hero): the ScrollView's
+// own contentContainerStyle.paddingTop reuses APP_BAR_HERO_GAP (imported
+// from HomeHeader, the same constant this formula subtracts) so the gap
+// this formula assumes above the hero is the exact gap actually applied —
+// no second, independently-guessed number to drift out of sync. insets.top
+// itself is consumed by HomeHeader's own paddingTop, not by anything here.
 const HERO_BOTTOM_GAP = 12;
 // Floors/ceilings so a landscape rotation or an unusually short/tall
 // viewport (or a tablet — this app has no existing tablet-specific layout
@@ -167,7 +168,12 @@ export default function HomeScreen() {
     HERO_HEIGHT_MAX,
     Math.max(
       HERO_HEIGHT_MIN,
-      viewportHeight - insets.top - tabBarHeight - HERO_TOP_GAP - HERO_BOTTOM_GAP,
+      viewportHeight -
+        insets.top -
+        APP_BAR_CONTENT_HEIGHT -
+        APP_BAR_HERO_GAP -
+        tabBarHeight -
+        HERO_BOTTOM_GAP,
     ),
   );
 
@@ -646,8 +652,8 @@ export default function HomeScreen() {
   // the top card away reveals the next profile instead of blank white
   // (Bumble reference — user feedback, 2026-09-07).
   const nextUser = feedUsers[currentIndex + 1] ?? null;
-  // Real daily-like state, fed straight into ProfileHeroCard's floating
-  // DailyLikeQuota capsule — "N left" + segments, not a used-up progress bar.
+  // Real daily-like state, fed into HomeHeader's DailyLikeQuota — "N left" +
+  // segments, not a used-up progress bar.
   const likesLeft = remainingDailyViews(dailyViews);
   const likesLimit = dailyViews?.limit ?? DAILY_VIEW_LIMIT;
 
@@ -783,38 +789,24 @@ export default function HomeScreen() {
   const promptCards = currentUser ? dedupePromptCards(buildPromptCards(currentUser)) : [];
   const extraPhotos = currentUser ? currentUser.photoUrls.slice(1) : [];
 
-  // Mirrors the `body` ternary chain below EXACTLY (De Morgan of its "active
-  // card" branch) — the loading/error/empty states have no hero photo to
-  // float the filter button over, so they get a standalone floating one
-  // instead (see fallbackFilterWrap below). Must stay in lockstep with
-  // `body`'s own chain, otherwise both a fallback AND the hero's own
-  // floating filter could render at once.
-  const showFallbackFilter =
-    !!dailyViews?.limitReached ||
-    (feedError && feedUsers.length === 0) ||
-    (feedLoading && feedUsers.length === 0) ||
-    !currentUser;
-
   return (
     <View style={styles.feedRoot}>
       <StatusBar style="dark" />
-      {/* 2026-09-17: this backdrop predates the header row's removal and is
-          UNCHANGED by it — still the single thing keeping the status bar
-          readable regardless of scroll position. Pure paint (high zIndex/
-          elevation, pointerEvents none), not a layout inset — doesn't stack
-          with the ScrollView's own `insets.top` padding below (single
-          safe-area source). */}
+      {/* 2026-09-17: this backdrop predates HomeHeader's return as a real,
+          non-scrolling sibling and is left UNCHANGED — still the single
+          thing keeping the status bar readable regardless of scroll
+          position. Pure paint (high zIndex/elevation, pointerEvents none),
+          not a layout inset. HomeHeader below paints the same insets.top
+          region again as part of its own real layout space — harmless
+          overlap, same background color, not touched either. */}
       <View style={[styles.statusBarBackdrop, { height: insets.top }]} pointerEvents="none" />
-      {/* No separate header row exists on Home anymore (2026-09-17) — quota
-          + filter float directly over the hero photo instead (see
-          ProfileHeroCard). The loading/error/empty states below have no
-          photo to float over, so Filters stays reachable there via this
-          standalone floating button in the same top-right spot. */}
-      {showFallbackFilter ? (
-        <View style={[styles.fallbackFilterWrap, { top: insets.top + homeSpacing.sm }]}>
-          <FloatingFilterButton />
-        </View>
-      ) : null}
+      {/* Persistent single-row utility bar (2026-09-17: reintroduced —
+          Bumble reference keeps this always visible, not floating controls
+          over the hero photo). Rendered unconditionally regardless of
+          loading/error/empty/active-card state below, so Filters and the
+          daily quota are always reachable — no separate fallback needed
+          for the no-card states anymore. */}
+      <HomeHeader likesRemaining={likesLeft} likesLimit={likesLimit} likesLoading={dailyViews === null} />
       <View style={styles.body}>
         {dailyViews?.limitReached ? (
           <DailyLimitEmptyState resetAt={dailyViews.resetAt} limit={dailyViews.limit} />
@@ -863,14 +855,13 @@ export default function HomeScreen() {
                   contentContainerStyle={[
                     styles.scrollContent,
                     {
-                      // 2026-09-17: the separate header row is gone — this
-                      // is now the ONLY source of the gap between the
-                      // status bar and the hero photo (ProfileHeroCard's
-                      // own marginTop was removed to avoid stacking a
-                      // second one). Same HERO_TOP_GAP the heroHeight
-                      // formula above assumes — must stay in sync, they're
-                      // two views of the same anchor point.
-                      paddingTop: insets.top + HERO_TOP_GAP,
+                      // 2026-09-17: HomeHeader is a real, non-scrolling
+                      // sibling ABOVE this ScrollView now (not the first
+                      // scroll item) and already consumes insets.top itself
+                      // — so this only needs the header-to-hero gap, reusing
+                      // the exact same APP_BAR_HERO_GAP the heroHeight
+                      // formula above subtracts (single source, no drift).
+                      paddingTop: APP_BAR_HERO_GAP,
                       // Real tab bar height (includes its own bottom safe-
                       // area inset already — react-navigation's own hook)
                       // instead of the flat 24 this had before, which is
@@ -893,18 +884,14 @@ export default function HomeScreen() {
                       actions. Every section renders nothing (not an empty
                       card) when its underlying data is empty — a candidate
                       with a genuinely thin profile still gets a short page,
-                      on purpose. Hero photo is now the first real thing on
-                      screen — quota/filter float over it directly (see
-                      ProfileHeroCard), no separate header row exists
-                      anymore. */}
+                      on purpose. Hero photo is the first thing in the
+                      scroll, right below HomeHeader — quota/filter live in
+                      that persistent bar now, not floating on the photo. */}
                   <ProfileHeroCard
                     person={currentUser}
                     viewerCity={myCity}
                     onNoteTarget={handleOpenNote}
                     heroHeight={heroHeight}
-                    likesRemaining={likesLeft}
-                    likesLimit={likesLimit}
-                    likesLoading={dailyViews === null}
                   />
                   <WhyYouMatchCard reasons={currentUser.reasons} />
                   {promptCards[0] ? (
@@ -1062,14 +1049,6 @@ const styles = StyleSheet.create({
     backgroundColor: homeColors.background,
     zIndex: 20,
     elevation: 20,
-  },
-  // Only used for the loading/error/empty states — the active-card state's
-  // filter button lives inside ProfileHeroCard instead (floats over the
-  // photo). `top` is set inline (needs insets.top).
-  fallbackFilterWrap: {
-    position: 'absolute',
-    right: homeSpacing.lg,
-    zIndex: 15,
   },
   // Header is fixed chrome outside the card stack; body is everything below
   // it (loading/error/empty/active-card states) — gives nextCardPeek's

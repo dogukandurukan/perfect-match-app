@@ -1,31 +1,23 @@
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
+import { homeColors, homeSpacing } from '@/lib/homeTheme';
 
-const SEGMENTS_WIDTH = 84;
-const SEGMENT_HEIGHT = 6;
+const SEGMENTS_WIDTH = 58;
+const SEGMENT_HEIGHT = 5;
 
 /**
- * Floating capsule showing "N left" + a row of small segments — real
- * daily-like state, not profile-scroll progress (must NOT change while
- * scrolling the current card). Filled/accent segments = likes still
- * available; muted segments = already used today.
+ * "N left" + a row of small segments — real daily-like state, not
+ * profile-scroll progress (must NOT change while scrolling the current
+ * card). Filled/accent segments = likes still available; muted segments =
+ * already used today.
  *
- * 2026-09-17: this is now the ONLY place this renders (was a two-row
- * in-body header, then a compact single-row header — both retired; the
- * header no longer exists as a separate visual area at all, per the
- * brief). Positioning (top-left over the hero photo) is the CALLER's
- * job (see ProfileHeroCard) — this component only renders the capsule's
- * own surface/border/shadow, not its placement, so it stays a plain,
- * reusable visual unit rather than baking in "floats over a photo"
- * as an assumption. No `variant` prop: there is exactly one consumer
- * and one look now, so a variant switch would be speculative.
- *
- * 2026-09-17 (dynamic hero pass): re-tuned smaller/more refined now that
- * the hero fills nearly the whole first viewport — height 40->38pt, label
- * 12.5->14.5pt (was reading too small at this scale), lighter shadow
- * (opacity 0.15->0.10, radius 6->4), surface opacity 0.92->0.90.
+ * 2026-09-17: moved OFF the hero photo into HomeHeader's persistent
+ * utility bar (was a floating capsule over the photo — two rounds before
+ * that, a two-row in-body header; both retired). No surface/border/shadow
+ * anymore — it sits directly on the header's own opaque background, not a
+ * card floating over a photo, so there's nothing to visually separate it
+ * from. No `variant` prop: there is exactly one consumer and one look.
  */
 export function DailyLikeQuota({
   remaining,
@@ -72,17 +64,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: homeSpacing.xs + 2,
-    height: 38,
-    paddingHorizontal: homeSpacing.md,
-    borderRadius: homeRadius.pill,
-    backgroundColor: 'rgba(255,253,252,0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(23,23,23,0.08)',
-    shadowColor: '#3A2A24',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    height: 34,
   },
   label: {
     fontSize: 14.5,
