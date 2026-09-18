@@ -11,6 +11,23 @@ export type ReadyCardCta =
   | { kind: 'plan'; label: string; onPress: () => void }
   | { kind: 'expired'; label: string };
 
+/**
+ * Display-only shortening for the reason line (2026-09-18 V3 brief) — the
+ * underlying `item.reason` data is NEVER modified, this only affects what
+ * this ONE card renders. "You both love Fitness & Gaming" (31 chars) and
+ * "You both love Cooking & Reading" (32 chars) don't reliably fit this
+ * card's single reason line even after the row's own padding/gap were
+ * trimmed — the brief's own explicit fallback for exactly this template
+ * ("Shared: Fitness & Gaming", 24 chars) is used instead. Every other
+ * reason template (e.g. "Same relationship intention", "Nearby") is left
+ * as-is — they're short enough on their own.
+ */
+function shortenReasonForSingleLine(reason: string): string {
+  const prefix = 'You both love ';
+  if (reason.startsWith(prefix)) return `Shared: ${reason.slice(prefix.length)}`;
+  return reason;
+}
+
 export type ReadyItem = {
   key: string;
   userId: string;
@@ -77,11 +94,9 @@ export function ReadyMatchCard({
         ) : null}
         {item.reason ? (
           <View style={styles.reasonRow}>
-            <View style={styles.reasonIconWrap}>
-              <Ionicons name={reasonIcon(item.reason)} size={17} color={homeColors.textSecondary} />
-            </View>
-            <ThemedText style={styles.reasonText} numberOfLines={2} ellipsizeMode="tail">
-              {item.reason}
+            <Ionicons name={reasonIcon(item.reason)} size={16.5} color={homeColors.textSecondary} />
+            <ThemedText style={styles.reasonText} numberOfLines={1} ellipsizeMode="tail">
+              {shortenReasonForSingleLine(item.reason)}
             </ThemedText>
           </View>
         ) : null}
@@ -130,8 +145,12 @@ const styles = StyleSheet.create({
     borderRadius: homeRadius.card - 2,
     borderWidth: 1,
     borderColor: homeColors.border,
-    padding: homeSpacing.sm + 2,
-    gap: homeSpacing.sm + 2,
+    // 2026-09-18 V3: trimmed from `sm+2`(10) to `sm`(8) — the brief's own
+    // permitted first step ("horizontal padding'i birkaç point azalt")
+    // before shortening the reason text itself, reclaiming a few px of
+    // row width for the single-line reason.
+    padding: homeSpacing.sm,
+    gap: homeSpacing.sm,
     ...homeShadow,
     // Lighter than the shared homeShadow default — this is a compact list
     // row, not a hero card.
@@ -160,18 +179,25 @@ const styles = StyleSheet.create({
   // 13pt text needed, quietly eating into this card's tight fixed-height
   // budget.
   scorePillText: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: homeColors.accent },
-  // alignItems:'flex-start' (not 'center') — with numberOfLines={2} now
-  // allowed, centering the icon against a two-line block put it at an odd
-  // mid-height instead of level with the first line (2026-09-18 brief).
-  reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
-  // Nudges the icon down to align with the reason text's cap-height/first
-  // line instead of its own glyph box top, which sits a couple px higher.
-  reasonIconWrap: { paddingTop: 1 },
-  // No width/maxWidth — `flex:1` already lets this take the full remaining
-  // row width next to the icon (2026-09-18: confirmed no other constraint
-  // was forcing the earlier single-line truncation; numberOfLines was the
-  // only thing capping it, now 2 instead of 1).
-  reasonText: { flex: 1, fontSize: 14.5, lineHeight: 20, fontWeight: '500', color: homeColors.textSecondary },
+  // Back to a single line (2026-09-18 V3 brief: match reason must never
+  // wrap to a 2nd line) — `alignItems:'center'` is correct again for a
+  // single-line icon+text row (the 'flex-start' top-alignment from the
+  // previous round was specifically for centering an icon against a
+  // 2-line block, no longer applicable).
+  reasonRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // `flex:1` + `flexShrink:1` together (not `flex:1` alone) — `flex:1`
+  // gives this the row's remaining width as its basis, `flexShrink:1`
+  // is what actually lets it shrink below that basis instead of forcing
+  // the row wider than the card when the text is long; no width/maxWidth
+  // constraint exists anywhere in this row (confirmed) to remove.
+  reasonText: {
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: homeColors.textSecondary,
+  },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',

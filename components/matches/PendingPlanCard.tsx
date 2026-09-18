@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 
+import { MatchCountdown } from '@/components/matches/MatchCountdown';
 import { PersonAvatar } from '@/components/matches/PersonAvatar';
 import { ThemedText } from '@/components/themed-text';
 import { homeColors, homeRadius, homeShadow, homeSpacing } from '@/lib/homeTheme';
@@ -15,6 +16,22 @@ export type PendingPlan = {
   district: string | null;
   whenLabel: string | null;
   direction: 'outgoing' | 'incoming';
+  /**
+   * Real `matches.expires_at` — 2026-09-18 investigation (before adding
+   * this UI, per the brief's own "analyze first, don't change backend
+   * behavior" instruction): there is NO dedicated invitation-response
+   * deadline in this schema. `expires_at` is set exactly once, when a
+   * candidate is first backfilled into Ready (`upsert_match` RPC:
+   * `now() + 24h`), and is never touched again by `sendMatchInvite`/
+   * `acceptMatchInvite` — the same hourly `expire-matches` cron
+   * (`UPDATE matches SET status='expired' WHERE status='pending' AND
+   * expires_at < now()`) then applies to this row whether it's still an
+   * uninvited candidate or an active pending invitation, using whatever
+   * was left of that original 24h window. Real, live data — just not a
+   * purpose-built "you have 24h to respond" countdown, which is why this
+   * is nullable and silently hidden when absent rather than defaulted.
+   */
+  expiresAt: string | null;
 };
 
 /**
@@ -65,6 +82,7 @@ export function PendingPlanCard({
               </ThemedText>
             </View>
           ) : null}
+          {plan.expiresAt ? <MatchCountdown expiresAt={plan.expiresAt} /> : null}
         </View>
       </View>
 

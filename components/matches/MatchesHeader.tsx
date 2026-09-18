@@ -11,14 +11,15 @@ import { HOME_BRAND_NAME, homeColors, homeSpacing } from '@/lib/homeTheme';
  * new token file, matches the mockup's palette exactly since it's the same
  * system as Home's redesign.
  *
- * 2026-09-18 (V2 pass): compacted per the new mockup's tighter spacing —
- * this is now rendered as a FlatList/SectionList ListHeaderComponent (see
- * matches.tsx), not a fixed sibling, so it scrolls away naturally with the
- * list instead of sitting in its own layer above it (fixes a real
- * header/scroll overlap the previous round had). No horizontal padding of
- * its own anymore — the list's own contentContainerStyle now owns the 20pt
- * gutter for the whole list (header + segmented control + cards), single
- * source, instead of stacking a second padding on top of it here.
+ * 2026-09-18 (V3 pass): rendered exactly ONCE by matches.tsx, as a fixed
+ * sibling ABOVE whichever body (loading/error/Ready FlatList/Plans
+ * SectionList) is showing — never per-branch, never a ListHeaderComponent.
+ * An earlier round tried two different render paths for this (a plain
+ * sibling for Ready, a SectionList ListHeaderComponent for Plans) that
+ * happened to use the same padding value but were structurally different
+ * (one scrolled with its list, one didn't) — a single shared instance
+ * removes that divergence entirely. No horizontal padding of its own —
+ * matches.tsx's `headerWrap` owns the 20pt gutter, single source.
  */
 export function MatchesHeader() {
   const insets = useSafeAreaInsets();

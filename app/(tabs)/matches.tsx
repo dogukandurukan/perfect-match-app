@@ -1,5 +1,5 @@
 // Screen: Eşleşmeler sekmesi | Status: stable | Last updated: 2026-09-18 (Warm Editorial redesign)
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ErrorState } from '@/components/ErrorState';
@@ -106,6 +105,12 @@ type PendingPlanRaw = {
   district: string | null;
   whenLabel: string | null;
   direction: 'outgoing' | 'incoming';
+  /** Real `matches.expires_at` — see the 2026-09-18 investigation in
+   * PendingPlanCard.tsx's docstring: this is the SAME candidate-freshness
+   * TTL reused as the invitation's expiry (there is no separate
+   * invitation-response deadline in this schema), but it's real, live DB
+   * data either way, not fabricated. */
+  expiresAt: string | null;
 };
 
 const MATCH_SLOT_COUNT = 3;
@@ -115,7 +120,20 @@ const MATCH_TTL_MS = 24 * 60 * 60 * 1000;
 // is measured live via onLayout (see the 'ready' tab render below), these
 // are just its top/bottom/gap inputs and the clamp band.
 const READY_LIST_TOP_PADDING = homeSpacing.sm; // 8pt — brief: "8-10pt"
-const READY_LIST_BOTTOM_PADDING = homeSpacing.sm; // 8pt, ON TOP OF real tabBarHeight (not instead of it)
+// 2026-09-18 (V3 fix) — this used to be `tabBarHeight + 8`, which
+// double-subtracted the tab bar: `readyListHeight` is measured via
+// `onLayout` on a View that's already a descendant of this screen's own
+// content area, and this app's tab bar has no `tabBarStyle.position:
+// 'absolute'` override anywhere (grepped — none exists), which is the ONLY
+// thing that would make a screen render behind the tab bar. With the
+// default (non-absolute) tab bar, React Navigation already sizes each
+// screen's content area to stop above the tab bar, so the space `onLayout`
+// reports here NEVER included the tab bar to begin with — subtracting
+// `tabBarHeight` again on top of that pushed the last card's safety margin
+// a full tab-bar-height too far up, which is exactly the reported gap
+// under the 3rd Ready card. A plain small safety margin is all that's
+// needed now (brief: "4-8pt").
+const READY_LIST_BOTTOM_PADDING = homeSpacing.xs + 2; // 6pt
 const READY_LIST_GAP = homeSpacing.sm + 2; // 10pt — brief: "10-12pt"
 const READY_CARD_HEIGHT_MIN = 150;
 // 176→184 (2026-09-18, live device feedback: "çok az boşluk kalıyor... çok
@@ -366,11 +384,6 @@ function splitVenueText(raw: string | null): { venue: string | null; district: s
 export default function MatchesTab() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  // Real tab bar height (react-navigation's own hook, already includes its
-  // own bottom safe-area inset) — used as the list's bottom footer space so
-  // the last Ready card's CTA / last Plans card's actions never render
-  // underneath the tab bar (2026-09-18 V2 explicit requirement).
-  const tabBarHeight = useBottomTabBarHeight();
   const [tab, setTab] = useState<MatchesTabKey>('ready');
   const [cards, setCards] = useState<MatchCardData[]>([]);
   const [pendingPlans, setPendingPlans] = useState<PendingPlanRaw[]>([]);
@@ -451,7 +464,8 @@ export default function MatchesTab() {
               meeting_at,
               confirmed_place,
               meetup_confirmed,
-              meetup_proposed_by
+              meetup_proposed_by,
+              expires_at
             `,
               )
               .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
@@ -685,6 +699,7 @@ export default function MatchesTab() {
                 photoUrl: displayPhotoUrl,
                 ...proposal,
                 direction: 'incoming',
+                expiresAt: (row.expires_at as string | null) ?? null,
               });
             } else if (invitedBy === userId) {
               // Outgoing — I invited them, awaiting their response. Also
@@ -710,6 +725,7 @@ export default function MatchesTab() {
                 photoUrl: displayPhotoUrl,
                 ...proposal,
                 direction: 'outgoing',
+                expiresAt: (row.expires_at as string | null) ?? null,
               });
               // Lightweight profile-detail-shaped object so "View
               // invitation" can reuse the exact same overlay Ready cards
@@ -916,6 +932,7 @@ export default function MatchesTab() {
     district: p.district,
     whenLabel: p.whenLabel,
     direction: p.direction,
+    expiresAt: p.expiresAt,
   }));
   // Two SEPARATE sections now (2026-09-18 correction) — outgoing and
   // incoming used to share one section with a copy that guessed which
@@ -992,8 +1009,18 @@ export default function MatchesTab() {
     );
   }
 
-  const listHeader = (
-    <>
+  // Single, unconditional header (2026-09-18 V3 fix) — previously this was
+  // recreated per render-branch (`paddedListHeader` for loading/error/Ready
+  // vs a SectionList `ListHeaderComponent` for Plans). Even though both
+  // paths used the same `homeSpacing.xl` padding value, they were still two
+  // structurally different render trees — one that scrolls away with
+  // Plans' content and one that doesn't for Ready — which is itself a real
+  // divergence, not just a hypothetical one. Rendering ONE instance here,
+  // always in the exact same position above whichever body renders below
+  // it, makes "the header never moves and always aligns identically
+  // between tabs" true by construction instead of by two numbers matching.
+  const header = (
+    <View style={styles.headerWrap}>
       <MatchesHeader />
       <View style={styles.segmentWrap}>
         <MatchesSegmentedControl
@@ -1003,138 +1030,110 @@ export default function MatchesTab() {
           plansCount={hasLoadedRef.current ? pendingPlanItems.length + confirmedPlans.length : undefined}
         />
       </View>
-    </>
+    </View>
   );
-  // 2026-09-18 — root cause of the Ready-tab horizontal shift, found by
-  // reading the actual styles (not guessed): MatchesHeader/segmentWrap
-  // carry NO horizontal padding of their own (removed in an earlier round
-  // specifically because they used to double up when rendered inside the
-  // padded list — see MatchesHeader's own comment). That's correct for
-  // Plans, which still renders `listHeader` as the SectionList's
-  // `ListHeaderComponent`, itself inside `contentContainerStyle`'s
-  // `paddingHorizontal: homeSpacing.xl` (`styles.content`). Ready renders
-  // `listHeader` as a plain sibling OUTSIDE that padded container (so
-  // onLayout can measure the list area below it) — meaning it inherited
-  // ZERO horizontal padding from anywhere, flush against the screen edge.
-  // `paddedListHeader` gives it the SAME `homeSpacing.xl` Plans already
-  // gets, from the SAME token, without adding a second padding source
-  // inside `listHeader` itself (which would double up for Plans).
-  const paddedListHeader = <View style={{ paddingHorizontal: homeSpacing.xl }}>{listHeader}</View>;
 
-  // Real tab bar height + homeSpacing.xxl(24) — the SAME margin value
-  // Home's index.tsx already uses for its own list bottom padding
-  // (`tabBarHeight + homeSpacing.xxl`), confirmed working on a real device
-  // per that screen's own history, rather than picking an untested number
-  // here.
-  const listFooterSpace = <View style={{ height: tabBarHeight + homeSpacing.xxl }} />;
+  // homeSpacing.xxl(24) only — no `tabBarHeight` here anymore (2026-09-18 V3
+  // fix, same root cause as the Ready card-height formula below: this
+  // screen's content area already stops above the tab bar by default, so
+  // adding `tabBarHeight` on top double-subtracted it).
+  const listFooterSpace = <View style={{ height: homeSpacing.xxl }} />;
+
+  let body: ReactNode;
 
   if (loading && !hasLoadedRef.current) {
-    return (
-      <View style={styles.container}>
-        {paddedListHeader}
-        <ActivityIndicator color={homeColors.accent} style={{ marginTop: 40 }} />
-      </View>
-    );
-  }
-
-  if (error && readyItems.length === 0 && pendingPlanItems.length === 0 && confirmedPlans.length === 0) {
-    return (
-      <View style={styles.container}>
-        {paddedListHeader}
-        <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
-      </View>
-    );
-  }
-
-  if (tab === 'ready') {
-    // Real available space for the 3 cards, measured — not guessed. Header
-    // + segmented control are now a FIXED sibling above this (their own
-    // natural height, never scrolls, never overlaps — same "no absolute,
-    // no LayoutAnimation" discipline as before), and `onLayout` on the
-    // flex:1 wrapper below gives the exact pixel height of the remaining
-    // area between the segmented control and the tab bar, on THIS device.
-    const bottomSafety = tabBarHeight + READY_LIST_BOTTOM_PADDING;
+    body = <ActivityIndicator color={homeColors.accent} style={{ marginTop: 40 }} />;
+  } else if (error && readyItems.length === 0 && pendingPlanItems.length === 0 && confirmedPlans.length === 0) {
+    body = <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />;
+  } else if (tab === 'ready') {
+    // Real available space for the 3 cards, measured — not guessed.
+    // `onLayout` on the flex:1 wrapper below gives the exact pixel height
+    // of the remaining area between the header and the bottom of this
+    // screen's own content area.
+    //
+    // 2026-09-18 V3 fix: this used to also subtract `tabBarHeight` here,
+    // which double-counted it — this app's tab bar has no
+    // `tabBarStyle.position:'absolute'` override anywhere (the only thing
+    // that would make a screen render BEHIND the tab bar), so with the
+    // default (non-absolute, non-overlapping) tab bar, React Navigation
+    // already sizes this screen's content area to stop above the tab bar.
+    // `readyListHeight` therefore never included the tab bar in the first
+    // place; subtracting it again pushed the whole 3-card layout up by a
+    // full tab-bar-height, which is exactly the reported gap under the 3rd
+    // card. `READY_LIST_BOTTOM_PADDING` (6pt) is now the ONLY bottom
+    // safety margin.
     let cardHeight = READY_CARD_HEIGHT_DEFAULT;
     if (readyListHeight != null && readyItems.length > 0 && readyItems.length <= MATCH_SLOT_COUNT) {
       const totalGaps = READY_LIST_GAP * (readyItems.length - 1);
-      const usable = readyListHeight - READY_LIST_TOP_PADDING - bottomSafety - totalGaps;
-      cardHeight = clamp(usable / readyItems.length, READY_CARD_HEIGHT_MIN, READY_CARD_HEIGHT_MAX);
+      const usable = readyListHeight - READY_LIST_TOP_PADDING - READY_LIST_BOTTOM_PADDING - totalGaps;
+      cardHeight = clamp(Math.floor(usable / readyItems.length), READY_CARD_HEIGHT_MIN, READY_CARD_HEIGHT_MAX);
     }
 
-    return (
-      // Not ScreenContainer here on purpose — it applies its own insets.top
-      // + 12 AND paddingHorizontal:24, which would double-count against
-      // MatchesHeader's own insets.top handling and this list's own
-      // horizontal padding (single safe-area/gutter source).
-      <View style={styles.container}>
-        {paddedListHeader}
-        <View style={{ flex: 1 }} onLayout={(e) => setReadyListHeight(e.nativeEvent.layout.height)}>
-          <FlatList
-            data={readyItems}
-            keyExtractor={(item) => item.key}
-            renderItem={({ item }) => (
-              <ReadyMatchCard item={item} height={cardHeight} onPress={() => openDetailFor(item)} />
-            )}
-            ItemSeparatorComponent={() => <View style={{ height: READY_LIST_GAP }} />}
-            ListEmptyComponent={
-              <View style={styles.emptyWrap}>
-                <Ionicons name="heart-outline" size={40} color={homeColors.textSecondary} />
-                <ThemedText style={styles.emptyText}>No one&apos;s ready yet</ThemedText>
-                <ThemedText style={styles.emptySubtext}>
-                  Keep exploring on Discover — new matches will show up here
-                </ThemedText>
-              </View>
-            }
-            contentContainerStyle={[
-              styles.content,
-              { paddingTop: READY_LIST_TOP_PADDING, paddingBottom: bottomSafety },
-            ]}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
+    body = (
+      <View style={{ flex: 1 }} onLayout={(e) => setReadyListHeight(e.nativeEvent.layout.height)}>
+        <FlatList
+          data={readyItems}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) => (
+            <ReadyMatchCard item={item} height={cardHeight} onPress={() => openDetailFor(item)} />
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: READY_LIST_GAP }} />}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Ionicons name="heart-outline" size={40} color={homeColors.textSecondary} />
+              <ThemedText style={styles.emptyText}>No one&apos;s ready yet</ThemedText>
+              <ThemedText style={styles.emptySubtext}>
+                Keep exploring on Discover — new matches will show up here
+              </ThemedText>
+            </View>
+          }
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: READY_LIST_TOP_PADDING, paddingBottom: READY_LIST_BOTTOM_PADDING },
+          ]}
+          showsVerticalScrollIndicator={false}
+        />
       </View>
     );
-  }
+  } else {
+    // Three POSSIBLE sections, each shown only when it actually has data
+    // (2026-09-18: a section with nothing in it no longer renders an empty
+    // sub-card under its own header — if literally none of the three have
+    // anything, the whole sectioned view is replaced by one combined empty
+    // state below instead, see `plansIsEmpty`).
+    const plansSections: {
+      key: string;
+      title: string;
+      subtitle: string | null;
+      data: PlansSectionRow[];
+    }[] = [];
+    if (outgoingPlanItems.length > 0) {
+      plansSections.push({
+        key: 'waiting',
+        title: 'Waiting for them',
+        subtitle: "We'll let you know when they respond.",
+        data: outgoingPlanItems.map((plan) => ({ kind: 'pending' as const, plan })),
+      });
+    }
+    if (incomingPlanItems.length > 0) {
+      plansSections.push({
+        key: 'invitations',
+        title: 'Invitations for you',
+        subtitle: null,
+        data: incomingPlanItems.map((plan) => ({ kind: 'pending' as const, plan })),
+      });
+    }
+    if (confirmedPlans.length > 0) {
+      plansSections.push({
+        key: 'confirmed',
+        title: 'Confirmed',
+        subtitle: null,
+        data: confirmedPlans.map((plan) => ({ kind: 'confirmed' as const, plan })),
+      });
+    }
+    const plansIsEmpty = plansSections.length === 0;
 
-  // Three POSSIBLE sections, each shown only when it actually has data
-  // (2026-09-18: a section with nothing in it no longer renders an empty
-  // sub-card under its own header — if literally none of the three have
-  // anything, the whole sectioned view is replaced by one combined empty
-  // state below instead, see `plansIsEmpty`).
-  const plansSections: {
-    key: string;
-    title: string;
-    subtitle: string | null;
-    data: PlansSectionRow[];
-  }[] = [];
-  if (outgoingPlanItems.length > 0) {
-    plansSections.push({
-      key: 'waiting',
-      title: 'Waiting for them',
-      subtitle: "We'll let you know when they respond.",
-      data: outgoingPlanItems.map((plan) => ({ kind: 'pending' as const, plan })),
-    });
-  }
-  if (incomingPlanItems.length > 0) {
-    plansSections.push({
-      key: 'invitations',
-      title: 'Invitations for you',
-      subtitle: null,
-      data: incomingPlanItems.map((plan) => ({ kind: 'pending' as const, plan })),
-    });
-  }
-  if (confirmedPlans.length > 0) {
-    plansSections.push({
-      key: 'confirmed',
-      title: 'Confirmed',
-      subtitle: null,
-      data: confirmedPlans.map((plan) => ({ kind: 'confirmed' as const, plan })),
-    });
-  }
-  const plansIsEmpty = plansSections.length === 0;
-
-  return (
-    <View style={styles.container}>
+    body = (
       <SectionList
         sections={plansSections}
         keyExtractor={(row) => row.plan.matchId}
@@ -1159,7 +1158,6 @@ export default function MatchesTab() {
         }
         ItemSeparatorComponent={() => <View style={{ height: homeSpacing.sm + 2 }} />}
         SectionSeparatorComponent={() => <View style={{ height: homeSpacing.lg }} />}
-        ListHeaderComponent={listHeader}
         ListFooterComponent={plansIsEmpty ? null : listFooterSpace}
         ListEmptyComponent={
           plansIsEmpty ? (
@@ -1184,6 +1182,17 @@ export default function MatchesTab() {
         stickySectionHeadersEnabled={false}
         showsVerticalScrollIndicator={false}
       />
+    );
+  }
+
+  return (
+    // Not ScreenContainer here on purpose — it applies its own insets.top +
+    // 12 AND paddingHorizontal:24, which would double-count against
+    // MatchesHeader's own insets.top handling and headerWrap's own
+    // horizontal padding (single safe-area/gutter source).
+    <View style={styles.container}>
+      {header}
+      {body}
     </View>
   );
 }
@@ -1192,9 +1201,13 @@ type PlansSectionRow = { kind: 'pending'; plan: PendingPlan } | { kind: 'confirm
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'flex-start', backgroundColor: homeColors.background },
-  // No horizontal padding here either — `content`'s paddingHorizontal
-  // below is the single gutter source for the whole list (header +
-  // segmented control + cards), so nothing here stacks a second one.
+  // Single horizontal-gutter source for the header (2026-09-18 V3 fix) —
+  // `headerWrap` is now the ONLY place that pads MatchesHeader/
+  // segmentWrap horizontally, since the header is rendered once, outside
+  // both the Ready FlatList and the Plans SectionList (their own
+  // `content.paddingHorizontal` below is a SEPARATE, independent gutter
+  // for the list items only — same token value, not the same source).
+  headerWrap: { paddingHorizontal: homeSpacing.xl },
   segmentWrap: { paddingBottom: homeSpacing.md },
   content: { paddingHorizontal: homeSpacing.xl },
 
