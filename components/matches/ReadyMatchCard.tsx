@@ -31,10 +31,25 @@ export type ReadyItem = {
  * full-width CTA bar). Ready only ever holds fresh, never-invited
  * candidates now (see matches.tsx) — the `cta` union dropped 'waiting' and
  * 'review', which moved to Plans as `PendingPlanCard`.
+ *
+ * 2026-09-18 (devam) — `height` is now a real prop, computed by the caller
+ * from an `onLayout`-measured available area (not a guessed constant): a
+ * fixed compile-time height can't adapt to how much room the device
+ * actually has, which is what made "3 cards fit densely" a matter of luck
+ * rather than a guarantee. `photo`'s `height:'100%'` still resolves
+ * against this real number, same fix as before, just prop-driven now.
  */
-export function ReadyMatchCard({ item, onPress }: { item: ReadyItem; onPress: () => void }) {
+export function ReadyMatchCard({
+  item,
+  height,
+  onPress,
+}: {
+  item: ReadyItem;
+  height: number;
+  onPress: () => void;
+}) {
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { height }]}>
       <TouchableOpacity
         style={styles.photoWrap}
         activeOpacity={0.85}
@@ -62,8 +77,8 @@ export function ReadyMatchCard({ item, onPress }: { item: ReadyItem; onPress: ()
         ) : null}
         {item.reason ? (
           <View style={styles.reasonRow}>
-            <Ionicons name={reasonIcon(item.reason)} size={13} color={homeColors.textSecondary} />
-            <ThemedText style={styles.reasonText} numberOfLines={2}>
+            <Ionicons name={reasonIcon(item.reason)} size={17} color={homeColors.textSecondary} />
+            <ThemedText style={styles.reasonText} numberOfLines={1} ellipsizeMode="tail">
               {item.reason}
             </ThemedText>
           </View>
@@ -100,16 +115,15 @@ function CtaButton({ cta }: { cta: ReadyCardCta }) {
 }
 
 const styles = StyleSheet.create({
-  // Fixed height, not minHeight — `photo` below sizes itself to
-  // height:'100%' of `photoWrap`, which itself stretches to `card`'s
-  // height; with only a minHeight (no definite height) that chain has no
-  // resolvable value to stretch against, and RN's layout engine blew the
-  // photo (and the whole card) up to a runaway size on-device (found via
-  // screenshot, 2026-09-18) instead of the intended ~140pt row. A definite
-  // height makes every percentage resolution in this card well-defined.
+  // `height` comes from the `height` prop (inline, merged below) — not a
+  // minHeight. `photo`'s height:'100%' resolves against `photoWrap`, which
+  // stretches to `card`'s height; without a DEFINITE height that chain has
+  // nothing concrete to resolve against, and RN's layout engine once blew
+  // the photo (and the whole card) up to a runaway size on-device because
+  // of exactly this (found via screenshot, 2026-09-18). A real number here
+  // (whatever the caller computes) keeps that resolution well-defined.
   card: {
     flexDirection: 'row',
-    height: 146,
     backgroundColor: homeColors.surface,
     borderRadius: homeRadius.card - 2,
     borderWidth: 1,
@@ -139,9 +153,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: homeSpacing.sm,
     paddingVertical: 3,
   },
-  scorePillText: { fontSize: 13, fontWeight: '700', color: homeColors.accent },
-  reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
-  reasonText: { flex: 1, fontSize: 13, color: homeColors.textSecondary, lineHeight: 17 },
+  // Explicit lineHeight — same class of bug as `name` above: without it,
+  // ThemedText's default (24) made this small pill render taller than its
+  // 13pt text needed, quietly eating into this card's tight fixed-height
+  // budget.
+  scorePillText: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: homeColors.accent },
+  reasonRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  reasonText: { flex: 1, fontSize: 14.5, lineHeight: 18, fontWeight: '500', color: homeColors.textSecondary },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -158,6 +176,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaDisabled: { backgroundColor: homeColors.mutedSurface },
-  ctaText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '700' },
-  ctaTextDisabled: { color: homeColors.textSecondary, fontSize: 13.5, fontWeight: '700' },
+  ctaText: { color: '#FFFFFF', fontSize: 13.5, lineHeight: 17, fontWeight: '700' },
+  ctaTextDisabled: { color: homeColors.textSecondary, fontSize: 13.5, lineHeight: 17, fontWeight: '700' },
 });

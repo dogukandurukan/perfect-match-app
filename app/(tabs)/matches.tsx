@@ -32,7 +32,7 @@ import {
   type IntroAnswers,
 } from '@/lib/matchInvite';
 import { getDailyInvitesState, type DailyInvitesState } from '@/lib/dailyInvites';
-import { strongestReason } from '@/lib/matchReason';
+import { computeFallbackReason, strongestReason, type ReasonCompareProfile } from '@/lib/matchReason';
 import {
   hingeSafeAge,
   parseFavoriteSpots,
@@ -111,6 +111,24 @@ type PendingPlanRaw = {
 const MATCH_SLOT_COUNT = 3;
 const MATCH_TTL_MS = 24 * 60 * 60 * 1000;
 
+// Ready-list dynamic card sizing (2026-09-18) — the actual available height
+// is measured live via onLayout (see the 'ready' tab render below), these
+// are just its top/bottom/gap inputs and the clamp band.
+const READY_LIST_TOP_PADDING = homeSpacing.sm; // 8pt — brief: "8-10pt"
+const READY_LIST_BOTTOM_PADDING = homeSpacing.sm; // 8pt, ON TOP OF real tabBarHeight (not instead of it)
+const READY_LIST_GAP = homeSpacing.sm + 2; // 10pt — brief: "10-12pt"
+const READY_CARD_HEIGHT_MIN = 150;
+const READY_CARD_HEIGHT_MAX = 176;
+// Used only before the first onLayout fires, or when there isn't exactly
+// 1-3 candidates to divide the measured space among — a plain constant,
+// not a guess about what SHOULD fit (real measurement takes over the
+// moment it's available).
+const READY_CARD_HEIGHT_DEFAULT = 160;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 type PendingMatchRow = {
   id: string;
   user_b_id: string;
@@ -143,6 +161,7 @@ type ProfileForCard = {
   bio: string | null;
   first_date_expectation: string | null;
   favorite_spots: Record<string, string> | null;
+  meeting_environment: string[] | null;
 };
 
 /** Real photo URL, or null if this person genuinely has no photo path
@@ -161,10 +180,31 @@ function buildCardFromPending(
   row: PendingMatchRow,
   profile: ProfileForCard,
   intent: string | null,
+  me: ReasonCompareProfile,
 ): MatchCardData {
   const signedPhotos = (profile.photos ?? [])
     .filter((p) => p?.trim())
     .map((path) => getProfilePhotoPublicUrl(path));
+
+  // Real RPC-computed reason when this candidate was freshly backfilled
+  // this session; otherwise a client-side fallback that mirrors the SAME
+  // field comparisons/priority the RPC itself uses (see
+  // lib/matchReason.ts's computeFallbackReason for why the RPC can't just
+  // be asked again for an already-pending candidate). Never fabricated —
+  // both paths are real data, just computed in two different places
+  // depending on when this candidate was found.
+  const reason =
+    strongestReason(row.reasons) ??
+    computeFallbackReason(me, {
+      hobbies: profile.hobbies,
+      intent,
+      drinking: profile.drinking,
+      smoking: profile.smoking,
+      district: profile.district,
+      zodiac_sign: profile.zodiac_sign,
+      favorite_spots: parseFavoriteSpots(profile.favorite_spots),
+      meeting_environment: profile.meeting_environment,
+    });
 
   return {
     user_id: profile.id,
@@ -177,7 +217,7 @@ function buildCardFromPending(
     match_percentage: Math.round(row.match_score),
     match_category: matchCategory(Math.round(row.match_score)),
     reasons: [],
-    reason: strongestReason(row.reasons),
+    reason,
     favorite_music: profile.favorite_music,
     favorite_movie: profile.favorite_movie,
     favorite_book: profile.favorite_book,
@@ -342,6 +382,10 @@ export default function MatchesTab() {
   // would always resolve to "none" there; 'waiting' is only ever set when
   // opened from a Plans "View invitation" tap).
   const [selectedMatchMode, setSelectedMatchMode] = useState<'candidate' | 'waiting'>('candidate');
+  // Real measured height of the space between the segmented control and
+  // the tab bar (onLayout on the Ready list's flex:1 wrapper) — drives the
+  // dynamic card-height formula below instead of a guessed constant.
+  const [readyListHeight, setReadyListHeight] = useState<number | null>(null);
   const hasLoadedRef = useRef(false);
 
   useFocusEffect(
@@ -368,11 +412,20 @@ export default function MatchesTab() {
 
           const [
             { data: meProfile },
+            { data: meIntentRow },
             invitesState,
             { data: myMatches, error: myMatchesError },
             { data: pendingRows, error: pendingError },
           ] = await Promise.all([
-            supabase.from('profiles').select('city').eq('id', userId).maybeSingle(),
+            // Comparison fields for the client-side reason fallback (see
+            // computeFallbackReason) — real profile data, same fields the
+            // RPC itself compares, no new columns.
+            supabase
+              .from('profiles')
+              .select('city, district, zodiac_sign, hobbies, drinking, smoking, favorite_spots, meeting_environment')
+              .eq('id', userId)
+              .maybeSingle(),
+            supabase.from('onboarding_answers').select('intent').eq('user_id', userId).maybeSingle(),
             // No override — reads the real is_premium itself now (2026-09-18 fix).
             getDailyInvitesState(userId),
             supabase
@@ -409,6 +462,16 @@ export default function MatchesTab() {
           if (!mounted) return;
           setMyCity(typeof meProfile?.city === 'string' ? meProfile.city : null);
           setDailyInvites(invitesState);
+          const meCompareProfile: ReasonCompareProfile = {
+            hobbies: meProfile?.hobbies ?? null,
+            intent: meIntentRow?.intent ?? null,
+            drinking: meProfile?.drinking ?? null,
+            smoking: meProfile?.smoking ?? null,
+            district: meProfile?.district ?? null,
+            zodiac_sign: meProfile?.zodiac_sign ?? null,
+            favorite_spots: parseFavoriteSpots(meProfile?.favorite_spots),
+            meeting_environment: meProfile?.meeting_environment ?? null,
+          };
           if (myMatchesError) {
             setError(true);
             setLoading(false);
@@ -670,7 +733,7 @@ export default function MatchesTab() {
             supabase
               .from('profiles')
               .select(
-                'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots',
+                'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots, meeting_environment',
               )
               .in('id', cardOtherIds),
             supabase.from('onboarding_answers').select('user_id, intent').in('user_id', cardOtherIds),
@@ -687,7 +750,7 @@ export default function MatchesTab() {
             const { data: fallbackRows, error: fallbackError } = await supabase
               .from('profiles')
               .select(
-                'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style',
+                'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, meeting_environment',
               )
               .in('id', cardOtherIds);
             if (fallbackError) {
@@ -728,7 +791,7 @@ export default function MatchesTab() {
                   status: row.status,
                   reasons: row.reasons,
                 };
-                return buildCardFromPending(pendingForCard, profile, intentMap.get(profile.id) ?? null);
+                return buildCardFromPending(pendingForCard, profile, intentMap.get(profile.id) ?? null, meCompareProfile);
               }),
             )
           ).filter((card): card is MatchCardData => card !== null);
@@ -964,37 +1027,51 @@ export default function MatchesTab() {
   }
 
   if (tab === 'ready') {
+    // Real available space for the 3 cards, measured — not guessed. Header
+    // + segmented control are now a FIXED sibling above this (their own
+    // natural height, never scrolls, never overlaps — same "no absolute,
+    // no LayoutAnimation" discipline as before), and `onLayout` on the
+    // flex:1 wrapper below gives the exact pixel height of the remaining
+    // area between the segmented control and the tab bar, on THIS device.
+    const bottomSafety = tabBarHeight + READY_LIST_BOTTOM_PADDING;
+    let cardHeight = READY_CARD_HEIGHT_DEFAULT;
+    if (readyListHeight != null && readyItems.length > 0 && readyItems.length <= MATCH_SLOT_COUNT) {
+      const totalGaps = READY_LIST_GAP * (readyItems.length - 1);
+      const usable = readyListHeight - READY_LIST_TOP_PADDING - bottomSafety - totalGaps;
+      cardHeight = clamp(usable / readyItems.length, READY_CARD_HEIGHT_MIN, READY_CARD_HEIGHT_MAX);
+    }
+
     return (
       // Not ScreenContainer here on purpose — it applies its own insets.top
       // + 12 AND paddingHorizontal:24, which would double-count against
       // MatchesHeader's own insets.top handling and this list's own
       // horizontal padding (single safe-area/gutter source).
       <View style={styles.container}>
-        <FlatList
-          data={readyItems}
-          keyExtractor={(item) => item.key}
-          renderItem={({ item }) => <ReadyMatchCard item={item} onPress={() => openDetailFor(item)} />}
-          // Fixed 12pt gap (2026-09-18, reverted the flexGrow attempt — it
-          // stretched the GAPS, not the cards, which never made the 3 cards
-          // denser and didn't match the mockup's tight spacing at all; see
-          // the report for the actual height math showing 3×146pt cards +
-          // fixed 12pt gaps already fit one viewport on a real device without
-          // needing to manufacture extra space).
-          ItemSeparatorComponent={() => <View style={{ height: homeSpacing.sm + 2 }} />}
-          ListHeaderComponent={listHeader}
-          ListFooterComponent={listFooterSpace}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="heart-outline" size={40} color={homeColors.textSecondary} />
-              <ThemedText style={styles.emptyText}>No one&apos;s ready yet</ThemedText>
-              <ThemedText style={styles.emptySubtext}>
-                Keep exploring on Discover — new matches will show up here
-              </ThemedText>
-            </View>
-          }
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        />
+        {listHeader}
+        <View style={{ flex: 1 }} onLayout={(e) => setReadyListHeight(e.nativeEvent.layout.height)}>
+          <FlatList
+            data={readyItems}
+            keyExtractor={(item) => item.key}
+            renderItem={({ item }) => (
+              <ReadyMatchCard item={item} height={cardHeight} onPress={() => openDetailFor(item)} />
+            )}
+            ItemSeparatorComponent={() => <View style={{ height: READY_LIST_GAP }} />}
+            ListEmptyComponent={
+              <View style={styles.emptyWrap}>
+                <Ionicons name="heart-outline" size={40} color={homeColors.textSecondary} />
+                <ThemedText style={styles.emptyText}>No one&apos;s ready yet</ThemedText>
+                <ThemedText style={styles.emptySubtext}>
+                  Keep exploring on Discover — new matches will show up here
+                </ThemedText>
+              </View>
+            }
+            contentContainerStyle={[
+              styles.content,
+              { paddingTop: READY_LIST_TOP_PADDING, paddingBottom: bottomSafety },
+            ]}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
       </View>
     );
   }
