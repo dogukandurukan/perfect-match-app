@@ -27,7 +27,7 @@ export function MatchesHeader() {
     <View style={[styles.wrap, { paddingTop: insets.top + homeSpacing.sm }]}>
       <ThemedText style={styles.wordmark}>{HOME_BRAND_NAME}</ThemedText>
       <ThemedText style={styles.title}>Matches</ThemedText>
-      <ThemedText style={styles.subtitle}>People you&apos;re ready to meet</ThemedText>
+      <ThemedText style={styles.subtitle}>Turn a match into a real plan.</ThemedText>
     </View>
   );
 }

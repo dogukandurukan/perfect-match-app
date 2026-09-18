@@ -1,18 +1,8 @@
 // Screen: Eşleşmeler sekmesi | Status: stable | Last updated: 2026-09-18 (Warm Editorial redesign)
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  ScrollView,
-  SectionList,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, FlatList, SectionList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ErrorState } from '@/components/ErrorState';
 import { ConfirmedPlanCard, type ConfirmedPlan } from '@/components/matches/ConfirmedPlanCard';
@@ -20,7 +10,6 @@ import { MatchesHeader } from '@/components/matches/MatchesHeader';
 import { MatchesSegmentedControl, type MatchesTabKey } from '@/components/matches/MatchesSegmentedControl';
 import { PendingPlanCard, type PendingPlan } from '@/components/matches/PendingPlanCard';
 import { ReadyMatchCard, type ReadyCardCta, type ReadyItem } from '@/components/matches/ReadyMatchCard';
-import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { ThemedText } from '@/components/themed-text';
 import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
 import {
@@ -32,11 +21,7 @@ import {
 } from '@/lib/matchInvite';
 import { getDailyInvitesState, type DailyInvitesState } from '@/lib/dailyInvites';
 import { computeFallbackReason, strongestReason, type ReasonCompareProfile } from '@/lib/matchReason';
-import {
-  hingeSafeAge,
-  parseFavoriteSpots,
-  type HingeProfilePerson,
-} from '@/lib/hingeProfile';
+import { hingeSafeAge, parseFavoriteSpots } from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 
@@ -266,84 +251,8 @@ function buildCardFromPending(
   };
 }
 
-function matchToHingePerson(match: MatchCardData): HingeProfilePerson {
-  const photos = (match.photos ?? []).filter((u) => typeof u === 'string' && u.trim().length > 0);
-  return {
-    first_name: match.first_name,
-    date_of_birth: match.date_of_birth,
-    district: match.district,
-    city: match.city,
-    match_percentage: match.match_percentage,
-    intent: match.intent,
-    availability_days: match.availability_days,
-    drinking: match.drinking,
-    smoking: match.smoking,
-    hobbies: match.hobbies,
-    favorite_music: match.favorite_music,
-    favorite_movie: match.favorite_movie,
-    favorite_book: match.favorite_book,
-    bio: match.bio,
-    first_date_expectation: match.first_date_expectation,
-    favorite_spots: match.favorite_spots,
-    photoUrls: photos.length > 0 ? photos : match.displayPhotoUrl ? [match.displayPhotoUrl] : [],
-  };
-}
-
 function safeAge(dob: string | null): number {
   return hingeSafeAge(dob);
-}
-
-type LiteProfile = {
-  id: string;
-  first_name: string | null;
-  date_of_birth: string | null;
-  city: string | null;
-  district: string | null;
-  photos: string[] | null;
-};
-
-/** A MatchCardData-shaped object for an OUTGOING-pending person (someone
- * already invited, not a fresh candidate) — built from the same light
- * profile fields already fetched for every `matches` row's other party (no
- * extra query). Rich optional fields (bio/hobbies/etc) are null: this
- * exists only so "View invitation" can reuse the exact same profile-detail
- * overlay + "Waiting for {name}" footer that Ready cards already use,
- * not to show a full rich profile. */
-function buildLiteCard(matchId: string, matchScore: number, profile: LiteProfile): MatchCardData {
-  const signedPhotos = (profile.photos ?? []).filter((p) => p?.trim()).map((path) => getProfilePhotoPublicUrl(path));
-  return {
-    user_id: profile.id,
-    first_name: profile.first_name,
-    date_of_birth: profile.date_of_birth,
-    city: profile.city,
-    district: profile.district,
-    zodiac_sign: null,
-    photos: signedPhotos.length > 0 ? signedPhotos : null,
-    match_percentage: Math.round(matchScore) || 0,
-    match_category: matchCategory(Math.round(matchScore) || 0),
-    reasons: [],
-    reason: null,
-    favorite_music: null,
-    favorite_movie: null,
-    favorite_book: null,
-    hobbies: null,
-    availability_days: null,
-    drinking: null,
-    smoking: null,
-    education: null,
-    education_detail: null,
-    morning_night: null,
-    expires_at: null,
-    status: 'pending',
-    matchId,
-    intent: null,
-    languages: null,
-    recharge_style: null,
-    displayPhotoUrl: signedPhotos[0] ?? null,
-    bio: null,
-    first_date_expectation: null,
-    favorite_spots: null,
-  };
 }
 
 /** The proposed venue + first offered time from a set of intro answers
@@ -383,25 +292,14 @@ function splitVenueText(raw: string | null): { venue: string | null; district: s
 
 export default function MatchesTab() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<MatchesTabKey>('ready');
   const [cards, setCards] = useState<MatchCardData[]>([]);
   const [pendingPlans, setPendingPlans] = useState<PendingPlanRaw[]>([]);
-  const [waitingCards, setWaitingCards] = useState<Record<string, MatchCardData>>({});
   const [confirmedPlans, setConfirmedPlans] = useState<ConfirmedPlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [myCity, setMyCity] = useState<string | null>(null);
   const [dailyInvites, setDailyInvites] = useState<DailyInvitesState | null>(null);
-  const [selectedMatch, setSelectedMatch] = useState<MatchCardData | null>(null);
-  // Which footer the detail overlay shows for `selectedMatch` — set at open
-  // time based on WHERE the tap came from, rather than re-deriving it from
-  // invite state (Ready cards are, by construction, never-invited — see
-  // `pendingRows`'s `.is('invited_by', null)` filter — so a live lookup
-  // would always resolve to "none" there; 'waiting' is only ever set when
-  // opened from a Plans "View invitation" tap).
-  const [selectedMatchMode, setSelectedMatchMode] = useState<'candidate' | 'waiting'>('candidate');
   // Real measured height of the space between the segmented control and
   // the tab bar (onLayout on the Ready list's flex:1 wrapper) — drives the
   // dynamic card-height formula below instead of a guessed constant.
@@ -411,7 +309,6 @@ export default function MatchesTab() {
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
-      setSelectedMatch(null);
 
       (async () => {
         setLoading(true);
@@ -442,7 +339,7 @@ export default function MatchesTab() {
             // RPC itself compares, no new columns.
             supabase
               .from('profiles')
-              .select('city, district, zodiac_sign, hobbies, drinking, smoking, favorite_spots, meeting_environment')
+              .select('district, zodiac_sign, hobbies, drinking, smoking, favorite_spots, meeting_environment')
               .eq('id', userId)
               .maybeSingle(),
             supabase.from('onboarding_answers').select('intent').eq('user_id', userId).maybeSingle(),
@@ -481,7 +378,6 @@ export default function MatchesTab() {
           ]);
 
           if (!mounted) return;
-          setMyCity(typeof meProfile?.city === 'string' ? meProfile.city : null);
           setDailyInvites(invitesState);
           const meCompareProfile: ReasonCompareProfile = {
             hobbies: meProfile?.hobbies ?? null,
@@ -624,7 +520,6 @@ export default function MatchesTab() {
           const activePending = candidatesOutcome.activePending;
 
           const nextPending: PendingPlanRaw[] = [];
-          const nextWaitingCards: Record<string, MatchCardData> = {};
           const nextConfirmed: ConfirmedPlan[] = [];
 
           for (const row of rows) {
@@ -727,18 +622,10 @@ export default function MatchesTab() {
                 direction: 'outgoing',
                 expiresAt: (row.expires_at as string | null) ?? null,
               });
-              // Lightweight profile-detail-shaped object so "View
-              // invitation" can reuse the exact same overlay Ready cards
-              // use, without a second query — same light fields already
-              // fetched above for every row's other party.
-              if (profile) {
-                nextWaitingCards[otherId] = buildLiteCard(row.id, Number(row.match_score) || 0, profile);
-              }
             }
           }
 
           setPendingPlans(nextPending);
-          setWaitingCards(nextWaitingCards);
           setConfirmedPlans(nextConfirmed);
 
           if (activePending.length === 0) {
@@ -878,11 +765,8 @@ export default function MatchesTab() {
     });
   }
 
-  function handleViewInvitation(userId: string) {
-    const found = waitingCards[userId];
-    if (!found) return;
-    setSelectedMatchMode('waiting');
-    setSelectedMatch(found);
+  function handleViewInvitation(userId: string, matchId: string) {
+    router.push({ pathname: '/candidate-profile', params: { matchUserId: userId, matchId } });
   }
 
   function switchTab(next: MatchesTabKey) {
@@ -943,70 +827,12 @@ export default function MatchesTab() {
   const incomingPlanItems = pendingPlanItems.filter((p) => p.direction === 'incoming');
 
   function openDetailFor(readyItem: ReadyItem) {
-    const found = cards.find((c) => c.matchId === readyItem.key);
-    if (!found) return;
-    setSelectedMatchMode('candidate');
-    setSelectedMatch(found);
+    router.push({ pathname: '/candidate-profile', params: { matchUserId: readyItem.userId, matchId: readyItem.key } });
   }
 
   function handlePendingPrimaryAction(plan: PendingPlan) {
     if (plan.direction === 'incoming') handleReviewInvite();
-    else handleViewInvitation(plan.userId);
-  }
-
-  // --- Detail overlay (unchanged behavior, re-skinned) ------------------
-  if (selectedMatch) {
-    const displayName = selectedMatch.first_name ?? 'Someone';
-    const isExpired = !!selectedMatch.expires_at && new Date(selectedMatch.expires_at).getTime() < now;
-    return (
-      <View style={[styles.detailRoot, { paddingTop: insets.top }]}>
-        <View style={styles.detailHeader}>
-          <TouchableOpacity
-            onPress={() => setSelectedMatch(null)}
-            hitSlop={12}
-            style={styles.detailBackBtn}
-            accessibilityLabel="Back to matches">
-            <Ionicons name="chevron-back" size={28} color={homeColors.textPrimary} />
-          </TouchableOpacity>
-          <ThemedText style={styles.detailHeaderTitle}>Profile</ThemedText>
-          <View style={styles.detailHeaderSpacer} />
-        </View>
-        <ScrollView
-          style={styles.detailScroll}
-          contentContainerStyle={styles.detailScrollContent}
-          showsVerticalScrollIndicator={false}>
-          <HingeProfileCard
-            person={matchToHingePerson(selectedMatch)}
-            viewerCity={myCity}
-            footer={
-              <View style={styles.detailFooter}>
-                {selectedMatchMode === 'waiting' ? (
-                  // An outgoing-pending person's detail is always "waiting"
-                  // — `cards` (mode 'candidate') and `waitingCards` (mode
-                  // 'waiting') are mutually exclusive sets by construction,
-                  // no live invite-state lookup needed.
-                  <View style={styles.detailWaiting}>
-                    <Ionicons name="time-outline" size={16} color={homeColors.textSecondary} />
-                    <ThemedText style={styles.detailWaitingText}>Waiting for {displayName}</ThemedText>
-                  </View>
-                ) : isExpired ? (
-                  <View style={[styles.detailPrimaryBtn, styles.detailPrimaryBtnDisabled]}>
-                    <ThemedText style={styles.detailPrimaryTextDisabled}>Expired</ThemedText>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.detailPrimaryBtn}
-                    onPress={() => handleLetsMeet(selectedMatch)}
-                    activeOpacity={0.85}>
-                    <ThemedText style={styles.detailPrimaryText}>Plan a date</ThemedText>
-                  </TouchableOpacity>
-                )}
-              </View>
-            }
-          />
-        </ScrollView>
-      </View>
-    );
+    else handleViewInvitation(plan.userId, plan.matchId);
   }
 
   // Single, unconditional header (2026-09-18 V3 fix) — previously this was
@@ -1165,7 +991,7 @@ export default function MatchesTab() {
               <Ionicons name="calendar-outline" size={30} color={homeColors.textSecondary} />
               <ThemedText style={styles.plansEmptyTitle}>No plans yet</ThemedText>
               <ThemedText style={styles.plansEmptySubtitle}>
-                Plan a date with one of your matches and it&apos;ll appear here.
+                When you send an invitation, it&apos;ll appear here.
               </ThemedText>
               <TouchableOpacity
                 style={styles.plansEmptyAction}
@@ -1256,51 +1082,4 @@ const styles = StyleSheet.create({
   },
   plansEmptyAction: { minHeight: 44, justifyContent: 'center', marginTop: 4 },
   plansEmptyActionText: { fontSize: 14.5, fontWeight: '700', color: homeColors.accent },
-
-  detailRoot: { flex: 1, backgroundColor: homeColors.background },
-  detailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: homeColors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: homeColors.border,
-  },
-  detailBackBtn: { padding: 8 },
-  detailHeaderTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '700',
-    color: homeColors.textPrimary,
-  },
-  detailHeaderSpacer: { width: 44 },
-  detailScroll: { flex: 1 },
-  detailScrollContent: { paddingBottom: 40 },
-  detailFooter: {
-    marginHorizontal: 14,
-    marginTop: 18,
-    gap: 10,
-  },
-  detailPrimaryBtn: {
-    backgroundColor: homeColors.accent,
-    borderRadius: homeRadius.pill,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  detailPrimaryBtnDisabled: { backgroundColor: homeColors.mutedSurface },
-  detailPrimaryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  detailPrimaryTextDisabled: { color: homeColors.textSecondary, fontSize: 16, fontWeight: '700' },
-  detailWaiting: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 15,
-    borderRadius: homeRadius.pill,
-    borderWidth: 1,
-    borderColor: homeColors.border,
-  },
-  detailWaitingText: { color: homeColors.textSecondary, fontSize: 15, fontWeight: '600' },
 });

@@ -40,6 +40,57 @@ function nextDateForWeekday(dayToken: string, from: Date): Date | null {
   return d;
 }
 
+/**
+ * Real, upcoming calendar dates (date-only, local midnight, starting
+ * tomorrow — never today, so every time-of-day combined with one of these
+ * is always in the future, per the Time step's "geçmiş zaman seçilememeli"
+ * requirement) for the Time step's date-chip row.
+ *
+ * Prefers dates whose weekday is in `availabilityDays` (real
+ * `profiles.availability_days`, same field `suggestMeetingTimes` already
+ * used) — falls back to plain consecutive days once that's exhausted or if
+ * availability isn't set, so there are always real, pickable dates.
+ */
+export function upcomingDateOptions(availabilityDays: string[] | null | undefined, count = 4): Date[] {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const wantedWeekdays = new Set(
+    (availabilityDays ?? [])
+      .map((d) => WEEKDAY_INDEX[d.trim().toLowerCase()])
+      .filter((i): i is number => i !== undefined),
+  );
+
+  const results: Date[] = [];
+  if (wantedWeekdays.size > 0) {
+    for (let i = 0; i < 21 && results.length < count; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      if (wantedWeekdays.has(d.getDay())) results.push(d);
+    }
+  }
+  if (results.length < count) {
+    for (let i = 0; results.length < count && i < 14; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      if (!results.some((r) => r.getTime() === d.getTime())) results.push(d);
+    }
+    results.sort((a, b) => a.getTime() - b.getTime());
+  }
+  return results.slice(0, count);
+}
+
+/** "Mon" / "21 Sep" — the Time step's 2-line date chip. */
+export function formatDateChipParts(d: Date): { weekday: string; dayMonth: string } {
+  return { weekday: WEEKDAY_NAME[d.getDay()], dayMonth: `${d.getDate()} ${MONTH_NAME[d.getMonth()]}` };
+}
+
+/** Combine a date-only Date with an "HH:mm" label into a real ISO instant. */
+export function combineDateAndTime(day: Date, hhmm: string): string {
+  const [h, m] = hhmm.split(':').map((n) => Number(n));
+  const d = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h || 0, m || 0, 0, 0);
+  return d.toISOString();
+}
+
 /** Representative start hour for an availability_hours bucket label. */
 function hourForBucket(bucket: string): number {
   // Midpoint of the range, not the start — "Afternoon (12-18)" should land

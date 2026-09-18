@@ -111,37 +111,46 @@ function foldTr(s: string): string {
  * freshly-backfilled candidate with a real RPC reason still displays in
  * the RPC's own order, unaffected by this function.
  */
-export function computeFallbackReason(
-  me: ReasonCompareProfile,
-  them: ReasonCompareProfile,
-): string | null {
+/**
+ * Every real, currently-true fallback reason, in the same priority order
+ * `computeFallbackReason` (singular, below) has always used — this is the
+ * ONE place that logic lives now; the singular function is a thin wrapper
+ * (`[0] ?? null`), not a second copy. Added 2026-09-19 for the candidate
+ * profile screen's "Why you match" section, which (per its own brief) needs
+ * up to 3 real reasons like `WhyYouMatchCard` shows for Home, not just the
+ * single strongest one Ready cards use — reusing the exact same field
+ * comparisons here is what keeps the two screens from ever disagreeing.
+ */
+export function computeFallbackReasons(me: ReasonCompareProfile, them: ReasonCompareProfile): string[] {
+  const out: string[] = [];
+
   // 1. Shared hobbies — exact string match, same as the RPC's
   // `h = ANY(me.hobbies)` (hobbies come from a fixed, small dropdown list,
   // not free text, so exact equality is what the RPC itself relies on).
   const myHobbies = new Set(me.hobbies ?? []);
   const shared = (them.hobbies ?? []).filter((h) => myHobbies.has(h));
   if (shared.length >= 1) {
-    return `You both love ${shared.slice(0, 2).join(' & ')}`;
+    out.push(`You both love ${shared.slice(0, 2).join(' & ')}`);
   }
 
   // 2. Same relationship intention — exact match.
   if (me.intent && them.intent && me.intent === them.intent) {
-    return reasonText('Looking for the same thing');
+    out.push(reasonText('Looking for the same thing'));
   }
 
   // 3. Lifestyle — exact drinking or smoking match (the RPC only fires
   // this reason at its EXACT-match score tier, not its partial-credit
   // tiers for adjacent values like Yes/Socially).
   if (me.drinking && them.drinking && me.drinking === them.drinking) {
-    return 'Similar drinking habits';
+    out.push('Similar drinking habits');
   }
   if (me.smoking && them.smoking && me.smoking === them.smoking) {
-    return 'Similar smoking habits';
+    out.push('Similar smoking habits');
   }
 
   // 4. Other real compatibility signals, in the RPC's own sub-order.
   if (me.district && them.district && me.district.trim().toLowerCase() === them.district.trim().toLowerCase()) {
-    return 'Nearby';
+    out.push('Nearby');
   }
   const mySpots = Object.values(me.favorite_spots ?? {})
     .filter((v) => typeof v === 'string' && v.trim())
@@ -150,15 +159,19 @@ export function computeFallbackReason(
     .filter((v) => typeof v === 'string' && v.trim())
     .map(foldTr);
   if (mySpots.some((s) => theirSpots.includes(s))) {
-    return 'Same favorite spot';
+    out.push('Same favorite spot');
   }
   const myEnv = new Set(me.meeting_environment ?? []);
   if ((them.meeting_environment ?? []).some((e) => myEnv.has(e))) {
-    return 'Same idea of a first date';
+    out.push('Same idea of a first date');
   }
   if (me.zodiac_sign && them.zodiac_sign && (ZODIAC_TOP3_PARTNERS[me.zodiac_sign] ?? []).includes(them.zodiac_sign)) {
-    return 'Great zodiac match';
+    out.push('Great zodiac match');
   }
 
-  return null;
+  return out;
+}
+
+export function computeFallbackReason(me: ReasonCompareProfile, them: ReasonCompareProfile): string | null {
+  return computeFallbackReasons(me, them)[0] ?? null;
 }
