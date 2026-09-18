@@ -77,8 +77,10 @@ export function ReadyMatchCard({
         ) : null}
         {item.reason ? (
           <View style={styles.reasonRow}>
-            <Ionicons name={reasonIcon(item.reason)} size={17} color={homeColors.textSecondary} />
-            <ThemedText style={styles.reasonText} numberOfLines={1} ellipsizeMode="tail">
+            <View style={styles.reasonIconWrap}>
+              <Ionicons name={reasonIcon(item.reason)} size={17} color={homeColors.textSecondary} />
+            </View>
+            <ThemedText style={styles.reasonText} numberOfLines={2} ellipsizeMode="tail">
               {item.reason}
             </ThemedText>
           </View>
@@ -158,8 +160,18 @@ const styles = StyleSheet.create({
   // 13pt text needed, quietly eating into this card's tight fixed-height
   // budget.
   scorePillText: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: homeColors.accent },
-  reasonRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  reasonText: { flex: 1, fontSize: 14.5, lineHeight: 18, fontWeight: '500', color: homeColors.textSecondary },
+  // alignItems:'flex-start' (not 'center') — with numberOfLines={2} now
+  // allowed, centering the icon against a two-line block put it at an odd
+  // mid-height instead of level with the first line (2026-09-18 brief).
+  reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
+  // Nudges the icon down to align with the reason text's cap-height/first
+  // line instead of its own glyph box top, which sits a couple px higher.
+  reasonIconWrap: { paddingTop: 1 },
+  // No width/maxWidth — `flex:1` already lets this take the full remaining
+  // row width next to the icon (2026-09-18: confirmed no other constraint
+  // was forcing the earlier single-line truncation; numberOfLines was the
+  // only thing capping it, now 2 instead of 1).
+  reasonText: { flex: 1, fontSize: 14.5, lineHeight: 20, fontWeight: '500', color: homeColors.textSecondary },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',

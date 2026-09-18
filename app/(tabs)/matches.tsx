@@ -118,7 +118,14 @@ const READY_LIST_TOP_PADDING = homeSpacing.sm; // 8pt — brief: "8-10pt"
 const READY_LIST_BOTTOM_PADDING = homeSpacing.sm; // 8pt, ON TOP OF real tabBarHeight (not instead of it)
 const READY_LIST_GAP = homeSpacing.sm + 2; // 10pt — brief: "10-12pt"
 const READY_CARD_HEIGHT_MIN = 150;
-const READY_CARD_HEIGHT_MAX = 176;
+// 176→184 (2026-09-18, live device feedback: "çok az boşluk kalıyor... çok
+// çok az daha büyütebiliriz"): the formula was already computing a value
+// ABOVE 176 on the user's device (real measured space allowed it) and
+// getting capped there, leaving that reported sliver of unused space —
+// raising the ceiling lets the SAME real measurement use it, this isn't a
+// new guessed number replacing the formula, just letting it run a little
+// further.
+const READY_CARD_HEIGHT_MAX = 184;
 // Used only before the first onLayout fires, or when there isn't exactly
 // 1-3 candidates to divide the measured space among — a plain constant,
 // not a guess about what SHOULD fit (real measurement takes over the
@@ -910,15 +917,13 @@ export default function MatchesTab() {
     whenLabel: p.whenLabel,
     direction: p.direction,
   }));
-  // Mockup copy assumes the outgoing case ("Waiting for them / We'll let
-  // you know when they respond.") — when an incoming invitation is mixed
-  // in too, that copy would be actively wrong (they're not the one
-  // waiting), so the header falls back to a neutral label in that case.
-  const allOutgoing = pendingPlanItems.every((p) => p.direction === 'outgoing');
-  const pendingSectionTitle = allOutgoing ? 'Waiting for them' : 'Pending invitations';
-  const pendingSectionSubtitle = allOutgoing
-    ? "We'll let you know when they respond."
-    : 'Respond to invitations or wait for updates.';
+  // Two SEPARATE sections now (2026-09-18 correction) — outgoing and
+  // incoming used to share one section with a copy that guessed which
+  // label fit better when both were mixed together. Splitting them means
+  // each section's title is always literally true for every card under
+  // it, no guessing needed.
+  const outgoingPlanItems = pendingPlanItems.filter((p) => p.direction === 'outgoing');
+  const incomingPlanItems = pendingPlanItems.filter((p) => p.direction === 'incoming');
 
   function openDetailFor(readyItem: ReadyItem) {
     const found = cards.find((c) => c.matchId === readyItem.key);
@@ -1000,6 +1005,21 @@ export default function MatchesTab() {
       </View>
     </>
   );
+  // 2026-09-18 — root cause of the Ready-tab horizontal shift, found by
+  // reading the actual styles (not guessed): MatchesHeader/segmentWrap
+  // carry NO horizontal padding of their own (removed in an earlier round
+  // specifically because they used to double up when rendered inside the
+  // padded list — see MatchesHeader's own comment). That's correct for
+  // Plans, which still renders `listHeader` as the SectionList's
+  // `ListHeaderComponent`, itself inside `contentContainerStyle`'s
+  // `paddingHorizontal: homeSpacing.xl` (`styles.content`). Ready renders
+  // `listHeader` as a plain sibling OUTSIDE that padded container (so
+  // onLayout can measure the list area below it) — meaning it inherited
+  // ZERO horizontal padding from anywhere, flush against the screen edge.
+  // `paddedListHeader` gives it the SAME `homeSpacing.xl` Plans already
+  // gets, from the SAME token, without adding a second padding source
+  // inside `listHeader` itself (which would double up for Plans).
+  const paddedListHeader = <View style={{ paddingHorizontal: homeSpacing.xl }}>{listHeader}</View>;
 
   // Real tab bar height + homeSpacing.xxl(24) — the SAME margin value
   // Home's index.tsx already uses for its own list bottom padding
@@ -1011,7 +1031,7 @@ export default function MatchesTab() {
   if (loading && !hasLoadedRef.current) {
     return (
       <View style={styles.container}>
-        {listHeader}
+        {paddedListHeader}
         <ActivityIndicator color={homeColors.accent} style={{ marginTop: 40 }} />
       </View>
     );
@@ -1020,7 +1040,7 @@ export default function MatchesTab() {
   if (error && readyItems.length === 0 && pendingPlanItems.length === 0 && confirmedPlans.length === 0) {
     return (
       <View style={styles.container}>
-        {listHeader}
+        {paddedListHeader}
         <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
       </View>
     );
@@ -1047,7 +1067,7 @@ export default function MatchesTab() {
       // MatchesHeader's own insets.top handling and this list's own
       // horizontal padding (single safe-area/gutter source).
       <View style={styles.container}>
-        {listHeader}
+        {paddedListHeader}
         <View style={{ flex: 1 }} onLayout={(e) => setReadyListHeight(e.nativeEvent.layout.height)}>
           <FlatList
             data={readyItems}
@@ -1076,37 +1096,48 @@ export default function MatchesTab() {
     );
   }
 
+  // Three POSSIBLE sections, each shown only when it actually has data
+  // (2026-09-18: a section with nothing in it no longer renders an empty
+  // sub-card under its own header — if literally none of the three have
+  // anything, the whole sectioned view is replaced by one combined empty
+  // state below instead, see `plansIsEmpty`).
   const plansSections: {
     key: string;
     title: string;
     subtitle: string | null;
     data: PlansSectionRow[];
   }[] = [];
-  if (pendingPlanItems.length > 0) {
+  if (outgoingPlanItems.length > 0) {
     plansSections.push({
-      key: 'pending',
-      title: pendingSectionTitle,
-      subtitle: pendingSectionSubtitle,
-      data: pendingPlanItems.map((plan) => ({ kind: 'pending' as const, plan })),
+      key: 'waiting',
+      title: 'Waiting for them',
+      subtitle: "We'll let you know when they respond.",
+      data: outgoingPlanItems.map((plan) => ({ kind: 'pending' as const, plan })),
     });
   }
-  plansSections.push({
-    key: 'confirmed',
-    title: 'Confirmed',
-    subtitle: null,
-    data:
-      confirmedPlans.length > 0
-        ? confirmedPlans.map((plan) => ({ kind: 'confirmed' as const, plan }))
-        : [{ kind: 'confirmedEmpty' as const }],
-  });
+  if (incomingPlanItems.length > 0) {
+    plansSections.push({
+      key: 'invitations',
+      title: 'Invitations for you',
+      subtitle: null,
+      data: incomingPlanItems.map((plan) => ({ kind: 'pending' as const, plan })),
+    });
+  }
+  if (confirmedPlans.length > 0) {
+    plansSections.push({
+      key: 'confirmed',
+      title: 'Confirmed',
+      subtitle: null,
+      data: confirmedPlans.map((plan) => ({ kind: 'confirmed' as const, plan })),
+    });
+  }
+  const plansIsEmpty = plansSections.length === 0;
 
   return (
     <View style={styles.container}>
       <SectionList
         sections={plansSections}
-        keyExtractor={(row, i) =>
-          row.kind === 'pending' ? row.plan.matchId : row.kind === 'confirmed' ? row.plan.matchId : `empty-${i}`
-        }
+        keyExtractor={(row) => row.plan.matchId}
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeaderWrap}>
             <ThemedText style={styles.sectionHeaderTitle}>{section.title}</ThemedText>
@@ -1115,32 +1146,40 @@ export default function MatchesTab() {
             ) : null}
           </View>
         )}
-        renderItem={({ item }) => {
-          if (item.kind === 'pending') {
-            return (
-              <PendingPlanCard plan={item.plan} onPrimaryAction={() => handlePendingPrimaryAction(item.plan)} />
-            );
-          }
-          if (item.kind === 'confirmed') {
-            return (
-              <ConfirmedPlanCard
-                plan={item.plan}
-                onViewPlan={() => handleViewPlan(item.plan)}
-                onMessage={() => handleOpenChat(item.plan.userId, item.plan.name, item.plan.matchId)}
-              />
-            );
-          }
-          return (
-            <View style={styles.confirmedEmptyWrap}>
-              <Ionicons name="calendar-outline" size={28} color={homeColors.textSecondary} />
-              <ThemedText style={styles.confirmedEmptyText}>Confirmed dates will appear here</ThemedText>
-            </View>
-          );
-        }}
+        renderItem={({ item }) =>
+          item.kind === 'pending' ? (
+            <PendingPlanCard plan={item.plan} onPrimaryAction={() => handlePendingPrimaryAction(item.plan)} />
+          ) : (
+            <ConfirmedPlanCard
+              plan={item.plan}
+              onViewPlan={() => handleViewPlan(item.plan)}
+              onMessage={() => handleOpenChat(item.plan.userId, item.plan.name, item.plan.matchId)}
+            />
+          )
+        }
         ItemSeparatorComponent={() => <View style={{ height: homeSpacing.sm + 2 }} />}
         SectionSeparatorComponent={() => <View style={{ height: homeSpacing.lg }} />}
         ListHeaderComponent={listHeader}
-        ListFooterComponent={listFooterSpace}
+        ListFooterComponent={plansIsEmpty ? null : listFooterSpace}
+        ListEmptyComponent={
+          plansIsEmpty ? (
+            <View style={styles.plansEmptyCard}>
+              <Ionicons name="calendar-outline" size={30} color={homeColors.textSecondary} />
+              <ThemedText style={styles.plansEmptyTitle}>No plans yet</ThemedText>
+              <ThemedText style={styles.plansEmptySubtitle}>
+                Plan a date with one of your matches and it&apos;ll appear here.
+              </ThemedText>
+              <TouchableOpacity
+                style={styles.plansEmptyAction}
+                onPress={() => switchTab('ready')}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="View ready matches">
+                <ThemedText style={styles.plansEmptyActionText}>View ready matches</ThemedText>
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
         contentContainerStyle={styles.content}
         stickySectionHeadersEnabled={false}
         showsVerticalScrollIndicator={false}
@@ -1149,10 +1188,7 @@ export default function MatchesTab() {
   );
 }
 
-type PlansSectionRow =
-  | { kind: 'pending'; plan: PendingPlan }
-  | { kind: 'confirmed'; plan: ConfirmedPlan }
-  | { kind: 'confirmedEmpty' };
+type PlansSectionRow = { kind: 'pending'; plan: PendingPlan } | { kind: 'confirmed'; plan: ConfirmedPlan };
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'flex-start', backgroundColor: homeColors.background },
@@ -1166,6 +1202,7 @@ const styles = StyleSheet.create({
   emptyText: {
     color: homeColors.textPrimary,
     fontSize: 18,
+    lineHeight: 23,
     fontWeight: '700',
     textAlign: 'center',
     marginTop: 4,
@@ -1176,19 +1213,36 @@ const styles = StyleSheet.create({
     backgroundColor: homeColors.background,
     paddingBottom: homeSpacing.sm,
   },
-  sectionHeaderTitle: { fontSize: 18, fontWeight: '800', color: homeColors.textPrimary },
+  sectionHeaderTitle: { fontSize: 18, lineHeight: 23, fontWeight: '800', color: homeColors.textPrimary },
   sectionHeaderSubtitle: { fontSize: 13.5, color: homeColors.textSecondary, marginTop: 2 },
-  confirmedEmptyWrap: {
+  // Single combined empty state for Plans (2026-09-18) — replaces the old
+  // per-section "Confirmed dates will appear here" compact card, which
+  // used to render even while a "Waiting for them"/"Invitations for you"
+  // header sat empty above it. ~190pt tall (within the requested
+  // 180-220pt band), not a full-screen block.
+  plansEmptyCard: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: homeSpacing.lg,
+    paddingVertical: homeSpacing.xxl,
+    paddingHorizontal: homeSpacing.lg,
     borderRadius: homeRadius.card,
     borderWidth: 1,
     borderColor: homeColors.border,
     backgroundColor: homeColors.surface,
   },
-  confirmedEmptyText: { fontSize: 13.5, color: homeColors.textSecondary, fontWeight: '600' },
+  // Explicit lineHeight — proactive, same missing-lineHeight class already
+  // found 4 times elsewhere in this screen (MatchesHeader's title,
+  // PersonAvatar's initial, ReadyMatchCard's name, its scorePillText).
+  plansEmptyTitle: { fontSize: 17, lineHeight: 22, fontWeight: '800', color: homeColors.textPrimary, marginTop: 4 },
+  plansEmptySubtitle: {
+    fontSize: 14,
+    color: homeColors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  plansEmptyAction: { minHeight: 44, justifyContent: 'center', marginTop: 4 },
+  plansEmptyActionText: { fontSize: 14.5, fontWeight: '700', color: homeColors.accent },
 
   detailRoot: { flex: 1, backgroundColor: homeColors.background },
   detailHeader: {
