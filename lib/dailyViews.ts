@@ -32,10 +32,6 @@ function buildDailyViewsState(count: number, resetAt: string, limit: number): Da
   };
 }
 
-function needsReset(resetAt: string): boolean {
-  return new Date(resetAt).getTime() + RESET_WINDOW_MS < Date.now();
-}
-
 export function msUntilReset(resetAt: string): number {
   const unlockAt = new Date(resetAt).getTime() + RESET_WINDOW_MS;
   return Math.max(0, unlockAt - Date.now());
@@ -56,48 +52,33 @@ export function formatDailyResetCountdown(ms: number): string {
   return `${seconds}sn`;
 }
 
+// Row-locked, auth.uid()-checked server RPC (2026-09-21, Phase 0.1 —
+// docs/phase-0-1-security-report.md) — this used to be a plain client
+// `.select()` followed by a conditional client-side `.update({
+// daily_views_count: 0, ... })` whenever a 24h-passed check computed in JS
+// said a reset was due. Since that check ran entirely on the client, any
+// authenticated user could PATCH those two columns directly at any time,
+// resetting their own like-quota on demand — the whole point of
+// `needsReset` was cosmetic, not enforced. `get_daily_views_state` now does
+// the identical "reset if 24h has passed" decision server-side, inside the
+// same row lock `increment_daily_views` already used, so a peek and an
+// increment racing each other serialize correctly instead of one reading
+// stale data.
 export async function refreshDailyViewsIfNeeded(userId: string): Promise<DailyViewsState | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('daily_views_count, daily_views_reset_at, is_premium')
-    .eq('id', userId)
-    .single();
+  const { data, error } = await supabase.rpc('get_daily_views_state', { p_user: userId }).single();
 
   if (error || !data) {
-    console.warn('[dailyViews] profiles fetch failed', error);
+    console.warn('[dailyViews] get_daily_views_state failed', error);
     return null;
   }
 
   const row = data as DailyViewsRow;
-  const resetAt = row.daily_views_reset_at ?? new Date().toISOString();
   const limit = dailyViewLimitFor(row.is_premium === true);
-
-  if (needsReset(resetAt)) {
-    const now = new Date().toISOString();
-    const { data: updated, error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        daily_views_count: 0,
-        daily_views_reset_at: now,
-      })
-      .eq('id', userId)
-      .select('daily_views_count, daily_views_reset_at')
-      .single();
-
-    if (updateError || !updated) {
-      console.warn('[dailyViews] reset update failed', updateError);
-      return null;
-    }
-
-    const refreshed = updated as DailyViewsRow;
-    return buildDailyViewsState(
-      refreshed.daily_views_count ?? 0,
-      refreshed.daily_views_reset_at ?? now,
-      limit,
-    );
-  }
-
-  return buildDailyViewsState(row.daily_views_count ?? 0, resetAt, limit);
+  return buildDailyViewsState(
+    row.daily_views_count ?? 0,
+    row.daily_views_reset_at ?? new Date().toISOString(),
+    limit,
+  );
 }
 
 export async function getDailyViewsState(userId: string): Promise<DailyViewsState | null> {

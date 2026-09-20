@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { CITY_OPTIONS, type CityOption } from '@/lib/turkishGeo';
 import {
   USER_PHOTOS_BUCKET,
+  VERIFICATION_SELFIE_BUCKET,
   profilePhotoObjectPath,
   verificationSelfiePath,
 } from '@/lib/userPhotosStorage';
@@ -90,9 +91,13 @@ async function uploadPhotosToSupabase(userId: string, uris: string[]): Promise<s
 }
 
 async function uploadSelfieToSupabase(userId: string, uri: string): Promise<string> {
+  // Private bucket, not USER_PHOTOS_BUCKET (2026-09-20 — see
+  // VERIFICATION_SELFIE_BUCKET's docstring). `verificationSelfiePath` mints
+  // a fresh random path on every call, so `upsert` is irrelevant here (there
+  // is never an existing object at this exact path to overwrite).
   const path = verificationSelfiePath(userId);
   const contentType = getMimeTypeFromUri(uri);
-  const storage = supabase.storage.from(USER_PHOTOS_BUCKET);
+  const storage = supabase.storage.from(VERIFICATION_SELFIE_BUCKET);
 
   const response = await fetch(uri);
   if (!response.ok) {
@@ -100,7 +105,7 @@ async function uploadSelfieToSupabase(userId: string, uri: string): Promise<stri
   }
 
   const arrayBuffer = await response.arrayBuffer();
-  const uploadRes = await storage.upload(path, arrayBuffer, { contentType, upsert: true });
+  const uploadRes = await storage.upload(path, arrayBuffer, { contentType });
   if (uploadRes.error) {
     throw new Error(uploadRes.error.message ?? 'Selfie yüklenemedi.');
   }
