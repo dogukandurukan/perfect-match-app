@@ -97,6 +97,13 @@ RPC must not require them; existing V1 columns (`instagram_handle`,
 simply unused by V2 onboarding. Their removal from profile display/edit, if
 wanted, is a separate decision.
 
+## Profile presentation (decided 2026-09-23)
+
+| # | Topic | Status | Source / note |
+|---|---|---|---|
+| D44 | Interleave profile photos and prompt-answer cards: **primary photo + first name/age → short profile facts / shared interests where applicable → prompt 1 + answer → photo 2 → prompt 2 + answer → photo 3 → optional prompt 3 and remaining photos**. Photos and answers are collected separately during onboarding and assembled in the Section 7 preview. No per-prompt photo selection or thematic photo/answer pairing is required. | ✅ APPROVED | Doğukan, 2026-09-23, approved the alternating layout after the Bumble reference. Profile colors and overall visual styling remain separate from onboarding (D42). |
+| D45 | Support the direction of contextual likes/comments on an individual photo or prompt answer, to start a conversation from a specific profile detail. | ✅ APPROVED (direction) | Doğukan, 2026-09-23. Interaction details, limits and delivery behavior are not defined here. No code or database changes authorized in this documentation task. |
+
 ## Matching / scoring
 
 | # | Topic | Status | Source / note |
