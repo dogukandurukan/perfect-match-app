@@ -5,7 +5,6 @@ Owner: Doğukan unless noted. Close a question by moving the answer into
 
 | # | Question | Blocks | Options / notes |
 |---|---|---|---|
-| Q4 | Serif display font choice (none loaded today) | Shared components | Needs a licensed font (e.g. Google Fonts via `expo-font`) |
 | Q5 | Where does KVKK consent go in the new flow? (today: checkbox on email register screen) | S1 | Welcome/phone screen before OTP is the likely spot |
 | Q6 | Prompt source: handoff's 2 suggested prompts vs. the older 8-key library | S7, `profile_prompts` check | Could be: 2 suggested + library to swap |
 | Q7 | SMS provider and dev mock strategy | S1 auth | Mock provider in dev only; no prod bypass |
@@ -22,3 +21,4 @@ Owner: Doğukan unless noted. Close a question by moving the answer into
 | Q2 | Fate of legacy onboarding fields (languages, morning/night, recharge, education level, neighborhoods, first-date expectation, bio, Instagram) | Closed 2026-09-23 → D40, D41 in `DECISIONS.md`. Not carried into V2 onboarding; languages and neighborhood/distance may be revisited later in Settings, with no screen or schema requirement now. |
 | Q3 | Palette scope (onboarding only vs app-wide) | Closed 2026-09-23 → D42: green/ivory across the whole onboarding; other app screens evaluated separately. |
 | Q1 | Gender and interested-in taxonomy + eligibility | Closed 2026-09-23 → D15 (Woman/Man/Non-binary, single choice) and D15b (Women/Men/Non-binary people multi-select, exclusive Everyone, mutual eligibility). Replaces the earlier four-option gender proposal. |
+| Q4 | Serif display font choice | Closed 2026-09-23 → D43: Playfair Display Bold (700) headings + DM Sans body/controls; visible Tempa wordmark remains a temporary placeholder for the final logo. |
