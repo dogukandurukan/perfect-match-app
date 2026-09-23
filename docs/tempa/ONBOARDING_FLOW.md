@@ -32,8 +32,8 @@ with phone OTP only. Email is collected in Section 7.
 |---|---|
 | What's your name? | First + last name. Only first name public. Surname removal is 🔵 not approved. |
 | When's your birthday? | Full DOB private; only age displayed; zodiac derived silently. |
-| What's your gender? | Woman / Man / Non-binary / Prefer not to say (✅ D15). No self-describe option for now. |
-| Who are you interested in? | Discovery eligibility, not similarity. 🔴 options/eligibility open (D15b) |
+| What's your gender? | Woman / Man / Non-binary — single choice (✅ D15). No "Prefer not to say" or self-describe. |
+| Who are you interested in? | Women / Men / Non-binary people — multi-select; **Everyone** covers all and is exclusive (✅ D15b). Discovery eligibility, not similarity; mutual on both sides. |
 | Where do you live? | Current city/location (≠ hometown). Manual entry; GPS optional. |
 | How tall are you? | Centimeters. Profile context, zero ranking weight. |
 

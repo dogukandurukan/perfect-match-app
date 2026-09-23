@@ -33,8 +33,8 @@ Markers: ✅ APPROVED · 🟡 ACCEPTED (inferred) · 🔵 PROPOSED · 🔴 OPEN
 | D12 | Section 2 stays the same six fields: name, DOB, gender, interested in, current location, height (cm) | ✅ APPROVED | HO 05 |
 | D13 | No Instagram in Section 2 | ✅ APPROVED | HO 05 |
 | D14 | Surname removal / optional height | 🔵 PROPOSED — **not** requirements | HO 01 §5 |
-| D15 | Gender options: **Woman / Man / Non-binary / Prefer not to say** (TR: Kadın / Erkek / Non-binary / Belirtmek istemiyorum). No separate "self-describe" option for now. | ✅ APPROVED | Doğukan, 2026-09-23. Resolves the gender part of Q1. Storage keys (e.g. `woman/man/non_binary/prefer_not_to_say`) remain 🔵 PROPOSED. |
-| D15b | "Who are you interested in?" options and matching eligibility rules (incl. how "Prefer not to say" profiles are matched and displayed) | 🔴 OPEN | Q1 (remaining part) |
+| D15 | Gender: **Woman / Man / Non-binary** — single choice. No "Prefer not to say" and no "self-describe" option. **Supersedes** the earlier four-option version of D15 (same day). | ✅ APPROVED | Doğukan, 2026-09-23. Closes Q1 (with D15b). Storage keys (e.g. `woman/man/non_binary`) remain 🔵 PROPOSED. |
+| D15b | Interested in: **Women / Men / Non-binary people** — multi-select, plus **Everyone**, which covers all and cannot be combined with other options. Eligibility is **mutual**: A and B can see each other only if A's gender is within B's preference **and** B's gender is within A's preference (Everyone matches any gender). | ✅ APPROVED | Doğukan, 2026-09-23. Closes Q1. |
 | D16 | Only first name and age public; DOB and surname private; zodiac derived, no extra question | 🟡 ACCEPTED (inferred) | HO 01 §5 |
 
 ## Section 3 — Compatibility

@@ -45,7 +45,7 @@ or live data changed). Status markers: see [README](README.md).
 | Section | Target | What exists today | Gap |
 |---|---|---|---|
 | **1 Account** | Welcome → phone → SMS code | Phone field (no OTP); separate email+password register screen | Welcome screen, OTP, SMS states (resend cooldown, correction, expiry, wrong code, delivery failure), mock provider for dev. Password-based register must be retired or repurposed. |
-| **2 Basics** | Name → DOB → gender → interested in → location → height | All six exist but spread across steps (height is in step3). Step1 also contains **photos, selfie, Instagram, languages**, plus a distance preference on the location screen. | Regroup into one section; move photos/selfie to S7; drop Instagram, languages and distance (D40/D41); confirm surname screen; gender options decided (D15), interested-in/eligibility open (D15b). |
+| **2 Basics** | Name → DOB → gender → interested in → location → height | All six exist but spread across steps (height is in step3). Step1 also contains **photos, selfie, Instagram, languages**, plus a distance preference on the location screen. | Regroup into one section; move photos/selfie to S7; drop Instagram, languages and distance (D40/D41); confirm surname screen; gender and interested-in decided (D15/D15b, mutual eligibility). |
 | **3 Compatibility** | 7 fixed questions (exact copy) | step2: 4 intents incl. `just_friends`, each with its own 3-question set | Entirely new. None of the 7 questions exist. |
 | **4 Your Life** | Smoking, drinking, pets (+kind), activity | Combined drink/smoke chip (lossy); pets = species list; no activity; extra morning/night + recharge questions | Split smoking/drinking; pet attitude + conditional kind; add activity; drop morning/night + recharge (D40). |
 | **5 Your World** | Work (+title), school, hometown, interests 3–10, artists 0–3, books/titles 0–3 | Free-text `occupation`; education *level* question; hobbies 0–5 with free text; free-text favorite music/movie/book | Work status, school, hometown, fixed 16-item interests with 3–10 limit, catalog-backed taste lists (provider open), drop education level (D40). |
@@ -102,3 +102,4 @@ Applying any migration to the live DB requires explicit approval.
 | 2026-09-23 | Initial gap analysis from handoff + repo/DB audit |
 | 2026-09-23 | Q2 closed (D40/D41): legacy screens not carried into V2; languages & neighborhood/distance deferred to possible future Settings, no schema now |
 | 2026-09-23 | D15 gender options approved (Q1 partly resolved); D42 green/ivory across all onboarding (Q3 closed) |
+| 2026-09-23 | D15 revised to three single-choice gender options; D15b interested-in (multi-select, exclusive Everyone, mutual eligibility) approved; Q1 closed |
