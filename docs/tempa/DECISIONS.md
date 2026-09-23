@@ -78,7 +78,7 @@ Markers: ✅ APPROVED · 🟡 ACCEPTED (inferred) · 🔵 PROPOSED · 🔴 OPEN
 | D30 | Order: photos (≥3) → prompts (2, 3rd optional) → preview → private selfie → email → email code → submit → received | 🟡 ACCEPTED (inferred) | HO 05 "working direction requested and retained" |
 | D31 | Selfie is private and manually reviewed; uploading ≠ verified | ✅ APPROVED | HO 01 §10, consistent with earlier product decisions |
 | D32 | "Received" state does not grant discovery; no "You're all set" / 24-hour promise | 🟡 ACCEPTED (inferred) | HO 01 §10 |
-| D33 | Two suggested prompts "I'm most myself when…" / "A perfect first date looks like…" | 🔵 PROPOSED | HO 01 §10; conflicts with the 8-key library in the older schema draft |
+| D33 | Start with two suggested prompts: **"I'm most myself when…"** and **"Something I could talk about for hours…"**. Users can change either prompt from a library. **Two answers required, third optional**; helper: "Short answers are welcome." **"A perfect first date looks like…"** remains a selectable alternative, not a default. Never autofill answers. | ✅ APPROVED | Doğukan, 2026-09-23. Supersedes the previous suggested pair. Resolves Q6's default/swap behavior; remaining library entries and storage-key mapping are not approved by this decision. |
 | D34 | Auto-enforcing clear-face photo | 🔴 OPEN | HO 01 §10 |
 | D35 | Rejection and resubmission policy | 🔴 OPEN | must be defined before real users |
 
