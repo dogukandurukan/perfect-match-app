@@ -44,6 +44,13 @@ export function DevStepNav({ current }: DevStepNavProps) {
           </ThemedText>
         </TouchableOpacity>
       ))}
+      {/* Tempa onboarding V2 preview (P01) — local-only, no auth/DB. */}
+      <TouchableOpacity
+        onPress={() => router.push('/dev/onboarding-v2-name' as never)}
+        hitSlop={6}
+        style={styles.item}>
+        <ThemedText style={styles.text}>V2</ThemedText>
+      </TouchableOpacity>
       <TouchableOpacity onPress={() => void signOut()} hitSlop={6} style={styles.item}>
         <ThemedText style={styles.signOutText}>⎋</ThemedText>
       </TouchableOpacity>
