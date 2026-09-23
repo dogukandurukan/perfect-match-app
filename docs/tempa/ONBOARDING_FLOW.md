@@ -130,7 +130,7 @@ Deselecting Dinner removes the active dinner vibe from summary, scoring and plan
 
 1. **Photos** — min 3, choose primary, batch upload, remove/reorder. Encourage clear face (auto-enforcement 🔴 open).
 2. **Prompts** — two answers required, third optional (✅ D33). Initially show "I'm most myself when…" and "Something I could talk about for hours…". Users can change either prompt from the library; "A perfect first date looks like…" is an alternative, not a default. Helper: "Short answers are welcome." Never autofill answers. Remaining library entries/key mapping are still open (Q6).
-3. **Preview** — real assembled profile; edit and return without restarting.
+3. **Preview** — real assembled profile; edit and return without restarting. Apply D44's alternating layout: primary photo + first name/age → short profile facts (shared interests only where applicable) → prompt 1 + answer → photo 2 → prompt 2 + answer → photo 3 → optional prompt 3 and remaining photos. Photos and answers are collected separately; no photo-to-prompt assignment is required. This decides content order, not the wider app's color scheme.
 4. **Private selfie** — "Verify it's you." / "A private selfie, reviewed by our team." / "Not shown on your profile." Manual review.
 5. **Email** — "Where can we reach you?" / "We'll email you about your application." / **Send code**
 6. **Email code** — "Check your email" / **Verify email**; resend/correction/error; attach to the same phone-auth user.
