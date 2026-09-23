@@ -15,6 +15,7 @@ Markers: ✅ APPROVED · 🟡 ACCEPTED (inferred) · 🔵 PROPOSED · 🔴 OPEN
 | D5 | Back keeps answers; drafts saved; resume at last unfinished step; honest pending/failed save states | 🟡 ACCEPTED (inferred) | HO 01 §2 (implementation guidance) |
 | D42 | Green/ivory design (D2) is used across the **entire onboarding** (all seven sections). Other app screens (Discover, Matches, Activity, Chats, Profile, Settings) are evaluated separately later. | ✅ APPROVED | Doğukan, 2026-09-23. Closes Q3. |
 | D6 | Section-local progress must look local; auth progress separate from questionnaire progress | 🟡 ACCEPTED (inferred) | HO 01 §2 |
+| D43 | Onboarding typography: **Playfair Display Bold (700)** for question headings; **DM Sans** for body, labels and buttons. Headings must be dark and clearly legible, not faint. Keep **Tempa** visible in the header as a temporary wordmark to be replaced by the final logo later; this does not finalize the brand name or logo typography. | ✅ APPROVED | Doğukan, 2026-09-23, selected visual option A. Closes Q4. Documentation only; no code or DB changes in this task. |
 
 ## Section 1 — Account
 
