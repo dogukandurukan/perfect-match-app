@@ -1,5 +1,11 @@
 # Canonical onboarding flow
 
+> **Not in V2 onboarding (D40/D41, 2026-09-23):** Instagram, education level,
+> morning/night, recharge style, standalone bio, first-date expectation,
+> languages, neighborhood/distance preference. Do not add screens or fields
+> for these. Languages and neighborhood/distance may be reconsidered later in
+> Settings only.
+
 Source: `Tempa_Final_Handoff_2026-09-22` (files 01 and 04). Status markers:
 see [README](README.md) and [DECISIONS](DECISIONS.md). Mockup copy and sample
 answers are illustrative; the copy written here governs.

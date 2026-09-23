@@ -57,7 +57,7 @@ Legend for Gap: **OK** usable as-is · **REVISE** exists but wrong values/place 
 |---|---|---|---|---|
 | work_status | — | `work_status`: `full_time`, `part_time`, `self_employed`, `student`, `between_roles` | optional | NEW |
 | job_title | `profiles.occupation` (free text) | keep `occupation` as job title | optional | OK |
-| school | `profiles.education` (level) | `profiles.school` (draft) | optional | OK in draft |
+| school | — (`profiles.education` is a level, not carried — D40) | `profiles.school` (draft) | optional | OK in draft |
 | hometown | — | `profiles.hometown` (draft) | optional | OK in draft |
 | interest_ids | `profiles.hobbies` (0–5, free text) | `interests text[]` over fixed 16 keys | 3–10 | NEW |
 | artist_ids | `profiles.favorite_music` (free text) | `profile_taste_items` (user_id, kind, catalog_id, display_name, source) | 0–3 per kind | NEW (🔴 D27 catalog) |
@@ -90,6 +90,22 @@ Legend for Gap: **OK** usable as-is · **REVISE** exists but wrong values/place 
 | questionnaire_version | `profile_account_state_v2.questionnaire_version` | NEW |
 | last_completed_step | `profile_account_state_v2.last_completed_step` (section + screen key) | NEW |
 | draft_status | draft `onboarding_status` (draft/in_progress/submitted) | OK in draft |
+
+## Not mapped — decided out of V2 onboarding (D40/D41)
+
+No V2 column, enum or submission requirement is designed for these. V1
+columns stay as they are (no drop in this work).
+
+| Field | V1 column(s) | Decision |
+|---|---|---|
+| Instagram | `instagram_handle` | not carried |
+| Education level | `education` | not carried (school is a separate S5 field) |
+| Morning/night | `morning_night` | not carried |
+| Recharge style | `recharge_style` | not carried |
+| Standalone bio | `bio` | not carried |
+| First-date expectation | `first_date_expectation` | not carried |
+| Languages | `languages` | not in onboarding; maybe later in Settings, no schema now |
+| Neighborhood/distance | `neighborhoods`, `preferred_locations`, `discovery_max_distance` | not in onboarding; maybe later in Settings, no schema now |
 
 ## Also DROP-FROM-DRAFT (not in the new onboarding)
 

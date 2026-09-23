@@ -79,6 +79,21 @@ Markers: ✅ APPROVED · 🟡 ACCEPTED (inferred) · 🔵 PROPOSED · 🔴 OPEN
 | D34 | Auto-enforcing clear-face photo | 🔴 OPEN | HO 01 §10 |
 | D35 | Rejection and resubmission policy | 🔴 OPEN | must be defined before real users |
 
+## Legacy onboarding screens (decided 2026-09-23)
+
+| # | Topic | Status | Source / note |
+|---|---|---|---|
+| D40 | The following legacy onboarding screens are **not carried into V2**: Instagram, education level, morning/night, recharge style, standalone bio, first-date expectation | ✅ APPROVED | Doğukan, 2026-09-23. Closes Q2. |
+| D41 | Languages and neighborhood/distance preference are **not** part of V2 onboarding. They may be reconsidered later as Settings/Filters items; they create **no new screen and no schema requirement now** | ✅ APPROVED | Doğukan, 2026-09-23. Closes Q2. |
+
+Consequences: no V2 schema/enum is designed for these fields; the submission
+RPC must not require them; existing V1 columns (`instagram_handle`,
+`education`, `morning_night`, `recharge_style`, `bio`,
+`first_date_expectation`, `languages`, `neighborhoods`,
+`discovery_max_distance`) are left untouched (no drop in this work) and
+simply unused by V2 onboarding. Their removal from profile display/edit, if
+wanted, is a separate decision.
+
 ## Matching / scoring
 
 | # | Topic | Status | Source / note |

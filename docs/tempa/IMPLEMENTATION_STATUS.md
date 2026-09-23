@@ -45,11 +45,11 @@ or live data changed). Status markers: see [README](README.md).
 | Section | Target | What exists today | Gap |
 |---|---|---|---|
 | **1 Account** | Welcome → phone → SMS code | Phone field (no OTP); separate email+password register screen | Welcome screen, OTP, SMS states (resend cooldown, correction, expiry, wrong code, delivery failure), mock provider for dev. Password-based register must be retired or repurposed. |
-| **2 Basics** | Name → DOB → gender → interested in → location → height | All six exist but spread across steps (height is in step3). Step1 also contains **photos, selfie, Instagram, languages**, plus a distance preference on the location screen. | Regroup into one section; move photos/selfie to S7; drop Instagram; decide languages & distance; confirm surname screen; gender taxonomy open. |
+| **2 Basics** | Name → DOB → gender → interested in → location → height | All six exist but spread across steps (height is in step3). Step1 also contains **photos, selfie, Instagram, languages**, plus a distance preference on the location screen. | Regroup into one section; move photos/selfie to S7; drop Instagram, languages and distance (D40/D41); confirm surname screen; gender taxonomy open. |
 | **3 Compatibility** | 7 fixed questions (exact copy) | step2: 4 intents incl. `just_friends`, each with its own 3-question set | Entirely new. None of the 7 questions exist. |
-| **4 Your Life** | Smoking, drinking, pets (+kind), activity | Combined drink/smoke chip (lossy); pets = species list; no activity; extra morning/night + recharge questions | Split smoking/drinking; pet attitude + conditional kind; add activity; decide fate of morning/night + recharge. |
-| **5 Your World** | Work (+title), school, hometown, interests 3–10, artists 0–3, books/titles 0–3 | Free-text `occupation`; education *level* question; hobbies 0–5 with free text; free-text favorite music/movie/book | Work status, school, hometown, fixed 16-item interests with 3–10 limit, catalog-backed taste lists (provider open), remove education level from onboarding. |
-| **6 Your Dates** | Date types 1–2 (+dinner vibe) ; days + time + live summary | 5 emoji-labelled meeting environments, no limit; availability days & hours multi-select on separate screens; plus neighborhoods, first-date expectation, bio screens | New option sets, limits, conditional dinner vibe, single combined screen with summary; decide neighborhoods / first-date expectation / bio. |
+| **4 Your Life** | Smoking, drinking, pets (+kind), activity | Combined drink/smoke chip (lossy); pets = species list; no activity; extra morning/night + recharge questions | Split smoking/drinking; pet attitude + conditional kind; add activity; drop morning/night + recharge (D40). |
+| **5 Your World** | Work (+title), school, hometown, interests 3–10, artists 0–3, books/titles 0–3 | Free-text `occupation`; education *level* question; hobbies 0–5 with free text; free-text favorite music/movie/book | Work status, school, hometown, fixed 16-item interests with 3–10 limit, catalog-backed taste lists (provider open), drop education level (D40). |
+| **6 Your Dates** | Date types 1–2 (+dinner vibe) ; days + time + live summary | 5 emoji-labelled meeting environments, no limit; availability days & hours multi-select on separate screens; plus neighborhoods, first-date expectation, bio screens | New option sets, limits, conditional dinner vibe, single combined screen with summary; drop neighborhoods, first-date expectation and standalone bio (D40/D41). |
 | **7 Profile** | Photos ≥3 → prompts 2–3 → preview → private selfie → email → code → submit → received | Photos 1–6 (min 1, auto slot, no reorder); selfie optional in step1; no prompts, preview, email step, submit or received | Almost all new. |
 
 ## 3. Schema summary
@@ -100,3 +100,4 @@ Applying any migration to the live DB requires explicit approval.
 | Date | Change |
 |---|---|
 | 2026-09-23 | Initial gap analysis from handoff + repo/DB audit |
+| 2026-09-23 | Q2 closed (D40/D41): legacy screens not carried into V2; languages & neighborhood/distance deferred to possible future Settings, no schema now |
