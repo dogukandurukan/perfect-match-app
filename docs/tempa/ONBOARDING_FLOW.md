@@ -129,7 +129,7 @@ Deselecting Dinner removes the active dinner vibe from summary, scoring and plan
 ## Section 7 — Build your profile (8 states) 🟡 order
 
 1. **Photos** — min 3, choose primary, batch upload, remove/reorder. Encourage clear face (auto-enforcement 🔴 open).
-2. **Prompts** — min 2, max 3. Suggested editable prompts (🔵): "I'm most myself when…", "A perfect first date looks like…". "Short answers are welcome." Never autofill.
+2. **Prompts** — two answers required, third optional (✅ D33). Initially show "I'm most myself when…" and "Something I could talk about for hours…". Users can change either prompt from the library; "A perfect first date looks like…" is an alternative, not a default. Helper: "Short answers are welcome." Never autofill answers. Remaining library entries/key mapping are still open (Q6).
 3. **Preview** — real assembled profile; edit and return without restarting.
 4. **Private selfie** — "Verify it's you." / "A private selfie, reviewed by our team." / "Not shown on your profile." Manual review.
 5. **Email** — "Where can we reach you?" / "We'll email you about your application." / **Send code**
