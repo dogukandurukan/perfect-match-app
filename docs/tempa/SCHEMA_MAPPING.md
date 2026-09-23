@@ -23,8 +23,8 @@ Legend for Gap: **OK** usable as-is · **REVISE** exists but wrong values/place 
 | first_name | `profiles.first_name` | keep | required | public | OK |
 | last_name | `profiles.last_name` | keep, move off public read path | required (D12) | private | REVISE (privacy) |
 | dob | `profiles.date_of_birth` | `profile_private_v2.date_of_birth` (draft) | required, 18+ | private; age derived | OK in draft |
-| gender | `profiles.gender` (Man/Woman/Non-binary) | `profiles.gender_v2` (draft: woman/man/non_binary/self_describe) | required | public | REVISE (🔴 taxonomy) |
-| interested_in | `profiles.meeting_preferences` (Men/Women/Non-binary/Everyone) | `discovery_preferences_v2.interested_in_v2` (draft) | required | private | REVISE (🔴 taxonomy) |
+| gender | `profiles.gender` (Man/Woman/Non-binary) | `profiles.gender_v2` — ✅ D15 options Woman/Man/Non-binary/Prefer not to say; 🔵 keys `woman/man/non_binary/prefer_not_to_say` (draft's `self_describe` + `gender_self_describe` to be removed) | required | public (display of "Prefer not to say" 🔴 D15b) | REVISE |
+| interested_in | `profiles.meeting_preferences` (Men/Women/Non-binary/Everyone) | `discovery_preferences_v2.interested_in_v2` (draft) | required | private | REVISE (🔴 D15b) |
 | current_location | `profiles.city`, `district`, `lat/lng` | keep | required | city/district public, coords private | OK |
 | height_cm | `profiles.height_cm` | keep | required (D12) | public | OK |
 

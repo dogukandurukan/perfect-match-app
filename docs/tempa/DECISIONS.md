@@ -13,6 +13,7 @@ Markers: ✅ APPROVED · 🟡 ACCEPTED (inferred) · 🔵 PROPOSED · 🔴 OPEN
 | D3 | One question per screen, except combined day/time screen and in-context conditional details | ✅ APPROVED | HO 01 §2 |
 | D4 | No section-end congratulations screens; final confirmation is not another task | ✅ APPROVED | HO 01 §2 |
 | D5 | Back keeps answers; drafts saved; resume at last unfinished step; honest pending/failed save states | 🟡 ACCEPTED (inferred) | HO 01 §2 (implementation guidance) |
+| D42 | Green/ivory design (D2) is used across the **entire onboarding** (all seven sections). Other app screens (Discover, Matches, Activity, Chats, Profile, Settings) are evaluated separately later. | ✅ APPROVED | Doğukan, 2026-09-23. Closes Q3. |
 | D6 | Section-local progress must look local; auth progress separate from questionnaire progress | 🟡 ACCEPTED (inferred) | HO 01 §2 |
 
 ## Section 1 — Account
@@ -32,7 +33,8 @@ Markers: ✅ APPROVED · 🟡 ACCEPTED (inferred) · 🔵 PROPOSED · 🔴 OPEN
 | D12 | Section 2 stays the same six fields: name, DOB, gender, interested in, current location, height (cm) | ✅ APPROVED | HO 05 |
 | D13 | No Instagram in Section 2 | ✅ APPROVED | HO 05 |
 | D14 | Surname removal / optional height | 🔵 PROPOSED — **not** requirements | HO 01 §5 |
-| D15 | Gender and interested-in taxonomy | 🔴 OPEN | HO 05; mockup labels illustrative |
+| D15 | Gender options: **Woman / Man / Non-binary / Prefer not to say** (TR: Kadın / Erkek / Non-binary / Belirtmek istemiyorum). No separate "self-describe" option for now. | ✅ APPROVED | Doğukan, 2026-09-23. Resolves the gender part of Q1. Storage keys (e.g. `woman/man/non_binary/prefer_not_to_say`) remain 🔵 PROPOSED. |
+| D15b | "Who are you interested in?" options and matching eligibility rules (incl. how "Prefer not to say" profiles are matched and displayed) | 🔴 OPEN | Q1 (remaining part) |
 | D16 | Only first name and age public; DOB and surname private; zodiac derived, no extra question | 🟡 ACCEPTED (inferred) | HO 01 §5 |
 
 ## Section 3 — Compatibility

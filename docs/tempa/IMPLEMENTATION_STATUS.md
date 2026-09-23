@@ -45,7 +45,7 @@ or live data changed). Status markers: see [README](README.md).
 | Section | Target | What exists today | Gap |
 |---|---|---|---|
 | **1 Account** | Welcome → phone → SMS code | Phone field (no OTP); separate email+password register screen | Welcome screen, OTP, SMS states (resend cooldown, correction, expiry, wrong code, delivery failure), mock provider for dev. Password-based register must be retired or repurposed. |
-| **2 Basics** | Name → DOB → gender → interested in → location → height | All six exist but spread across steps (height is in step3). Step1 also contains **photos, selfie, Instagram, languages**, plus a distance preference on the location screen. | Regroup into one section; move photos/selfie to S7; drop Instagram, languages and distance (D40/D41); confirm surname screen; gender taxonomy open. |
+| **2 Basics** | Name → DOB → gender → interested in → location → height | All six exist but spread across steps (height is in step3). Step1 also contains **photos, selfie, Instagram, languages**, plus a distance preference on the location screen. | Regroup into one section; move photos/selfie to S7; drop Instagram, languages and distance (D40/D41); confirm surname screen; gender options decided (D15), interested-in/eligibility open (D15b). |
 | **3 Compatibility** | 7 fixed questions (exact copy) | step2: 4 intents incl. `just_friends`, each with its own 3-question set | Entirely new. None of the 7 questions exist. |
 | **4 Your Life** | Smoking, drinking, pets (+kind), activity | Combined drink/smoke chip (lossy); pets = species list; no activity; extra morning/night + recharge questions | Split smoking/drinking; pet attitude + conditional kind; add activity; drop morning/night + recharge (D40). |
 | **5 Your World** | Work (+title), school, hometown, interests 3–10, artists 0–3, books/titles 0–3 | Free-text `occupation`; education *level* question; hobbies 0–5 with free text; free-text favorite music/movie/book | Work status, school, hometown, fixed 16-item interests with 3–10 limit, catalog-backed taste lists (provider open), drop education level (D40). |
@@ -75,7 +75,7 @@ exists because the new answers don't exist yet → it requires a new
 |---|---|---|---|
 | 0 | Decision round on [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) | — | ⏳ next |
 | 1 | Schema Revision 3 (file only): keep security architecture, rewrite fields/enums to this flow | 0 | not started |
-| 2 | Shared components: onboarding tokens (ivory/green), serif font, OptionCard/Chip/Field, local progress; per-screen draft save + resume | 0 (palette scope) | not started |
+| 2 | Shared components: onboarding tokens (ivory/green), serif font (scope: all onboarding, D42), OptionCard/Chip/Field, local progress; per-screen draft save + resume | 0 | not started |
 | 3 | Sections 2 → 3 → 4 → 6 (pure forms, no external dependency) | 1, 2 | not started |
 | 4 | Section 5 (free text + provenance first; catalog later) | 1, 2, D27 | not started |
 | 5 | Section 7 profile part: photos, prompts, preview, selfie | 1, 2 | not started |
@@ -101,3 +101,4 @@ Applying any migration to the live DB requires explicit approval.
 |---|---|
 | 2026-09-23 | Initial gap analysis from handoff + repo/DB audit |
 | 2026-09-23 | Q2 closed (D40/D41): legacy screens not carried into V2; languages & neighborhood/distance deferred to possible future Settings, no schema now |
+| 2026-09-23 | D15 gender options approved (Q1 partly resolved); D42 green/ivory across all onboarding (Q3 closed) |

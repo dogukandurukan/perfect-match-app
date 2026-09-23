@@ -1,5 +1,7 @@
 # Canonical onboarding flow
 
+> **Visual:** the green/ivory warm editorial design (D2) applies to every onboarding screen, all seven sections (D42).
+
 > **Not in V2 onboarding (D40/D41, 2026-09-23):** Instagram, education level,
 > morning/night, recharge style, standalone bio, first-date expectation,
 > languages, neighborhood/distance preference. Do not add screens or fields
@@ -30,8 +32,8 @@ with phone OTP only. Email is collected in Section 7.
 |---|---|
 | What's your name? | First + last name. Only first name public. Surname removal is 🔵 not approved. |
 | When's your birthday? | Full DOB private; only age displayed; zodiac derived silently. |
-| What's your gender? | 🔴 taxonomy open |
-| Who are you interested in? | Discovery eligibility, not similarity. 🔴 taxonomy/selection open |
+| What's your gender? | Woman / Man / Non-binary / Prefer not to say (✅ D15). No self-describe option for now. |
+| Who are you interested in? | Discovery eligibility, not similarity. 🔴 options/eligibility open (D15b) |
 | Where do you live? | Current city/location (≠ hometown). Manual entry; GPS optional. |
 | How tall are you? | Centimeters. Profile context, zero ranking weight. |
 
