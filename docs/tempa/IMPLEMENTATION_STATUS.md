@@ -1,0 +1,102 @@
+# Implementation status — Tempa onboarding V2
+
+**Last updated:** 2026-09-23 (read-only audit by Claude Code; no code, schema
+or live data changed). Status markers: see [README](README.md).
+
+## 0. Key findings
+
+1. **The existing V2 docs and migration target an older spec.**
+   `docs/onboarding-v2-gap-analysis.md`, `docs/v2-schema-spec.md` and the
+   unapplied `supabase/migrations/20260921100000_v2_schema_proposed.sql` were
+   written against the earlier "Tempa-Onboarding-V2-Master-Spec". They
+   conflict with the 2026-09-22 handoff on: Section 3 questions
+   (`children_view`/`exclusivity_view`, `connection_pace` values), smoking
+   (`never/occasionally/regularly/trying_to_quit`), drinking
+   (`never/socially/regularly/sober`), an 8-prompt library, discovery
+   preferences inside onboarding (km distance, dealbreaker strengths), and
+   availability (`weekday_evenings/saturdays/...`).
+   → **Do not apply that migration.** Its security architecture (5-table
+   split, RPC-gated writes, state machine, private selfie) fits the new flow
+   and can be kept; the field/enum layer must be rewritten.
+2. **Live DB is empty** (`auth.users`, `profiles`, `onboarding_answers` = 0;
+   no V2 tables). No real legacy answers to remap. Keep
+   `questionnaire_version` anyway.
+3. **No OTP / mock auth provider exists in the repo.** Auth is email+password
+   (`app/(auth)/register.tsx` `signUp`, `login.tsx` `signInWithPassword`).
+   Phone is an unverified text field (`app/profile-setup/step1/index.tsx`).
+
+## 1. Cross-cutting infrastructure
+
+| Item | Today | Status |
+|---|---|---|
+| One question per screen, progress bar, back/next | `components/ui/QuestionScreen.tsx`, one Context per step (`lib/onboardingStep{1..4}Context.tsx`) | ✅ exists (reusable) |
+| Back keeps answers | in-memory per step; persisted only at end of each step via `submitAll()` | ⚠️ partial |
+| Per-screen draft save + resume | only coarse `profiles.current_step` (1–4) | ❌ missing |
+| Honest pending/failed save UI | not per screen | ❌ missing |
+| Visual direction (ivory + dark green + serif) | onboarding is black/monochrome (`#1A1A1A`); rest of app black; Home uses coral `#B65F54` (`lib/homeTheme.ts`). No custom fonts loaded (`expo-font` installed, no font assets) | ❌ missing |
+| Phone OTP | none | ❌ missing |
+| Email verification | a confirm link is sent at sign-up but never checked | ❌ missing |
+| Application / review / membership state machine | none in code; only in the unapplied draft | ❌ missing |
+| Private selfie storage | `verification-selfies` bucket (private) live | ✅ exists |
+| KVKK consent | checkbox on `register.tsx` + `profiles.privacy_consent_at` | ✅ exists, 🔴 needs a new place in the new flow |
+
+## 2. Per-section gap
+
+| Section | Target | What exists today | Gap |
+|---|---|---|---|
+| **1 Account** | Welcome → phone → SMS code | Phone field (no OTP); separate email+password register screen | Welcome screen, OTP, SMS states (resend cooldown, correction, expiry, wrong code, delivery failure), mock provider for dev. Password-based register must be retired or repurposed. |
+| **2 Basics** | Name → DOB → gender → interested in → location → height | All six exist but spread across steps (height is in step3). Step1 also contains **photos, selfie, Instagram, languages**, plus a distance preference on the location screen. | Regroup into one section; move photos/selfie to S7; drop Instagram; decide languages & distance; confirm surname screen; gender taxonomy open. |
+| **3 Compatibility** | 7 fixed questions (exact copy) | step2: 4 intents incl. `just_friends`, each with its own 3-question set | Entirely new. None of the 7 questions exist. |
+| **4 Your Life** | Smoking, drinking, pets (+kind), activity | Combined drink/smoke chip (lossy); pets = species list; no activity; extra morning/night + recharge questions | Split smoking/drinking; pet attitude + conditional kind; add activity; decide fate of morning/night + recharge. |
+| **5 Your World** | Work (+title), school, hometown, interests 3–10, artists 0–3, books/titles 0–3 | Free-text `occupation`; education *level* question; hobbies 0–5 with free text; free-text favorite music/movie/book | Work status, school, hometown, fixed 16-item interests with 3–10 limit, catalog-backed taste lists (provider open), remove education level from onboarding. |
+| **6 Your Dates** | Date types 1–2 (+dinner vibe) ; days + time + live summary | 5 emoji-labelled meeting environments, no limit; availability days & hours multi-select on separate screens; plus neighborhoods, first-date expectation, bio screens | New option sets, limits, conditional dinner vibe, single combined screen with summary; decide neighborhoods / first-date expectation / bio. |
+| **7 Profile** | Photos ≥3 → prompts 2–3 → preview → private selfie → email → code → submit → received | Photos 1–6 (min 1, auto slot, no reorder); selfie optional in step1; no prompts, preview, email step, submit or received | Almost all new. |
+
+## 3. Schema summary
+
+Details in [`SCHEMA_MAPPING.md`](SCHEMA_MAPPING.md).
+
+- **Already in live V1 `profiles`:** `first_name`, `last_name`, `date_of_birth`, `gender`, `meeting_preferences`, `city`, `district`, `lat/lng`, `height_cm`, `occupation`, `hobbies`, `phone_verified`, `photo_verified`, `privacy_consent_at`.
+- **Reusable from the unapplied draft:** table split (`profile_private_v2`, `profile_account_state_v2`), `profile_photos`, `profile_prompts` (structure), `school`, `hometown`, submission/review/membership RPCs.
+- **Needs new schema:** all Section 3 fields; Section 4 new enums; `work_status`, `job_title`; interest/taste storage; Section 6 fields; `questionnaire_version`, `last_completed_step`.
+- **Remove from the draft:** discovery preferences in onboarding, `children_view`/`exclusivity_view`, `availability_v2`, old smoking/drinking enums, 8-prompt check list (pending D33).
+
+## 4. Scoring summary
+
+Details in [`SCORING.md`](SCORING.md). Live: V1 `get_top_matches` (lifestyle
+bucket cap 65, normalizer 140, zodiac, liked-me/verified sort boost,
+percentage + reasons). The 100-point model is 🔵 PROPOSED only; nothing of it
+exists because the new answers don't exist yet → it requires a new
+`get_top_matches_v2`, not a patch.
+
+## 5. Recommended order
+
+| # | Work package | Depends on | Status |
+|---|---|---|---|
+| 0 | Decision round on [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) | — | ⏳ next |
+| 1 | Schema Revision 3 (file only): keep security architecture, rewrite fields/enums to this flow | 0 | not started |
+| 2 | Shared components: onboarding tokens (ivory/green), serif font, OptionCard/Chip/Field, local progress; per-screen draft save + resume | 0 (palette scope) | not started |
+| 3 | Sections 2 → 3 → 4 → 6 (pure forms, no external dependency) | 1, 2 | not started |
+| 4 | Section 5 (free text + provenance first; catalog later) | 1, 2, D27 | not started |
+| 5 | Section 7 profile part: photos, prompts, preview, selfie | 1, 2 | not started |
+| 6 | Auth: phone OTP (mock provider in dev), email code on same user, submit, received, route guards | SMS provider decision | not started |
+| 7 | `get_top_matches_v2` behind versioned config, handoff scenarios as tests | 3–5 | not started |
+
+Applying any migration to the live DB requires explicit approval.
+
+## 6. Validation checklist (from handoff, to be ticked during implementation)
+
+- [ ] Same auth identity after email verification
+- [ ] Resuming incomplete photo uploads
+- [ ] No double submission (idempotent server-side submit)
+- [ ] Public queries cannot read selfie / DOB / contact info
+- [ ] Min/max choice limits enforced server-side
+- [ ] Deselecting Dinner removes active dinner vibe
+- [ ] Catalog outage never blocks optional screens
+- [ ] "Received" state cannot access discovery before eligibility
+
+## Change log
+
+| Date | Change |
+|---|---|
+| 2026-09-23 | Initial gap analysis from handoff + repo/DB audit |
