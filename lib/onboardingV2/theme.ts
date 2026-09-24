@@ -15,6 +15,7 @@ export const obColors = {
   ctaDisabled: '#A9B3AC',
   onCta: '#FFFFFF',
   notice: '#EDE6D6',
+  error: '#9A3324', // inline validation text (AA on ivory)
 } as const;
 
 export const obSpacing = {

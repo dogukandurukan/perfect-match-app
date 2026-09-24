@@ -27,6 +27,9 @@ type Props = {
   children: ReactNode;
   /** Rendered pinned at the bottom (e.g. notices + primary button). */
   footer: ReactNode;
+  /** Changing this remounts the scroll view (e.g. per step) so each step
+   * starts scrolled to the top. */
+  contentKey?: string | number;
 };
 
 function useKeyboardVisible(): boolean {
@@ -44,7 +47,15 @@ function useKeyboardVisible(): boolean {
   return visible;
 }
 
-export function OnboardingScreen({ step, totalSteps, title, onBack, children, footer }: Props) {
+export function OnboardingScreen({
+  step,
+  totalSteps,
+  title,
+  onBack,
+  children,
+  footer,
+  contentKey,
+}: Props) {
   const insets = useSafeAreaInsets();
   const fontsReady = useOnboardingFonts();
   const keyboardVisible = useKeyboardVisible();
@@ -67,6 +78,7 @@ export function OnboardingScreen({ step, totalSteps, title, onBack, children, fo
         <OnboardingHeader step={step} totalSteps={totalSteps} onBack={onBack} />
       </View>
       <ScrollView
+        key={contentKey}
         style={styles.flex}
         contentContainerStyle={[styles.content, keyboardVisible && styles.contentKeyboard]}
         keyboardShouldPersistTaps="handled"
