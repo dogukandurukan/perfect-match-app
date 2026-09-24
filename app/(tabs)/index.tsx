@@ -776,6 +776,19 @@ export default function HomeScreen() {
               onPress={() => router.push('/(auth)/register' as Parameters<typeof router.push>[0])}>
               <ThemedText style={styles.signUpBtnText}>Sign Up</ThemedText>
             </TouchableOpacity>
+            {/* DEV-ONLY (Tempa P03): opens the isolated onboarding V2 preview
+                (app/dev/onboarding-v2-name.tsx) — local UI only, no sign-in,
+                no backend. Never rendered in production builds. */}
+            {__DEV__ ? (
+              <TouchableOpacity
+                style={styles.devPreviewBtn}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Preview new onboarding (development only)"
+                onPress={() => router.push('/dev/onboarding-v2-name' as Parameters<typeof router.push>[0])}>
+                <ThemedText style={styles.devPreviewBtnText}>DEV · Preview new onboarding</ThemedText>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </ScreenContainer>
@@ -1087,6 +1100,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signUpBtnText: { color: ACCENT, fontSize: 16, fontWeight: '600' },
+  devPreviewBtn: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#9A9A9A',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  devPreviewBtnText: { color: '#6B6B6B', fontSize: 14, fontWeight: '600' },
 
   centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   title: { fontSize: 28, fontWeight: '700', color: ACCENT, textAlign: 'center' },

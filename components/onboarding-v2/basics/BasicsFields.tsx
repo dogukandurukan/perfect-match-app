@@ -1,5 +1,5 @@
 // Section 2 Basics — per-step field content (P02). Presentational only; the
-// draft lives in BasicsFlow. Unicode names/cities are kept exactly as typed.
+// draft lives in PreviewFlow. Unicode names/cities are kept exactly as typed.
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';

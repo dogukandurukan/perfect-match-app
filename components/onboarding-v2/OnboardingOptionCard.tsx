@@ -6,23 +6,32 @@ import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 
 type Props = {
   label: string;
+  /** Optional second line (e.g. Compatibility option explanations). */
+  subtitle?: string;
   selected: boolean;
   onPress: () => void;
   mode: 'single' | 'multi';
 };
 
-export function OnboardingOptionCard({ label, selected, onPress, mode }: Props) {
+export function OnboardingOptionCard({ label, subtitle, selected, onPress, mode }: Props) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
       accessibilityRole={mode === 'single' ? 'radio' : 'checkbox'}
-      accessibilityLabel={label}
+      accessibilityLabel={subtitle ? `${label}. ${subtitle}` : label}
       accessibilityState={mode === 'single' ? { selected } : { checked: selected }}
       style={[styles.card, selected && styles.cardSelected]}>
-      <Text style={styles.label} maxFontSizeMultiplier={1.6}>
-        {label}
-      </Text>
+      <View style={styles.textCol}>
+        <Text style={styles.label} maxFontSizeMultiplier={1.6}>
+          {label}
+        </Text>
+        {subtitle ? (
+          <Text style={styles.subtitle} maxFontSizeMultiplier={1.6}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
       {mode === 'single' ? (
         <View style={[styles.radio, selected && styles.markSelected]}>
           {selected ? <View style={styles.radioDot} /> : null}
@@ -54,8 +63,17 @@ const styles = StyleSheet.create({
     borderColor: obColors.cta,
     borderWidth: 1.5,
   },
-  label: {
+  textCol: {
     flex: 1,
+    gap: 2,
+  },
+  subtitle: {
+    fontFamily: obFonts.body,
+    fontSize: 14,
+    lineHeight: 19,
+    color: obColors.textSecondary,
+  },
+  label: {
     fontFamily: obFonts.bodyMedium,
     fontSize: 17,
     lineHeight: 22,

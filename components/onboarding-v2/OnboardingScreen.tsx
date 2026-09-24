@@ -20,6 +20,7 @@ import { OnboardingHeader } from '@/components/onboarding-v2/OnboardingHeader';
 import { obColors, obFonts, obSpacing, useOnboardingFonts } from '@/lib/onboardingV2/theme';
 
 type Props = {
+  sectionLabel?: string;
   step: number;
   totalSteps: number;
   title: string;
@@ -48,6 +49,7 @@ function useKeyboardVisible(): boolean {
 }
 
 export function OnboardingScreen({
+  sectionLabel,
   step,
   totalSteps,
   title,
@@ -75,7 +77,12 @@ export function OnboardingScreen({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar style="dark" />
       <View style={[styles.headerWrap, { paddingTop: insets.top }]}>
-        <OnboardingHeader step={step} totalSteps={totalSteps} onBack={onBack} />
+        <OnboardingHeader
+          sectionLabel={sectionLabel}
+          step={step}
+          totalSteps={totalSteps}
+          onBack={onBack}
+        />
       </View>
       <ScrollView
         key={contentKey}
