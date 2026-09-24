@@ -75,7 +75,7 @@ exists because the new answers don't exist yet → it requires a new
 |---|---|---|---|
 | 0 | Decision round on [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) | — | ⏳ next |
 | 1 | Schema Revision 3 (file only): keep security architecture, rewrite fields/enums to this flow | 0 | not started |
-| 2 | Shared components: onboarding tokens (ivory/green), serif font (scope: all onboarding, D42), OptionCard/Chip/Field, local progress; per-screen draft save + resume | 0 | 🟡 **P01 implemented for review** on branch `tempa/p01-onboarding-ui` (tokens, fonts, wordmark, header, field, CTA, shell + Basics name screen in a dev preview). OptionCard/Chip, draft save + resume not yet. |
+| 2 | Shared components: onboarding tokens (ivory/green), serif font (scope: all onboarding, D42), OptionCard/Chip/Field, local progress; per-screen draft save + resume | 0 | 🟡 **P01 implemented for review** on branch `tempa/p01-onboarding-ui` (tokens, fonts, wordmark, header, underline field, CTA, shell + Basics name screen in a dev preview; D46 refinement applied 2026-09-24; owner phone validation pending). OptionCard/Chip, draft save + resume not yet. |
 | 3 | Sections 2 → 3 → 4 → 6 (pure forms, no external dependency) | 1, 2 | not started |
 | 4 | Section 5 (free text + provenance first; catalog later) | 1, 2, D27 | not started |
 | 5 | Section 7 profile part: photos, prompts, preview, selfie | 1, 2 | not started |
@@ -104,3 +104,4 @@ Applying any migration to the live DB requires explicit approval.
 | 2026-09-23 | D15 gender options approved (Q1 partly resolved); D42 green/ivory across all onboarding (Q3 closed) |
 | 2026-09-23 | D15 revised to three single-choice gender options; D15b interested-in (multi-select, exclusive Everyone, mutual eligibility) approved; Q1 closed |
 | 2026-09-23 | P01 (onboarding visual foundation + Basics name screen, dev preview only) implemented for review on `tempa/p01-onboarding-ui` — see `work-packages/P01_RESULT.md`. Not merged; no DB/auth/matching change. |
+| 2026-09-24 | P01 D46 visual refinement applied on `tempa/p01-onboarding-ui` (underline fields, larger heading, keyboard-aware spacing). Owner phone validation pending. |

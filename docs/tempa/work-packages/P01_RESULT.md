@@ -1,87 +1,126 @@
 # P01 — Result: onboarding visual foundation + name screen
 
-**Status: DONE (implementation) — runtime screenshot not captured, see "Screenshot".**
-Date: 2026-09-23. Implemented by Claude Code. Not merged, not deployed.
+**Status: DONE (implementation, incl. D46 revision). Owner phone validation: PENDING.**
+Updated: 2026-09-24. Implemented by Claude Code. Not merged, not deployed.
 
-- **Branch:** `tempa/p01-onboarding-ui` (based on `origin/main` @ `f5b8b69`)
-- **Implementation commit:** `54cc11981e3363530bde0614a12839ad99c7dbf4`
-- Work was done in an isolated git worktree; the local uncommitted work in the
-  main checkout (matches / micro-intro / placeSearch etc.) was not touched,
-  staged or committed.
-
-## Changed files
-
-| File | What |
+| | |
 |---|---|
-| `lib/onboardingV2/theme.ts` | V2-onboarding-only tokens (ivory `#F7F3EA`, dark green CTA `#1F3A2E`, dark text `#1C1B18`, borders, spacing, radii), font family names, `useOnboardingFonts()` (existing `expo-font`) |
-| `assets/fonts/PlayfairDisplay_700Bold.ttf`, `DMSans_400Regular.ttf`, `DMSans_500Medium.ttf`, `DMSans_600SemiBold.ttf` | Static TTFs from `@expo-google-fonts/*` 0.4.2 (vendored; no package.json change) |
-| `assets/fonts/OFL-PlayfairDisplay.txt`, `OFL-DMSans.txt` | SIL OFL 1.1 license texts retained |
-| `components/onboarding-v2/TempaWordmark.tsx` | **Single replacement point** for the Tempa wordmark (swap body for final logo) |
-| `components/onboarding-v2/OnboardingHeader.tsx` | Back · wordmark · section-local "N of M" |
-| `components/onboarding-v2/OnboardingTextField.tsx` | Labelled field, focus border, no validation of its own |
-| `components/onboarding-v2/OnboardingPrimaryButton.tsx` | Dark green CTA, disabled state, a11y |
-| `components/onboarding-v2/OnboardingScreen.tsx` | Shell: safe areas, heading (Playfair 700), scroll content, footer pinned above keyboard (`KeyboardAvoidingView` + `ScrollView`) |
-| `components/onboarding-v2/NameStep.tsx` | "What's your name?", First/Last name (empty), helper "Only your first name appears on your profile.", "1 of 6", Continue |
-| `app/dev/onboarding-v2-name.tsx` | Dev-only preview route; `Redirect` to `/` when `__DEV__` is false |
-| `components/ui/DevStepNav.tsx` | Existing `__DEV__` jump-nav: added a "V2" link to the preview |
+| Branch | `tempa/p01-onboarding-ui` |
+| Original implementation | `54cc11981e3363530bde0614a12839ad99c7dbf4` (2026-09-23) |
+| Latest `main` merged in | `b0cc5e6` (brings D46 + the revised package doc) |
+| **D46 revision commit** | `26ad501d57ba0e3c939c14ac76e34afe0c2f97f5` |
+| Report commit | the commit that adds this file version (branch head) |
 
-Global palette (`lib/designTokens.ts`, `constants/theme.ts`), root layout and
-all existing screens are unchanged. No new npm dependency, no native change →
-**no dev-client rebuild needed** (expo-font was already in the build).
+All work happened in an isolated git worktree (`~/tempa-p01`). The owner's
+main checkout (`~/dating-app-recovered`, on `main` with unrelated uncommitted
+work) was not touched, staged or committed.
 
-Design notes: each font weight is its own family and styles never set
-`fontWeight` on them (no synthetic bold). Heading `#1C1B18` on ivory (high
-contrast). Text uses `maxFontSizeMultiplier` caps so large Dynamic Type still
-fits narrow widths. "Your progress is saved." from the mockup is intentionally
-**not** shown (no real persistence). Continue is enabled when both names are
-non-blank (existing Basics contract, D12) — no length/identity rules added;
-`autoCorrect` is off so accents / non-Latin input are kept as typed.
+## What changed in the D46 revision
 
-## Preview steps
+| File | Change |
+|---|---|
+| `components/onboarding-v2/OnboardingTextField.tsx` | Thin underline (1pt, darkens to green on focus), **no enclosing box**, transparent background, 19pt DM Sans input, light keyboard |
+| `components/onboarding-v2/OnboardingScreen.tsx` | Heading 36/44 Playfair Display 700, wraps naturally; generous spacing that compacts while the keyboard is open; footer CTA drops the bottom safe-area gap when the keyboard covers the home indicator; `StatusBar style="dark"` on these screens (no dark-theme variant); content scrolls on small screens instead of clipping |
+| `components/onboarding-v2/NameStep.tsx` | Helper grouped tightly under Last name; field-to-field spacing stays generous |
+| `lib/onboardingV2/theme.ts` | Underline color `#C9C0AF`; removed now-unused field fill/radius tokens |
 
-1. `git checkout tempa/p01-onboarding-ui` (or `git worktree add ../tempa-p01 tempa/p01-onboarding-ui`), `npm ci`.
-2. `npx expo start --dev-client -c`, open the existing development build on the phone.
-3. Open the preview route, either:
-   - **Deep link:** open `datingapp://dev/onboarding-v2-name` (app scheme from `app.json`; not exercised from this machine — e.g. paste into Safari on the device, or on a simulator: `xcrun simctl openurl booted "datingapp://dev/onboarding-v2-name"`), or
-   - **Dev jump-nav:** on any existing onboarding screen (`/profile-setup/...`) tap **V2** in the top-right `DevStepNav` (reaching those screens needs a signed-in account mid-onboarding).
-4. Type names (try "Doğukan", "Şükrü Işık", "Çağla Öztürk", "李 伟"), open/close the keyboard, tap Continue → an inline notice says it was **not saved** and the next screen isn't built. Nothing is written anywhere.
+Unchanged from the original P01 (still valid): ivory `#F7F3EA`, forest-green
+CTA `#1F3A2E`, DM Sans for body/labels/**button**, vendored static fonts with
+OFL licenses, `TempaWordmark` as the single logo replacement point, header
+"Tempa" + section-local **1 of 6**, copy ("What's your name?", "First name",
+"Last name", "Only your first name appears on your profile.", "Continue"),
+empty initial inputs, Continue enabled only when both names are non-blank,
+dev-only preview route, `V2` link in `DevStepNav`.
 
-No login is required and no session is created or changed by this route.
+Deliberately **not** taken from the conversational image (per package): example
+names, seven progress marks, generic helper text, serif button.
 
-## Screenshot
+## Phone preview — exact steps
 
-**Not captured.** This machine has no iOS simulator (Xcode/`simctl` not
-installed) and the project has no `react-native-web`; adding it would be an
-unrelated dependency. The only runtime is Doğukan's phone dev-client, which
-this agent cannot drive. The design mockup was deliberately **not**
-substituted. Please capture one on device via the steps above and add it as
-`docs/tempa/reviews/p01/name-screen-device.png` (plus one with the keyboard
-open: `name-screen-keyboard.png`).
+**Served code:** Metro serves whatever is checked out in the folder it is started
+from. Running it in `~/dating-app-recovered` will **not** show this work (that
+checkout is `main` + unrelated local changes). Start it from the P01 worktree.
 
-## Checks performed
+**Installed app:** the existing "dating-app" development build on the phone can
+load it — **no new development build needed**. This package adds no npm
+dependency and no native module; it uses `expo-font` and `expo-status-bar`,
+which are already in the build, and the `datingapp` URL scheme has been in
+`app.json` since March 2026 (before the 2026-08-26 dev build). Not verified on
+the device by this agent.
+
+1. On the Mac:
+   ```bash
+   cd ~/tempa-p01
+   git pull                          # branch tempa/p01-onboarding-ui
+   git log -1 --oneline              # should show the P01 report commit or later
+   npm ci                            # only if node_modules is missing
+   npx expo start --dev-client -c
+   ```
+   (Worktree missing? `cd ~/dating-app-recovered && git fetch && git worktree add ../tempa-p01 tempa/p01-onboarding-ui`.)
+2. **Recommended:** in the app, sign out first (Profile tab → Sign Out),
+   so the inherited startup writes below don't run.
+3. On the phone (same Wi-Fi as the Mac), open the **dating-app** development
+   build and connect to the Metro server shown in the terminal (scan the QR with
+   the Camera app, or "Enter URL manually"). If the phone can't reach it on LAN,
+   restart with `npx expo start --dev-client -c --tunnel`.
+4. Open **Safari** on the phone, type `datingapp://dev/onboarding-v2-name` in the
+   address bar, confirm **Open**. The app opens on the V2 name screen.
+   - Alternative (only if already signed in and mid-onboarding): tap **V2** in the
+     top-right dev jump-nav on any `/profile-setup/...` screen.
+5. Check: ivory background, dark green Continue, large Playfair heading, DM Sans
+   labels/button, underline fields. Type e.g. "Doğukan" / "Işık", "Şükrü" /
+   "Çağlayan Öztürk"; open/close the keyboard (Continue must stay visible above
+   it, both fields reachable, nothing clipped); try the phone in Dark Mode (the
+   screen should stay ivory with dark status-bar icons).
+6. Tap **Continue** → inline notice: *Preview only — "… …" was not saved. The
+   next Basics screen isn't built yet.* Nothing else happens.
+7. Screenshots: save as `docs/tempa/reviews/p01/name-screen-device.png` and
+   `docs/tempa/reviews/p01/name-screen-keyboard.png`.
+
+## Backend writes — what is and isn't write-free
+
+- **The preview screen itself:** no Supabase reads or writes, no session
+  created/changed, no navigation into unbuilt screens. Continue is local state only.
+- **Inherited app startup (unchanged, not authorized to modify):** if a user is
+  signed in when the app starts, `app/_layout.tsx` (`LocationBridge`) writes
+  that user's location (`requestAndSaveLocation`), `last_active_at`
+  (`updateLastActive`) and push token (`savePushToken`) — regardless of which
+  screen is shown. Signed out → none of these run.
+- **Route anchor:** `unstable_settings.anchor = '(tabs)'` may mount the tab
+  navigator underneath the deep-linked route. Home's mount path only **reads**
+  (profile queries, `get_top_matches`); its writes (likes, block, report) need
+  user taps on Home. Tab-layout badge counts are reads.
+- So: the **screen** is write-free; the **app session** is not necessarily,
+  unless signed out (step 2).
+
+## Screenshots
+
+**None committed.** This machine has no iOS simulator (no Xcode/`simctl`) and
+the project has no web runtime; the owner's phone is the only runtime. The
+design mockup was not substituted. Paths reserved above (step 7).
+
+## Checks performed (2026-09-24, on the revision)
 
 | Check | Outcome |
 |---|---|
-| `npx tsc --noEmit` (whole project) | ✅ exit 0, no errors |
-| Lint / test scripts | None defined in `package.json` (pre-existing; nothing to run) |
-| Metro smoke bundle: `npx expo export --platform ios` | ✅ exit 0; all 4 TTFs listed as bundled assets; new route/strings present in the Hermes bundle |
-| Turkish glyph coverage (fontTools cmap: ğĞşŞıİçÇöÖüÜ + âéñ) | ✅ no missing glyphs in all 4 fonts; weights 700 / 400 / 500 / 600 confirmed from OS/2 |
-| Production gating | Code review: route returns `<Redirect href="/" />` when `!__DEV__`; DevStepNav already returns null in production |
-| On-device visual check (narrow width, keyboard, safe areas) | ⏳ **Not performed** — needs device (see Screenshot) |
+| `npx tsc --noEmit` (whole project) | ✅ exit 0 |
+| Lint / test scripts | None defined in `package.json` (pre-existing) |
+| Metro bundle `npx expo export --platform ios` | ✅ exit 0; the 4 onboarding TTFs bundled |
+| Turkish glyphs (fontTools cmap, 2026-09-23) | ✅ none missing in all 4 fonts; weights 700/400/500/600 confirmed |
+| Production gating | Route `<Redirect href="/" />` when `!__DEV__`; DevStepNav returns null in production |
+| Keyboard / narrow width / safe areas / Dark Mode on device | ⏳ **PENDING** owner phone validation |
 
 ## Remaining questions
 
-1. **Wordmark weight.** The mockup wordmark looks like a regular-weight serif;
-   D43 only fixes Playfair 700 for question headings. Currently the
-   placeholder uses Playfair 700 at 20pt. *Consequence:* slightly heavier than
-   the board. *Recommendation:* keep as is — it's a temporary placeholder
-   replaced centrally by the final logo; no extra font weight needed now.
-2. **Continue enablement.** Enabled only when both first and last name are
-   non-blank (D12 keeps both fields; D14 surname removal not approved).
-   *Recommendation:* keep; revisit only if D14 changes.
+1. **Wordmark weight** — placeholder uses Playfair 700 at 20pt; the board looks
+   lighter. *Consequence:* slightly heavier header. *Recommendation:* keep; it is
+   replaced centrally with the final logo.
+2. **Android keyboard** — iOS uses `KeyboardAvoidingView` padding; Android relies
+   on the OS resize behavior (not tested; no Android build). *Recommendation:*
+   verify when an Android dev build exists; no change now.
 
 ## Confirmation
 
-No database, migration, RPC, Supabase write, auth/SMS, matching, production
-deployment or other-screen redesign changes were made. The active
-onboarding/auth flow is unchanged.
+No database, migration, RPC, Supabase write, auth/SMS, startup, matching,
+production deployment or other-screen changes were made. The active
+onboarding/auth flow is unchanged. Not merged into `main`.
