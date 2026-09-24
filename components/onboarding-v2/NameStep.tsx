@@ -61,21 +61,21 @@ export function NameStep({
         onSubmitEditing={() => lastNameRef.current?.focus()}
         blurOnSubmit={false}
       />
-      <OnboardingTextField
-        ref={lastNameRef}
-        label="Last name"
-        value={lastName}
-        onChangeText={onChangeLastName}
-        autoCapitalize="words"
-        autoCorrect={false}
-        autoComplete="family-name"
-        textContentType="familyName"
-        returnKeyType="done"
-        onSubmitEditing={() => {
-          if (canContinue) onContinue();
-        }}
-      />
-      <View>
+      <View style={styles.lastNameGroup}>
+        <OnboardingTextField
+          ref={lastNameRef}
+          label="Last name"
+          value={lastName}
+          onChangeText={onChangeLastName}
+          autoCapitalize="words"
+          autoCorrect={false}
+          autoComplete="family-name"
+          textContentType="familyName"
+          returnKeyType="done"
+          onSubmitEditing={() => {
+            if (canContinue) onContinue();
+          }}
+        />
         <Text style={styles.helper} maxFontSizeMultiplier={1.6}>
           Only your first name appears on your profile.
         </Text>
@@ -85,6 +85,10 @@ export function NameStep({
 }
 
 const styles = StyleSheet.create({
+  // Helper sits close under Last name; field-to-field spacing stays generous.
+  lastNameGroup: {
+    gap: 10,
+  },
   helper: {
     fontFamily: obFonts.body,
     fontSize: 14,

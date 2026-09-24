@@ -7,10 +7,9 @@ import { useFonts } from 'expo-font';
 
 export const obColors = {
   background: '#F7F3EA', // warm ivory
-  surface: '#FFFDF8', // field fill
   textPrimary: '#1C1B18', // headings + input text — dark, never faint
   textSecondary: '#5E5A52', // labels, helper copy
-  border: '#D8D1C3',
+  border: '#C9C0AF', // thin input underline (D46)
   borderFocused: '#1F3A2E',
   cta: '#1F3A2E', // very dark green CTA / selected
   ctaDisabled: '#A9B3AC',
@@ -29,7 +28,6 @@ export const obSpacing = {
 } as const;
 
 export const obRadius = {
-  field: 10,
   button: 14,
 } as const;
 

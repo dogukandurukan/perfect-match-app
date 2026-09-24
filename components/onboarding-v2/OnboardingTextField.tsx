@@ -1,8 +1,9 @@
-// Labelled text field for onboarding V2. No validation rules of its own.
+// Labelled text field for onboarding V2 (D46): thin underline, no enclosing
+// box. No validation rules of its own.
 import { forwardRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { obColors, obFonts, obRadius, obSpacing } from '@/lib/onboardingV2/theme';
+import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 
 type Props = Omit<TextInputProps, 'style'> & {
   label: string;
@@ -22,6 +23,7 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
         ref={ref}
         accessibilityLabel={label}
         placeholderTextColor={obColors.textSecondary}
+        keyboardAppearance="light"
         selectionColor={obColors.cta}
         maxFontSizeMultiplier={1.6}
         {...inputProps}
@@ -41,7 +43,7 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: obSpacing.sm,
+    gap: obSpacing.xs,
   },
   label: {
     fontFamily: obFonts.bodyMedium,
@@ -50,18 +52,18 @@ const styles = StyleSheet.create({
     color: obColors.textSecondary,
   },
   input: {
-    minHeight: 52,
-    paddingHorizontal: obSpacing.lg,
-    paddingVertical: obSpacing.md,
-    borderWidth: 1,
-    borderColor: obColors.border,
-    borderRadius: obRadius.field,
-    backgroundColor: obColors.surface,
+    minHeight: 44,
+    paddingHorizontal: 0,
+    paddingTop: obSpacing.xs,
+    paddingBottom: obSpacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: obColors.border,
+    backgroundColor: 'transparent',
     fontFamily: obFonts.body,
-    fontSize: 17,
+    fontSize: 19,
     color: obColors.textPrimary,
   },
   inputFocused: {
-    borderColor: obColors.borderFocused,
+    borderBottomColor: obColors.borderFocused,
   },
 });
