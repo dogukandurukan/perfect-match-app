@@ -1,5 +1,7 @@
 // Tempa onboarding V2 — Section 2 Basics: in-memory draft types, option sets
 // and validation (P02). Pure functions only — no persistence, no backend.
+import type { LocationResult } from '@/lib/onboardingV2/locationCatalog';
+import { heightValue } from '@/lib/onboardingV2/heightRuler';
 import { calculateAge } from '@/lib/zodiac';
 
 export const BASICS_TOTAL_STEPS = 6;
@@ -28,7 +30,10 @@ export type BasicsDraft = {
   dobYear: string;
   gender: Gender | null;
   interestedIn: InterestedIn[];
-  city: string;
+  /** What the user typed in the location field. */
+  locationQuery: string;
+  /** The selected result (D49); cleared whenever the query is edited. */
+  location: LocationResult | null;
   heightCm: string;
 };
 
@@ -40,7 +45,8 @@ export const EMPTY_BASICS_DRAFT: BasicsDraft = {
   dobYear: '',
   gender: null,
   interestedIn: [],
-  city: '',
+  locationQuery: '',
+  location: null,
   heightCm: '',
 };
 
@@ -104,9 +110,17 @@ export function dobErrorMessage(reason: Exclude<DobResult, { ok: true }>['reason
 // requires a positive integer; 140–220 in filters.tsx is a discovery filter
 // range, not an input rule), so only "positive whole number" is enforced.
 export function parseHeightCm(v: string): number | null {
-  if (!/^\d{1,3}$/.test(v)) return null;
-  const n = Number(v);
-  return n > 0 ? n : null;
+  return heightValue(v);
+}
+
+/** Editing the location text always invalidates a previous selection (D49). */
+export function editLocationQuery(d: BasicsDraft, text: string): Partial<BasicsDraft> {
+  return { locationQuery: text, location: null };
+}
+
+/** Selecting a suggestion fills the field with its label. */
+export function selectLocation(d: BasicsDraft, r: LocationResult): Partial<BasicsDraft> {
+  return { location: r, locationQuery: r.label };
 }
 
 export function isStepValid(step: number, d: BasicsDraft): boolean {
@@ -120,7 +134,7 @@ export function isStepValid(step: number, d: BasicsDraft): boolean {
     case 4:
       return d.interestedIn.length > 0;
     case 5:
-      return d.city.trim().length > 0;
+      return d.location !== null;
     case 6:
       return parseHeightCm(d.heightCm) !== null;
     default:

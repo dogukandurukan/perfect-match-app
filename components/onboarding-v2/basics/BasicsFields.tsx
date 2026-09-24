@@ -1,16 +1,25 @@
 // Section 2 Basics — per-step field content (P02). Presentational only; the
 // draft lives in BasicsFlow. Unicode names/cities are kept exactly as typed.
-import { useRef } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
+import { HeightRuler } from '@/components/onboarding-v2/basics/HeightRuler';
 import { OnboardingOptionCard } from '@/components/onboarding-v2/OnboardingOptionCard';
 import { OnboardingTextField } from '@/components/onboarding-v2/OnboardingTextField';
 import {
   GENDER_OPTIONS,
   INTERESTED_IN_OPTIONS,
+  editLocationQuery,
+  selectLocation,
   toggleInterestedIn,
   type BasicsDraft,
 } from '@/lib/onboardingV2/basics';
+import {
+  PREVIEW_COVERAGE_CITIES,
+  searchLocations,
+  type LocationResult,
+} from '@/lib/onboardingV2/locationCatalog';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 
 type FieldProps = {
@@ -169,38 +178,76 @@ export function InterestedInFields({ draft, update }: FieldProps) {
   );
 }
 
-// 5 — Where do you live? Manual current city only (no GPS/lookup in preview).
-export function LocationFields({ draft, update, onSubmit }: FieldProps) {
+// 5 — Where do you live? (D49) Type → pick a real city or district from the
+// suggestions below. Continue needs an actual selection; editing the text
+// clears it. No GPS, address, neighborhood or distance here.
+export function LocationFields({ draft, update }: FieldProps) {
+  // Results are tagged with the query they answer, so a stale or pending
+  // lookup never flashes "no matches" for the current text.
+  const [found, setFound] = useState<{ q: string; results: LocationResult[] }>({ q: '', results: [] });
+  const requestId = useRef(0);
+  const query = draft.locationQuery;
+  const selected = draft.location;
+  const showResults = !selected && query.trim().length > 0;
+
+  useEffect(() => {
+    if (!showResults) return;
+    const id = ++requestId.current;
+    void searchLocations(query).then((r) => {
+      if (id === requestId.current) setFound({ q: query, results: r });
+    });
+  }, [query, showResults]);
+
+  const results = found.q === query ? found.results : [];
+  const answered = found.q === query;
+
   return (
-    <OnboardingTextField
-      label="City"
-      value={draft.city}
-      onChangeText={(v) => update({ city: v })}
-      autoCapitalize="words"
-      autoCorrect={false}
-      autoComplete="off"
-      textContentType="addressCity"
-      returnKeyType="done"
-      onSubmitEditing={onSubmit}
-    />
+    <View style={styles.group}>
+      <OnboardingTextField
+        label="City or district"
+        value={query}
+        onChangeText={(v) => update(editLocationQuery(draft, v))}
+        autoCapitalize="words"
+        autoCorrect={false}
+        autoComplete="off"
+        textContentType="none"
+        returnKeyType="search"
+        suffix={selected ? '✓' : undefined}
+      />
+      {showResults ? (
+        results.length > 0 ? (
+          <View style={styles.results} accessibilityRole="list">
+            {results.map((r) => (
+              <TouchableOpacity
+                key={r.id}
+                onPress={() => {
+                  update(selectLocation(draft, r));
+                  Keyboard.dismiss();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={r.label}
+                style={styles.resultRow}>
+                <Ionicons name="location-outline" size={18} color={obColors.textSecondary} />
+                <Text style={styles.resultText} maxFontSizeMultiplier={1.6}>
+                  {r.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : answered ? (
+          <Text style={styles.noResults} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
+            No matching city or district in this preview.
+          </Text>
+        ) : null
+      ) : null}
+      <Helper>{`Preview search covers ${PREVIEW_COVERAGE_CITIES.join(', ')} and their districts only.`}</Helper>
+    </View>
   );
 }
 
-// 6 — How tall are you? Whole centimetres, visible unit.
-export function HeightFields({ draft, update, onSubmit }: FieldProps) {
-  return (
-    <OnboardingTextField
-      label="Height"
-      suffix="cm"
-      value={draft.heightCm}
-      onChangeText={(v) => update({ heightCm: v.replace(/[^0-9]/g, '') })}
-      keyboardType="number-pad"
-      maxLength={3}
-      returnKeyType="done"
-      onSubmitEditing={onSubmit}
-      containerStyle={styles.height}
-    />
-  );
+// 6 — How tall are you? (D48) Large number + cm, tap to type, 1 cm ruler.
+export function HeightFields({ draft, update }: FieldProps) {
+  return <HeightRuler valueText={draft.heightCm} onChangeText={(v) => update({ heightCm: v })} />;
 }
 
 const styles = StyleSheet.create({
@@ -222,8 +269,31 @@ const styles = StyleSheet.create({
     flex: 3,
     minWidth: 80,
   },
-  height: {
-    maxWidth: 200,
+  results: {
+    borderTopWidth: 1,
+    borderTopColor: obColors.border,
+  },
+  resultRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: obSpacing.sm,
+    paddingVertical: obSpacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: obColors.border,
+  },
+  resultText: {
+    flex: 1,
+    fontFamily: obFonts.body,
+    fontSize: 16,
+    lineHeight: 22,
+    color: obColors.textPrimary,
+  },
+  noResults: {
+    fontFamily: obFonts.body,
+    fontSize: 15,
+    lineHeight: 21,
+    color: obColors.textPrimary,
   },
   helper: {
     fontFamily: obFonts.body,
