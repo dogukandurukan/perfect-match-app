@@ -28,6 +28,7 @@ import {
 import {
   EMPTY_COMPAT_DRAFT,
   SINGLE_QUESTIONS,
+  VALUES_HELPER,
   VALUES_TITLE,
   type CompatDraft,
 } from '@/lib/onboardingV2/compatibility';
@@ -49,6 +50,11 @@ const BASICS_TITLES: Record<number, string> = {
   5: 'Where do you live?',
   6: 'How tall are you?',
 };
+
+function helperFor(pos: FlowPos): string | undefined {
+  if (pos.section !== 'compatibility') return undefined;
+  return pos.step <= SINGLE_QUESTIONS.length ? SINGLE_QUESTIONS[pos.step - 1].helper : VALUES_HELPER;
+}
 
 function titleFor(pos: FlowPos): string {
   if (pos.section === 'basics') return BASICS_TITLES[pos.step];
@@ -121,6 +127,8 @@ export function PreviewFlow({ onExit }: Props) {
       step={pos.step}
       totalSteps={section.steps}
       title={titleFor(pos)}
+      helper={helperFor(pos)}
+      compactTitle={pos.section === 'compatibility'}
       onBack={handleBack}
       contentKey={`${pos.section}-${pos.step}`}
       footer={

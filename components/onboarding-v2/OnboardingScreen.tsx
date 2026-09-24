@@ -24,6 +24,12 @@ type Props = {
   step: number;
   totalSteps: number;
   title: string;
+  /** Optional small line under the title. */
+  helper?: string;
+  /** Compatibility (P03 R1): ~28pt heading and a reserved title/helper block
+   * so options start on the same baseline for 1–2 line titles, with or
+   * without a helper. The block still grows at accessibility text sizes. */
+  compactTitle?: boolean;
   onBack?: () => void;
   children: ReactNode;
   /** Rendered pinned at the bottom (e.g. notices + primary button). */
@@ -53,6 +59,8 @@ export function OnboardingScreen({
   step,
   totalSteps,
   title,
+  helper,
+  compactTitle = false,
   onBack,
   children,
   footer,
@@ -91,10 +99,27 @@ export function OnboardingScreen({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
-          {title}
-        </Text>
-        <View style={[styles.body, keyboardVisible && styles.bodyKeyboard]}>{children}</View>
+        <View style={compactTitle ? styles.titleBlockCompact : undefined}>
+          <Text
+            style={compactTitle ? styles.titleCompact : styles.title}
+            accessibilityRole="header"
+            maxFontSizeMultiplier={1.4}>
+            {title}
+          </Text>
+          {helper ? (
+            <Text style={styles.helper} maxFontSizeMultiplier={1.6}>
+              {helper}
+            </Text>
+          ) : null}
+        </View>
+        <View
+          style={[
+            styles.body,
+            compactTitle && styles.bodyCompact,
+            keyboardVisible && styles.bodyKeyboard,
+          ]}>
+          {children}
+        </View>
       </ScrollView>
       <View
         style={[
@@ -139,6 +164,26 @@ const styles = StyleSheet.create({
     fontSize: 36,
     lineHeight: 44,
     color: obColors.textPrimary,
+  },
+  // Two title lines (2 × 36) + helper line (6 + 20) at normal text size.
+  titleBlockCompact: {
+    minHeight: 98,
+  },
+  titleCompact: {
+    fontFamily: obFonts.heading,
+    fontSize: 28,
+    lineHeight: 36,
+    color: obColors.textPrimary,
+  },
+  helper: {
+    marginTop: 6,
+    fontFamily: obFonts.body,
+    fontSize: 15,
+    lineHeight: 20,
+    color: obColors.textSecondary,
+  },
+  bodyCompact: {
+    marginTop: obSpacing.xl,
   },
   body: {
     marginTop: obSpacing.xxl + obSpacing.sm,

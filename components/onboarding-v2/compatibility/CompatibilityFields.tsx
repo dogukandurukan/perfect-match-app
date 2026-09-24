@@ -1,16 +1,16 @@
-// Section 3 Compatibility — per-step content (P03). Presentational only; the
-// draft lives in PreviewFlow.
-import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+// Section 3 Compatibility — per-step content (P03, revised in P03 R1).
+// Presentational only; the draft lives in PreviewFlow.
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 import { OnboardingOptionCard } from '@/components/onboarding-v2/OnboardingOptionCard';
 import {
   MAX_VALUES,
   VALUE_OPTIONS,
-  VALUES_HELPER,
   toggleValue,
   type CompatDraft,
   type SingleQuestion,
+  type ValueIcon,
 } from '@/lib/onboardingV2/compatibility';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 
@@ -19,7 +19,7 @@ type Props = {
   update: (patch: Partial<CompatDraft>) => void;
 };
 
-// Q1–Q6: single choice with subtitles, no preselection.
+// Q1–Q6: single choice, short approved copy, no subtitles, no preselection.
 export function SingleChoiceFields({ question, draft, update }: Props & { question: SingleQuestion }) {
   const current = draft[question.id];
   return (
@@ -28,7 +28,6 @@ export function SingleChoiceFields({ question, draft, update }: Props & { questi
         <OnboardingOptionCard
           key={o.key}
           label={o.title}
-          subtitle={o.subtitle}
           mode="single"
           selected={current === o.key}
           onPress={() => update({ [question.id]: o.key } as Partial<CompatDraft>)}
@@ -38,15 +37,41 @@ export function SingleChoiceFields({ question, draft, update }: Props & { questi
   );
 }
 
-// Q7: nine values in a 3-column grid, 1–2 selections. A third tap is refused
-// (never replaces an existing choice); selected values stay deselectable.
+function ValueGlyph({ icon, color }: { icon: ValueIcon; color: string }) {
+  if (icon.family === 'ion') {
+    return <Ionicons name={icon.name as keyof typeof Ionicons.glyphMap} size={18} color={color} />;
+  }
+  return (
+    <MaterialCommunityIcons
+      name={icon.name as keyof typeof MaterialCommunityIcons.glyphMap}
+      size={18}
+      color={color}
+    />
+  );
+}
+
+// Two columns only when the widest single label word still fits on one line
+// inside a half-width card; otherwise stack in one column so words never
+// split. "Adventure" is the widest word: 74.6pt at 15pt DM Sans Medium
+// (measured from the bundled font's advance widths).
+const WIDEST_WORD_AT_15PT = 74.6;
+const CARD_CHROME = 70; // padding + icon + gap + reserved check space
+const SCREEN_GUTTERS = 48;
+
+export function useTwoValueColumns(): boolean {
+  const { width, fontScale } = useWindowDimensions();
+  const textWidth = (width - SCREEN_GUTTERS) * 0.485 - CARD_CHROME;
+  const scale = Math.min(fontScale, 1.6); // matches maxFontSizeMultiplier
+  return textWidth >= WIDEST_WORD_AT_15PT * scale + 4;
+}
+
+// Q7: ten values, 2 columns × 5 rows (row-major), 1–2 selections. A third tap
+// is refused (never replaces a choice); selected values stay deselectable.
 export function ValuesFields({ draft, update }: Props) {
+  const oneColumn = !useTwoValueColumns();
   const full = draft.values.length >= MAX_VALUES;
   return (
     <View style={styles.valuesWrap}>
-      <Text style={styles.helper} maxFontSizeMultiplier={1.6}>
-        {VALUES_HELPER}
-      </Text>
       <View style={styles.grid}>
         {VALUE_OPTIONS.map((v) => {
           const selected = draft.values.includes(v.key);
@@ -61,13 +86,21 @@ export function ValuesFields({ draft, update }: Props) {
               accessibilityLabel={v.label}
               accessibilityState={{ checked: selected, disabled: blocked }}
               accessibilityHint={blocked ? 'Two values already chosen. Deselect one to change.' : undefined}
-              style={[styles.chip, selected && styles.chipSelected, blocked && styles.chipBlocked]}>
-              {selected ? <Ionicons name="checkmark" size={15} color={obColors.onCta} /> : null}
-              <Text
-                style={[styles.chipText, selected && styles.chipTextSelected]}
-                maxFontSizeMultiplier={1.5}>
+              style={[
+                styles.card,
+                oneColumn ? styles.cardFull : styles.cardHalf,
+                selected && styles.cardSelected,
+                blocked && styles.cardBlocked,
+              ]}>
+              <ValueGlyph icon={v.icon} color={obColors.cta} />
+              <Text style={styles.cardText} maxFontSizeMultiplier={1.6}>
                 {v.label}
               </Text>
+              {/* Check space is always reserved (paddingRight) so text never
+                  shifts when a card becomes selected. */}
+              <View style={[styles.check, selected && styles.checkOn]}>
+                {selected ? <Ionicons name="checkmark" size={12} color={obColors.onCta} /> : null}
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -79,56 +112,66 @@ export function ValuesFields({ draft, update }: Props) {
   );
 }
 
+const CHECK = 18;
+
 const styles = StyleSheet.create({
   options: {
     gap: obSpacing.md,
   },
   valuesWrap: {
-    gap: obSpacing.lg,
-  },
-  helper: {
-    fontFamily: obFonts.body,
-    fontSize: 15,
-    lineHeight: 21,
-    color: obColors.textSecondary,
+    gap: obSpacing.md,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: obSpacing.sm,
+    justifyContent: 'space-between',
+    rowGap: 10,
   },
-  chip: {
-    // ~3 per row; wraps to fewer per row with large text instead of clipping.
-    flexGrow: 1,
-    flexBasis: '30%',
-    minHeight: 48,
+  card: {
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: obSpacing.sm,
-    paddingVertical: obSpacing.sm,
+    gap: obSpacing.sm,
+    paddingLeft: obSpacing.md,
+    paddingRight: obSpacing.md + CHECK + 2,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: obColors.border,
     borderRadius: 12,
+    backgroundColor: 'transparent',
   },
-  chipSelected: {
-    backgroundColor: obColors.cta,
+  cardHalf: {
+    width: '48.5%',
+  },
+  cardFull: {
+    width: '100%',
+  },
+  cardSelected: {
+    backgroundColor: obColors.selectedFill,
     borderColor: obColors.cta,
   },
-  chipBlocked: {
+  cardBlocked: {
     opacity: 0.45,
   },
-  chipText: {
+  cardText: {
+    flex: 1,
     fontFamily: obFonts.bodyMedium,
     fontSize: 15,
     lineHeight: 20,
     color: obColors.textPrimary,
-    textAlign: 'center',
-    flexShrink: 1,
   },
-  chipTextSelected: {
-    color: obColors.onCta,
+  check: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: CHECK,
+    height: CHECK,
+    borderRadius: CHECK / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkOn: {
+    backgroundColor: obColors.cta,
   },
   count: {
     fontFamily: obFonts.body,

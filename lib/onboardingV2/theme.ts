@@ -16,6 +16,7 @@ export const obColors = {
   onCta: '#FFFFFF',
   notice: '#EDE6D6',
   error: '#9A3324', // inline validation text (AA on ivory)
+  selectedFill: '#E6ECE3', // pale sage — selected value cards (P03 R1)
 } as const;
 
 export const obSpacing = {
