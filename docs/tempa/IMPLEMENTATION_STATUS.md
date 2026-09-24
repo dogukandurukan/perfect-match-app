@@ -76,7 +76,7 @@ exists because the new answers don't exist yet → it requires a new
 | 0 | Decision round on [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) | — | ⏳ next |
 | 1 | Schema Revision 3 (file only): keep security architecture, rewrite fields/enums to this flow | 0 | not started |
 | 2 | Shared components: onboarding tokens (ivory/green), serif font (scope: all onboarding, D42), OptionCard/Chip/Field, local progress; per-screen draft save + resume | 0 | 🟡 **P01 implemented for review** on branch `tempa/p01-onboarding-ui` (tokens, fonts, wordmark, header, underline field, CTA, shell + Basics name screen in a dev preview; D46 refinement applied 2026-09-24; owner phone validation pending). OptionCard/Chip, draft save + resume not yet. |
-| 3 | Sections 2 → 3 → 4 → 6 (pure forms, no external dependency) | 1, 2 | 🟡 **Section 2 Basics: P02 UI preview implemented for review** on `tempa/p02-basics-ui` (six screens, in-memory draft, no persistence/backend; owner phone validation pending). Sections 3, 4, 6 not started. |
+| 3 | Sections 2 → 3 → 4 → 6 (pure forms, no external dependency) | 1, 2 | 🟡 **Section 2 Basics: P02 UI preview implemented for review** on `tempa/p02-basics-ui` (six screens, in-memory draft, no persistence/backend; D47–D49 revision: height ruler + preview location suggestions; owner phone validation pending). Sections 3, 4, 6 not started. |
 | 4 | Section 5 (free text + provenance first; catalog later) | 1, 2, D27 | not started |
 | 5 | Section 7 profile part: photos, prompts, preview, selfie | 1, 2 | not started |
 | 6 | Auth: phone OTP (mock provider in dev), email code on same user, submit, received, route guards | SMS provider decision | not started |
@@ -106,3 +106,4 @@ Applying any migration to the live DB requires explicit approval.
 | 2026-09-23 | P01 (onboarding visual foundation + Basics name screen, dev preview only) implemented for review on `tempa/p01-onboarding-ui` — see `work-packages/P01_RESULT.md`. Not merged; no DB/auth/matching change. |
 | 2026-09-24 | P01 D46 visual refinement applied on `tempa/p01-onboarding-ui` (underline fields, larger heading, keyboard-aware spacing). Owner phone validation pending. |
 | 2026-09-24 | P02 connected Basics UI preview (six Section 2 screens, dev route `datingapp://dev/onboarding-v2-name`) implemented for review on `tempa/p02-basics-ui` — see `work-packages/P02_RESULT.md`. Not merged; no DB/auth/matching change. |
+| 2026-09-24 | P02 D47/D48/D49 revision on `tempa/p02-basics-ui`: height ruler, City-or-district suggestions from a bundled 5-city preview catalog. Not merged; no DB/auth/matching change. |
