@@ -134,3 +134,15 @@ names, seven progress marks, and serif Continue label are illustrative artifacts
 buttons use DM Sans. Preserve existing name/privacy rules. The mockup does not
 prove actual keyboard behavior; verify in the running app. P01 remains isolated
 UI preview work; no merge, deployment, backend, auth or database work authorized.
+
+## P02 device feedback — 2026-09-24
+
+| # | Topic | Status | Source / note |
+|---|---|---|---|
+| D47 | Keep birthday entry as separate Day / Month / Year fields, as shown in the P02 device screenshot. | ✅ APPROVED | Doğukan, 2026-09-24. Visual/input approval, not proof of all validation cases. |
+| D48 | Height: centered large numeric value with adjacent cm, a scrollable ruler below, and tap-the-number keyboard entry. Ruler and typed input stay synchronized. | ✅ APPROVED | Doğukan, 2026-09-24. Replaces the plain underlined height field. Product min/max bounds remain undecided. |
+| D49 | Current location: typing opens selectable suggestions underneath. City and district results are allowed: Istanbul → İstanbul, Turkey; kadikoy → Kadıköy, İstanbul, Turkey. Selection can be changed. No separate neighborhood question, precise address or new distance preference. | ✅ APPROVED | Doğukan, 2026-09-24. Replaces P02's free-text-only implementation; narrowly refines D41 to allow district selection inside the existing location screen. Does not approve public district display, GPS, scoring, paid provider or schema changes. |
+
+P02 visual refinements are authorized within the isolated development preview.
+Implementation limits and catalog coverage must be reported in the P02 result;
+no claim of worldwide autocomplete or real persistence without implementation.
