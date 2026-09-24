@@ -120,3 +120,17 @@ wanted, is a separate decision.
 | F1 | Live DB is empty: `auth.users=0`, `profiles=0`, `onboarding_answers=0`; no V2 tables exist | Legacy value migration (e.g. `Socially`→`Occasionally`) has no real rows to move. Still keep `questionnaire_version`. |
 | F2 | Private `verification-selfies` bucket exists (private); `user-photos` is public | Selfie storage base is ready |
 | F3 | The older proposed migration `20260921100000_v2_schema_proposed.sql` is unapplied and encodes the **old** question set | Must be revised before applying |
+
+## Onboarding visual refinement (approved 2026-09-24)
+
+| # | Topic | Status | Source / note |
+|---|---|---|---|
+| D46 | Final approved onboarding direction: warm ivory background, dark forest-green CTA, large high-contrast Playfair Display Bold (700) question headings, DM Sans for body/labels/buttons, restrained thin-underlined short text inputs instead of enclosing boxes, and a visible temporary shared Tempa header. Continue remains accessible above the open keyboard. Applies across onboarding; only the P01 name-screen refinement is currently authorized for implementation. | ✅ APPROVED | Doğukan, 2026-09-24, approved the side-by-side name-screen / keyboard-open visual mockup. No dark-theme alternative selected. |
+
+The generated image is a visual reference, not a replacement for written flow rules:
+keep the name screen in Section 2, section-local progress **1 of 6**, empty initial
+fields, and helper **Only your first name appears on your profile.** Its example
+names, seven progress marks, and serif Continue label are illustrative artifacts;
+buttons use DM Sans. Preserve existing name/privacy rules. The mockup does not
+prove actual keyboard behavior; verify in the running app. P01 remains isolated
+UI preview work; no merge, deployment, backend, auth or database work authorized.

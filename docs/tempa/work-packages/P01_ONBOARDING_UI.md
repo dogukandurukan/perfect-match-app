@@ -1,6 +1,6 @@
 # P01 — Onboarding visual foundation + name screen
 
-Status: READY — implementation explicitly authorized by Doğukan on 2026-09-23.
+Status: REVISION READY — original implementation authorized 2026-09-23; visual refinement D46 explicitly approved by Doğukan on 2026-09-24.
 Owner: Claude Code. Reviewer: ChatGPT with Doğukan.
 Work branch: `tempa/p01-onboarding-ui`.
 
@@ -96,3 +96,38 @@ P01 implemented for review, with branch reference; do not mark all of V2 done.
 Push the report and stop. No periodic polling, automatic P02, or repeated
 full-repo reading. ChatGPT will read this branch/report directly; Doğukan
 should not need to copy terminal output between assistants.
+
+## Approved revision — 2026-09-24 (D46)
+
+Continue the existing P01 implementation on `tempa/p01-onboarding-ui`; do not
+recreate it or discard prior work. Fetch and read this package and D46 from the
+latest default branch before editing. Apply only the following visual refinement:
+
+- Warm flat ivory screen; dark forest-green Continue; no dark-theme variant.
+- Large, dark, legible Playfair Display Bold 700 question heading, wrapping
+  naturally (two lines where appropriate); DM Sans body, labels AND button.
+- Shared visible temporary Tempa header with a central future logo replacement.
+- First/last name inputs with thin underline styling, without enclosing boxes.
+- Generous spacing in the normal state; when the keyboard opens, keep both
+  fields reachable and Continue above the keyboard, respecting safe areas.
+  Allow scrolling on narrow/small screens rather than clipping content.
+- Preserve specified copy, initially empty inputs, Section 2 placement and local
+  progress 1 of 6. The conversational image showed example names, seven progress
+  marks, a generic helper and a serif button; these are not specification changes.
+
+Refresh P01_RESULT.md with revision commit, actual checks/screenshots and exact
+phone preview instructions. Clearly state the branch/commit served by the dev
+server, the preview route and whether the existing installed app can load it or
+requires a new development build. Do not assume the owner's currently running
+app already includes this branch. Do not automatically merge or deploy.
+
+Preview actions must not add backend writes. Report any inherited app-startup
+side effects separately (e.g. existing authenticated last-active/location updates);
+do not claim the whole app is write-free merely because this screen is local.
+No unrelated startup/auth changes are authorized.
+
+Acceptance on the owner's phone: correct palette/fonts; first and last name
+entry (including Turkish characters); keyboard-visible Continue and accessible
+fields; no clipping; Continue gives only the documented local preview response.
+Owner phone validation remains PENDING until actually performed. Push report
+and implementation to the work branch and stop.
