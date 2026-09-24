@@ -81,3 +81,40 @@ Report status DONE/BLOCKED, implementation SHA, changed files, checks/results,
 exact worktree launch steps and route, any inherited validation rules, pending
 phone checks, and explicit scope confirmation. Update IMPLEMENTATION_STATUS.md
 on the work branch only. Do not merge/deploy, start P03 or poll. Stop after reporting.
+
+## Approved revision — D47/D48/D49, 2026-09-24
+
+Status: REVISION READY. Continue on the existing P02 branch/worktree, preserving
+previous work. Read these latest default-branch instructions first. This section
+supersedes the original plain height and free-text-only city controls above.
+
+- Birthday: preserve the current Day / Month / Year UI and validation.
+- Height: centered large numeric value and immediately adjacent smaller cm;
+  scrollable ruler with a fixed selection marker and 1 cm increments below.
+  Tapping the value opens numeric entry. Keep ruler, number and draft synchronized,
+  preserve Back retention, support accessible increment/decrement and small screens.
+  No default answer: an initial visual ruler position must not become a submitted
+  value until the user interacts/confirms. Do not use the owner's 182 as prefill.
+  Product height bounds remain open; a viewport range must not silently become
+  an eligibility restriction. Keep manual positive whole-number input available
+  and recenter the ruler for valid values outside its initial window.
+- Location: replace City label with City or district. Show matching selectable
+  rows directly beneath the input; Turkish case/diacritic insensitive search.
+  Required examples: istanbul → İstanbul, Turkey; kadikoy → Kadıköy, İstanbul, Turkey.
+  Keep city/district/country and stable local ID structured in the in-memory draft.
+  Selecting fills the label; editing query invalidates the old selection. Continue
+  requires an actual selected result. Back restores it. Show an honest no-results
+  state, never invent a result by appending Turkey to arbitrary typed text.
+- For this no-backend development preview, use a clearly documented bundled
+  catalog of real locations (at least İstanbul and its districts), not a paid API,
+  API key or network geocoder. Document actual coverage and mark limited preview
+  coverage in small helper copy; this is NOT worldwide production autocomplete.
+  Keep data lookup separate so a future provider can replace it. No paid service,
+  GPS, exact address, public district exposure, DB or matching changes.
+
+The 19:26–19:27 device screenshots demonstrate rendering of birthday, city and
+height only; do not claim full P02 validation passed. Update P02_RESULT.md with
+revision SHA, coverage, checks, exact same-worktree phone instructions and pending
+ruler/search device checks. Run focused checks for Turkish search, selection
+invalidation, ruler/manual synchronization and Back retention plus existing build
+gates. Push implementation/report, no merge/deploy/P03, then stop.
