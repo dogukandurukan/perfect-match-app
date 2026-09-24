@@ -42,9 +42,9 @@ Markers: ✅ APPROVED · 🟡 ACCEPTED (inferred) · 🔵 PROPOSED · 🔴 OPEN
 
 | # | Topic | Status | Source / note |
 |---|---|---|---|
-| D17 | Seven required questions in fixed order with exact copy in `ONBOARDING_FLOW.md` §3 | ✅ APPROVED | HO 04, 05 |
+| D17 | Seven required questions in fixed order with exact copy in `ONBOARDING_FLOW.md` §3 | ✅ APPROVED | HO 04, 05; copy revised by **D50** (2026-09-25) |
 | D18 | Messaging frequency and personal space are separate questions and must not be double-weighted | ✅ APPROVED | HO 04 |
-| D19 | Values: choose 1–2 of nine | ✅ APPROVED | HO 04 |
+| D19 | Values: choose 1–2 of nine | ✅ APPROVED — **count/layout superseded by D51 (ten values, 2 columns)**; 1–2 rule unchanged | HO 04 |
 | D20 | Intent keys `long_term` / `casual` / `figuring_out` | ✅ APPROVED | HO 04 + earlier session (`figuring_out` spelling authoritative) |
 | D21 | No love languages, conflict style, politics or children questions | ✅ APPROVED | HO 01 §6 |
 
@@ -142,6 +142,8 @@ UI preview work; no merge, deployment, backend, auth or database work authorized
 | D47 | Keep birthday entry as separate Day / Month / Year fields, as shown in the P02 device screenshot. | ✅ APPROVED | Doğukan, 2026-09-24. Visual/input approval, not proof of all validation cases. |
 | D48 | Height: centered large numeric value with adjacent cm, a scrollable ruler below, and tap-the-number keyboard entry. Ruler and typed input stay synchronized. | ✅ APPROVED | Doğukan, 2026-09-24. Replaces the plain underlined height field. Product min/max bounds remain undecided. |
 | D49 | Current location: typing opens selectable suggestions underneath. City and district results are allowed: Istanbul → İstanbul, Turkey; kadikoy → Kadıköy, İstanbul, Turkey. Selection can be changed. No separate neighborhood question, precise address or new distance preference. | ✅ APPROVED | Doğukan, 2026-09-24. Replaces P02's free-text-only implementation; narrowly refines D41 to allow district selection inside the existing location screen. Does not approve public district display, GPS, scoring, paid provider or schema changes. |
+| D50 | Compatibility (Section 3) uses the approved simpler English copy: *What are you looking for?* (A serious relationship / Something casual / Not sure yet); *How social are you?*; *How often do you like to text?* + helper "When dating someone"; *How much time together feels right?* + helper "When dating someone"; *Is it easy to share your feelings?*; *When would you like to meet?*; *What matters most to you?* + helper "In a relationship. Pick 1 or 2." No option subtitles. Question IDs and option keys unchanged. Supersedes the D17 full-copy/subtitle wording (full text in `ONBOARDING_FLOW.md` §3). | ✅ APPROVED | Doğukan, 2026-09-25, approved the seven-screen mockup (P03 R1). |
+| D51 | Values (3.7): ten values in two equal columns × five rows, row-major — Trust, Growing together, Fun, Stability, Personal space, Adventure, Affection, Family, Health, Respect (Respect directly below Family). Renamed labels keep existing keys (`growth`, `independence`); `respect` is a new local UI key only. Small single-colour outline icons left of text; pale sage selected fill, green border, fixed corner check; 1–2 selections, third blocked, no preselection. Supersedes D19's nine-value, three-column layout. | ✅ APPROVED | Doğukan, 2026-09-25 (P03 R1). Does not approve backend/scoring changes for `respect`. |
 
 P02 visual refinements are authorized within the isolated development preview.
 Implementation limits and catalog coverage must be reported in the P02 result;

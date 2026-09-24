@@ -40,51 +40,61 @@ with phone OTP only. Email is collected in Section 7.
 No Instagram, school, hometown, job, age-range or distance-range here. Add
 clear privacy copy for first name and DOB.
 
-## Section 3 — Compatibility (7 screens) ✅ exact copy
+## Section 3 — Compatibility (7 screens) ✅ approved copy (P03 R1, D50/D51 — supersedes the earlier full-copy/subtitle version)
 
 All required. Q1–Q6 single choice; Q7 choose 1–2. No preselected answers.
-"1/7…7/7" is section-local progress.
+"1 of 7…7 of 7" is section-local progress. No option subtitles. Question IDs and
+option keys are unchanged; only display copy changed.
 
 **3.1 What are you looking for?**
-- A long-term relationship — Something meaningful
-- Something casual — Keeping things light
-- Figuring it out — I'm open to seeing where it goes
+- A serious relationship (`long_term`)
+- Something casual (`casual`)
+- Not sure yet (`figuring_out`)
 
-**3.2 What's your social life like?**
-- Mostly low-key — I like quiet plans and small groups
-- A mix of both — It depends on the day
-- Pretty social — I like going out and meeting people
+**3.2 How social are you?**
+- I like quiet plans
+- Somewhere in between
+- I love going out
 
-**3.3 When you're dating someone, how often do you like to message?**
-- A little each day — A few messages are enough
-- A few check-ins — I like checking in throughout the day
-- Often throughout the day — I enjoy an ongoing conversation
+**3.3 How often do you like to text?** — helper "When dating someone"
+- A few messages a day
+- A few times a day
+- Often during the day
 
-**3.4 How much space do you like in a relationship?**
-- Plenty of space — I value my independence
-- A balance of both — Time together and time apart
-- Lots of time together — I like feeling close and connected
+**3.4 How much time together feels right?** — helper "When dating someone"
+- More time for myself
+- A balance of both
+- Lots of time together
 
-**3.5 How open are you with your feelings?**
-- More reserved — I take time to open up
-- Warm once I'm comfortable — I open up as we get closer
-- Pretty open — I like showing how I feel
+**3.5 Is it easy to share your feelings?**
+- I need time
+- Once I feel comfortable
+- Yes, I'm open
 
-**3.6 How soon would you like to meet a match?**
-- Pretty quickly — I'd rather meet than text for days
-- After a little chatting — I like getting a feel for someone first
-- I take my time — I like feeling comfortable first
+**3.6 When would you like to meet?**
+- Soon
+- After some chatting
+- When I feel ready
 
-**3.7 In a relationship, I value…** — helper "Choose up to 2." (min 1, max 2)
+**3.7 What matters most to you?** — helper "In a relationship. Pick 1 or 2." (min 1, max 2)
 
-| | | |
-|---|---|---|
-| Trust | Growth | Fun |
-| Stability | Independence | Adventure |
-| Affection | Family | Health |
+Two columns × five rows, row-major, small outline icon left of each label:
 
-Rules: messaging (3.3) and space (3.4) are separate traits. Reserved is not
-inferior to expressive. Intent mismatch lowers ranking only; no hard block.
+| | |
+|---|---|
+| Trust (`trust`, link) | Growing together (`growth`, sprout) |
+| Fun (`fun`, sun) | Stability (`stability`, anchor) |
+| Personal space (`independence`, feather) | Adventure (`adventure`, compass) |
+| Affection (`affection`, heart) | Family (`family`, house) |
+| Health (`health`, leaf) | Respect (`respect`, handshake) |
+
+`respect` is a new local preview key only (no backend/scoring approval). Third
+selection is blocked without replacing; selected values stay deselectable.
+Selected card: pale sage fill + green border + fixed corner check (space always
+reserved). Words never split; cards stack in one column when needed.
+
+Rules: messaging (3.3) and time together (3.4) are separate traits. Reserved is
+not inferior to expressive. Intent mismatch lowers ranking only; no hard block.
 
 ## Section 4 — Your Life (4 screens) ✅
 
