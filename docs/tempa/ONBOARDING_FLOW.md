@@ -114,20 +114,31 @@ Pet kind is context, never a penalty. No lifestyle dealbreakers, partner
 restrictions or scoring derived from own habits. No diet, sleep, children, job
 or dealbreaker questions here.
 
-## Section 5 — Your World (6 screens) ✅
+## Section 5 — Your World (6 screens) ✅ approved copy + typeahead behaviour (P05, D54/D55 — supersedes the earlier Section 5 wording)
 
-| Screen | Rules |
-|---|---|
-| What do you do? | Full-time / Part-time / Self-employed / Student / Currently between roles; optional job title; no employer. Whole screen "Add later". |
-| Where did you study? | Search/select or enter school. Helper "Add your school to your profile." "Add later". No attainment question. |
-| Where are you from? | Hometown. Helper "Your hometown, not where you live now." "Add later". |
-| What are you into? | **Required 3–10.** Helper "Choose 3–10 interests." Live count, block over-limit. Travel, Food, Sports, Music, Art, Movies, Books, Outdoors, Tech, Gaming, Fashion, Wellness, Animals, Nightlife, Culture, Other. |
-| Your taste in music | Optional 0–3 **artists**. "Add up to 3 artists you love." No genres/playlists. |
-| Books & movies | Optional, independent: books 0–3; movies/series 0–3. "Add a few favorites — you can always change them." |
+Header section "Your World", local progress 1 of 6 … 6 of 6, no defaults, no
+heading icons. Only interests are required; every other screen has **Add later**
+(advances without deleting valid selections; uncommitted search text is dropped).
 
-Search errors / no results never block. Stable catalog IDs where available,
-provenance for custom entries, no fuzzy merging. Edit/remove on selections.
-Job/school/hometown carry zero score.
+| # | Title | Helper | Content |
+|---|---|---|---|
+| 1 | What do you do? | — | Single choice Full-time / Part-time / Self-employed / Student / Between jobs; optional **Job title (optional)** "e.g. Designer". No employer. Partial answers can continue. |
+| 2 | Where did you study? | Add your school to your profile. | Search or enter your school → pick a suggestion (school + verified city/country) **or** explicit *Use “typed name”*. No attainment question. |
+| 3 | Where are you from? | Your hometown, not where you live now. | **Hometown**, "Search or enter a city" → suggestion or explicit custom entry. Separate from current location; no GPS/map/distance. |
+| 4 | What are you into? | Pick 3–10 interests. | Travel, Food, Sports, Music, Art, Movies, Books, Outdoors, Tech, Gaming, Fashion, Wellness, Animals, Nightlife, Culture, Other. **Required 3–10**, "N of 10 selected", 11th refused (no replacement), deselect allowed, no Add later, Other adds no free-text question. |
+| 5 | Who do you listen to? | Add up to 3 artists you love. | Search **artists only** (no songs/playlists/genres). 0–3, "N of 3 added", removable. |
+| 6 | Books & movies | Add a few favorites. You can change them later. | Two independent groups: **Books · N of 3** ("Search books") and **Movies & series · N of 3** ("Search movies or series"); 0–3 each. |
+
+**Typeahead (D55):** suggestions appear only after typing (≥ 2 trimmed
+characters, ~300 ms debounce); none on an empty query; cleared with the query.
+Results sit directly under the input; selected items below, visually distinct,
+removable (edit = remove + reselect). Loading, no-results and error states never
+block optional screens. Explicit custom entries keep the exact typed text with
+custom provenance; nothing is fuzzy-merged. Duplicate source IDs and exact
+normalized duplicate custom entries are rejected. Metadata/images only when
+verified (artist photo; book cover + author; poster + year/type), otherwise
+neutral placeholders. Live providers are not connected yet — the dev preview uses
+a labelled sample catalog (see P05_RESULT.md).
 
 ## Section 6 — Your Dates (2 screens) ✅
 
