@@ -30,7 +30,11 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
       <Text style={styles.label} maxFontSizeMultiplier={1.6}>
         {label}
       </Text>
-      <View style={[styles.underline, focused && styles.underlineFocused]}>
+      {/* The underline lives on the TextInput itself (the P01 structure that
+          was verified on device). Wrapping the input in a flex row clipped the
+          text/placeholder vertically on iOS (P05 phone report), so the optional
+          suffix is overlaid on the right instead. */}
+      <View>
         <TextInput
           ref={ref}
           accessibilityLabel={suffix ? `${label}, ${suffix}` : label}
@@ -47,10 +51,10 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
             setFocused(false);
             onBlur?.(e);
           }}
-          style={styles.input}
+          style={[styles.input, focused && styles.inputFocused, suffix ? styles.inputWithSuffix : null]}
         />
         {suffix ? (
-          <Text style={styles.suffix} maxFontSizeMultiplier={1.6}>
+          <Text style={styles.suffix} pointerEvents="none" maxFontSizeMultiplier={1.6}>
             {suffix}
           </Text>
         ) : null}
@@ -69,32 +73,31 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: obColors.textSecondary,
   },
-  underline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: obColors.border,
-  },
-  underlineFocused: {
-    borderBottomColor: obColors.borderFocused,
-  },
   input: {
-    flex: 1,
     minHeight: 44,
     paddingHorizontal: 0,
     paddingTop: obSpacing.xs,
     paddingBottom: obSpacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: obColors.border,
     backgroundColor: 'transparent',
     fontFamily: obFonts.body,
     fontSize: 19,
     color: obColors.textPrimary,
   },
+  inputFocused: {
+    borderBottomColor: obColors.borderFocused,
+  },
+  inputWithSuffix: {
+    paddingRight: 32,
+  },
   suffix: {
+    position: 'absolute',
+    right: 0,
+    bottom: obSpacing.sm,
     fontFamily: obFonts.body,
     fontSize: 17,
     lineHeight: 24,
     color: obColors.textSecondary,
-    marginLeft: obSpacing.sm,
-    paddingBottom: obSpacing.xs,
   },
 });
