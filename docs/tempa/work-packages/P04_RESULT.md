@@ -1,6 +1,9 @@
 # P04 — Result: Your Life UI
 
-**Status: DONE (implementation). Owner phone validation: PENDING.**
+**Status: DONE (implementation, incl. R1). Owner phone validation: PENDING.**
+
+> **R1 (2026-09-27): heading icons removed** — see the R1 note at the end; the
+> heading-icon parts below describe the original P04 and are superseded.
 Date: 2026-09-27. Implemented by Claude Code. Not merged, not deployed.
 
 | | |
@@ -89,3 +92,16 @@ No new dependency or native module → the existing development build suffices.
 UI and in-memory navigation/draft only. No Supabase requests, schema/migrations,
 scoring, auth/SMS, production onboarding integration, merge or deployment. No
 Section 5. Stopped for owner phone review.
+
+## R1 — 2026-09-27: remove question heading icons
+
+Owner request after phone review (`P04_R1_REMOVE_HEADING_ICONS.md`).
+
+- **Implementation commit:** `0d9063c4af3b9535a73fe11498067d81a17c8f69` (branch `tempa/p04-your-life-ui`, `main` @ `0146506` merged in).
+- Removed the cigarette / wine-glass / paw / walking-person icons from all four Your Life headings, the `icon` field on the questions, and the adaptive heading-with-icon layout (reserved icon width/gap and the stack-above fallback). `components/onboarding-v2/OnboardingScreen.tsx` is now **byte-identical to the P03 R1 version** (`git diff tempa/p03-compatibility-ui` empty), so Your Life headings use exactly the Compatibility text-only 28/36 pt heading with the same reserved title/helper block and option baseline. Titles already measured ≤ 2 lines at normal size without the icon (430/393/375/320 pt).
+- Kept: Dog / Cat / Both / Other chip icons, the Compatibility values icons, all copy, choices, conditional pet follow-up and clearing, navigation, in-memory answers, sage selection, theme and DEV gates.
+- Docs: D52 wording and `ONBOARDING_FLOW.md` §4 updated to text-only headings.
+
+**Checks (code/build only):** diff inspected; `npx tsc --noEmit` ✅ exit 0; `npx expo export --platform ios` ✅ exit 0. No new tests (icon removal only, per package). **Phone QA pending** — not performed by this agent.
+
+**Reload:** at the time of this note the Metro server on port 8081 is running from **`~/tempa-p04`** — the same worktree — so press **`r`** in that Metro terminal (or shake the phone → Reload). No restart, no new QR, no new development build.
