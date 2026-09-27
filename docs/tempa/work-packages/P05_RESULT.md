@@ -110,3 +110,14 @@ No new dependency or native module → the existing development build suffices.
 UI and in-memory draft only. No Supabase writes, schema/migrations, scoring,
 auth/SMS, production onboarding integration, paid provider setup, merge or
 deployment. No Section 6. Stopped for owner phone review.
+
+## Fix — 2026-09-27: text fields clipped vertically (owner phone report)
+
+Owner screenshot (Where did you study?) showed the placeholder/text cut off at
+the bottom in every V2 text field. Cause (by diff, not proven on device): P02
+wrapped the `TextInput` in a flex row (`flex: 1`) to add a unit suffix; the P01
+structure — underline on the `TextInput` itself — had been verified on the
+phone. `OnboardingTextField` is restored to that structure (same input styles as
+P01), and the only suffix user (location ✓) is overlaid on the right. Commit:
+see branch head (`fix(onboarding-v2): text fields clipped vertically`).
+Checks: `npx tsc --noEmit` ✅. Phone re-check pending.
