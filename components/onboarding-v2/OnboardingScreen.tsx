@@ -13,8 +13,6 @@ import {
   StyleSheet,
   Text,
   View,
-  type StyleProp,
-  type TextStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,9 +30,6 @@ type Props = {
    * so options start on the same baseline for 1–2 line titles, with or
    * without a helper. The block still grows at accessibility text sizes. */
   compactTitle?: boolean;
-  /** Small decorative icon beside the heading (P04). Hidden from screen
-   * readers; the heading text is the accessible label. */
-  titleIcon?: ReactNode;
   onBack?: () => void;
   children: ReactNode;
   /** Rendered pinned at the bottom (e.g. notices + primary button). */
@@ -59,42 +54,6 @@ function useKeyboardVisible(): boolean {
   return visible;
 }
 
-/** Heading with a small icon beside its first line. If the icon's width would
- * push the title past two lines, the icon moves above the title instead of
- * narrowing it further. Remounts per step (inside the keyed ScrollView), so
- * the decision is re-made for every title. */
-function HeadingWithIcon({
-  title,
-  icon,
-  style,
-}: {
-  title: string;
-  icon: ReactNode;
-  style: StyleProp<TextStyle>;
-}) {
-  const [stacked, setStacked] = useState(false);
-  return (
-    <View style={stacked ? styles.headingStacked : styles.headingRow}>
-      <View
-        style={stacked ? undefined : styles.headingIconInline}
-        accessible={false}
-        importantForAccessibility="no-hide-descendants"
-        accessibilityElementsHidden>
-        {icon}
-      </View>
-      <Text
-        style={[style, !stacked && styles.headingTextInline]}
-        accessibilityRole="header"
-        maxFontSizeMultiplier={1.4}
-        onTextLayout={(e) => {
-          if (!stacked && e.nativeEvent.lines.length > 2) setStacked(true);
-        }}>
-        {title}
-      </Text>
-    </View>
-  );
-}
-
 export function OnboardingScreen({
   sectionLabel,
   step,
@@ -102,7 +61,6 @@ export function OnboardingScreen({
   title,
   helper,
   compactTitle = false,
-  titleIcon,
   onBack,
   children,
   footer,
@@ -142,20 +100,12 @@ export function OnboardingScreen({
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}>
         <View style={compactTitle ? styles.titleBlockCompact : undefined}>
-          {titleIcon ? (
-            <HeadingWithIcon
-              title={title}
-              icon={titleIcon}
-              style={compactTitle ? styles.titleCompact : styles.title}
-            />
-          ) : (
-            <Text
-              style={compactTitle ? styles.titleCompact : styles.title}
-              accessibilityRole="header"
-              maxFontSizeMultiplier={1.4}>
-              {title}
-            </Text>
-          )}
+          <Text
+            style={compactTitle ? styles.titleCompact : styles.title}
+            accessibilityRole="header"
+            maxFontSizeMultiplier={1.4}>
+            {title}
+          </Text>
           {helper ? (
             <Text style={styles.helper} maxFontSizeMultiplier={1.6}>
               {helper}
@@ -214,22 +164,6 @@ const styles = StyleSheet.create({
     fontSize: 36,
     lineHeight: 44,
     color: obColors.textPrimary,
-  },
-  headingRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  // Centres a ~20pt icon on the first 36pt title line.
-  headingIconInline: {
-    height: 36,
-    justifyContent: 'center',
-  },
-  headingTextInline: {
-    flex: 1,
-  },
-  headingStacked: {
-    gap: 6,
   },
   // Two title lines (2 × 36) + helper line (6 + 20) at normal text size.
   titleBlockCompact: {

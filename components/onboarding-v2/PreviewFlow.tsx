@@ -17,10 +17,7 @@ import {
   SingleChoiceFields,
   ValuesFields,
 } from '@/components/onboarding-v2/compatibility/CompatibilityFields';
-import {
-  LifeGlyph,
-  LifeQuestionFields,
-} from '@/components/onboarding-v2/yourLife/YourLifeFields';
+import { LifeQuestionFields } from '@/components/onboarding-v2/yourLife/YourLifeFields';
 import { OnboardingPrimaryButton } from '@/components/onboarding-v2/OnboardingPrimaryButton';
 import { OnboardingScreen } from '@/components/onboarding-v2/OnboardingScreen';
 import {
@@ -142,7 +139,6 @@ export function PreviewFlow({ onExit }: Props) {
       title={titleFor(pos)}
       helper={helperFor(pos)}
       compactTitle={pos.section !== 'basics'}
-      titleIcon={lifeQuestion ? <LifeGlyph icon={lifeQuestion.icon} size={20} /> : undefined}
       onBack={handleBack}
       contentKey={`${pos.section}-${pos.step}`}
       footer={

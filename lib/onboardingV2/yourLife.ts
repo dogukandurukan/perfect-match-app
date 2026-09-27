@@ -12,8 +12,6 @@ export type LifeQuestion = {
   id: LifeKey;
   title: string;
   helper?: string;
-  /** Small outline icon beside the heading (decorative). */
-  icon: LifeIcon;
   options: { key: string; title: string }[];
 };
 
@@ -23,7 +21,6 @@ export const LIFE_QUESTIONS: LifeQuestion[] = [
   {
     id: 'smoking',
     title: 'Do you smoke?',
-    icon: { family: 'mci', name: 'smoking' },
     options: [
       { key: 'no', title: 'No' },
       { key: 'sometimes', title: 'Sometimes' },
@@ -33,7 +30,6 @@ export const LIFE_QUESTIONS: LifeQuestion[] = [
   {
     id: 'drinking',
     title: 'Do you drink alcohol?',
-    icon: { family: 'ion', name: 'wine-outline' },
     options: [
       { key: 'none', title: "I don't drink" },
       { key: 'sometimes', title: 'Sometimes' },
@@ -43,7 +39,6 @@ export const LIFE_QUESTIONS: LifeQuestion[] = [
   {
     id: 'pets',
     title: 'How do you feel about pets?',
-    icon: { family: 'ion', name: 'paw-outline' },
     options: [
       { key: HAVE_PETS, title: 'I have pets' },
       { key: 'like_no_pets', title: 'No pets, but I like them' },
@@ -55,7 +50,6 @@ export const LIFE_QUESTIONS: LifeQuestion[] = [
     id: 'activity',
     title: 'How active are you?',
     helper: 'Physical activity',
-    icon: { family: 'ion', name: 'walk-outline' },
     options: [
       { key: 'very', title: 'Very active' },
       { key: 'somewhat', title: 'Somewhat active' },
