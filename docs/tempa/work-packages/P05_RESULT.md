@@ -121,3 +121,14 @@ phone. `OnboardingTextField` is restored to that structure (same input styles as
 P01), and the only suffix user (location ✓) is overlaid on the right. Commit:
 see branch head (`fix(onboarding-v2): text fields clipped vertically`).
 Checks: `npx tsc --noEmit` ✅. Phone re-check pending.
+
+## Change — 2026-09-27: outline icons on interest chips (D56)
+
+Owner asked about emojis on interest chips; chose **outline icons** instead.
+Each of the 16 chips now has a 16 pt forest-green Ionicons outline glyph left of
+the label (Travel airplane, Food restaurant, Sports football, Music notes, Art
+palette, Movies film, Books book, Outdoors trail sign, Tech chip, Gaming
+controller, Fashion shirt, Wellness flower, Animals paw, Nightlife moon, Culture
+library, Other ellipsis). All glyph names verified in the bundled glyph map.
+Selection = sage fill + green border (the former checkmark is replaced by the
+icon). Decorative for screen readers. `npx tsc --noEmit` ✅; phone check pending.

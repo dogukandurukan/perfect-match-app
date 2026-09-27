@@ -22,10 +22,28 @@ export const WORK_OPTIONS: { key: string; title: string }[] = [
   { key: 'between_jobs', title: 'Between jobs' },
 ];
 
-export const INTERESTS: { key: string; label: string }[] = [
-  'Travel', 'Food', 'Sports', 'Music', 'Art', 'Movies', 'Books', 'Outdoors',
-  'Tech', 'Gaming', 'Fashion', 'Wellness', 'Animals', 'Nightlife', 'Culture', 'Other',
-].map((label) => ({ key: label.toLowerCase(), label }));
+// Small single-colour outline icon left of each label (owner choice
+// 2026-09-27, D56) — Ionicons glyphs already bundled; no emojis.
+export const INTERESTS: { key: string; label: string; icon: string }[] = (
+  [
+    ['Travel', 'airplane-outline'],
+    ['Food', 'restaurant-outline'],
+    ['Sports', 'football-outline'],
+    ['Music', 'musical-notes-outline'],
+    ['Art', 'color-palette-outline'],
+    ['Movies', 'film-outline'],
+    ['Books', 'book-outline'],
+    ['Outdoors', 'trail-sign-outline'],
+    ['Tech', 'hardware-chip-outline'],
+    ['Gaming', 'game-controller-outline'],
+    ['Fashion', 'shirt-outline'],
+    ['Wellness', 'flower-outline'],
+    ['Animals', 'paw-outline'],
+    ['Nightlife', 'moon-outline'],
+    ['Culture', 'library-outline'],
+    ['Other', 'ellipsis-horizontal-circle-outline'],
+  ] as [string, string][]
+).map(([label, icon]) => ({ key: label.toLowerCase(), label, icon }));
 
 export const MIN_INTERESTS = 3;
 export const MAX_INTERESTS = 10;

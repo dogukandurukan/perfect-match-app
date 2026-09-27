@@ -125,7 +125,7 @@ heading icons. Only interests are required; every other screen has **Add later**
 | 1 | What do you do? | — | Single choice Full-time / Part-time / Self-employed / Student / Between jobs; optional **Job title (optional)** "e.g. Designer". No employer. Partial answers can continue. |
 | 2 | Where did you study? | Add your school to your profile. | Search or enter your school → pick a suggestion (school + verified city/country) **or** explicit *Use “typed name”*. No attainment question. |
 | 3 | Where are you from? | Your hometown, not where you live now. | **Hometown**, "Search or enter a city" → suggestion or explicit custom entry. Separate from current location; no GPS/map/distance. |
-| 4 | What are you into? | Pick 3–10 interests. | Travel, Food, Sports, Music, Art, Movies, Books, Outdoors, Tech, Gaming, Fashion, Wellness, Animals, Nightlife, Culture, Other. **Required 3–10**, "N of 10 selected", 11th refused (no replacement), deselect allowed, no Add later, Other adds no free-text question. |
+| 4 | What are you into? | Pick 3–10 interests. | Travel, Food, Sports, Music, Art, Movies, Books, Outdoors, Tech, Gaming, Fashion, Wellness, Animals, Nightlife, Culture, Other. **Required 3–10**, "N of 10 selected", 11th refused (no replacement), deselect allowed, no Add later, Other adds no free-text question. Each chip has a small outline icon left of the label, no emojis (D56). |
 | 5 | Who do you listen to? | Add up to 3 artists you love. | Search **artists only** (no songs/playlists/genres). 0–3, "N of 3 added", removable. |
 | 6 | Books & movies | Add a few favorites. You can change them later. | Two independent groups: **Books · N of 3** ("Search books") and **Movies & series · N of 3** ("Search movies or series"); 0–3 each. |
 

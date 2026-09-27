@@ -154,7 +154,12 @@ export function InterestsFields({ draft, update }: Props) {
               accessibilityState={{ checked: selected, disabled: blocked }}
               accessibilityHint={blocked ? 'Ten interests already chosen. Deselect one to change.' : undefined}
               style={[styles.chip, selected && styles.chipSelected, blocked && styles.chipBlocked]}>
-              {selected ? <Ionicons name="checkmark" size={14} color={obColors.cta} /> : null}
+              <Ionicons
+                name={i.icon as keyof typeof Ionicons.glyphMap}
+                size={16}
+                color={obColors.cta}
+                importantForAccessibility="no"
+              />
               <Text style={styles.chipText} maxFontSizeMultiplier={1.6}>
                 {i.label}
               </Text>
@@ -291,7 +296,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
