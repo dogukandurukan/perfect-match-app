@@ -9,11 +9,20 @@ type Props = {
   /** Optional second line (e.g. Compatibility option explanations). */
   subtitle?: string;
   selected: boolean;
+  /** Pale sage background when selected (Your Life, P04). */
+  selectedFill?: boolean;
   onPress: () => void;
   mode: 'single' | 'multi';
 };
 
-export function OnboardingOptionCard({ label, subtitle, selected, onPress, mode }: Props) {
+export function OnboardingOptionCard({
+  label,
+  subtitle,
+  selected,
+  selectedFill = false,
+  onPress,
+  mode,
+}: Props) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -21,7 +30,7 @@ export function OnboardingOptionCard({ label, subtitle, selected, onPress, mode 
       accessibilityRole={mode === 'single' ? 'radio' : 'checkbox'}
       accessibilityLabel={subtitle ? `${label}. ${subtitle}` : label}
       accessibilityState={mode === 'single' ? { selected } : { checked: selected }}
-      style={[styles.card, selected && styles.cardSelected]}>
+      style={[styles.card, selected && styles.cardSelected, selected && selectedFill && styles.cardFilled]}>
       <View style={styles.textCol}>
         <Text style={styles.label} maxFontSizeMultiplier={1.6}>
           {label}
@@ -58,6 +67,9 @@ const styles = StyleSheet.create({
     borderColor: obColors.border,
     borderRadius: 12,
     backgroundColor: 'transparent',
+  },
+  cardFilled: {
+    backgroundColor: obColors.selectedFill,
   },
   cardSelected: {
     borderColor: obColors.cta,

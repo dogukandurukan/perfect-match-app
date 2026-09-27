@@ -1,14 +1,15 @@
-// DEV-ONLY preview for Tempa onboarding V2 — Basics (P02) → Compatibility (P03).
+// DEV-ONLY preview for Tempa onboarding V2 — Basics (P02) → Compatibility (P03)
+// → Your Life (P04).
 // Route name kept from P01 so the same link opens the connected flow.
 // Isolated from the active onboarding/auth flow: nothing reads or writes
 // Supabase, no session is required or created, answers live in memory only
 // and are lost when the screen closes. In production builds (__DEV__ false)
 // this route redirects to "/".
 //
-// Open it (dev-client running via `npx expo start --dev-client` from the P03
+// Open it (dev-client running via `npx expo start --dev-client` from the P04
 // worktree): signed out, tap "Preview new onboarding" on the landing screen,
 // or Safari → datingapp://dev/onboarding-v2-name.
-// See docs/tempa/work-packages/P03_RESULT.md.
+// See docs/tempa/work-packages/P04_RESULT.md.
 import { Redirect, Stack, useRouter } from 'expo-router';
 
 import { PreviewFlow } from '@/components/onboarding-v2/PreviewFlow';

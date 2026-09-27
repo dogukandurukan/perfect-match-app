@@ -1,5 +1,5 @@
-// Connected onboarding V2 dev preview: Basics (1–6) → Compatibility (1–7).
-// Holds both in-memory drafts for this preview session only — Back/forward
+// Connected onboarding V2 dev preview: Basics (1–6) → Compatibility (1–7) →
+// Your Life (1–4). Holds all in-memory drafts for this preview session only — Back/forward
 // across the section boundary never resets answers; nothing is persisted,
 // sent anywhere or logged. Continue advances only when the answer is valid.
 import { useEffect, useState } from 'react';
@@ -17,6 +17,10 @@ import {
   SingleChoiceFields,
   ValuesFields,
 } from '@/components/onboarding-v2/compatibility/CompatibilityFields';
+import {
+  LifeGlyph,
+  LifeQuestionFields,
+} from '@/components/onboarding-v2/yourLife/YourLifeFields';
 import { OnboardingPrimaryButton } from '@/components/onboarding-v2/OnboardingPrimaryButton';
 import { OnboardingScreen } from '@/components/onboarding-v2/OnboardingScreen';
 import {
@@ -41,6 +45,7 @@ import {
   type FlowPos,
 } from '@/lib/onboardingV2/previewFlow';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
+import { EMPTY_LIFE_DRAFT, LIFE_QUESTIONS, type LifeDraft } from '@/lib/onboardingV2/yourLife';
 
 const BASICS_TITLES: Record<number, string> = {
   1: "What's your name?",
@@ -52,12 +57,14 @@ const BASICS_TITLES: Record<number, string> = {
 };
 
 function helperFor(pos: FlowPos): string | undefined {
+  if (pos.section === 'yourLife') return LIFE_QUESTIONS[pos.step - 1].helper;
   if (pos.section !== 'compatibility') return undefined;
   return pos.step <= SINGLE_QUESTIONS.length ? SINGLE_QUESTIONS[pos.step - 1].helper : VALUES_HELPER;
 }
 
 function titleFor(pos: FlowPos): string {
   if (pos.section === 'basics') return BASICS_TITLES[pos.step];
+  if (pos.section === 'yourLife') return LIFE_QUESTIONS[pos.step - 1].title;
   return pos.step <= SINGLE_QUESTIONS.length ? SINGLE_QUESTIONS[pos.step - 1].title : VALUES_TITLE;
 }
 
@@ -70,6 +77,7 @@ export function PreviewFlow({ onExit }: Props) {
   const [pos, setPos] = useState<FlowPos>(FIRST_POS);
   const [basics, setBasics] = useState<BasicsDraft>(EMPTY_BASICS_DRAFT);
   const [compat, setCompat] = useState<CompatDraft>(EMPTY_COMPAT_DRAFT);
+  const [life, setLife] = useState<LifeDraft>(EMPTY_LIFE_DRAFT);
   const [finished, setFinished] = useState(false);
 
   const updateBasics = (patch: Partial<BasicsDraft>) => {
@@ -80,8 +88,12 @@ export function PreviewFlow({ onExit }: Props) {
     setCompat((d) => ({ ...d, ...patch }));
     setFinished(false);
   };
+  const updateLife = (patch: Partial<LifeDraft>) => {
+    setLife((d) => ({ ...d, ...patch }));
+    setFinished(false);
+  };
 
-  const valid = isPosValid(pos, basics, compat);
+  const valid = isPosValid(pos, basics, compat, life);
 
   const goTo = (next: FlowPos) => {
     Keyboard.dismiss();
@@ -120,6 +132,7 @@ export function PreviewFlow({ onExit }: Props) {
   const section = sectionOf(pos);
   const bProps = { draft: basics, update: updateBasics, onSubmit: handleContinue };
   const cProps = { draft: compat, update: updateCompat };
+  const lifeQuestion = pos.section === 'yourLife' ? LIFE_QUESTIONS[pos.step - 1] : null;
 
   return (
     <OnboardingScreen
@@ -128,22 +141,23 @@ export function PreviewFlow({ onExit }: Props) {
       totalSteps={section.steps}
       title={titleFor(pos)}
       helper={helperFor(pos)}
-      compactTitle={pos.section === 'compatibility'}
+      compactTitle={pos.section !== 'basics'}
+      titleIcon={lifeQuestion ? <LifeGlyph icon={lifeQuestion.icon} size={20} /> : undefined}
       onBack={handleBack}
       contentKey={`${pos.section}-${pos.step}`}
       footer={
         finished ? (
           <>
             <View style={styles.notice} accessibilityLiveRegion="polite">
-              <Text style={styles.noticeTitle}>Compatibility preview complete</Text>
+              <Text style={styles.noticeTitle}>Your Life preview complete</Text>
               <Text style={styles.noticeText}>
                 This is a development preview — nothing was saved. The next section isn&apos;t built
                 yet.
               </Text>
             </View>
             <OnboardingPrimaryButton
-              label="Review Compatibility"
-              onPress={() => goTo({ section: 'compatibility', step: 1 })}
+              label="Review Your Life"
+              onPress={() => goTo({ section: 'yourLife', step: 1 })}
             />
             <TouchableOpacity
               onPress={() => goTo(FIRST_POS)}
@@ -170,6 +184,7 @@ export function PreviewFlow({ onExit }: Props) {
       {pos.section === 'compatibility' && pos.step === SINGLE_QUESTIONS.length + 1 && (
         <ValuesFields {...cProps} />
       )}
+      {lifeQuestion && <LifeQuestionFields question={lifeQuestion} draft={life} update={updateLife} />}
     </OnboardingScreen>
   );
 }
