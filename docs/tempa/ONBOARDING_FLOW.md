@@ -96,16 +96,22 @@ reserved). Words never split; cards stack in one column when needed.
 Rules: messaging (3.3) and time together (3.4) are separate traits. Reserved is
 not inferior to expressive. Intent mismatch lowers ranking only; no hard block.
 
-## Section 4 — Your Life (4 screens) ✅
+## Section 4 — Your Life (4 screens) ✅ approved copy (P04, D52/D53 — supersedes the earlier Section 4 wording)
 
-1. **Do you smoke?** No / Occasionally / Yes
-2. **Do you drink alcohol?** I don't drink / Occasionally / Regularly
-3. **How do pets fit into your life?** I have pets / I don't have pets, but I like them / I'm neutral about pets / I'd rather not live with pets
-   - If "I have pets": in-context **What kind?** Dog / Cat / Both / Other (not a new screen; Both = dog and cat)
-4. **How physically active are you?** Very active / Moderately active / Not very active
+Header section "Your Life", local progress 1 of 4 … 4 of 4. All four primary
+questions required, single choice, no default. Small single-colour forest-green
+outline icon beside each heading (decorative, hidden from screen readers); no
+icons on answer cards; no emojis or illustrations.
 
-Single choice each. Pet kind is context, never a penalty. No lifestyle
-dealbreakers derived from own habits.
+1. **Do you smoke?** (cigarette icon) — No / Sometimes / Yes
+2. **Do you drink alcohol?** (wine-glass icon) — I don't drink / Sometimes / Regularly
+3. **How do you feel about pets?** (paw icon) — I have pets / No pets, but I like them / I'm neutral about pets / I'd rather not live with pets
+   - If **I have pets**: inline **What kind?** — Dog / Cat / Both / Other (icons before labels: dog, cat, dog + cat, paw). Single choice, **optional**: Continue needs only the primary answer; no default kind; Both = dog and cat; Other needs no free text. Changing away from "I have pets" clears and hides the kind. One row if it fits, otherwise 2 × 2.
+4. **How active are you?** (walking-person icon) — helper "Physical activity" — Very active / Somewhat active / Not very active
+
+Pet kind is context, never a penalty. No lifestyle dealbreakers, partner
+restrictions or scoring derived from own habits. No diet, sleep, children, job
+or dealbreaker questions here.
 
 ## Section 5 — Your World (6 screens) ✅
 
