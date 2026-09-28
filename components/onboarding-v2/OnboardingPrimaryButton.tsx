@@ -7,9 +7,12 @@ type Props = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  /** Outline = secondary full-width action on ivory (P07 "Review my profile"). */
+  variant?: 'solid' | 'outline';
 };
 
-export function OnboardingPrimaryButton({ label, onPress, disabled = false }: Props) {
+export function OnboardingPrimaryButton({ label, onPress, disabled = false, variant = 'solid' }: Props) {
+  const outline = variant === 'outline';
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -18,8 +21,8 @@ export function OnboardingPrimaryButton({ label, onPress, disabled = false }: Pr
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
-      style={[styles.button, disabled && styles.buttonDisabled]}>
-      <Text style={styles.label} maxFontSizeMultiplier={1.4}>
+      style={[styles.button, outline && styles.buttonOutline, disabled && styles.buttonDisabled]}>
+      <Text style={[styles.label, outline && styles.labelOutline]} maxFontSizeMultiplier={1.4}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -35,6 +38,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
+  buttonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: obColors.cta,
+  },
   buttonDisabled: {
     backgroundColor: obColors.ctaDisabled,
   },
@@ -43,5 +51,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 22,
     color: obColors.onCta,
+  },
+  labelOutline: {
+    color: obColors.cta,
   },
 });
