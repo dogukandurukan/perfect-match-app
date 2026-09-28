@@ -37,7 +37,16 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
       <Text style={styles.label} maxFontSizeMultiplier={1.6}>
         {label}
       </Text>
-      {/* No vertical padding on the native input (P05 R2). On iOS, RN's
+      {/* Explicit lineHeight (P05 R2, root cause): on iOS, Fabric recycles
+          native TextInput views across screens (RCTComponentViewRegistry
+          recycle pool) and prepareForRecycle only clears attributedText — the
+          previous input's paragraph style is not reset. After the height
+          ruler (lineHeight 68) a recycled view drew the placeholder ~16 pt low
+          and clipped it. Setting lineHeight here makes every mount apply its
+          own paragraph style (≈ the font's own line box, so no extra baseline
+          offset), overriding any stale one. Phone lab #2 showed only the first
+          field of a screen clipped — consistent with recycling.
+          No vertical padding on the native input (P05 R2). On iOS, RN's
           RCTUITextField insets typed text by the padding (it overrides
           textRectForBounds/editingRectForBounds) but does NOT override
           placeholderRectForBounds, so with padding the placeholder is laid
@@ -88,6 +97,8 @@ export const INPUT_FONT_SIZE = 19;
 /** DM Sans line box (hhea ascent 992 + descent 310, upm 1000) — bundled TTF. */
 export const LINE_BOX_EM = 1.302;
 const MAX_SCALE = 1.6;
+/** ≈ DM Sans line box at 19 pt (24.7) — RN scales it with the text size. */
+const INPUT_LINE_HEIGHT = 25;
 /** Breathing room split evenly above/below the text inside the field. */
 const FIELD_ROOM = 16;
 
@@ -115,6 +126,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     fontFamily: obFonts.body,
     fontSize: INPUT_FONT_SIZE,
+    lineHeight: INPUT_LINE_HEIGHT,
     color: obColors.textPrimary,
   },
   inputFocused: {
