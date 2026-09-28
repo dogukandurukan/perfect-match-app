@@ -1,10 +1,13 @@
 // Labelled text field for onboarding V2 (D46): thin underline, no enclosing
 // box. Optional unit suffix (e.g. "cm"). No validation rules of its own.
-import { forwardRef, useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
+
+import { useRevealInScroll } from '@/components/onboarding-v2/OnboardingScrollContext';
 import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type StyleProp,
   type TextInputProps,
@@ -25,8 +28,20 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
   ref,
 ) {
   const [focused, setFocused] = useState(false);
+  const wrapRef = useRef<View>(null);
+  const reveal = useRevealInScroll();
+  // Explicit height from the font's real line box (DM Sans: 1.302 em, from
+  // the bundled font's hhea metrics) × the user's text scale (capped like
+  // maxFontSizeMultiplier) + vertical padding. A fixed minHeight of 44 left
+  // only 32 pt for text, less than the 32–40 pt line box at larger text
+  // sizes, which clips glyphs on iOS (P05 R1).
+  const { fontScale } = useWindowDimensions();
+  const inputHeight = Math.max(
+    44,
+    Math.ceil(INPUT_FONT_SIZE * LINE_BOX_EM * Math.min(fontScale, MAX_SCALE)) + INPUT_PAD_Y + 4,
+  );
   return (
-    <View style={[styles.wrap, containerStyle]}>
+    <View ref={wrapRef} style={[styles.wrap, containerStyle]}>
       <Text style={styles.label} maxFontSizeMultiplier={1.6}>
         {label}
       </Text>
@@ -41,17 +56,25 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
           placeholderTextColor={obColors.textSecondary}
           keyboardAppearance="light"
           selectionColor={obColors.cta}
-          maxFontSizeMultiplier={1.6}
+          maxFontSizeMultiplier={MAX_SCALE}
           {...inputProps}
           onFocus={(e) => {
             setFocused(true);
+            // Bring the field (and anything right under it, e.g. suggestions)
+            // into view above the keyboard and the pinned footer.
+            setTimeout(() => reveal(wrapRef), 250);
             onFocus?.(e);
           }}
           onBlur={(e) => {
             setFocused(false);
             onBlur?.(e);
           }}
-          style={[styles.input, focused && styles.inputFocused, suffix ? styles.inputWithSuffix : null]}
+          style={[
+            styles.input,
+            { height: inputHeight },
+            focused && styles.inputFocused,
+            suffix ? styles.inputWithSuffix : null,
+          ]}
         />
         {suffix ? (
           <Text style={styles.suffix} pointerEvents="none" maxFontSizeMultiplier={1.6}>
@@ -62,6 +85,11 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
     </View>
   );
 });
+
+const INPUT_FONT_SIZE = 19;
+const LINE_BOX_EM = 1.302;
+const MAX_SCALE = 1.6;
+const INPUT_PAD_Y = obSpacing.xs + obSpacing.sm;
 
 const styles = StyleSheet.create({
   wrap: {
@@ -74,7 +102,6 @@ const styles = StyleSheet.create({
     color: obColors.textSecondary,
   },
   input: {
-    minHeight: 44,
     paddingHorizontal: 0,
     paddingTop: obSpacing.xs,
     paddingBottom: obSpacing.sm,
@@ -82,7 +109,7 @@ const styles = StyleSheet.create({
     borderBottomColor: obColors.border,
     backgroundColor: 'transparent',
     fontFamily: obFonts.body,
-    fontSize: 19,
+    fontSize: INPUT_FONT_SIZE,
     color: obColors.textPrimary,
   },
   inputFocused: {

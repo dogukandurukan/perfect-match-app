@@ -55,11 +55,14 @@ export type TasteKind = 'school' | 'hometown' | 'artist' | 'book' | 'screen';
  * provenance; `id` is the stable source ID (or `custom:<folded text>`). */
 export type TasteItem = {
   kind: TasteKind;
-  source: 'sample' | 'custom';
+  /** Provenance: live catalog, bundled sample (schools/hometown) or typed. */
+  source: 'musicbrainz' | 'openlibrary' | 'wikidata' | 'sample' | 'custom';
   id: string;
   title: string;
   /** Verified extra line only (author, "2005 · Movie", "İstanbul, Turkey"). */
   subtitle?: string;
+  /** Only when the provider supplies and permits it (Open Library covers). */
+  imageUrl?: string;
 };
 
 export type WorldDraft = {

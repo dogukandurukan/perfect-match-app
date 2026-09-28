@@ -8,6 +8,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { OnboardingOptionCard } from '@/components/onboarding-v2/OnboardingOptionCard';
 import { OnboardingTextField } from '@/components/onboarding-v2/OnboardingTextField';
 import { SelectedList, Typeahead } from '@/components/onboarding-v2/yourWorld/Typeahead';
+import { LIVE_ATTRIBUTION } from '@/lib/onboardingV2/liveCatalog';
 import {
   searchArtists,
   searchBooks,
@@ -39,6 +40,14 @@ function PreviewNote() {
   return (
     <Text style={styles.previewNote} maxFontSizeMultiplier={1.6}>
       Preview search uses a small sample list, not live results.
+    </Text>
+  );
+}
+
+function LiveNote() {
+  return (
+    <Text style={styles.previewNote} maxFontSizeMultiplier={1.6}>
+      Suggestions come from public catalogs and need an internet connection.
     </Text>
   );
 }
@@ -184,6 +193,7 @@ function TasteGroup({
   search,
   items,
   onChange,
+  attribution,
 }: {
   kind: TasteKind;
   title?: string;
@@ -192,6 +202,7 @@ function TasteGroup({
   search: SearchFn;
   items: TasteItem[];
   onChange: (list: TasteItem[]) => void;
+  attribution?: string;
 }) {
   const [notice, setNotice] = useState<string | null>(null);
   const full = items.length >= MAX_TASTE;
@@ -211,6 +222,7 @@ function TasteGroup({
         full={full}
         fullMessage={`You've added ${MAX_TASTE}. Remove one to add another.`}
         notice={notice}
+        attribution={attribution}
         onPick={(it) => {
           const r = addTaste(items, it);
           setNotice(r.rejected === 'duplicate' ? `“${it.title}” is already added.` : null);
@@ -244,8 +256,9 @@ export function ArtistsFields({ draft, update }: Props) {
         search={searchArtists}
         items={draft.artists}
         onChange={(artists) => update({ artists })}
+        attribution={LIVE_ATTRIBUTION.artist}
       />
-      <PreviewNote />
+      <LiveNote />
     </View>
   );
 }
@@ -262,6 +275,7 @@ export function MediaFields({ draft, update }: Props) {
         search={searchBooks}
         items={draft.books}
         onChange={(books) => update({ books })}
+        attribution={LIVE_ATTRIBUTION.book}
       />
       <TasteGroup
         kind="screen"
@@ -271,8 +285,9 @@ export function MediaFields({ draft, update }: Props) {
         search={searchScreen}
         items={draft.screen}
         onChange={(screen) => update({ screen })}
+        attribution={LIVE_ATTRIBUTION.screen}
       />
-      <PreviewNote />
+      <LiveNote />
     </View>
   );
 }

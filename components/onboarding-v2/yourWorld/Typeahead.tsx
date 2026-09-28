@@ -4,9 +4,11 @@
 // SelectedList). The query is local UI state — never part of the draft, never
 // logged — so it is dismissed when leaving the screen.
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { Image } from 'expo-image';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { useRevealInScroll } from '@/components/onboarding-v2/OnboardingScrollContext';
 import { OnboardingTextField } from '@/components/onboarding-v2/OnboardingTextField';
 import type { SearchFn } from '@/lib/onboardingV2/tasteSearch';
 import { makeTypeahead, type TypeaheadState } from '@/lib/onboardingV2/typeahead';
@@ -26,6 +28,8 @@ type Props = {
   fullMessage?: string;
   /** Feedback for the last rejected pick (e.g. duplicate). */
   notice?: string | null;
+  /** Source line shown under live results, e.g. "Suggestions from MusicBrainz". */
+  attribution?: string;
 };
 
 export function Typeahead({
@@ -38,11 +42,18 @@ export function Typeahead({
   full = false,
   fullMessage,
   notice,
+  attribution,
 }: Props) {
   const [text, setText] = useState('');
   const [state, setState] = useState<TypeaheadState>({ status: 'idle', query: '', results: [] });
   const ctrl = useMemo(() => makeTypeahead(search, setState), [search]);
   useEffect(() => () => ctrl.dispose(), [ctrl]);
+  const wrapRef = useRef<View>(null);
+  const reveal = useRevealInScroll();
+  // When suggestions first appear, keep the field + results in view.
+  useEffect(() => {
+    if (state.status === 'done' || state.status === 'error') reveal(wrapRef);
+  }, [state.status, reveal]);
 
   const onChange = (v: string) => {
     setText(v);
@@ -60,7 +71,7 @@ export function Typeahead({
   const active = state.status !== 'idle' && !full;
 
   return (
-    <View style={styles.wrap}>
+    <View ref={wrapRef} style={styles.wrap}>
       <OnboardingTextField
         label={label}
         placeholder={placeholder}
@@ -108,7 +119,7 @@ export function Typeahead({
                     accessibilityRole="button"
                     accessibilityLabel={`${r.title}${r.subtitle ? `, ${r.subtitle}` : ''}${added ? ', already added' : ''}`}
                     style={[styles.row, added && styles.rowAdded]}>
-                    <Ionicons name="search" size={16} color={obColors.textSecondary} />
+                    <Thumb item={r} small />
                     <View style={styles.rowText}>
                       <Text style={styles.rowTitle} maxFontSizeMultiplier={1.6}>
                         {r.title}
@@ -124,13 +135,16 @@ export function Typeahead({
                 );
               })
             : null}
+          {state.status === 'done' && state.results.length > 0 && attribution ? (
+            <Text style={styles.attribution}>{attribution}</Text>
+          ) : null}
           {custom && state.status !== 'loading' ? (
             <TouchableOpacity
               onPress={() => pick(custom)}
               disabled={pickedIds.includes(custom.id)}
               accessibilityRole="button"
               accessibilityLabel={`Use ${custom.title} as typed`}
-              style={styles.row}>
+              style={[styles.row, styles.customRow]}>
               <Ionicons name="add" size={18} color={obColors.cta} />
               <Text style={styles.customText} maxFontSizeMultiplier={1.6}>
                 Use “{custom.title}”
@@ -151,6 +165,24 @@ const TASTE_ICON: Record<TasteKind, keyof typeof Ionicons.glyphMap> = {
   screen: 'film-outline',
 };
 
+/** Provider image only when supplied and permitted (Open Library covers);
+ * otherwise a neutral placeholder glyph. Decorative for screen readers. */
+function Thumb({ item, small = false }: { item: TasteItem; small?: boolean }) {
+  const tall = item.kind === 'book' || item.kind === 'screen';
+  return (
+    <View
+      style={[styles.thumb, tall && styles.thumbTall, small && (tall ? styles.thumbTallSmall : styles.thumbSmall)]}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden>
+      {item.imageUrl ? (
+        <Image source={{ uri: item.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+      ) : (
+        <Ionicons name={TASTE_ICON[item.kind]} size={small ? 15 : 18} color={obColors.cta} />
+      )}
+    </View>
+  );
+}
+
 /** Selected items — visually distinct from search results (filled rows with
  * a neutral placeholder thumbnail and a remove button). No images are shown:
  * none are verified in the preview catalog. */
@@ -166,18 +198,16 @@ export function SelectedList({
     <View style={styles.selected}>
       {items.map((it) => (
         <View key={it.id} style={styles.selRow}>
-          <View
-            style={[styles.thumb, (it.kind === 'book' || it.kind === 'screen') && styles.thumbTall]}
-            importantForAccessibility="no-hide-descendants">
-            <Ionicons name={TASTE_ICON[it.kind]} size={18} color={obColors.cta} />
-          </View>
+          <Thumb item={it} />
           <View style={styles.rowText}>
             <Text style={styles.rowTitle} maxFontSizeMultiplier={1.6}>
               {it.title}
             </Text>
-            <Text style={styles.rowSub} maxFontSizeMultiplier={1.6}>
-              {it.source === 'custom' ? 'Added as typed' : it.subtitle ?? ''}
-            </Text>
+            {it.source === 'custom' || it.subtitle ? (
+              <Text style={styles.rowSub} maxFontSizeMultiplier={1.6}>
+                {it.source === 'custom' ? 'Added as typed' : it.subtitle}
+              </Text>
+            ) : null}
           </View>
           <TouchableOpacity
             onPress={() => onRemove(it.id)}
@@ -276,6 +306,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
+    overflow: 'hidden',
     backgroundColor: obColors.background,
     borderWidth: 1,
     borderColor: obColors.border,
@@ -286,6 +317,29 @@ const styles = StyleSheet.create({
     width: 32,
     height: 44,
     borderRadius: 4,
+  },
+  thumbSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  thumbTallSmall: {
+    width: 24,
+    height: 34,
+    borderRadius: 3,
+  },
+  customRow: {
+    backgroundColor: obColors.notice,
+  },
+  attribution: {
+    fontFamily: obFonts.body,
+    fontSize: 11,
+    lineHeight: 15,
+    color: obColors.textSecondary,
+    paddingHorizontal: obSpacing.md,
+    paddingVertical: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: obColors.border,
   },
   remove: {
     width: 32,

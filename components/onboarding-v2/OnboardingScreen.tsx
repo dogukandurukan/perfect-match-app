@@ -3,7 +3,7 @@
 // above the open keyboard. Light only — there is no dark-theme variant, so the
 // status bar is pinned dark here regardless of the phone's appearance setting.
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -12,11 +12,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingHeader } from '@/components/onboarding-v2/OnboardingHeader';
+import { OnboardingScrollContext } from '@/components/onboarding-v2/OnboardingScrollContext';
 import { obColors, obFonts, obSpacing, useOnboardingFonts } from '@/lib/onboardingV2/theme';
 
 type Props = {
@@ -69,6 +71,22 @@ export function OnboardingScreen({
   const insets = useSafeAreaInsets();
   const fontsReady = useOnboardingFonts();
   const keyboardVisible = useKeyboardVisible();
+  const { height: windowHeight } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
+
+  // Scroll a focused field (and the suggestions rendered under it) to just
+  // below the top of the visible scroll area, clear of the keyboard and footer.
+  const reveal = useCallback((target: RefObject<View | null>) => {
+    const scroll = scrollRef.current as unknown as View | null;
+    if (!target.current || !scroll) return;
+    target.current.measureInWindow((_x, ty) => {
+      scroll.measureInWindow((_sx, sy) => {
+        const y = Math.max(0, scrollY.current + (ty - sy) - obSpacing.lg);
+        scrollRef.current?.scrollTo({ y, animated: true });
+      });
+    });
+  }, []);
 
   if (!fontsReady) {
     return (
@@ -94,12 +112,25 @@ export function OnboardingScreen({
       </View>
       <ScrollView
         key={contentKey}
+        ref={scrollRef}
+        onScroll={(e) => {
+          scrollY.current = e.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={32}
         style={styles.flex}
-        contentContainerStyle={[styles.content, keyboardVisible && styles.contentKeyboard]}
+        contentContainerStyle={[
+          styles.content,
+          keyboardVisible && styles.contentKeyboard,
+          // Extra room while typing so a field near the end can still be
+          // scrolled up with its suggestions visible above the footer.
+          keyboardVisible && { paddingBottom: Math.round(windowHeight * 0.4) },
+        ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}>
-        <View style={compactTitle ? styles.titleBlockCompact : undefined}>
+        {/* The reserved 2-line title/helper block keeps option baselines aligned;
+            it is dropped while the keyboard is open to free space for fields. */}
+        <View style={compactTitle && !keyboardVisible ? styles.titleBlockCompact : undefined}>
           <Text
             style={compactTitle ? styles.titleCompact : styles.title}
             accessibilityRole="header"
@@ -118,7 +149,7 @@ export function OnboardingScreen({
             compactTitle && styles.bodyCompact,
             keyboardVisible && styles.bodyKeyboard,
           ]}>
-          {children}
+          <OnboardingScrollContext.Provider value={reveal}>{children}</OnboardingScrollContext.Provider>
         </View>
       </ScrollView>
       <View
