@@ -90,6 +90,9 @@ export default function InputLab() {
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Input lab (DEV)</Text>
+        <TouchableOpacity onPress={() => router.push('/dev/input-lab-2' as never)}>
+          <Text style={styles.back}>Open Input lab 2 (inside the flow container) ›</Text>
+        </TouchableOpacity>
         <Text style={styles.meta}>
           fontScale {fontScale.toFixed(2)} · fonts {ready ? 'loaded' : 'NOT loaded'} · computed height {h}
         </Text>
