@@ -28,6 +28,8 @@ direction only.
 4. [`SCHEMA_MAPPING.md`](SCHEMA_MAPPING.md) — logical field → current DB → proposed destination.
 5. [`SCORING.md`](SCORING.md) — current live scoring vs. the proposed 100-point model.
 6. [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) — only the questions that block implementation.
+7. [`V2_BACKEND_SCORING_AUDIT.md`](V2_BACKEND_SCORING_AUDIT.md) — evidence-based current state (live read-only DB, migrations, code), V1↔V2 field mapping, V1 algorithm, V2 scoring **proposal** (P07 R1).
+8. [`V2_INTEGRATION_PLAN.md`](V2_INTEGRATION_PLAN.md) — **proposed** work packages, test cohort, owner access path, pending decisions (P07 R1).
 
 ## Relationship to older docs
 
