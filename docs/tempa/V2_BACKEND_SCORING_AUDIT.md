@@ -35,6 +35,8 @@ Where a doc says one thing and live code another, both are shown.
 ### 1.3 RLS / storage / privacy [live][mig]
 | Area | Finding | Severity |
 |---|---|---|
+| `profiles` INSERT | Table-level INSERT on **all columns** for `authenticated`. A user without a profile row can create it with `photo_verified` / `is_premium` / `waitlist_*` / `deleted_at` set (bypasses the 2026-09-20 UPDATE lockdown). | **P0** |
+| `user-photos` URLs | Onboarding photo paths are predictable (`{uid}/photo_{n}.jpg`) in a public bucket → anyone who knows a UID can open them by URL, even after listing is closed. | **P0 (phase 2 full fix)** |
 | `profiles` SELECT | `profiles_select_authenticated`: any signed-in user can read **every column** of any non-hidden, non-deleted profile. Column privileges confirm `authenticated` can SELECT `last_name, date_of_birth, phone_number, full_address, lat, lng, verification_selfie_path, expo_push_token, instagram_handle`. The app only shows safe fields, but the REST API exposes the rest. | **P0 before any real user** |
 | `profiles` UPDATE | Column-level grant (good, 20260920090000). Still writable by the user: `setup_completed`, `current_step`, `is_hidden`, `verification_selfie_path`. Not writable: `photo_verified`, `is_premium`, `waitlist_*`, daily counters. | P1 for V2 gate |
 | `user-photos` | Public bucket; SELECT policies `photos are public` (role **public**) and `Anyone can view photos` → anyone, even signed-out, can read and list object names (`{uid}/…` reveals user IDs). Duplicate INSERT/DELETE policies (two names each). | P1 (listing), cleanup |
@@ -160,7 +162,15 @@ Things **not** carried (D40/D41): Instagram, education level, morning/night, rec
 
 ### 3.2 Worked example (illustrative, not calibrated)
 Viewer: long_term; mix social; "a few times a day"; balance; after chatting; values Trust + Respect; doesn't smoke; drinks sometimes; likes pets but has none; somewhat active; interests Food, Travel, Books, Music; 1 artist + 1 book; Coffee + A walk; Weekends · Daytime; 29.
-Proximity is a neutral 5 for everyone (city only). Points come from `SCORING.md` §2. Pet cells that `SCORING.md` hasn't written down yet (`like_no_pets` pairs) use **my provisional values** 6 / 4.8 / 2.4.
+Proximity is a neutral 5 for everyone (city only). Points come from `SCORING.md` §2 (🔵 proposed).
+
+> **Assumption pending approval — not canonical.** `SCORING.md` does not yet
+> define the pet-attitude cells `like_no_pets × like_no_pets`,
+> `like_no_pets × neutral`, `like_no_pets × rather_not`, `neutral × rather_not`
+> and `rather_not × rather_not`. For this illustration only I assumed
+> **6 / 4.8 / 2.4 / 3.6 / 6**. They enter **all four** rows below: A, B and D via `like_no_pets × like_no_pets` = 6, and C via `like_no_pets × rather_not` = 2.4. Do not reuse
+> them as decided values; the full pet matrix is decision §3.3-1. No
+> scoring weight was changed anywhere.
 
 | Candidate | Intent | Lifestyle (of 20) | Interests (of 7) | Taste (of 3) | **Total / 100** |
 |---|---:|---:|---:|---:|---:|
@@ -192,6 +202,8 @@ That is why a separate `get_top_matches_v2` is needed rather than a patch (`SCOR
 8. Separate recommendations from real matches (today a candidate is a `matches` row via `upsert_match`).
 
 ## 4. Other findings worth fixing independently (not done)
+
+> **P0 items (§1.3) now have a concrete, locally tested remediation package:** `P0_PRIVACY_REMEDIATION.md` (+ `supabase/proposed/`). Not applied — still live.
 - `discovery_age_min/max` ignored by `get_top_matches` (V1 bug).
 - Discover "pass" not persisted.
 - `profiles` over-exposed columns (P0 above); public listable photo bucket.

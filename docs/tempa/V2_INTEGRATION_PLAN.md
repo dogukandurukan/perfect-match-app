@@ -6,8 +6,27 @@ package (WP) needs owner approval before it starts; DDL goes through the CLI
 (`supabase db query --linked -f`, never `db push`), one migration per
 change, with `NOTIFY pgrst, 'reload schema'` after new columns.
 
+## 00. P0 privacy remediation — FIRST, before any persistent V2 data (updated 2026-09-28)
+Owner decision: the P0 privacy fixes precede WP1. Full package, tests and code list: `P0_PRIVACY_REMEDIATION.md`.
+1. **P0-A** migration. Additive and safe with the current app. It closes:
+   - the INSERT bypass of server fields;
+   - trivial self-completion;
+   - arbitrary selfie paths;
+   - anonymous and cross-user photo listing;
+   - TRUNCATE.
+2. **R-P0 client release.** Other users are read via `profile_cards` / `get_discovery_cards` / `get_my_liker_cards` with `age`. The surname is removed from `user-profile`. New photo uploads use random paths.
+3. **P0-B** migration. `profiles` becomes own-row only, anon has no table access, and the full-DOB RPCs are revoked for clients.
+4. **Phase 2 (with WP2).** Private photo bucket + visibility-checked signed URLs; the server-controlled account state replaces the `setup_completed` gate.
+
+Acceptance:
+- The local PGlite suite passes (49/49 today).
+- After applying, live checks run with the owner's own test accounts only: anon list empty, cross-user private read denied, Home/Matches/Activity/Chats render.
+
+Rollback: the tested `.rollback.sql` files (B before A).
+**Status: not applied — the exposure is still live.**
+
 ## 0. Pre-work (small, independent)
-- **Commit the V2 design drafts** that currently live only uncommitted in `~/dating-app-recovered` (`docs/v2-schema-spec.md`, `supabase/migrations/20260921100000_v2_schema_proposed.sql`, `docs/matching-engine-v2.md`, `docs/onboarding-v2-gap-analysis.md`) to a docs branch. Rename the migration so it cannot be applied by accident (e.g. `.sql.draft`).
+- ✅ **Done 2026-09-28:** the uncommitted V2 drafts were preserved byte-identically on branch **`tempa/v2-drafts-archive`** (`09ef63b`), with the SQL placed under `supabase/drafts/` so it can't be applied. The README there lists the D15–D59 differences. The originals in `~/dating-app-recovered` are untouched.
 - **Revision 3 of the draft** against D15–D59:
   - Remove `self_describe`, the dinner style and the old prompt/availability/environment columns.
   - Add the Section 3 columns, `values` incl. `respect`, pet attitude + kind, `activity`, `work_status`, taste items, `date_types`, one favorite spot, days/time, and prompt keys (catalog table).
@@ -47,7 +66,7 @@ change, with `NOTIFY pgrst, 'reload schema'` after new columns.
     - submitted / under review → "You're on the list" status screen;
     - accepted + verified + active → Home.
     - Read from the server state, **not** from the client-writable `setup_completed`.
-  - Fix the P0 over-exposure (`profiles` public columns) in the same package.
+  - (P0 over-exposure is handled earlier, in §00 — WP2 only adds phase 2: private photo bucket + signed URLs and the server-controlled gate.)
 - **Acceptance:**
   - An interrupted upload leaves no counted photo.
   - Retrying Submit after a network drop does not duplicate.
@@ -150,11 +169,12 @@ Today the only gate is `profiles.setup_completed`, which is client-writable (aud
 - A DEV-only "reset my V2 draft" action may call an RPC that clears only the caller's own draft. It must not change application or verification state.
 
 ## 3. Recommended order
-0 (drafts committed + Revision 3) → **WP1** → **WP2** (the P0 privacy fix goes here or earlier) → **WP5 cohort v1** (needed to test WP3/WP4) → **WP3** → **WP4** → end-to-end date test → WP6 later.
+**00 P0 privacy (P0-A → R-P0 → P0-B)** → 0 (Revision 3) → **WP1** → **WP2** (incl. P0 phase 2) → **WP5 cohort v1** (needed to test WP3/WP4) → **WP3** → **WP4** → end-to-end date test → WP6 later.
 
-The V1 bugs in audit §4 (age range ignored, pass not stored) can be fixed independently at any time if V1 stays in use for a while.
+The V1 bugs in audit §4 (age range ignored, pass not stored) can be fixed independently at any time if V1 stays in use for a while. The P0 privacy items are **not** optional and are no longer "independent": they come first.
 
 ## 4. Decisions waiting for the owner
+0. Apply P0-A now? Timing of R-P0 + P0-B? Is `district` public? When do private photos + signed URLs land (closed beta or public launch)? (See `P0_PRIVACY_REMEDIATION.md` §7.)
 1. Approve Revision 3 scope (tables, enum spellings = code keys, `respect`, prompt catalog vs CHECK).
 2. SMS provider + budget for phone OTP (D11) — or email-first for the closed beta?
 3. Test environment: separate Supabase project/branch vs flagged data in production.

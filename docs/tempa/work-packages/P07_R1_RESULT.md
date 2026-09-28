@@ -171,3 +171,23 @@ At the time of this report, Metro on port 8081 was running from **`~/tempa-p07`*
   - Pet-matrix cells marked provisional in the audit example are my illustration values.
 - **Media retention** in the preview is as in P07: cache-directory URIs, not copied or deleted by us.
 - **Merge / deploy:** not merged, not deployed. Waiting for your phone review and backend decisions.
+
+## Follow-up — 2026-09-28 (while phone review runs)
+
+1. **P06 checks fixed, versioned.** The logic checks now live in the repo: `scripts/onboarding-v2-checks/` (run `node scripts/onboarding-v2-checks/run.js`).
+   - P06's two failing expectations were updated to the approved flow: 32 steps, Dates 2 → Your Profile 1, end after received.
+   - A full-draft walk of all 32 real steps was added: every step is valid, and Back mirrors forward.
+   - Result: **P06 45/45, P07 R1 67/67, exit 0**. No failing test is left. Commit `bbe09c9`.
+2. **V2 drafts preserved.** Branch **`tempa/v2-drafts-archive`** (`09ef63b`, pushed) contains byte-identical copies (SHA-256 checked) of `v2-schema-spec.md`, `matching-engine-v2.md`, `onboarding-v2-gap-analysis.md` and the proposed SQL.
+   - The SQL is under `supabase/drafts/` so it can never be applied.
+   - A README marks them **not approved** and lists the D15–D59 differences: gender/interested-in `self_describe`; old compatibility questions; smoking/drinking/pets/activity enums; no values/`respect`; no taste/interests/date types/favorite spot; old prompt keys and 300-char cap; no photo max; discovery preferences wrongly required at submit.
+   - Excluded: `AGENTS.md`, `docs/brand.md`, `.codex/`, `supabase/.temp/` (CLI link state) and the uncommitted app-file edits. The secret/PII pattern scan found nothing.
+   - The originals in `~/dating-app-recovered` are untouched.
+3. **Plan reordered.** P0 privacy now comes **first** (§00 of `V2_INTEGRATION_PLAN.md`), before WP1.
+4. **P0 remediation package.** `docs/tempa/P0_PRIVACY_REMEDIATION.md` + `supabase/proposed/` (P0-A additive, P0-B restrictive, both rollbacks, local test). Nine exposures are explained with their policy/grant and API path. Two are new in this round:
+   - the **INSERT bypass** of server fields;
+   - **predictable photo URLs** (`{uid}/photo_{n}.jpg`).
+   - Other items covered: public vs private field split (`profile_cards` view + age-only RPC wrappers; `profiles` own-row only); the storage paths evaluated separately; server-controlled writes; the screen-by-screen client change list (R-P0, **not written yet** — it must ship with the migrations); order; rollback.
+   - **Local verification:** PGlite with the real proposed files, actors anon / owner / other → **49/49**. The mutation check confirms the tests detect the fix.
+   - **⚠️ Not applied live — the exposure continues** until P0-A → R-P0 → P0-B are applied. Nothing was changed live (no migration, policy, bucket or account change). No other user's data was read.
+5. **Scoring.** Weights unchanged. The pet-matrix cells used in the audit example are marked "**assumption pending approval**" (they affect all four example rows).
