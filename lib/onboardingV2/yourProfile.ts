@@ -10,6 +10,7 @@ import { DATE_TYPES, datesSummary, favoriteSpot, type DatesDraft } from '@/lib/o
 import { HAVE_PETS, type LifeDraft } from '@/lib/onboardingV2/yourLife';
 import { INTERESTS, WORK_OPTIONS, type TasteItem, type WorldDraft } from '@/lib/onboardingV2/yourWorld';
 import { getZodiacFromDate } from '@/lib/zodiac';
+import { promptById } from '@/lib/onboardingV2/promptCatalog';
 
 // P07 R1: the separate "Ready to submit?" checklist state was removed; the
 // email-code screen shows "Email confirmed" + Submit application instead.
@@ -42,13 +43,22 @@ export const MAX_PHOTOS = 6;
 
 /** A photo the user picked from the device library: local URI only. */
 export type LocalPhoto = {
+  /** Stable local id — React key and the handle every edit targets. */
   id: string;
   uri: string;
+  /** Library asset id when the system provides one (null with limited
+   * access / some sources) — only a non-null id is used for de-duplication. */
+  assetId?: string | null;
   width?: number;
   height?: number;
   /** Set when the image failed to load; never counts toward the minimum. */
   broken?: boolean;
 };
+
+/** Photo edits are applied as functions of the CURRENT list (P07 R2): a
+ * late callback (image error, picker return) must never overwrite newer
+ * photos with a stale array captured at render time. */
+export type PhotoUpdater = (list: LocalPhoto[]) => LocalPhoto[];
 
 let photoSeq = 0;
 export function newPhotoId(): string {
@@ -60,19 +70,63 @@ export function usablePhotos(list: LocalPhoto[]): LocalPhoto[] {
   return list.filter((p) => !!p.uri && !p.broken);
 }
 
-/** Adds in order up to the remaining capacity; extra picks are dropped. */
+export type AddResult = { list: LocalPhoto[]; added: number; duplicates: number; overflow: number };
+
+/** Appends in pick order after the existing photos, up to the remaining
+ * capacity. A pick whose non-null assetId is already present (or repeated
+ * in the same batch) is skipped as a duplicate; null asset ids are never
+ * treated as equal. Existing photos are never touched. */
+export function addPhotosDetailed(list: LocalPhoto[], picked: LocalPhoto[]): AddResult {
+  const seen = new Set(list.map((p) => p.assetId).filter((a): a is string => !!a));
+  const next = [...list];
+  let duplicates = 0;
+  let overflow = 0;
+  for (const p of picked) {
+    if (!p.uri) continue;
+    if (p.assetId && seen.has(p.assetId)) {
+      duplicates += 1;
+      continue;
+    }
+    if (next.length >= MAX_PHOTOS) {
+      overflow += 1;
+      continue;
+    }
+    if (p.assetId) seen.add(p.assetId);
+    next.push(p);
+  }
+  return { list: next, added: next.length - list.length, duplicates, overflow };
+}
+
 export function addPhotos(list: LocalPhoto[], picked: LocalPhoto[]): LocalPhoto[] {
-  const room = MAX_PHOTOS - list.length;
-  if (room <= 0) return list;
-  return [...list, ...picked.filter((p) => !!p.uri).slice(0, room)];
+  return addPhotosDetailed(list, picked).list;
+}
+
+/** Moves a photo to an absolute position (drag-to-reorder); others keep
+ * their relative order. Out-of-range targets are clamped. */
+export function movePhotoTo(list: LocalPhoto[], id: string, to: number): LocalPhoto[] {
+  const from = list.findIndex((p) => p.id === id);
+  if (from < 0) return list;
+  const target = Math.max(0, Math.min(list.length - 1, to));
+  if (target === from) return list;
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(target, 0, item);
+  return next;
+}
+
+export function clearPhotoBroken(list: LocalPhoto[], id: string): LocalPhoto[] {
+  return list.map((p) => (p.id === id && p.broken ? { ...p, broken: false } : p));
 }
 
 export function removePhoto(list: LocalPhoto[], id: string): LocalPhoto[] {
   return list.filter((p) => p.id !== id);
 }
 
+/** Replaces only the target photo, keeping its position. A replacement
+ * whose assetId already belongs to ANOTHER photo is refused (duplicate). */
 export function replacePhoto(list: LocalPhoto[], id: string, next: LocalPhoto): LocalPhoto[] {
-  if (!next.uri) return list;
+  if (!next.uri || !list.some((p) => p.id === id)) return list;
+  if (next.assetId && list.some((p) => p.id !== id && p.assetId === next.assetId)) return list;
   return list.map((p) => (p.id === id ? next : p));
 }
 
@@ -102,102 +156,71 @@ export function photosValid(list: LocalPhoto[]): boolean {
   return n >= MIN_PHOTOS && list.length <= MAX_PHOTOS;
 }
 
-// ─── Prompts ───────────────────────────────────────────────────────────────
+// ─── Prompts (P07 R2, D60) ─────────────────────────────────────────────────
+// Three slots: two required, one optional. Every slot starts EMPTY ("Choose a
+// prompt") — no preselected questions, answers never autofilled. Catalog and
+// examples: lib/onboardingV2/promptCatalog.ts (examples are help text only).
 
 export const ANSWER_MAX_LENGTH = 200;
 export const ANSWER_HINT = 'Short answers are welcome.';
+export const PROMPT_SLOTS = 3;
+export const REQUIRED_PROMPTS = 2;
 
-export type PromptId =
-  | 'weird_talent'
-  | 'dont_judge'
-  | 'cant_say_no'
-  | 'most_used_phrase'
-  | 'you_pick_topic'
-  | 'together_we_could'
-  | 'guess_about_me'
-  | 'sunday_usually';
+export type PromptId = string;
+export type PromptAnswer = { promptId: PromptId | null; answer: string };
 
-// Shorter, easier library (owner, P07 R1 — replaces the D33/D58 abstract set).
-// `hint` is placeholder text only: never stored, never counts as an answer.
-export const PROMPTS: { id: PromptId; label: string; hint?: string }[] = [
-  { id: 'weird_talent', label: 'My weird talent…' },
-  { id: 'dont_judge', label: "Don't judge me, but…", hint: 'I read the menu, then order the same thing.' },
-  { id: 'cant_say_no', label: "I can't say no to…" },
-  { id: 'most_used_phrase', label: 'My most used phrase…' },
-  { id: 'you_pick_topic', label: 'You pick the topic…' },
-  { id: 'together_we_could', label: 'Together, we could…', hint: 'Find the best tiramisu in Istanbul.' },
-  { id: 'guess_about_me', label: 'Guess this about me…' },
-  { id: 'sunday_usually', label: 'My Sunday usually looks like…' },
-];
-
-export function promptLabel(id: PromptId): string {
-  return PROMPTS.find((p) => p.id === id)?.label ?? '';
-}
-
-export function promptHint(id: PromptId): string {
-  return PROMPTS.find((p) => p.id === id)?.hint ?? 'Your answer';
-}
-
-export type PromptAnswer = { promptId: PromptId; answer: string };
-
-/** Starting prompts (P07 R1), answers always start empty (never autofilled). */
 export const DEFAULT_PROMPTS: PromptAnswer[] = [
-  { promptId: 'dont_judge', answer: '' },
-  { promptId: 'together_we_could', answer: '' },
+  { promptId: null, answer: '' },
+  { promptId: null, answer: '' },
+  { promptId: null, answer: '' },
 ];
+
+export function promptLabel(id: PromptId | null): string {
+  return promptById(id)?.en ?? '';
+}
 
 export function answerFilled(a: PromptAnswer): boolean {
-  return a.answer.trim().length > 0 && a.answer.length <= ANSWER_MAX_LENGTH;
+  return !!a.promptId && a.answer.trim().length > 0 && a.answer.length <= ANSWER_MAX_LENGTH;
 }
 
-/** Prompts not used by any other slot (the slot's own prompt stays allowed). */
-export function availablePrompts(list: PromptAnswer[], slot: number | null): PromptId[] {
-  const used = new Set(list.filter((_, i) => i !== slot).map((a) => a.promptId));
-  return PROMPTS.map((p) => p.id).filter((id) => !used.has(id));
+/** Prompt ids chosen in OTHER slots (a slot may keep its own prompt). */
+export function usedPromptIds(list: PromptAnswer[], slot: number | null): Set<string> {
+  return new Set(
+    list.filter((a, i) => i !== slot && a.promptId).map((a) => a.promptId as string),
+  );
 }
 
-/** Changing a prompt keeps the typed answer unless `clearAnswer` is chosen
- * explicitly; a prompt already used elsewhere is refused. */
-export function changePrompt(
-  list: PromptAnswer[],
-  slot: number,
-  promptId: PromptId,
-  clearAnswer = false,
-): PromptAnswer[] {
-  if (!list[slot] || !availablePrompts(list, slot).includes(promptId)) return list;
-  return list.map((a, i) => (i === slot ? { promptId, answer: clearAnswer ? '' : a.answer } : a));
+/** Saves a slot from the editor. Refused when the prompt is unknown, already
+ * used in another slot, or the answer is blank / over the limit. The answer
+ * is stored exactly as typed (no translation, no ASCII folding). */
+export function saveSlot(list: PromptAnswer[], slot: number, promptId: PromptId, answer: string): PromptAnswer[] {
+  if (slot < 0 || slot >= PROMPT_SLOTS || !promptById(promptId)) return list;
+  if (usedPromptIds(list, slot).has(promptId)) return list;
+  if (!answer.trim() || answer.length > ANSWER_MAX_LENGTH) return list;
+  const next = list.length >= PROMPT_SLOTS ? [...list] : [...list, ...DEFAULT_PROMPTS.slice(list.length)];
+  next[slot] = { promptId, answer };
+  return next;
 }
 
-export function setAnswer(list: PromptAnswer[], slot: number, answer: string): PromptAnswer[] {
-  if (!list[slot]) return list;
-  return list.map((a, i) => (i === slot ? { ...a, answer: answer.slice(0, ANSWER_MAX_LENGTH) } : a));
+/** Empties a slot (used for the optional third). */
+export function clearSlot(list: PromptAnswer[], slot: number): PromptAnswer[] {
+  return list.map((a, i) => (i === slot ? { promptId: null, answer: '' } : a));
 }
 
-export function addThirdPrompt(list: PromptAnswer[], promptId: PromptId): PromptAnswer[] {
-  if (list.length !== 2 || !availablePrompts(list, null).includes(promptId)) return list;
-  return [...list, { promptId, answer: '' }];
-}
-
-export function removeThirdPrompt(list: PromptAnswer[]): PromptAnswer[] {
-  return list.slice(0, 2);
-}
-
-/** Two required answers, unique prompts; an added-but-blank third is simply
- * omitted, a filled third must be within the limit. */
+/** Two filled answers with distinct prompts; the optional third either is
+ * empty or valid. A chosen-but-blank slot never counts. */
 export function promptsValid(list: PromptAnswer[]): boolean {
-  if (list.length < 2 || list.length > 3) return false;
-  if (new Set(list.map((a) => a.promptId)).size !== list.length) return false;
-  if (!answerFilled(list[0]) || !answerFilled(list[1])) return false;
-  if (list[2] && list[2].answer.length > ANSWER_MAX_LENGTH) return false;
-  return true;
+  const filled = list.filter(answerFilled);
+  if (filled.length < REQUIRED_PROMPTS) return false;
+  if (new Set(filled.map((a) => a.promptId)).size !== filled.length) return false;
+  return list.every((a) => a.answer.length <= ANSWER_MAX_LENGTH);
 }
 
-/** The answers that appear on the profile (blank optional third dropped). */
-export function publicAnswers(list: PromptAnswer[]): PromptAnswer[] {
-  return list.filter((a, i) => (i < 2 ? true : a.answer.trim().length > 0)).map((a) => ({
-    promptId: a.promptId,
-    answer: a.answer.trim(),
-  }));
+/** The answers that appear on the profile, in slot order. */
+export function publicAnswers(list: PromptAnswer[]): { promptId: PromptId; answer: string }[] {
+  return list
+    .filter(answerFilled)
+    .map((a) => ({ promptId: a.promptId as PromptId, answer: a.answer.trim() }));
 }
 
 // ─── Selfie (private) ──────────────────────────────────────────────────────

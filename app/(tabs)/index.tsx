@@ -31,6 +31,7 @@ import {
 } from '@/lib/dailyViews';
 import { buildPromptCards, parseFavoriteSpots, type HingeProfilePerson, type PromptCard } from '@/lib/hingeProfile';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
+import { devBuildLabel } from '@/lib/devBuildInfo';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -799,6 +800,13 @@ export default function HomeScreen() {
                 <ThemedText style={styles.devPreviewBtnText}>DEV · Input lab</ThemedText>
               </TouchableOpacity>
             ) : null}
+            {/* DEV-ONLY (P07 R2): which code this phone is actually running —
+                package · commit (+local changes) · worktree, from app.config.js. */}
+            {__DEV__ ? (
+              <ThemedText style={styles.devBuildLabel} accessibilityLabel={`Build ${devBuildLabel()}`}>
+                {devBuildLabel()}
+              </ThemedText>
+            ) : null}
           </View>
         </View>
       </ScreenContainer>
@@ -1110,6 +1118,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signUpBtnText: { color: ACCENT, fontSize: 16, fontWeight: '600' },
+  devBuildLabel: { marginTop: 10, fontSize: 12, lineHeight: 16, color: '#6B6B6B', textAlign: 'center' },
   devPreviewBtn: {
     borderRadius: 12,
     borderWidth: 1,
