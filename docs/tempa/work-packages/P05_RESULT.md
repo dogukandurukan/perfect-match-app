@@ -222,3 +222,16 @@ A current R2 component · B R1 (DM Sans, pad 4/8) · C B with system font · D D
 ### Deferred — artist photos / Spotify (recorded, not started)
 
 Owner wants photo-rich artist cards (Bumble-like); deferred. Direction: verified artist photos, compact name cards, existing ivory/forest-green theme, photos provide the colour, no heading emoji; never album art as a portrait substitute, no scraped photos. Two separate future scopes: (1) catalog search with artist images, (2) connecting a user's Spotify to import top artists (OAuth). Before choosing Spotify for production, check developer access/quota mode, the February 2026 Web API migration changes, and image/display terms: <https://developer.spotify.com/documentation/web-api/reference/search>, <https://developer.spotify.com/documentation/web-api/concepts/quota-modes>, <https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide>. **No Spotify code, account or OAuth in this revision; image integration is not complete.**
+
+### R2 follow-up — 2026-09-28: phone still shows clipped placeholders
+
+Owner screenshots (School, Job title) after R2 still show the placeholder drawn
+~20 pt low inside a correctly sized ~44 pt field and cut at the underline. The
+padding hypothesis is therefore **refuted** (or the phone did not load R2 — the
+screenshots alone can't tell, as the field size is identical in both).
+Not fixed. Next step is evidence, not another guess: the DEV input lab now also
+has **G** (explicit `lineHeight`) and **H** (`multiline` → UITextView, whose
+placeholder is a UILabel drawn by React Native itself — `RCTUITextView.mm` —
+rather than UIKit's UITextField placeholder). Needed from the phone: one
+screenshot of **DEV · Input lab** (A–H), and one of a Your World field with text
+typed into it (typed vs placeholder).

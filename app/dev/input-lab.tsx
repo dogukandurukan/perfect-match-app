@@ -21,6 +21,8 @@ type Variant = {
   padBottom: number;
   borderOn: 'input' | 'wrapper';
   explicitHeight: boolean;
+  lineHeight?: number;
+  multiline?: boolean;
 };
 
 const VARIANTS: Variant[] = [
@@ -29,6 +31,8 @@ const VARIANTS: Variant[] = [
   { id: 'D', what: 'DM Sans · pad 0 · border on input · height', font: obFonts.body, padTop: 0, padBottom: 0, borderOn: 'input', explicitHeight: true },
   { id: 'E', what: 'DM Sans · pad 4/8 · border in WRAPPER · height', font: obFonts.body, padTop: 4, padBottom: 8, borderOn: 'wrapper', explicitHeight: true },
   { id: 'F', what: 'DM Sans · pad 4/8 · border on input · NO height (intrinsic)', font: obFonts.body, padTop: 4, padBottom: 8, borderOn: 'input', explicitHeight: false },
+  { id: 'G', what: 'DM Sans · pad 0 · explicit lineHeight 25', font: obFonts.body, padTop: 0, padBottom: 0, borderOn: 'input', explicitHeight: true, lineHeight: 25 },
+  { id: 'H', what: 'DM Sans · MULTILINE (UITextView, RN-drawn native placeholder) · pad 10/10', font: obFonts.body, padTop: 10, padBottom: 10, borderOn: 'input', explicitHeight: false, multiline: true },
 ];
 
 function Raw({ v, placeholder, value, h }: { v: Variant; placeholder?: string; value?: string; h: number }) {
@@ -40,6 +44,9 @@ function Raw({ v, placeholder, value, h }: { v: Variant; placeholder?: string; v
       onChangeText={setText}
       placeholder={placeholder}
       placeholderTextColor={obColors.textSecondary}
+      multiline={v.multiline}
+      scrollEnabled={v.multiline ? false : undefined}
+      submitBehavior={v.multiline ? 'blurAndSubmit' : undefined}
       onLayout={(e) => setMeasured(Math.round(e.nativeEvent.layout.height))}
       style={[
         {
@@ -50,7 +57,9 @@ function Raw({ v, placeholder, value, h }: { v: Variant; placeholder?: string; v
           paddingBottom: v.padBottom,
         },
         v.font ? { fontFamily: v.font } : null,
+        v.lineHeight ? { lineHeight: v.lineHeight } : null,
         v.explicitHeight ? { height: h } : { minHeight: 44 },
+        v.multiline ? { textAlignVertical: 'center' as const } : null,
         v.borderOn === 'input' ? styles.border : null,
       ]}
     />
