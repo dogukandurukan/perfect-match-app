@@ -140,18 +140,39 @@ verified (artist photo; book cover + author; poster + year/type), otherwise
 neutral placeholders. Live providers are not connected yet — the dev preview uses
 a labelled sample catalog (see P05_RESULT.md).
 
-## Section 6 — Your Dates (2 screens) ✅
+## Section 6 — Your Dates (2 screens) ✅ approved copy (P06, D57 — supersedes the earlier Section 6 wording and the dinner-vibe follow-up)
 
-**6.1 What sounds like a good first date?** — "Choose up to 2." (min 1)
-Coffee / Drinks / Dinner / Walk / Something to do / Outdoors.
-If Dinner: optional **What's your dinner vibe?** Casual & cozy / Fine dining / Either.
-Deselecting Dinner removes the active dinner vibe from summary, scoring and planning.
+Header section "Your Dates", local progress 1 of 2 / 2 of 2, no defaults (mockup
+example selections are not defaults), text-only headings.
 
-**6.2 When do dates fit into your week?**
-- Preferred days: Weekdays / Weekends / Either
-- Preferred time: Daytime / Evening / Either
-- One choice each, no default. Helper "Just a preference — you'll pick an exact time together."
-- Live **Your kind of date** summary built only from current answers (dinner line only if Dinner + a vibe).
+**6.1 Your ideal first date?** — helper "Pick 1 or 2." (required, min 1, max 2)
+
+Two columns × three rows, row-major, small outline icon in each card:
+
+| | |
+|---|---|
+| Coffee (`coffee`, cup) | Drinks (`drinks`, wine glass) |
+| Dinner (`dinner`, cutlery) | A fun activity (`activity`, ticket) |
+| A walk (`walk`, footsteps) | Outdoors (`outdoors`, mountain) |
+
+"N of 2 selected"; a third selection is refused (never replaces); deselect
+allowed. Selected card: pale sage fill + green outline + corner check that does
+not move the label. One column at large text sizes.
+
+Always below the cards (for everyone, whatever types are chosen — Coffee +
+Dinner still gives one field): **Have a favorite spot?** / "For a first date.
+Optional." — one optional free-text field, placeholder "Enter a place name".
+Empty or whitespace-only = no venue. The typed spelling/case is kept; it is
+custom, unverified text (no place ID, coordinates or address) and never
+satisfies the date-type requirement. **No dinner follow-up** (Casual & cozy /
+Fine dining / Either removed). No venue search yet.
+
+**6.2 When are you free?** — helper "For a first date."
+- **Days**: Weekdays / Weekends / Either — single choice, three full-width rows.
+- **Time**: Daytime / Evening / Either — single choice, one row when it fits, otherwise stacked.
+- Both required, no default; each Either covers its own group only.
+- Live summary once both are chosen, e.g. "Weekends · Daytime" ("Either" reads "Any day" / "Any time"), with "Choose the exact time together."
+- General preferences only — not availability, exact dates or a reservation.
 - CTA **Continue to your profile** → Section 7.
 
 ## Section 7 — Build your profile (8 states) 🟡 order

@@ -21,10 +21,13 @@ type Props = Omit<TextInputProps, 'style'> & {
   /** Visible unit shown after the input on the same underline. */
   suffix?: string;
   containerStyle?: StyleProp<ViewStyle>;
+  /** Screen shows its own visible heading; `label` then only names the field
+   * for screen readers (P06 favorite spot). */
+  hideLabel?: boolean;
 };
 
 export const OnboardingTextField = forwardRef<TextInput, Props>(function OnboardingTextField(
-  { label, suffix, containerStyle, onFocus, onBlur, ...inputProps },
+  { label, suffix, containerStyle, hideLabel = false, onFocus, onBlur, ...inputProps },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -34,9 +37,11 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
   const inputHeight = fieldHeight(fontScale);
   return (
     <View ref={wrapRef} style={[styles.wrap, containerStyle]}>
-      <Text style={styles.label} maxFontSizeMultiplier={1.6}>
-        {label}
-      </Text>
+      {hideLabel ? null : (
+        <Text style={styles.label} maxFontSizeMultiplier={1.6}>
+          {label}
+        </Text>
+      )}
       {/* Explicit lineHeight (P05 R2, root cause): on iOS, Fabric recycles
           native TextInput views across screens (RCTComponentViewRegistry
           recycle pool) and prepareForRecycle only clears attributedText — the

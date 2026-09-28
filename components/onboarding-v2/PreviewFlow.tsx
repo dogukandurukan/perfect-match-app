@@ -1,5 +1,6 @@
 // Connected onboarding V2 dev preview: Basics (1–6) → Compatibility (1–7) →
-// Your Life (1–4) → Your World (1–6). Holds all in-memory drafts for this preview session only — Back/forward
+// Your Life (1–4) → Your World (1–6) → Your Dates (1–2). Holds all in-memory
+// drafts for this preview session only — Back/forward
 // across the section boundary never resets answers; nothing is persisted,
 // sent anywhere or logged. Continue advances only when the answer is valid.
 import { useEffect, useState } from 'react';
@@ -17,6 +18,7 @@ import {
   SingleChoiceFields,
   ValuesFields,
 } from '@/components/onboarding-v2/compatibility/CompatibilityFields';
+import { DateTypesFields, DaysTimeFields } from '@/components/onboarding-v2/yourDates/YourDatesFields';
 import { LifeQuestionFields } from '@/components/onboarding-v2/yourLife/YourLifeFields';
 import {
   ArtistsFields,
@@ -50,6 +52,7 @@ import {
   type FlowPos,
 } from '@/lib/onboardingV2/previewFlow';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
+import { DATES_SCREENS, EMPTY_DATES_DRAFT, type DatesDraft } from '@/lib/onboardingV2/yourDates';
 import { EMPTY_LIFE_DRAFT, LIFE_QUESTIONS, type LifeDraft } from '@/lib/onboardingV2/yourLife';
 import {
   EMPTY_WORLD_DRAFT,
@@ -70,6 +73,7 @@ const BASICS_TITLES: Record<number, string> = {
 function helperFor(pos: FlowPos): string | undefined {
   if (pos.section === 'yourLife') return LIFE_QUESTIONS[pos.step - 1].helper;
   if (pos.section === 'yourWorld') return WORLD_SCREENS[pos.step - 1].helper;
+  if (pos.section === 'yourDates') return DATES_SCREENS[pos.step - 1].helper;
   if (pos.section !== 'compatibility') return undefined;
   return pos.step <= SINGLE_QUESTIONS.length ? SINGLE_QUESTIONS[pos.step - 1].helper : VALUES_HELPER;
 }
@@ -78,6 +82,7 @@ function titleFor(pos: FlowPos): string {
   if (pos.section === 'basics') return BASICS_TITLES[pos.step];
   if (pos.section === 'yourLife') return LIFE_QUESTIONS[pos.step - 1].title;
   if (pos.section === 'yourWorld') return WORLD_SCREENS[pos.step - 1].title;
+  if (pos.section === 'yourDates') return DATES_SCREENS[pos.step - 1].title;
   return pos.step <= SINGLE_QUESTIONS.length ? SINGLE_QUESTIONS[pos.step - 1].title : VALUES_TITLE;
 }
 
@@ -92,6 +97,7 @@ export function PreviewFlow({ onExit }: Props) {
   const [compat, setCompat] = useState<CompatDraft>(EMPTY_COMPAT_DRAFT);
   const [life, setLife] = useState<LifeDraft>(EMPTY_LIFE_DRAFT);
   const [world, setWorld] = useState<WorldDraft>(EMPTY_WORLD_DRAFT);
+  const [dates, setDates] = useState<DatesDraft>(EMPTY_DATES_DRAFT);
   const [finished, setFinished] = useState(false);
 
   const updateBasics = (patch: Partial<BasicsDraft>) => {
@@ -110,8 +116,12 @@ export function PreviewFlow({ onExit }: Props) {
     setWorld((d) => ({ ...d, ...patch }));
     setFinished(false);
   };
+  const updateDates = (patch: Partial<DatesDraft>) => {
+    setDates((d) => ({ ...d, ...patch }));
+    setFinished(false);
+  };
 
-  const valid = isPosValid(pos, basics, compat, life, world);
+  const valid = isPosValid(pos, basics, compat, life, world, dates);
 
   const goTo = (next: FlowPos) => {
     Keyboard.dismiss();
@@ -153,6 +163,9 @@ export function PreviewFlow({ onExit }: Props) {
   const lifeQuestion = pos.section === 'yourLife' ? LIFE_QUESTIONS[pos.step - 1] : null;
   const wProps = { draft: world, update: updateWorld };
   const inWorld = pos.section === 'yourWorld';
+  const dProps = { draft: dates, update: updateDates };
+  const inDates = pos.section === 'yourDates';
+  const continueLabel = inDates && pos.step === 2 ? 'Continue to your profile' : 'Continue';
   // "Add later" advances like Continue: it keeps valid selections already
   // made; any uncommitted search text is dropped with the screen.
   const canSkip = inWorld && isWorldStepSkippable(pos.step);
@@ -171,15 +184,15 @@ export function PreviewFlow({ onExit }: Props) {
         finished ? (
           <>
             <View style={styles.notice} accessibilityLiveRegion="polite">
-              <Text style={styles.noticeTitle}>Your World preview complete</Text>
+              <Text style={styles.noticeTitle}>Your Dates preview complete</Text>
               <Text style={styles.noticeText}>
                 This is a development preview — nothing was saved. The next section isn&apos;t built
                 yet.
               </Text>
             </View>
             <OnboardingPrimaryButton
-              label="Review Your World"
-              onPress={() => goTo({ section: 'yourWorld', step: 1 })}
+              label="Review Your Dates"
+              onPress={() => goTo({ section: 'yourDates', step: 1 })}
             />
             <TouchableOpacity
               onPress={() => goTo(FIRST_POS)}
@@ -192,7 +205,7 @@ export function PreviewFlow({ onExit }: Props) {
           </>
         ) : (
           <>
-            <OnboardingPrimaryButton label="Continue" onPress={handleContinue} disabled={!valid} />
+            <OnboardingPrimaryButton label={continueLabel} onPress={handleContinue} disabled={!valid} />
             {canSkip ? (
               <TouchableOpacity
                 onPress={handleContinue}
@@ -225,6 +238,8 @@ export function PreviewFlow({ onExit }: Props) {
       {inWorld && pos.step === 4 && <InterestsFields {...wProps} />}
       {inWorld && pos.step === 5 && <ArtistsFields {...wProps} />}
       {inWorld && pos.step === 6 && <MediaFields {...wProps} />}
+      {inDates && pos.step === 1 && <DateTypesFields {...dProps} />}
+      {inDates && pos.step === 2 && <DaysTimeFields {...dProps} />}
     </OnboardingScreen>
   );
 }

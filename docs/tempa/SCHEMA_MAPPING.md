@@ -69,7 +69,8 @@ Legend for Gap: **OK** usable as-is · **REVISE** exists but wrong values/place 
 | Logical | Live today | Proposed (🔵) | Rule | Gap |
 |---|---|---|---|---|
 | date_types | `profiles.meeting_environment` (5 emoji labels) | `date_types text[]`: coffee, drinks, dinner, walk, activity, outdoors | 1–2 | NEW (draft `meeting_environment_v2` wrong) |
-| dinner_style | — | `dinner_style`: `casual_cozy`, `fine_dining`, `either` | optional, only if dinner ∈ date_types (else NULL, enforced) | NEW |
+| ~~dinner_style~~ | — | ~~`dinner_style`: `casual_cozy`, `fine_dining`, `either`~~ | **Removed by D57** (2026-09-28) — no dinner follow-up | DROP-FROM-PROPOSAL |
+| favorite_spot | — (V1 `favorite_spots` is a different, per-environment legacy field) | not designed. P06 preview holds only in-memory `{ source: 'custom', displayName }`; a future provider-selected place would add provider + provider ID + branch/address | optional, one for everyone; empty/whitespace = none; never satisfies date_types | NEW — no schema approved (D57) |
 | days_pref | `profiles.availability_days` | `days_pref`: `weekdays`, `weekends`, `either` | required | NEW |
 | time_pref | `profiles.availability_hours` | `time_pref`: `daytime`, `evening`, `either` | required | NEW |
 | — | draft `availability_v2` | — | — | DROP-FROM-DRAFT |
