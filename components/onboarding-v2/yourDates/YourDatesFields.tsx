@@ -39,10 +39,14 @@ const CHECK = 18;
 // Widest labels at their font size, measured from the bundled DM Sans Medium
 // advance widths (see P06_RESULT.md). Layout switches instead of shrinking or
 // splitting words.
-// On a 390 pt wide phone: two date columns up to ~1.33× text, time on one row
-// up to ~1.27×; beyond that they stack.
+// On a 390 pt wide phone: two date columns up to ~1.33× text; time (icon +
+// label) on one row up to ~1.02×, on 402 pt up to ~1.08×; narrower phones /
+// larger text stack the time controls full width instead.
 const WIDEST_DATE_LABEL_AT_16PT = 100.4; // "A fun activity"
 const WIDEST_TIME_LABEL_AT_16PT = 63.4; // "Daytime"
+const TIME_ICON = 18;
+const TIME_ICON_GAP = 6;
+const TIME_PAD = obSpacing.sm;
 
 function DateGlyph({ icon }: { icon: DateIcon }) {
   if (icon.family === 'ion') {
@@ -64,11 +68,13 @@ function useTwoDateColumns(): boolean {
   return textWidth >= WIDEST_DATE_LABEL_AT_16PT * Math.min(fontScale, MAX_SCALE) + 4;
 }
 
-/** Time options on one row only while every label fits its third. */
+/** Time options on one row only while icon + widest label fit their third.
+ * The icon has a fixed size; only the label scales with text size. */
 function useTimeOneRow(): boolean {
   const { width, fontScale } = useWindowDimensions();
-  const slot = (width - GUTTERS - obSpacing.sm * 2) / 3 - obSpacing.md * 2;
-  return slot >= WIDEST_TIME_LABEL_AT_16PT * Math.min(fontScale, MAX_SCALE) + 4;
+  const slot = (width - GUTTERS - obSpacing.sm * 2) / 3 - TIME_PAD * 2;
+  const content = TIME_ICON + TIME_ICON_GAP + WIDEST_TIME_LABEL_AT_16PT * Math.min(fontScale, MAX_SCALE);
+  return slot >= content + 4;
 }
 
 // 1 — Your ideal first date? (required 1–2) + optional favorite spot
@@ -184,6 +190,13 @@ export function DaysTimeFields({ draft, update }: Props) {
                 accessibilityLabel={o.title}
                 accessibilityState={{ selected }}
                 style={[styles.timeOption, oneRow && styles.timeOptionRow, selected && styles.cardSelected]}>
+                <Ionicons
+                  name={o.icon as keyof typeof Ionicons.glyphMap}
+                  size={TIME_ICON}
+                  color={obColors.cta}
+                  importantForAccessibility="no"
+                  accessibilityElementsHidden
+                />
                 <Text style={styles.timeText} maxFontSizeMultiplier={MAX_SCALE}>
                   {o.title}
                 </Text>
@@ -294,9 +307,11 @@ const styles = StyleSheet.create({
   },
   timeOption: {
     minHeight: 52,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: obSpacing.md,
+    gap: TIME_ICON_GAP,
+    paddingHorizontal: TIME_PAD,
     paddingVertical: obSpacing.md,
     borderWidth: 1,
     borderColor: obColors.border,
@@ -310,7 +325,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 21,
     color: obColors.textPrimary,
-    textAlign: 'center',
   },
   summary: {
     backgroundColor: obColors.selectedFill,

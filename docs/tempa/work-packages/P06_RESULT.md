@@ -118,3 +118,27 @@ UI and in-memory draft only. No profile writes, auth, migrations, scoring, venue
 search, geocoding, provider account, API requests, booking, scheduling, Spotify,
 paid services, production navigation, merge or deployment. Your Profile / photos /
 prompts / selfie / email not started. Stopped for owner phone review.
+
+## Change — 2026-09-28: Time option icons (owner request)
+
+On **When are you free? → Time**, each option now has a small 18 pt forest-green
+(`obColors.cta`) Ionicons outline glyph left of the label: **Daytime →
+`sunny-outline`**, **Evening → `moon-outline`**, **Either → `time-outline`**
+(clock). All three names were checked in the bundled glyph map; no new dependency. The
+icons are decorative (hidden from screen readers), and the radio label and state are
+unchanged. The **Days** group, the title, the helper, the summary and the logic are unchanged
+(Days has no icons).
+
+**No squeezing or clipping:** the one-row decision now counts the fixed icon +
+6 pt gap + the widest label ("Daytime", 63.4 pt, which scales with text size), with
+8 pt side padding per control. If that doesn't fit a third of the width, the three
+controls stack full-width (as before); labels are never shrunk or wrapped. One row holds
+up to: 390 pt wide → 1.02× text, 393 → 1.04×, 402 → 1.08×, 430 → 1.23×. **On
+375 pt phones (SE / mini) Time is stacked even at normal text size.**
+
+**Checks:** `npx tsc --noEmit` ✅; P06 logic script 43/43 ✅ (unchanged); icon
+script ✅ (key → glyph mapping present in the Ionicons glyph map; Days options
+without icons; titles unchanged). **Phone check pending:** icons visible left of
+the labels, selected state (sage + green border) with icon, one row vs stacked,
+large text. Reload: `r` in the Metro terminal running from `~/tempa-p06`
+(no new build).

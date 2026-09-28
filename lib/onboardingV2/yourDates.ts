@@ -44,10 +44,12 @@ export const DAY_OPTIONS: { key: DaysKey; title: string; summary: string }[] = [
   { key: 'either', title: 'Either', summary: 'Any day' },
 ];
 
-export const TIME_OPTIONS: { key: TimeKey; title: string; summary: string }[] = [
-  { key: 'daytime', title: 'Daytime', summary: 'Daytime' },
-  { key: 'evening', title: 'Evening', summary: 'Evening' },
-  { key: 'either', title: 'Either', summary: 'Any time' },
+// Small outline icon left of each Time label (owner request 2026-09-28):
+// Daytime sun, Evening moon, Either clock — Ionicons, already bundled.
+export const TIME_OPTIONS: { key: TimeKey; title: string; summary: string; icon: string }[] = [
+  { key: 'daytime', title: 'Daytime', summary: 'Daytime', icon: 'sunny-outline' },
+  { key: 'evening', title: 'Evening', summary: 'Evening', icon: 'moon-outline' },
+  { key: 'either', title: 'Either', summary: 'Any time', icon: 'time-outline' },
 ];
 
 export const DAYS_GROUP_TITLE = 'Days';
