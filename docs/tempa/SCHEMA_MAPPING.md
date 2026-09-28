@@ -59,7 +59,7 @@ Legend for Gap: **OK** usable as-is · **REVISE** exists but wrong values/place 
 | job_title | `profiles.occupation` (free text) | keep `occupation` as job title | optional | OK |
 | school | — (`profiles.education` is a level, not carried — D40) | `profiles.school` (draft) | optional | OK in draft |
 | hometown | — | `profiles.hometown` (draft) | optional | OK in draft |
-| interest_ids | `profiles.hobbies` (0–5, free text) | `interests text[]` over fixed 16 keys | 3–10 | NEW |
+| interest_ids | `profiles.hobbies` (0–5, free text) | `interests text[]` over fixed 16 keys | 1–10 (D59; was 3–10) | NEW |
 | artist_ids | `profiles.favorite_music` (free text) | `profile_taste_items` (user_id, kind, catalog_id, display_name, source) | 0–3 per kind | NEW (🔴 D27 catalog) |
 | book_ids | `profiles.favorite_book` | same table, kind=`book` | 0–3 | NEW |
 | screen_title_ids | `profiles.favorite_movie` | same table, kind=`screen` | 0–3 | NEW |
@@ -80,7 +80,7 @@ Legend for Gap: **OK** usable as-is · **REVISE** exists but wrong values/place 
 | Logical | Live today | Proposed | Rule | Privacy | Gap |
 |---|---|---|---|---|---|
 | photos / primary | `profiles.photos text[]` | `profile_photos` (draft) | ≥3 at submit, one primary | public | OK in draft |
-| prompt_answers | — | `profile_prompts` (draft) | 2–3 | public | REVISE prompt-key list (D33) |
+| prompt_answers | — | `profile_prompts` (draft) | 2–3 | public | REVISE prompt-key list — preview keys now `weird_talent`, `dont_judge`, `cant_say_no`, `most_used_phrase`, `you_pick_topic`, `together_we_could`, `guess_about_me`, `sunday_usually` (D59, not an approved enum; Q6) |
 | private_selfie | `verification-selfies` bucket + `profiles.verification_selfie_path` | `profile_account_state_v2.verification_*` (draft) | required at submit | private | OK in draft |
 | application/membership state | — | `profile_account_state_v2` + review RPCs (draft) | server-only transitions | private | OK in draft |
 

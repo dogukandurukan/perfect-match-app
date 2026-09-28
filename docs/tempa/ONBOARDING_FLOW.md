@@ -125,7 +125,7 @@ heading icons. Only interests are required; every other screen has **Add later**
 | 1 | What do you do? | — | Single choice Full-time / Part-time / Self-employed / Student / Between jobs; optional **Job title (optional)** "e.g. Designer". No employer. Partial answers can continue. |
 | 2 | Where did you study? | Add your school to your profile. | Search or enter your school → pick a suggestion (school + verified city/country) **or** explicit *Use “typed name”*. No attainment question. |
 | 3 | Where are you from? | Your hometown, not where you live now. | **Hometown**, "Search or enter a city" → suggestion or explicit custom entry. Separate from current location; no GPS/map/distance. |
-| 4 | What are you into? | Pick 3–10 interests. | Travel, Food, Sports, Music, Art, Movies, Books, Outdoors, Tech, Gaming, Fashion, Wellness, Animals, Nightlife, Culture, Other. **Required 3–10**, "N of 10 selected", 11th refused (no replacement), deselect allowed, no Add later, Other adds no free-text question. Each chip has a small outline icon left of the label, no emojis (D56). |
+| 4 | What are you into? | Pick a few things you enjoy. | Travel, Food, Sports, Music, Art, Movies, Books, Outdoors, Tech, Gaming, Fashion, Wellness, Animals, Nightlife, Culture, Other. **Required 1–10** (P07 R1, D59), "N of 10 selected", 11th refused (no replacement), deselect allowed, no Add later, Other adds no free-text question. Each chip has a small outline icon left of the label, no emojis (D56). |
 | 5 | Who do you listen to? | Add up to 3 artists you love. | Search **artists only** (no songs/playlists/genres). 0–3, "N of 3 added", removable. |
 | 6 | Books & movies | Add a few favorites. You can change them later. | Two independent groups: **Books · N of 3** ("Search books") and **Movies & series · N of 3** ("Search movies or series"); 0–3 each. |
 
@@ -175,25 +175,24 @@ Fine dining / Either removed). No venue search yet.
 - General preferences only — not availability, exact dates or a reservation.
 - CTA **Continue to your profile** → Section 7.
 
-## Section 7 — Your Profile (8 states) ✅ approved copy + order (P07, D58; D30 confirmed, D33 prompts)
+## Section 7 — Your Profile (7 states) ✅ approved copy + order (P07 D58, revised by P07 R1 D59; D30)
 
-Header section "Your Profile", local progress 1 of 8 … 8 of 8 (photo/prompt
+Header section "Your Profile", local progress 1 of 7 … 7 of 7 (photo/prompt
 editors and pickers are not extra states). Mockup people, answers and email are
 illustrative only — never seeded into a draft.
 
-1. **Add your photos** — "Add at least 3 photos." Six slots, 2 × 3; **3 required, 6 max**; the first slot is the **Main photo**. Batch pick within remaining capacity; remove, replace, make main, move earlier/later (accessible actions). Removing below 3 blocks Continue. A photo that fails to load never counts. Encourage a clear face (auto-enforcement 🔴 D34).
-2. **A little more you** — "Answer 2 questions. Add a third if you like." Starts with "I'm most myself when…" and "Something I could talk about for hours…" (D33), answers empty and never autofilled. Each prompt changeable from the library (+ "My perfect Sunday", "We'll get along if…", "A perfect first date looks like…", "A small thing that makes me happy"); no duplicate prompts; changing a prompt keeps or explicitly clears the answer. Hint "Short answers are welcome.", 200-character counter (proposed cap), whitespace-only is empty. Optional third via **Add another answer**, removable; a blank third is omitted. CTA **Preview my profile**.
-3. **Your profile** — "This is how others will see you." Real assembled profile (D44): primary photo + first name/age → concise facts (city, job/work, school, hometown, height, interests, favorites when present) → prompt 1 → photo 2 → prompt 2 → photo 3 → optional prompt 3 → remaining photos. Never surname, exact DOB, email, phone, selfie, scoring or a verification badge. **Edit profile** (photos, answers, earlier sections) with **Back to preview**; **Continue** re-checks photos/answers.
+1. **Add your photos** — "Add at least 3 photos." Six slots shown as **2 columns × 3 rows**; **3 required, 6 max**; first slot = **Main photo**. Batch pick within remaining capacity; ✕ removes; **•••** on a photo (or tapping it) → Make main photo / Move earlier / Move later / Replace photo / Remove photo (also VoiceOver actions). No drag-to-reorder is offered. Removing below 3 blocks Continue. A photo that fails to load never counts.
+2. **A little more you** — "Answer 2 questions. Add a third if you like." Library (D59, replaces the D33/D58 set): *My weird talent… · Don't judge me, but… · I can't say no to… · My most used phrase… · You pick the topic… · Together, we could… · Guess this about me… · My Sunday usually looks like…*. Starts with **Don't judge me, but…** and **Together, we could…**, answers empty. Placeholder examples only ("I read the menu, then order the same thing." / "Find the best tiramisu in Istanbul.") — never stored, never count. No duplicate prompts; changing a prompt keeps or explicitly clears the answer. "Short answers are welcome.", 200-character counter (proposed cap). Optional third, removable; blank third omitted. Compact cards. CTA **Preview my profile**.
+3. **Your profile** — "This is how others will see you." One scrolling profile from the real drafts (the mockup's "top / continued" boards are two views of this one page): **first name, age** above the main photo → about (city, height, zodiac from DOB, job/work, school, hometown) → prompt 1 → photo 2 → looking for · values · interests → prompt 2 → photo 3 → lifestyle (smoking, drinking, pets, activity) → prompt 3 → photo 4 → first dates (types, days · time, favorite spot) → photo 5 → favorites (artists, books, movies & series) → photo 6. All photos share one 4:5 frame. Empty optional fields and empty groups are hidden. Never surname, exact DOB, phone, email, selfie, scoring or a verification badge; no invented images (artist placeholder when no provider image). No note/send controls on your own preview (contextual notes are a future visitor-profile feature, D45). **Edit profile** (photos, answers, and each earlier section) with **Back to preview**; **Continue** re-checks photos/answers.
 4. **A quick selfie** — "Help us check it's really you." Front camera only (no gallery), oval frame, **Retake** / **Use selfie**. "Your selfie stays private." / "We'll review it with your profile photos." Never on the public profile; manual review (D31); no face recognition or liveness claims.
 5. **Your email** — "We'll send you a code." Label "Email", private, "Your email stays private." **Send code**.
-6. **Check your email** — code sent to the shown email; six-digit code (paste/autofill); **Verify email**; **Resend code** (cooldown) / **Change email** (clears the code and any check). Attaches to the same phone-auth user (D8). Verifying never submits the application.
-7. **Ready to submit?** — checklist Photos added / Answers added / Selfie added / Email checked; explains that profiles are reviewed; no timeframe, price or acceptance promise. **Submit application**; idempotent server-side (production).
-8. **You're on the list** — "We've received your application." / "We'll email you when your profile has been reviewed." Sage panel "Application received" / "Review pending". **Review my profile** (own profile, back to status). No discovery access (D32).
+6. **Check your email** — code sent to the shown email; six-digit code (paste/autofill); **Verify email**; **Resend code** (cooldown) / **Change email** (clears the code and any check). After a correct code the same screen shows **Email confirmed** and the CTA becomes **Submit application** — verifying never submits by itself. Submit re-checks everything and, if something is missing, takes the user to that step. The separate "Ready to submit?" checklist state was **removed** (D59). Attaches to the same phone-auth user (D8).
+7. **You're on the list!** — "Thanks for joining Tempa." / "We'll email you after we review your profile." Status "Application received" / "Review pending". Small celebration mark and one short confetti burst (skipped with Reduce Motion). **Review my profile** (own profile, back to status). Received ≠ accepted, verified or member; no discovery access (D32).
 
-DEV preview (P07) boundaries: photos and selfie are local device URIs in memory;
-email sending, code check and submission are **simulated** and labelled on
-screen ("Preview only — …", "Demo code: 123456. No email was sent."). No upload,
-email, auth, application record, verification or membership.
+DEV preview (P07/R1) boundaries: photos and selfie are local device URIs in
+memory; email sending, code check and submission are **simulated** and
+labelled on screen. No upload, email, auth, application record, verification
+or membership.
 
 ## State chain
 

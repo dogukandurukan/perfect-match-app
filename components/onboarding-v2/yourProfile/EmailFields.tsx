@@ -1,6 +1,7 @@
 // Sections 7.5 Your email and 7.6 Check your email (P07). SIMULATED in the
 // DEV preview: no email is sent, no OTP exists, no auth user is created or
 // verified. The demo check is bound to the exact email it was made for.
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -60,7 +61,8 @@ export function CodeFields({
   error,
   onChangeEmail,
   onResend,
-}: Props & { error: string | null; onChangeEmail: () => void; onResend: () => void }) {
+  confirmed,
+}: Props & { error: string | null; onChangeEmail: () => void; onResend: () => void; confirmed: boolean }) {
   const inputRef = useRef<TextInput>(null);
   const wrapRef = useRef<View>(null);
   const reveal = useRevealInScroll();
@@ -74,6 +76,33 @@ export function CodeFields({
   }, [left]);
 
   const code = draft.code;
+
+  // Success state (P07 R1): verifying never submits — the footer then offers
+  // an explicit "Submit application".
+  if (confirmed) {
+    return (
+      <View style={styles.wrap}>
+        <View style={styles.confirmed} accessibilityLiveRegion="polite" accessible>
+          <Ionicons name="checkmark-circle" size={28} color={obColors.cta} importantForAccessibility="no" />
+          <Text style={styles.confirmedTitle} maxFontSizeMultiplier={1.6}>
+            Email confirmed
+          </Text>
+          <Text style={styles.sentTo} maxFontSizeMultiplier={1.6}>
+            {draft.email.trim()}
+          </Text>
+        </View>
+        <View style={styles.links}>
+          <TouchableOpacity onPress={onChangeEmail} hitSlop={10} accessibilityRole="button" accessibilityLabel="Change email">
+            <Text style={styles.link} maxFontSizeMultiplier={1.4}>
+              Change email
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <DevNotice text="Demo check only — no email was sent and no account was verified." />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap}>
       <Text style={styles.sentTo} maxFontSizeMultiplier={1.6}>
@@ -213,6 +242,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     opacity: 0.02,
+  },
+  confirmed: {
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: obColors.selectedFill,
+    borderRadius: 12,
+    padding: obSpacing.lg,
+  },
+  confirmedTitle: {
+    marginTop: obSpacing.xs,
+    fontFamily: obFonts.bodySemiBold,
+    fontSize: 17,
+    lineHeight: 22,
+    color: obColors.cta,
   },
   links: {
     flexDirection: 'row',

@@ -1,47 +1,79 @@
-// Sections 7.7 Ready to submit? and 7.8 You're on the list (P07). LOCAL
-// preview only: nothing is sent, there is no application record, no review
-// timeframe, no acceptance, verification or membership.
+// Section 7.7 You're on the list! (P07 R1). LOCAL preview only: nothing is
+// sent, there is no application record, no review timeframe, no acceptance,
+// verification or membership. The former "Ready to submit?" checklist state
+// was removed in P07 R1 (Submit now lives on the confirmed email-code screen).
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { DevNotice } from '@/components/onboarding-v2/yourProfile/ProfilePreview';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
-import type { Checklist } from '@/lib/onboardingV2/yourProfile';
 
-const ITEMS: { key: keyof Checklist; label: string }[] = [
-  { key: 'photos', label: 'Photos added' },
-  { key: 'answers', label: 'Answers added' },
-  { key: 'selfie', label: 'Selfie added' },
-  { key: 'email', label: 'Email checked (demo)' },
-];
+const PIECES = 14;
+const CONFETTI_COLORS = [obColors.cta, '#8FA894', '#CDBE9C', '#C9D6C4', '#B7894C'];
 
-export function SubmitFields({ list }: { list: Checklist }) {
+/** One short, light burst (≈1.4 s, native driver) that plays once per mount.
+ * Skipped entirely when the system "Reduce Motion" setting is on. */
+function Confetti() {
+  const [reduce, setReduce] = useState<boolean | null>(null);
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((r) => alive && setReduce(r))
+      .catch(() => alive && setReduce(true));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduce !== false) return;
+    const anim = Animated.timing(progress, {
+      toValue: 1,
+      duration: 1400,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [reduce, progress]);
+
+  if (reduce !== false) return null;
   return (
-    <View style={styles.wrap}>
-      <View style={styles.list}>
-        {ITEMS.map((it) => {
-          const done = list[it.key];
-          return (
-            <View
-              key={it.key}
-              style={styles.row}
-              accessible
-              accessibilityLabel={`${it.label}${done ? '' : ', missing'}`}>
-              <View style={[styles.mark, done && styles.markDone]}>
-                {done ? <Ionicons name="checkmark" size={14} color={obColors.onCta} /> : null}
-              </View>
-              <Text style={[styles.rowText, !done && styles.rowMissing]} maxFontSizeMultiplier={1.6}>
-                {it.label}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-      <Text style={styles.body} maxFontSizeMultiplier={1.6}>
-        Our team reviews every profile before it goes live. We&apos;ll email you once yours has been
-        reviewed.
-      </Text>
-      <DevNotice text="Preview only — no application will be sent." />
+    <View pointerEvents="none" style={styles.confetti} importantForAccessibility="no-hide-descendants">
+      {Array.from({ length: PIECES }).map((_, i) => {
+        const angle = (i / PIECES) * Math.PI * 2;
+        const dist = 70 + (i % 3) * 22;
+        return (
+          <Animated.View
+            key={i}
+            style={[
+              styles.piece,
+              {
+                backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                opacity: progress.interpolate({ inputRange: [0, 0.15, 0.75, 1], outputRange: [0, 1, 1, 0] }),
+                transform: [
+                  { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(angle) * dist] }) },
+                  {
+                    translateY: progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, Math.sin(angle) * dist * 0.6 + 40],
+                    }),
+                  },
+                  {
+                    rotate: progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', `${(i % 2 ? 1 : -1) * 160}deg`],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -49,16 +81,21 @@ export function SubmitFields({ list }: { list: Checklist }) {
 export function ReceivedFields() {
   return (
     <View style={styles.wrap}>
+      <View style={styles.celebrate}>
+        <Confetti />
+        <View style={styles.badge}>
+          <Ionicons name="sparkles-outline" size={30} color={obColors.cta} importantForAccessibility="no" />
+        </View>
+      </View>
       <View style={styles.copy}>
-        <Text style={styles.body} maxFontSizeMultiplier={1.6}>
-          We&apos;ve received your application.
+        <Text style={styles.lead} maxFontSizeMultiplier={1.6}>
+          Thanks for joining Tempa.
         </Text>
         <Text style={styles.body} maxFontSizeMultiplier={1.6}>
-          We&apos;ll email you when your profile has been reviewed.
+          We&apos;ll email you after we review your profile.
         </Text>
       </View>
       <View style={styles.panel} accessible accessibilityLabel="Application received. Review pending.">
-        <Ionicons name="checkmark-circle-outline" size={26} color={obColors.cta} importantForAccessibility="no" />
         <Text style={styles.panelTitle} maxFontSizeMultiplier={1.6}>
           Application received
         </Text>
@@ -75,40 +112,42 @@ const styles = StyleSheet.create({
   wrap: {
     gap: obSpacing.xl,
   },
-  list: {
-    gap: obSpacing.md,
-  },
-  row: {
-    flexDirection: 'row',
+  celebrate: {
     alignItems: 'center',
-    gap: obSpacing.md,
-    minHeight: 32,
+    justifyContent: 'center',
+    minHeight: 96,
   },
-  mark: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  confetti: {
+    position: 'absolute',
+    top: 40,
+    left: '50%',
+    width: 0,
+    height: 0,
+  },
+  piece: {
+    position: 'absolute',
+    width: 7,
+    height: 11,
+    borderRadius: 2,
+  },
+  badge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     borderWidth: 1.5,
-    borderColor: obColors.border,
+    borderColor: obColors.cta,
+    backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  markDone: {
-    backgroundColor: obColors.cta,
-    borderColor: obColors.cta,
-  },
-  rowText: {
-    flexShrink: 1,
-    fontFamily: obFonts.bodyMedium,
-    fontSize: 17,
-    lineHeight: 22,
-    color: obColors.textPrimary,
-  },
-  rowMissing: {
-    color: obColors.textSecondary,
-  },
   copy: {
     gap: obSpacing.xs,
+  },
+  lead: {
+    fontFamily: obFonts.bodySemiBold,
+    fontSize: 17,
+    lineHeight: 23,
+    color: obColors.textPrimary,
   },
   body: {
     fontFamily: obFonts.body,
@@ -124,7 +163,6 @@ const styles = StyleSheet.create({
     padding: obSpacing.lg,
   },
   panelTitle: {
-    marginTop: obSpacing.xs,
     fontFamily: obFonts.bodySemiBold,
     fontSize: 17,
     lineHeight: 22,

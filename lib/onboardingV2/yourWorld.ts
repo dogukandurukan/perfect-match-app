@@ -9,7 +9,7 @@ export const WORLD_SCREENS: { title: string; helper?: string }[] = [
   { title: 'What do you do?' },
   { title: 'Where did you study?', helper: 'Add your school to your profile.' },
   { title: 'Where are you from?', helper: 'Your hometown, not where you live now.' },
-  { title: 'What are you into?', helper: 'Pick 3–10 interests.' },
+  { title: 'What are you into?', helper: 'Pick a few things you enjoy.' },
   { title: 'Who do you listen to?', helper: 'Add up to 3 artists you love.' },
   { title: 'Books & movies', helper: 'Add a few favorites. You can change them later.' },
 ];
@@ -45,7 +45,8 @@ export const INTERESTS: { key: string; label: string; icon: string }[] = (
   ] as [string, string][]
 ).map(([label, icon]) => ({ key: label.toLowerCase(), label, icon }));
 
-export const MIN_INTERESTS = 3;
+// P07 R1 (owner): minimum lowered from 3 to 1; still required, max 10.
+export const MIN_INTERESTS = 1;
 export const MAX_INTERESTS = 10;
 export const MAX_TASTE = 3;
 
@@ -115,7 +116,7 @@ export function toggleInterest(current: string[], key: string): string[] {
   return [...current, key];
 }
 
-/** step is 1-based within Your World. Only interests (4) is required. */
+/** step is 1-based within Your World. Only interests (4) is required (1–10). */
 export function isWorldStepValid(step: number, d: WorldDraft): boolean {
   if (step === 4) return d.interests.length >= MIN_INTERESTS && d.interests.length <= MAX_INTERESTS;
   return step >= 1 && step <= YOUR_WORLD_TOTAL_STEPS;

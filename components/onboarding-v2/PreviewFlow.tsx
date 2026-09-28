@@ -1,5 +1,5 @@
 // Connected onboarding V2 dev preview: Basics (1–6) → Compatibility (1–7) →
-// Your Life (1–4) → Your World (1–6) → Your Dates (1–2) → Your Profile (1–8).
+// Your Life (1–4) → Your World (1–6) → Your Dates (1–2) → Your Profile (1–7).
 // Holds all in-memory drafts for this preview session only — Back/forward
 // across the section boundary never resets answers; nothing is persisted,
 // uploaded, sent anywhere or logged. Continue advances only when the answer is
@@ -21,7 +21,7 @@ import {
 } from '@/components/onboarding-v2/compatibility/CompatibilityFields';
 import { DateTypesFields, DaysTimeFields } from '@/components/onboarding-v2/yourDates/YourDatesFields';
 import { LifeQuestionFields } from '@/components/onboarding-v2/yourLife/YourLifeFields';
-import { ReceivedFields, SubmitFields } from '@/components/onboarding-v2/yourProfile/ApplicationFields';
+import { ReceivedFields } from '@/components/onboarding-v2/yourProfile/ApplicationFields';
 import { CodeFields, EmailFields } from '@/components/onboarding-v2/yourProfile/EmailFields';
 import { PhotosFields } from '@/components/onboarding-v2/yourProfile/PhotosFields';
 import { ProfilePreview } from '@/components/onboarding-v2/yourProfile/ProfilePreview';
@@ -70,11 +70,10 @@ import {
   PROFILE_SCREENS,
   PROFILE_STEP,
   buildProfilePreview,
-  canSubmit,
-  checklist,
   demoCodeMatches,
   emailChecked,
   emailLooksValid,
+  firstMissingStep,
   normalizeEmail,
   type ProfileDraft,
 } from '@/lib/onboardingV2/yourProfile';
@@ -212,7 +211,10 @@ export function PreviewFlow({ onExit }: Props) {
       { text: 'Photos', onPress: edit({ section: 'yourProfile', step: PROFILE_STEP.photos }) },
       { text: 'Answers', onPress: edit({ section: 'yourProfile', step: PROFILE_STEP.prompts }) },
       { text: 'Name, age, location, height', onPress: edit({ section: 'basics', step: 1 }) },
+      { text: 'Looking for & values', onPress: edit({ section: 'compatibility', step: 1 }) },
+      { text: 'Lifestyle', onPress: edit({ section: 'yourLife', step: 1 }) },
       { text: 'Work, school, interests, favorites', onPress: edit({ section: 'yourWorld', step: 1 }) },
+      { text: 'First dates', onPress: edit({ section: 'yourDates', step: 1 }) },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
@@ -241,12 +243,29 @@ export function PreviewFlow({ onExit }: Props) {
   const verifyCode = () => {
     if (profile.code.length < 6) return setCodeError('Enter the 6-digit code.');
     if (!demoCodeMatches(profile.code)) return setCodeError("That code isn't right. Try again.");
+    // Stay on this screen: it switches to "Email confirmed" + Submit. A
+    // confirmed email never submits by itself (P07 R1).
     updateProfile({ emailCheck: { email: normalizeEmail(profile.email) } });
-    goTo({ section: 'yourProfile', step: PROFILE_STEP.submit });
+  };
+
+  const MISSING_TEXT: Record<number, string> = {
+    [PROFILE_STEP.photos]: 'Add at least 3 photos first.',
+    [PROFILE_STEP.prompts]: 'Answer 2 questions first.',
+    [PROFILE_STEP.selfie]: 'Take your selfie first.',
+    [PROFILE_STEP.email]: 'Enter your email first.',
+    [PROFILE_STEP.code]: 'Confirm your email first.',
   };
 
   const submit = () => {
-    if (submittingRef.current || !canSubmit(profile)) return;
+    if (submittingRef.current) return;
+    const missing = firstMissingStep(profile);
+    if (missing !== null) {
+      // Take the user to the first thing that still needs attention.
+      Alert.alert('Almost there', MISSING_TEXT[missing], [
+        { text: 'OK', onPress: () => goTo({ section: 'yourProfile', step: missing }) },
+      ]);
+      return;
+    }
     submittingRef.current = true;
     updateProfile({ applicationPreview: { receivedAt: Date.now() } });
     goTo(RECEIVED_POS);
@@ -288,11 +307,12 @@ export function PreviewFlow({ onExit }: Props) {
       }
     }
     if (step === S.email) primary = { label: 'Send code', onPress: sendCode, disabled: !valid };
-    if (step === S.code && !valid) primary = { label: 'Verify email', onPress: verifyCode };
-    if (step === S.submit) {
-      primary = profile.applicationPreview
-        ? { label: 'Back to status', onPress: () => goTo(RECEIVED_POS) }
-        : { label: 'Submit application', onPress: submit, disabled: !valid };
+    if (step === S.code) {
+      primary = !valid
+        ? { label: 'Verify email', onPress: verifyCode }
+        : profile.applicationPreview
+          ? { label: 'Back to status', onPress: () => goTo(RECEIVED_POS) }
+          : { label: 'Submit application', onPress: submit };
     }
     if (step === S.received) {
       primary = {
@@ -391,7 +411,7 @@ export function PreviewFlow({ onExit }: Props) {
       {inProfile && step === PROFILE_STEP.photos && <PhotosFields {...pProps} />}
       {inProfile && step === PROFILE_STEP.prompts && <PromptsFields {...pProps} />}
       {inProfile && step === PROFILE_STEP.preview && (
-        <ProfilePreview blocks={buildProfilePreview(basics, world, profile)} />
+        <ProfilePreview blocks={buildProfilePreview(basics, compat, life, world, dates, profile)} />
       )}
       {inProfile && step === PROFILE_STEP.selfie && (
         <SelfieFields
@@ -405,6 +425,7 @@ export function PreviewFlow({ onExit }: Props) {
         <CodeFields
           {...pProps}
           error={codeError}
+          confirmed={valid}
           onResend={() => updateProfile({ codeSentAt: Date.now(), code: '' })}
           onChangeEmail={() => {
             // Changing the email drops the demo code and demo check.
@@ -413,7 +434,6 @@ export function PreviewFlow({ onExit }: Props) {
           }}
         />
       )}
-      {inProfile && step === PROFILE_STEP.submit && <SubmitFields list={checklist(profile)} />}
       {inProfile && step === PROFILE_STEP.received && <ReceivedFields />}
     </OnboardingScreen>
   );

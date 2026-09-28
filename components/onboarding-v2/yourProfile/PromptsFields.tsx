@@ -1,5 +1,6 @@
-// Section 7.2 A little more you (P07). Two required answers, optional third.
-// Answers start empty and are never autofilled.
+// Section 7.2 A little more you (P07, R1 shorter library). Two required
+// answers, optional third. Answers start empty and are never autofilled; the
+// example text is only a placeholder (not stored, never counts as an answer).
 import { Ionicons } from '@expo/vector-icons';
 import { useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -14,6 +15,7 @@ import {
   addThirdPrompt,
   availablePrompts,
   changePrompt,
+  promptHint,
   promptLabel,
   removeThirdPrompt,
   setAnswer,
@@ -30,10 +32,12 @@ function AnswerInput({
   value,
   onChange,
   label,
+  placeholder,
 }: {
   value: string;
   onChange: (v: string) => void;
   label: string;
+  placeholder: string;
 }) {
   const wrapRef = useRef<View>(null);
   const reveal = useRevealInScroll();
@@ -47,7 +51,7 @@ function AnswerInput({
         onChangeText={onChange}
         multiline
         maxLength={ANSWER_MAX_LENGTH}
-        placeholder="Your answer"
+        placeholder={placeholder}
         placeholderTextColor={obColors.textSecondary}
         accessibilityLabel={`Answer: ${label}`}
         accessibilityHint={ANSWER_HINT}
@@ -130,6 +134,7 @@ export function PromptsFields({ draft, update }: Props) {
             </View>
             <AnswerInput
               label={label}
+              placeholder={promptHint(a.promptId)}
               value={a.answer}
               onChange={(v) => update({ prompts: setAnswer(prompts, i, v) })}
             />
@@ -209,14 +214,15 @@ export function PromptsFields({ draft, update }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: obSpacing.lg,
+    gap: obSpacing.md,
   },
   card: {
     borderWidth: 1,
     borderColor: obColors.border,
     borderRadius: 12,
-    padding: obSpacing.lg,
-    gap: obSpacing.sm,
+    paddingHorizontal: obSpacing.lg,
+    paddingVertical: obSpacing.md,
+    gap: obSpacing.xs,
   },
   cardHead: {
     flexDirection: 'row',
@@ -226,8 +232,8 @@ const styles = StyleSheet.create({
   promptTitle: {
     flex: 1,
     fontFamily: obFonts.heading,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 23,
     color: obColors.textPrimary,
   },
   link: {
@@ -249,7 +255,7 @@ const styles = StyleSheet.create({
     gap: obSpacing.xs,
   },
   answer: {
-    minHeight: 72,
+    minHeight: 52,
     paddingHorizontal: 0,
     paddingTop: 4,
     paddingBottom: 6,
@@ -279,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    minHeight: 104,
+    minHeight: 84,
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: obColors.border,

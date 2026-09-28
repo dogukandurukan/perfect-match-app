@@ -143,7 +143,7 @@ export function HometownFields({ draft, update }: Props) {
   );
 }
 
-// 4 — What are you into? (required 3–10)
+// 4 — What are you into? (required 1–10, P07 R1)
 export function InterestsFields({ draft, update }: Props) {
   const full = draft.interests.length >= MAX_INTERESTS;
   return (
