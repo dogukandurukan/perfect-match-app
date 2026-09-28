@@ -235,3 +235,16 @@ placeholder is a UILabel drawn by React Native itself — `RCTUITextView.mm` —
 rather than UIKit's UITextField placeholder). Needed from the phone: one
 screenshot of **DEV · Input lab** (A–H), and one of a Your World field with text
 typed into it (typed vs placeholder).
+
+### R2 root cause found on device evidence — 2026-09-28
+
+- **Implementation commit:** `ee448d921fa1629d7e63c9bf5501343067b5fbab`. **Phone verification of the fix: PENDING** (needs one reload + screenshots).
+- **Device evidence (owner screenshots):**
+  - Input lab #1 (plain screen): all variants A–E — incl. the real `OnboardingTextField` — render placeholder and typed text correctly (fontScale 1.00, fonts loaded, frame 44). → the field's font, padding, border and height are **not** the cause; the R2 padding theory is refuted.
+  - Input lab #2 (same component **inside `OnboardingScreen`**, four fields): **only the first field (A) is clipped**; P, J, S (controlled value, exact Job title props, exact School props) are correct. → neither props nor the container as such; it depends on *which native view* the field gets.
+- **Mechanism (React Native 0.81.5 iOS source):** `RCTComponentViewRegistry.mm` keeps a recycle pool per component type (`_recyclePool`, `shouldBeRecycled{true}`), so native TextInput views are reused across screens. `RCTTextInputComponentView prepareForRecycle` only resets state and `attributedText = nil` — the previous input's text attributes/paragraph style are not reset. The onboarding's height ruler input uses Playfair 56 pt with **`lineHeight: 68`**; the first text field mounted afterwards (Your World Job title, School; lab #2 A) can receive that recycled view and draw its placeholder with the stale tall line box → ~16 pt low, clipped at the underline. Typed text is set freshly and was fine.
+- **Fix:** the shared `OnboardingTextField` now sets an explicit `lineHeight: 25` (≈ DM Sans's own 24.7 pt line box, scaled by RN with the text size, so no extra baseline offset). Every mount therefore applies its own paragraph style, replacing any stale one. R2's zero vertical padding and computed height are kept (harmless, verified fine in lab #1).
+- **Deterministic repro added to lab #2 (row R):** tap **1 ruler**, then **2 field, no lineHeight** (expected clipped if recycling is the cause) vs **1 ruler → 3 field, lineHeight 25** (expected correct).
+- `npx tsc --noEmit` ✅.
+
+**Phone check:** press `r` in the `~/tempa-p05` Metro terminal → (1) Your World Job title + School: full placeholder; (2) Safari `datingapp://dev/input-lab-2`: field A now correct, and row R 1→2 vs 1→3.
