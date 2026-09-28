@@ -1,6 +1,8 @@
 # P05 — Result: Your World preview and typeahead search
 
-**Status: UI DONE (implementation). Live search providers: NOT CONNECTED (sample catalog). Owner phone validation: PENDING.**
+**Status (after R1, 2026-09-28): UI DONE. Live search: artists / books / movies & series LIVE (keyless public catalogs); schools / hometown still SAMPLE. Owner phone validation: PENDING.**
+
+> The "Provider readiness" section below describes the original P05 state and is superseded by the R1 section at the end.
 Date: 2026-09-27. Implemented by Claude Code. Not merged, not deployed.
 
 | | |
@@ -132,3 +134,65 @@ controller, Fashion shirt, Wellness flower, Animals paw, Nightlife moon, Culture
 library, Other ellipsis). All glyph names verified in the bundled glyph map.
 Selection = sage fill + green border (the former checkmark is replaced by the
 icon). Decorative for screen readers. `npx tsc --noEmit` ✅; phone check pending.
+
+## R1 — 2026-09-28: input visibility + live catalog suggestions (`P05_R1_INPUT_SEARCH.md`)
+
+- **Implementation commit:** `9a6712af69c4fe9dd18f37516d7fa263736d8b38` on `tempa/p05-your-world-ui` (`main` @ `371665a` merged in).
+- **Worktree / Metro:** `/Users/dogukandurukan/tempa-p05`. The Metro server on port 8081 was verified running **from this worktree** (started 2026-09-27 23:24). The owner's clipping screenshot is from **23:27**, the earlier field fix (`49abe7c`) was committed at **23:30** — so that screenshot predates the fix; whether the phone ever reloaded after it is unknown.
+
+### A. Field visibility
+
+**Earlier fix present:** yes (`49abe7c`, underline back on the `TextInput`, suffix overlaid) — kept.
+
+**Root-cause evidence (code/metrics, not device):**
+1. P02 moved the `TextInput` into a flex row (`flex: 1`) — the P01 structure without it had rendered typed names correctly on the phone. Reverted in `49abe7c` (likely cause of the owner screenshot at normal text size; unverified on device).
+2. **Proven by font metrics:** the input had a fixed `minHeight: 44` with 12 pt vertical padding → 32 pt for text. DM Sans's real line box (hhea 992/−310, 1.302 em, from the bundled TTF) at 19 pt is 24.7 pt ×1.0, **32.2 pt ×1.3, 39.6 pt ×1.6** (the field allows 1.6× Dynamic Type) — so at larger text sizes the glyphs exceed the frame and clip. Fix: the field height is now computed as `ceil(19 × 1.302 × min(fontScale, 1.6)) + 12 + 4`, min 44 (44 / 49 / 56 pt at 1.0 / 1.3 / 1.6×). Text scaling is **not** disabled.
+
+**Keyboard:** a focused field (any V2 text field) now scrolls itself — and whatever is directly below it, e.g. suggestions — to the top of the visible scroll area (`OnboardingScrollContext`, measured with `measureInWindow`), again when results arrive; while the keyboard is open the scroll content gets extra bottom space (40 % of window height) so fields near the end can still move up above the pinned Continue / Add later footer. `keyboardShouldPersistTaps="handled"` keeps suggestion taps working.
+
+**Work screen gap:** the empty space came from the reserved two-line title/helper block (98 pt) under the one-line "What do you do?". The block is now dropped while the keyboard is open (Job title moves up and is auto-scrolled into view); with the keyboard closed the reserved block is kept so option baselines stay aligned with the other questions (P03 R1 rule). Text sizes unchanged.
+
+### B. Suggestions — provider status per category
+
+| Category | Status | Provider | Notes |
+|---|---|---|---|
+| **Artists** | ✅ **LIVE** | MusicBrainz Web Service `ws/2/artist` | Artist entities only. Query `artist:(w1*) AND artist:(w2*)`; subtitle = MusicBrainz disambiguation when present; ID `mb:artist:<MBID>`. No images (MusicBrainz provides none). |
+| **Books** | ✅ **LIVE** | Open Library Search API + Covers API | Query = prefix on words ≥ 3 chars; exact duplicate title+author works collapsed; subtitle = author; small cover from `covers.openlibrary.org` when `cover_i` exists; ID `ol:work:<OLID>`. |
+| **Movies & series** | ✅ **LIVE** | Wikidata API (`wbsearchentities` + `wbgetentities`) | Kept only if P31 is a film or TV-series class (episodes excluded); year from P577 (film) / P580→P577 (series); title = the label the user matched (TR or EN); ID `wd:<QID>`. No posters (Commons licences vary). |
+| Schools | 🟡 SAMPLE (unchanged, disclosed) | bundled 20 universities | "Preview search uses a small sample list, not live results." |
+| Hometown | 🟡 SAMPLE (unchanged, disclosed) | bundled 5 cities + districts | same note |
+
+- **No account, key, payment, scraping or Expo public secret.** Google Books was evaluated: keyless calls failed with *"Quota exceeded … Queries per day"* (shared quota), so it needs an API key → not used. TMDB/OMDb need keys → not used.
+- **Terms (official docs checked):** MusicBrainz — identifying User-Agent required, ~1 request/s per IP; Open Library — identify with User-Agent (1 req/s unidentified), not for bulk/high-traffic commercial backends; Wikidata/Wikimedia — User-Agent policy, CC0 data. Sent UA: `TempaPreview/0.1 ( https://github.com/dogukandurukan/perfect-match-app )` (no personal email).
+- **Behaviour preserved:** ≥ 2 chars, 300 ms debounce, stale responses ignored **and superseded requests aborted before they are sent**, per-provider throttle ≥ 1.1 s, 10 s timeout, loading / no-results / error states, explicit custom entry (now on a tinted row, visually distinct from results), duplicate handling, independent 3/3/3 limits, selection clears the query. Attribution line under results ("Suggestions from MusicBrainz / Open Library / Wikidata"); screens note "Suggestions come from public catalogs and need an internet connection."
+- **Failure honesty:** network/HTTP errors show "Search isn't available right now. You can add it as typed below." — **no silent fallback to sample data**; already-selected items are unaffected. The sample artist/book/movie arrays were removed (not enlarged). Queries and answers are never logged.
+- **Privacy note:** typed search text is sent from the device to these third parties (no user identifiers). Consider in KVKK review.
+
+**Remaining dependencies (not done here):** for production — a server-side proxy with caching (rate limits are per IP; Open Library isn't meant as a high-traffic commercial backend) and a provider decision for D27 (e.g. Spotify/Deezer for artist photos, TMDB for posters — both need accounts/keys and licence review). Schools/hometown live search not started.
+
+### Checks
+
+| Check | Kind | Outcome |
+|---|---|---|
+| `npx tsc --noEmit` | build | ✅ exit 0 |
+| `npx expo export --platform ios` (production) | build | ✅ exit 0; DEV button still absent |
+| **Live queries through the real adapter code** (node, real network, 2026-09-28) | runtime (not device) | ✅ artists: `tark`→Tarkan, `sezen ak`→Sezen Aksu, `mabel mat`→Mabel Matiz, `duman`→Duman (Turkish rock), `daft p`→Daft Punk, `adel`→Adele, `rosal`→ROSALÍA (2nd), `kendrick`→Kendrick Lamar · books: `kurk mant`→Kürk Mantolu Madonna (one run hit the old 8 s timeout → raised to 10 s; typical 1.8–2.1 s), `tutunama`→Tutunamayanlar, `saatleri ayar`→Saatleri Ayarlama Enstitüsü, `orhan pam`→Benim Adım Kırmızı…, `harry pott`→Harry Potter…, `norwegian w`→Norwegian Wood, `sapien`→Sapiens · screen: `babam ve`→Babam ve Ustam / **Babam ve Oğlum (2005 · Movie)**, `ezel`→Ezel (2009 · Series), `kis uyku`→Kış Uykusu (2014 · Movie), `leyla ile`→Leyla ile Mecnun (2011 · Series), `breaking b`→Breaking Bad (2008 · Series), `incep`→Inception (2010 · Movie), `the off`→The Office (2005 · Series), `succes`→Succession (2018 · Series) |
+| R1 offline logic (fixtures + fake fetch) | code | ✅ 24: query builders; parsers (unknown/various filtered, OL exact dup collapsed, episode excluded, matched label, earliest year); re-rank; UA header; 1-char / empty → no request; HTTP 503 and network errors surface (no fallback); aborted before send; throttle ≥ 1 s; typeahead aborts superseded + cleared queries; provider-ID duplicate rejected; custom stays separate; schools/hometown still sample |
+| Regressions P02 (39), P03 R1 (28), P04 (32) | code | ✅ |
+| **Phone** | device | ⏳ **PENDING** — no simulator here; no screenshots |
+
+**Pending phone checks:** Job title / School / Hometown / artist / book / movie
+fields show placeholder and typed text fully (also at a larger text size);
+focusing a field scrolls it up with suggestions visible above Continue/Add
+later; suggestions tappable with keyboard open; live results for Turkish and
+international partial queries; book covers load; airplane mode → error line +
+"Use “…”" still works; selected items survive errors; 3-item limits.
+
+### Phone instructions
+
+Metro is running from `~/tempa-p05` (verified), so: press **`r`** in that Metro
+terminal (or shake the phone → **Reload**). If it is not running:
+`cd ~/tempa-p05 && git pull && npx expo start --dev-client -c`, then scan the
+new QR. No new dependency (expo-image was already installed) → no new
+development build. Signed out → landing → **DEV · Preview new onboarding** → go
+to Your World. Needs internet for artist/book/movie suggestions.
