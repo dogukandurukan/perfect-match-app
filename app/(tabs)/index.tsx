@@ -789,6 +789,16 @@ export default function HomeScreen() {
                 <ThemedText style={styles.devPreviewBtnText}>DEV · Preview new onboarding</ThemedText>
               </TouchableOpacity>
             ) : null}
+            {/* DEV-ONLY, temporary (P05 R2): iOS input comparison screen. */}
+            {__DEV__ ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Input lab (development only)"
+                onPress={() => router.push('/dev/input-lab' as Parameters<typeof router.push>[0])}>
+                <ThemedText style={styles.devPreviewBtnText}>DEV · Input lab</ThemedText>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </ScreenContainer>

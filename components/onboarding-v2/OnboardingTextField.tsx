@@ -30,25 +30,23 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
   const [focused, setFocused] = useState(false);
   const wrapRef = useRef<View>(null);
   const reveal = useRevealInScroll();
-  // Explicit height from the font's real line box (DM Sans: 1.302 em, from
-  // the bundled font's hhea metrics) × the user's text scale (capped like
-  // maxFontSizeMultiplier) + vertical padding. A fixed minHeight of 44 left
-  // only 32 pt for text, less than the 32–40 pt line box at larger text
-  // sizes, which clips glyphs on iOS (P05 R1).
   const { fontScale } = useWindowDimensions();
-  const inputHeight = Math.max(
-    44,
-    Math.ceil(INPUT_FONT_SIZE * LINE_BOX_EM * Math.min(fontScale, MAX_SCALE)) + INPUT_PAD_Y + 4,
-  );
+  const inputHeight = fieldHeight(fontScale);
   return (
     <View ref={wrapRef} style={[styles.wrap, containerStyle]}>
       <Text style={styles.label} maxFontSizeMultiplier={1.6}>
         {label}
       </Text>
-      {/* The underline lives on the TextInput itself (the P01 structure that
-          was verified on device). Wrapping the input in a flex row clipped the
-          text/placeholder vertically on iOS (P05 phone report), so the optional
-          suffix is overlaid on the right instead. */}
+      {/* No vertical padding on the native input (P05 R2). On iOS, RN's
+          RCTUITextField insets typed text by the padding (it overrides
+          textRectForBounds/editingRectForBounds) but does NOT override
+          placeholderRectForBounds, so with padding the placeholder is laid
+          out in a different rect than typed text — which matches the phone
+          reports (placeholders clipped at the underline, typed names fine in
+          P01). With zero vertical padding both rects equal the field bounds;
+          the space around the text comes from the explicit height instead.
+          The underline stays on the TextInput (border ≠ padding: RN subtracts
+          the border from the inset). The optional suffix is overlaid. */}
       <View>
         <TextInput
           ref={ref}
@@ -86,10 +84,18 @@ export const OnboardingTextField = forwardRef<TextInput, Props>(function Onboard
   );
 });
 
-const INPUT_FONT_SIZE = 19;
-const LINE_BOX_EM = 1.302;
+export const INPUT_FONT_SIZE = 19;
+/** DM Sans line box (hhea ascent 992 + descent 310, upm 1000) — bundled TTF. */
+export const LINE_BOX_EM = 1.302;
 const MAX_SCALE = 1.6;
-const INPUT_PAD_Y = obSpacing.xs + obSpacing.sm;
+/** Breathing room split evenly above/below the text inside the field. */
+const FIELD_ROOM = 16;
+
+/** Field height: font line box × text scale (capped like maxFontSizeMultiplier)
+ * + room, never below the 44 pt touch target. 44 / 50 / 56 pt at 1.0 / 1.3 / 1.6×. */
+export function fieldHeight(fontScale: number): number {
+  return Math.max(44, Math.ceil(INPUT_FONT_SIZE * LINE_BOX_EM * Math.min(fontScale, MAX_SCALE)) + FIELD_ROOM);
+}
 
 const styles = StyleSheet.create({
   wrap: {
@@ -103,8 +109,7 @@ const styles = StyleSheet.create({
   },
   input: {
     paddingHorizontal: 0,
-    paddingTop: obSpacing.xs,
-    paddingBottom: obSpacing.sm,
+    paddingVertical: 0,
     borderBottomWidth: 1,
     borderBottomColor: obColors.border,
     backgroundColor: 'transparent',
@@ -121,7 +126,7 @@ const styles = StyleSheet.create({
   suffix: {
     position: 'absolute',
     right: 0,
-    bottom: obSpacing.sm,
+    bottom: 10,
     fontFamily: obFonts.body,
     fontSize: 17,
     lineHeight: 24,
