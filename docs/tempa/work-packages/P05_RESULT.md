@@ -196,3 +196,29 @@ terminal (or shake the phone → **Reload**). If it is not running:
 new QR. No new dependency (expo-image was already installed) → no new
 development build. Signed out → landing → **DEV · Preview new onboarding** → go
 to Your World. Needs internet for artist/book/movie suggestions.
+
+## R2 — 2026-09-28: iOS placeholder clipping reopened (`P05_R2_IOS_INPUTS.md`)
+
+- **Implementation commit:** `1330358e38753dbd8236406e1ae11bed9ccfc49c` (`tempa/p05-your-world-ui`, `main` @ `95814a6` merged). Metro verified running from `~/tempa-p05`.
+- **Status: FIX APPLIED, NOT YET VERIFIED ON DEVICE.** No iOS simulator is available on this machine; `tsc` is not visual verification.
+
+**What R1 did not establish:** R1's font-metric height only proved clipping at *larger* text scales; the phone still clipped placeholders at normal size, so it was not the cause.
+
+**Root-cause evidence (from React Native 0.81.5 iOS source in `node_modules`, not device):**
+- `Libraries/Text/TextInput/Singleline/RCTUITextField.mm` overrides `textRectForBounds:` (→ `UIEdgeInsetsInsetRect(…, _textContainerInset)`) and `editingRectForBounds:` (→ same), but **does not override `placeholderRectForBounds:`**.
+- `React/Fabric/Mounting/ComponentViews/TextInput/RCTTextInputComponentView.mm` sets `textContainerInset = contentInsets − borderWidth`, i.e. the style **padding** (our `paddingTop 4 / paddingBottom 8`). The border is not part of the inset.
+- So with vertical padding, typed text is laid out in the inset rect while UIKit lays the placeholder out via its own (non-overridden) placeholder rect — different geometry for the same font. This matches all observations: P01 typed names rendered fine on the phone; every reported clip is a **placeholder** (e.g. Designer, Search artists); it persisted through structure (P02 wrapper → R1 input border) and height (R1) changes, all of which kept the 4/8 padding.
+- Placeholder attributes are the input's `defaultTextAttributes` (same DM Sans font, no `lineHeight` set by us) — font registration/line-height were checked and are not different between placeholder and typed text.
+
+**Fix (shared `OnboardingTextField`):** `paddingVertical: 0` on the native input so typed-text rect and placeholder rect are both the field bounds; the space around the text now comes from an explicit height `max(44, ceil(19 × 1.302 × min(fontScale, 1.6)) + 16)` → 44 / 49 / 56 pt at 1.0 / 1.3 / 1.6×. Underline style (border on the input), fonts and accessible text scaling unchanged; no fake placeholder overlay. Applies to every V2 text field (names, birthday, city, job title, school, hometown, artists, books, movies). R1 keyboard behaviour (focused field + suggestions scrolled above the footer) unchanged.
+
+**Controlled comparison for confirmation (temporary, DEV-only):** new screen `/dev/input-lab` (link **DEV · Input lab** under the preview button on the signed-out landing; production-stripped — string absent from the production bundle). It shows, each with an empty placeholder field and a typed field (`Designer gjpqy Şğ`) plus its measured frame height:
+A current R2 component · B R1 (DM Sans, pad 4/8) · C B with system font · D DM Sans pad 0 · E pad 4/8 with the border on a wrapper · F pad 4/8 with intrinsic height. **One phone screenshot of this screen confirms or refutes the padding cause** (expected if correct: B, C, E, F placeholders clipped; A and D fine). Remove the lab once confirmed.
+
+**Checks:** `npx tsc --noEmit` ✅; `npx expo export --platform ios` ✅ (DEV strings absent in production). Live search from R1 untouched (MusicBrainz / Open Library / Wikidata). **Device verification pending**: Work (Job title), School, Artists placeholders fully visible with a clear gap above the underline; typed text; focused/blurred; keyboard open with suggestions and selected rows reachable above the footer.
+
+**Reload:** press `r` in the Metro terminal running from `~/tempa-p05` (or shake → Reload). No new build. To confirm the cause: signed-out landing → **DEV · Input lab** → one screenshot.
+
+### Deferred — artist photos / Spotify (recorded, not started)
+
+Owner wants photo-rich artist cards (Bumble-like); deferred. Direction: verified artist photos, compact name cards, existing ivory/forest-green theme, photos provide the colour, no heading emoji; never album art as a portrait substitute, no scraped photos. Two separate future scopes: (1) catalog search with artist images, (2) connecting a user's Spotify to import top artists (OAuth). Before choosing Spotify for production, check developer access/quota mode, the February 2026 Web API migration changes, and image/display terms: <https://developer.spotify.com/documentation/web-api/reference/search>, <https://developer.spotify.com/documentation/web-api/concepts/quota-modes>, <https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide>. **No Spotify code, account or OAuth in this revision; image integration is not complete.**
