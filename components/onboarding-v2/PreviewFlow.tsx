@@ -352,6 +352,7 @@ export function PreviewFlow({ onExit }: Props) {
       title={titleFor(pos)}
       helper={helperFor(pos)}
       compactTitle={pos.section !== 'basics'}
+      reserveTitleBlock={!(inProfile && step === PROFILE_STEP.preview)}
       onBack={handleBack}
       contentKey={`${pos.section}-${step}`}
       footer={

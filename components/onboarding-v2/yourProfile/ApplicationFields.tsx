@@ -2,7 +2,7 @@
 // sent, there is no application record, no review timeframe, no acceptance,
 // verification or membership. The former "Ready to submit?" checklist state
 // was removed in P07 R1 (Submit now lives on the confirmed email-code screen).
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
@@ -10,7 +10,9 @@ import { DevNotice } from '@/components/onboarding-v2/yourProfile/ProfilePreview
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 
 const PIECES = 14;
-const CONFETTI_COLORS = [obColors.cta, '#8FA894', '#CDBE9C', '#C9D6C4', '#B7894C'];
+// Small warm-gold accent used only for the celebration details.
+const GOLD = '#B7894C';
+const CONFETTI_COLORS = [obColors.cta, '#8FA894', '#CDBE9C', '#C9D6C4', GOLD];
 
 /** One short, light burst (≈1.4 s, native driver) that plays once per mount.
  * Skipped entirely when the system "Reduce Motion" setting is on. */
@@ -83,8 +85,11 @@ export function ReceivedFields() {
     <View style={styles.wrap}>
       <View style={styles.celebrate}>
         <Confetti />
-        <View style={styles.badge}>
-          <Ionicons name="sparkles-outline" size={30} color={obColors.cta} importantForAccessibility="no" />
+        {/* Decorative party popper (application RECEIVED, not approved). */}
+        <View style={styles.badge} importantForAccessibility="no-hide-descendants">
+          <MaterialCommunityIcons name="party-popper" size={38} color={obColors.cta} />
+          <MaterialCommunityIcons name="star-four-points" size={13} color={GOLD} style={styles.sparkTop} />
+          <MaterialCommunityIcons name="star-four-points" size={9} color={GOLD} style={styles.sparkLeft} />
         </View>
       </View>
       <View style={styles.copy}>
@@ -131,14 +136,24 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   badge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     borderWidth: 1.5,
     borderColor: obColors.cta,
     backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sparkTop: {
+    position: 'absolute',
+    top: 12,
+    right: 14,
+  },
+  sparkLeft: {
+    position: 'absolute',
+    bottom: 16,
+    left: 14,
   },
   copy: {
     gap: obSpacing.xs,

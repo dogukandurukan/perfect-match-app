@@ -331,15 +331,19 @@ export function isProfileStepValid(step: number, d: ProfileDraft): boolean {
 
 // ─── Public profile preview (D44 order, all sections — P07 R1) ─────────────
 
-export type PreviewFact = { icon: string; text: string };
-export type PreviewChips = { title: string; chips: string[] };
+/** One answer line with a small outline icon (Ionicons unless family 'mci'). */
+export type PreviewFact = { icon: string; family?: 'ion' | 'mci'; text: string };
+/** A titled group of answers; several answers wrap onto the next line. */
+export type PreviewGroup = { title: string; items: PreviewFact[] };
 export type PreviewTaste = { label: string; kind: 'artist' | 'book' | 'screen'; items: TasteItem[] };
 
 export type PreviewBlock =
   | { type: 'header'; name: string; age: number | null }
+  /** Main photo with the first name + age overlaid bottom-left (P07 R1 polish). */
+  | { type: 'hero'; photo: LocalPhoto; name: string; age: number | null }
   | { type: 'photo'; photo: LocalPhoto }
   | { type: 'facts'; title?: string; facts: PreviewFact[] }
-  | { type: 'chips'; groups: PreviewChips[] }
+  | { type: 'groups'; groups: PreviewGroup[] }
   | { type: 'prompt'; label: string; answer: string }
   | { type: 'taste'; groups: PreviewTaste[] };
 
@@ -401,14 +405,23 @@ export function buildProfilePreview(
   // Looking for · values · interests
   const intentQ = SINGLE_QUESTIONS.find((q) => q.id === 'intent');
   const intent = compat.intent && intentQ?.options.some((o) => o.key === compat.intent) ? INTENT_TEXT[compat.intent] : null;
-  const values = compat.values.map((k) => VALUE_OPTIONS.find((v) => v.key === k)?.label).filter((x): x is string => !!x);
-  const interests = world.interests
-    .map((k) => INTERESTS.find((i) => i.key === k)?.label)
-    .filter((x): x is string => !!x);
-  const chipGroups: PreviewChips[] = nonEmpty<PreviewChips>([
-    intent && { title: 'Looking for', chips: [intent] },
-    values.length > 0 && { title: 'What matters most', chips: values },
-    interests.length > 0 && { title: 'Into', chips: interests },
+  // Same icons as the answer cards the user picked them from (D51/D56).
+  const values: PreviewFact[] = nonEmpty<PreviewFact>(
+    compat.values.map((k) => {
+      const v = VALUE_OPTIONS.find((o) => o.key === k);
+      return v ? { icon: v.icon.name, family: v.icon.family, text: v.label } : null;
+    }),
+  );
+  const interests: PreviewFact[] = nonEmpty<PreviewFact>(
+    world.interests.map((k) => {
+      const it = INTERESTS.find((i) => i.key === k);
+      return it ? { icon: it.icon, text: it.label } : null;
+    }),
+  );
+  const chipGroups: PreviewGroup[] = nonEmpty<PreviewGroup>([
+    intent && { title: 'Looking for', items: [{ icon: 'heart-outline', text: intent }] },
+    values.length > 0 && { title: 'What matters most', items: values },
+    interests.length > 0 && { title: 'Into', items: interests },
   ]);
 
   // Lifestyle
@@ -443,15 +456,20 @@ export function buildProfilePreview(
   // Content sections, interleaved with photos 2… and prompts.
   const sections: PreviewBlock[] = nonEmpty<PreviewBlock>([
     about.length > 0 && { type: 'facts', facts: about },
-    chipGroups.length > 0 && { type: 'chips', groups: chipGroups },
+    chipGroups.length > 0 && { type: 'groups', groups: chipGroups },
     lifestyle.length > 0 && { type: 'facts', title: 'Lifestyle', facts: lifestyle },
     firstDates.length > 0 && { type: 'facts', title: 'First dates', facts: firstDates },
     taste.length > 0 && { type: 'taste', groups: taste },
   ]);
   const prompts: PreviewBlock[] = answers.map((a) => ({ type: 'prompt', label: promptLabel(a.promptId), answer: a.answer }));
 
-  const blocks: PreviewBlock[] = [{ type: 'header', name: basics.firstName.trim(), age: dob.ok ? dob.age : null }];
-  if (photos[0]) blocks.push({ type: 'photo', photo: photos[0] });
+  // Name + age live on the main photo (no separate line, not repeated);
+  // only if there is no usable photo does a plain header stand in.
+  const name = basics.firstName.trim();
+  const age = dob.ok ? dob.age : null;
+  const blocks: PreviewBlock[] = photos[0]
+    ? [{ type: 'hero', photo: photos[0], name, age }]
+    : [{ type: 'header', name, age }];
   // Rhythm: info → prompt → photo, repeated; leftovers keep their order.
   const rest = photos.slice(1);
   const n = Math.max(sections.length, prompts.length, rest.length);

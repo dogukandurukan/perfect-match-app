@@ -32,6 +32,10 @@ type Props = {
    * so options start on the same baseline for 1–2 line titles, with or
    * without a helper. The block still grows at accessibility text sizes. */
   compactTitle?: boolean;
+  /** Set false where there are no answer options to align (e.g. the profile
+   * preview): drops the reserved compact title/helper height so content
+   * starts right under the helper. */
+  reserveTitleBlock?: boolean;
   onBack?: () => void;
   children: ReactNode;
   /** Rendered pinned at the bottom (e.g. notices + primary button). */
@@ -63,6 +67,7 @@ export function OnboardingScreen({
   title,
   helper,
   compactTitle = false,
+  reserveTitleBlock = true,
   onBack,
   children,
   footer,
@@ -130,7 +135,8 @@ export function OnboardingScreen({
         showsVerticalScrollIndicator={false}>
         {/* The reserved 2-line title/helper block keeps option baselines aligned;
             it is dropped while the keyboard is open to free space for fields. */}
-        <View style={compactTitle && !keyboardVisible ? styles.titleBlockCompact : undefined}>
+        <View
+          style={compactTitle && reserveTitleBlock && !keyboardVisible ? styles.titleBlockCompact : undefined}>
           <Text
             style={compactTitle ? styles.titleCompact : styles.title}
             accessibilityRole="header"

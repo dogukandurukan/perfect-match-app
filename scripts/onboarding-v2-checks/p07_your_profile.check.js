@@ -56,14 +56,23 @@ const world={...W.EMPTY_WORLD_DRAFT,jobTitle:'Designer',school:{kind:'school',so
 const dates={...D.EMPTY_DATES_DRAFT,dateTypes:['coffee','walk'],days:'weekends',time:'daytime',spotText:'Moda Sahil'};
 const pf={...full,prompts:p3,photos:P.addPhotos(L3,[ph(4),ph(5)])};
 const bl=P.buildProfilePreview(basics,compat,life,world,dates,pf);const js=JSON.stringify(bl);
-ok(bl[0].type==='header'&&bl[0].name==='Deniz'&&bl[0].age>=30&&bl[1].type==='photo'&&bl[1].photo.id==='p1','name+age before main photo');
+ok(bl[0].type==='hero'&&bl[0].name==='Deniz'&&bl[0].age>=30&&bl[0].photo.id==='p1','name+age on the main photo (hero, P07 R1 polish)');
+ok(!bl.some(b=>b.type==='header'),'no separate name line when a photo exists');
+ok(bl.filter(b=>JSON.stringify(b).includes('"name":"Deniz"')).length===1,'name appears exactly once');
+{const g=bl.find(b=>b.type==='groups');const it=t=>g.groups.find(x=>x.title===t).items;
+ ok(it('Looking for')[0].icon==='heart-outline'&&it('Looking for')[0].text==='A serious relationship','Looking for: heart icon + text');
+ ok(it('What matters most').some(f=>f.text==='Trust'&&f.icon==='link-variant'&&f.family==='mci'),'Trust uses the link icon');
+ ok(it('Into').every(f=>typeof f.icon==='string'&&f.icon.endsWith('-outline')),'interests use outline icons');
+ ok(!JSON.stringify(g).match(/[\u{1F300}-\u{1FAFF}]/u),'no emoji in answer groups');}
 for(const t of ['İstanbul','172 cm','Cancer','Designer','Boğaziçi University','From İzmir','A serious relationship','Trust','Respect','Food','Travel',"Doesn't smoke",'Drinks sometimes','Has a cat','Very active','Coffee · A walk','Weekends · Daytime','Favorite spot: Moda Sahil','Sezen Aksu','Kürk Mantolu Madonna','Ezel'])ok(js.includes(t),'preview has '+t);
 for(const t of ['Hiddensurname','1995','deniz@','selfie','Kadıköy'])ok(!js.includes(t),'preview excludes '+t);
-ok(bl.filter(b=>b.type==='photo').length===5,'all usable photos shown once');
+ok(bl.filter(b=>b.type==='photo'||b.type==='hero').length===5,'all usable photos shown once');
 const types=bl.map(b=>b.type);ok(types.indexOf('prompt')<types.lastIndexOf('photo'),'prompts interleaved with photos');
 let consecutive=0;for(let i=1;i<types.length;i++)if(types[i]==='photo'&&types[i-1]==='photo')consecutive++;ok(consecutive===0,'no photo stacks when info exists: '+types.join(','));
 const min=P.buildProfilePreview({...B.EMPTY_BASICS_DRAFT,firstName:'Ada'},C.EMPTY_COMPAT_DRAFT,L.EMPTY_LIFE_DRAFT,W.EMPTY_WORLD_DRAFT,D.EMPTY_DATES_DRAFT,{...E,photos:L3,prompts:pr});
-ok(eq(min.map(b=>b.type),['header','photo','prompt','photo','prompt','photo']),'empty groups omitted: '+min.map(b=>b.type));
+ok(eq(min.map(b=>b.type),['hero','prompt','photo','prompt','photo']),'empty groups omitted: '+min.map(b=>b.type));
+{const noPhoto=P.buildProfilePreview({...B.EMPTY_BASICS_DRAFT,firstName:'Ada'},C.EMPTY_COMPAT_DRAFT,L.EMPTY_LIFE_DRAFT,W.EMPTY_WORLD_DRAFT,D.EMPTY_DATES_DRAFT,{...E,photos:[],prompts:pr});
+ ok(noPhoto[0].type==='header'&&noPhoto[0].name==='Ada','without a photo the name falls back to a header');}
 ok(!JSON.stringify(min).includes('title'),'no empty section titles');
 // Walk the real connected flow with complete drafts: every one of the 32
 // steps is valid (Continue never blocks) and Back retraces it exactly.

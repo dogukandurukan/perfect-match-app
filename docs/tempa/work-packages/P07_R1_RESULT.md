@@ -191,3 +191,39 @@ At the time of this report, Metro on port 8081 was running from **`~/tempa-p07`*
    - **Local verification:** PGlite with the real proposed files, actors anon / owner / other → **49/49**. The mutation check confirms the tests detect the fix.
    - **⚠️ Not applied live — the exposure continues** until P0-A → R-P0 → P0-B are applied. Nothing was changed live (no migration, policy, bucket or account change). No other user's data was read.
 5. **Scoring.** Weights unchanged. The pet-matrix cells used in the audit example are marked "**assumption pending approval**" (they affect all four example rows).
+
+## Visual polish — 2026-09-29 (after phone review of R1)
+
+The phone screenshots (Your Profile **x of 7**, no "Ready to submit?") confirm the phone ran **R1**. Metro on port 8081 was verified running from `~/tempa-p07-r1`. Visual changes only; photo management, prompts, flow, backend and scoring are untouched.
+
+1. **Main photo:**
+   - "Name, age" now sits **inside the main photo, bottom-left**, in white Playfair / DM Sans, over a soft dark fade on the bottom ~42 % of the photo.
+   - The fade is built from stacked translucent bands. No gradient module is installed, and adding one would require a new development build.
+   - The separate name line is gone. The name comes from the real draft and appears exactly once (tested).
+   - Long names wrap to at most 2 lines and are then truncated rather than overflowing.
+   - No verified badge or like button.
+   - On the preview step, the reserved title/helper height is dropped, so the photo starts right under "This is how others will see you." The photo uses the full content width in the same 4:5 frame.
+2. **Consistent answers:**
+   - *Looking for*, *What matters most* and *Into* now use the **same row style as First dates**: 17 pt forest-green outline icon + DM Sans 16/22 regular. They replace the sage chips.
+   - All section titles share one style and spacing (title → answers 8 pt, group → group 16 pt).
+   - Icons: Looking for → heart. Values reuse their card icons (Trust → link, Growing together → sprout, …). Interests reuse their chip icons (Travel → airplane, Books → book, …).
+   - Several answers sit side by side and wrap onto the next line; text wraps instead of being cut. No emoji.
+3. **You're on the list!:**
+   - The sparkles glyph is replaced by a **party popper** (MaterialCommunityIcons `party-popper`, forest green, 84 pt sage circle) with two small warm-gold four-point stars.
+   - The one-off confetti (gold included) and Reduce Motion skip are unchanged.
+   - The copy still says received / review pending, not approved.
+
+**Checks:**
+- `tsc` ✅.
+- Logic checks: P06 45/45, P07 74/74. New checks cover: name on the hero only, no separate name line, name exactly once, heart / link / outline icons, no emoji, header fallback without a photo.
+- `expo export --platform ios`: DEV entries absent ✅.
+
+**Not verified on device:**
+- The fade strength on very bright photos.
+- Two-line names at 320 pt width and at large text sizes.
+- Wrapping of long value/interest rows.
+- The badge rendering.
+
+The fixed Continue / Back to status button is a separate footer below the scroll view (not overlaid), so it cannot cover content; content scrolls above it. Please check this on the phone too.
+
+**Phone:** Metro is already serving `~/tempa-p07-r1`, so press **`r`** in that terminal (or shake → Reload). If it isn't running: `cd ~/tempa-p07-r1 && git pull && npx expo start --dev-client -c` and scan the new QR. The expected version is the one showing **"7 of 7"** and **"You're on the list!"** with the party popper. R1 has no build label; the build label comes with R2. No new build needed.

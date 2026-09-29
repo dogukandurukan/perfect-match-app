@@ -2,12 +2,12 @@
 // section's in-memory draft (buildProfilePreview) as one scrolling page. Never
 // shows surname, exact DOB, email, phone or the private selfie. No note/send
 // controls here: contextual notes belong to the future visitor profile (D45).
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
-import type { PreviewBlock } from '@/lib/onboardingV2/yourProfile';
+import type { PreviewBlock, PreviewFact } from '@/lib/onboardingV2/yourProfile';
 import type { TasteItem } from '@/lib/onboardingV2/yourWorld';
 
 export function DevNotice({ text }: { text: string }) {
@@ -20,6 +20,8 @@ export function DevNotice({ text }: { text: string }) {
     </View>
   );
 }
+
+const FACT_ICON = 17;
 
 const TASTE_ICON = { artist: 'musical-notes-outline', book: 'book-outline', screen: 'film-outline' } as const;
 
@@ -59,6 +61,54 @@ function SectionTitle({ children }: { children: string }) {
   );
 }
 
+/** Small single-colour outline icon, same size/colour everywhere (P07 R1 polish). */
+function FactIcon({ fact }: { fact: PreviewFact }) {
+  if (fact.family === 'mci') {
+    return (
+      <MaterialCommunityIcons
+        name={fact.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+        size={FACT_ICON}
+        color={obColors.cta}
+        importantForAccessibility="no"
+      />
+    );
+  }
+  return (
+    <Ionicons
+      name={fact.icon as keyof typeof Ionicons.glyphMap}
+      size={FACT_ICON}
+      color={obColors.cta}
+      importantForAccessibility="no"
+    />
+  );
+}
+
+function FactRow({ fact }: { fact: PreviewFact }) {
+  return (
+    <View style={styles.fact}>
+      <FactIcon fact={fact} />
+      <Text style={styles.factText} maxFontSizeMultiplier={1.6}>
+        {fact.text}
+      </Text>
+    </View>
+  );
+}
+
+// Soft dark fade under the name — stacked translucent bands (no gradient
+// native module is installed; adding one would need a new dev build).
+const FADE_STEPS = 16;
+const FADE_MAX = 0.62;
+function BottomFade() {
+  return (
+    <View pointerEvents="none" style={styles.fade}>
+      {Array.from({ length: FADE_STEPS }).map((_, i) => {
+        const t = (i + 1) / FADE_STEPS;
+        return <View key={i} style={{ flex: 1, backgroundColor: `rgba(0,0,0,${(FADE_MAX * t * t).toFixed(3)})` }} />;
+      })}
+    </View>
+  );
+}
+
 export function ProfilePreview({ blocks }: { blocks: PreviewBlock[] }) {
   return (
     <View style={styles.wrap}>
@@ -71,6 +121,21 @@ export function ProfilePreview({ blocks }: { blocks: PreviewBlock[] }) {
                 {b.age !== null ? <Text style={styles.age}>, {b.age}</Text> : null}
               </Text>
             );
+          case 'hero': {
+            const label = b.age !== null ? `${b.name}, ${b.age}` : b.name;
+            return (
+              <View key={i} style={styles.card} accessible accessibilityLabel={`Main photo. ${label}`}>
+                <Image source={{ uri: b.photo.uri }} style={styles.photo} contentFit="cover" accessible={false} />
+                <BottomFade />
+                <View style={styles.heroText} pointerEvents="none">
+                  <Text style={styles.heroName} numberOfLines={2} maxFontSizeMultiplier={1.3}>
+                    {b.name || 'Your first name'}
+                    {b.age !== null ? <Text style={styles.heroAge}>, {b.age}</Text> : null}
+                  </Text>
+                </View>
+              </View>
+            );
+          }
           case 'photo':
             return (
               <View key={i} style={styles.card}>
@@ -82,33 +147,19 @@ export function ProfilePreview({ blocks }: { blocks: PreviewBlock[] }) {
               <View key={i} style={[styles.card, styles.pad]}>
                 {b.title ? <SectionTitle>{b.title}</SectionTitle> : null}
                 {b.facts.map((f) => (
-                  <View key={f.text} style={styles.fact}>
-                    <Ionicons
-                      name={f.icon as keyof typeof Ionicons.glyphMap}
-                      size={17}
-                      color={obColors.cta}
-                      importantForAccessibility="no"
-                    />
-                    <Text style={styles.factText} maxFontSizeMultiplier={1.6}>
-                      {f.text}
-                    </Text>
-                  </View>
+                  <FactRow key={f.text} fact={f} />
                 ))}
               </View>
             );
-          case 'chips':
+          case 'groups':
             return (
               <View key={i} style={[styles.card, styles.pad, styles.chipCard]}>
                 {b.groups.map((g) => (
                   <View key={g.title} style={styles.group}>
                     <SectionTitle>{g.title}</SectionTitle>
-                    <View style={styles.chips}>
-                      {g.chips.map((t) => (
-                        <View key={t} style={styles.chip}>
-                          <Text style={styles.chipText} maxFontSizeMultiplier={1.6}>
-                            {t}
-                          </Text>
-                        </View>
+                    <View style={styles.inlineFacts}>
+                      {g.items.map((f) => (
+                        <FactRow key={f.text} fact={f} />
                       ))}
                     </View>
                   </View>
@@ -169,6 +220,32 @@ const styles = StyleSheet.create({
     lineHeight: 38,
     color: obColors.textPrimary,
   },
+  fade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '42%',
+  },
+  heroText: {
+    position: 'absolute',
+    left: obSpacing.lg,
+    right: obSpacing.lg,
+    bottom: obSpacing.lg,
+  },
+  heroName: {
+    fontFamily: obFonts.heading,
+    fontSize: 30,
+    lineHeight: 37,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  heroAge: {
+    fontFamily: obFonts.body,
+    color: '#FFFFFF',
+  },
   age: {
     fontFamily: obFonts.body,
     color: obColors.textPrimary,
@@ -190,7 +267,7 @@ const styles = StyleSheet.create({
   group: {
     gap: obSpacing.sm,
   },
-  // Same 4:5 frame for every photo; name/age sit above the first one.
+  // Same 4:5 frame for every photo; name/age sit ON the first one (hero).
   photo: {
     width: '100%',
     aspectRatio: 4 / 5,
@@ -207,6 +284,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: obSpacing.sm,
+    maxWidth: '100%',
   },
   factText: {
     flexShrink: 1,
@@ -215,22 +293,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: obColors.textPrimary,
   },
-  chips: {
+  // Several answers sit side by side and wrap onto the next line; each
+  // keeps the exact First dates row style (icon + 16/22 DM Sans).
+  inlineFacts: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-  },
-  chip: {
-    borderRadius: 16,
-    backgroundColor: obColors.selectedFill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  chipText: {
-    fontFamily: obFonts.bodyMedium,
-    fontSize: 14,
-    lineHeight: 19,
-    color: obColors.textPrimary,
+    columnGap: obSpacing.lg,
+    rowGap: obSpacing.sm,
   },
   promptLabel: {
     fontFamily: obFonts.bodySemiBold,
