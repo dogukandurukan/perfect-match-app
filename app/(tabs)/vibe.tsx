@@ -49,7 +49,7 @@ function VibePersonCard({
   user: VibeStripUser;
   onPress: (userId: string) => void;
 }) {
-  const age = safeAge(user.date_of_birth);
+  const age = user.age ?? safeAge(user.date_of_birth);
   const nameLine = [user.first_name ?? 'Kullanıcı', age > 0 ? String(age) : null]
     .filter(Boolean)
     .join(', ');
@@ -71,7 +71,7 @@ function VibePersonCard({
           {nameLine}
         </ThemedText>
         <ThemedText style={styles.personDistrict} numberOfLines={1}>
-          📍 {user.district ?? '—'}
+          📍 In your city
         </ThemedText>
       </View>
     </TouchableOpacity>

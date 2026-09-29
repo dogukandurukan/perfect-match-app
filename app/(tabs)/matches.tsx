@@ -21,7 +21,7 @@ import {
 } from '@/lib/matchInvite';
 import { getDailyInvitesState, type DailyInvitesState } from '@/lib/dailyInvites';
 import { computeFallbackReason, strongestReason, type ReasonCompareProfile } from '@/lib/matchReason';
-import { hingeSafeAge, parseFavoriteSpots } from '@/lib/hingeProfile';
+import { parseFavoriteSpots, personAge } from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 
@@ -35,7 +35,9 @@ function matchCategory(score: number): string {
 type MatchResultItem = {
   user_id: string;
   first_name: string | null;
+  /** Always null for other people (P0 privacy) — use `age`. */
   date_of_birth: string | null;
+  age?: number | null;
   city: string | null;
   district: string | null;
   zodiac_sign: string | null;
@@ -148,12 +150,12 @@ type PendingMatchRow = {
   reasons?: string[] | null;
 };
 
+// Other people's public card (profile_cards): age instead of DOB, no district.
 type ProfileForCard = {
   id: string;
   first_name: string | null;
-  date_of_birth: string | null;
+  age: number | null;
   city: string | null;
-  district: string | null;
   zodiac_sign: string | null;
   photos: string[] | null;
   favorite_music: string | null;
@@ -210,7 +212,7 @@ function buildCardFromPending(
       intent,
       drinking: profile.drinking,
       smoking: profile.smoking,
-      district: profile.district,
+      district: null, // other people's district is private (P0)
       zodiac_sign: profile.zodiac_sign,
       favorite_spots: parseFavoriteSpots(profile.favorite_spots),
       meeting_environment: profile.meeting_environment,
@@ -219,9 +221,10 @@ function buildCardFromPending(
   return {
     user_id: profile.id,
     first_name: profile.first_name,
-    date_of_birth: profile.date_of_birth,
+    date_of_birth: null,
+    age: profile.age,
     city: profile.city,
-    district: profile.district,
+    district: null,
     zodiac_sign: profile.zodiac_sign,
     photos: signedPhotos.length > 0 ? signedPhotos : null,
     match_percentage: Math.round(row.match_score),
@@ -251,8 +254,8 @@ function buildCardFromPending(
   };
 }
 
-function safeAge(dob: string | null): number {
-  return hingeSafeAge(dob);
+function safeAge(p: { age?: number | null; date_of_birth?: string | null } | null | undefined): number {
+  return p ? personAge(p) : 0;
 }
 
 /** The proposed venue + first offered time from a set of intro answers
@@ -419,9 +422,8 @@ export default function MatchesTab() {
           type ProfileRow = {
             id: string;
             first_name: string | null;
-            date_of_birth: string | null;
+            age: number | null;
             city: string | null;
-            district: string | null;
             photos: string[] | null;
             gender: string | null;
           };
@@ -441,8 +443,8 @@ export default function MatchesTab() {
                 return { profileById: new Map<string, ProfileRow>(), error: null as string | null };
               }
               const { data: profiles, error: profilesError } = await supabase
-                .from('profiles')
-                .select('id, first_name, date_of_birth, city, district, photos, gender')
+                .from('profile_cards')
+                .select('id, first_name, age, city, photos, gender')
                 .in('id', otherIds);
               if (profilesError) {
                 return { profileById: new Map<string, ProfileRow>(), error: profilesError.message };
@@ -459,8 +461,7 @@ export default function MatchesTab() {
 
               const missingCount = MATCH_SLOT_COUNT - activePending.length;
               if (missingCount > 0) {
-                const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_matches', {
-                  p_user_id: userId,
+                const { data: rpcData, error: rpcError } = await supabase.rpc('get_discovery_cards', {
                   p_limit: missingCount + 5,
                 });
                 if (rpcError) return { activePending, error: rpcError.message };
@@ -527,7 +528,7 @@ export default function MatchesTab() {
             const profile = profileById.get(otherId);
             const displayPhotoUrl = photoFor(profile?.photos);
             const firstName = profile?.first_name ?? null;
-            const age = safeAge(profile?.date_of_birth ?? null);
+            const age = safeAge(profile);
             const invitedBy = (row.invited_by as string | null) ?? null;
             const chatOpened = row.chat_opened === true;
 
@@ -641,9 +642,9 @@ export default function MatchesTab() {
             { data: intentRows, error: intentError },
           ] = await Promise.all([
             supabase
-              .from('profiles')
+              .from('profile_cards')
               .select(
-                'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots, meeting_environment',
+                'id, first_name, age, city, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots, meeting_environment',
               )
               .in('id', cardOtherIds),
             supabase.from('onboarding_answers').select('user_id, intent').in('user_id', cardOtherIds),
@@ -658,9 +659,9 @@ export default function MatchesTab() {
           let profilesForCards: ProfileForCard[] = [];
           if (profileError) {
             const { data: fallbackRows, error: fallbackError } = await supabase
-              .from('profiles')
+              .from('profile_cards')
               .select(
-                'id, first_name, date_of_birth, city, district, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, meeting_environment',
+                'id, first_name, age, city, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, meeting_environment',
               )
               .in('id', cardOtherIds);
             if (fallbackError) {
@@ -725,7 +726,7 @@ export default function MatchesTab() {
     }, [reloadKey]),
   );
 
-  function handleLetsMeet(match: { user_id: string; first_name: string | null; date_of_birth: string | null; city: string | null; displayPhotoUrl: string | null; match_percentage: number; matchId: string }) {
+  function handleLetsMeet(match: { user_id: string; first_name: string | null; date_of_birth: string | null; age?: number | null; city: string | null; displayPhotoUrl: string | null; match_percentage: number; matchId: string }) {
     if (dailyInvites?.limitReached) {
       Alert.alert("You've used your invite for today", 'Come back tomorrow, or go Premium for 3/day ✨');
       return;
@@ -736,7 +737,7 @@ export default function MatchesTab() {
         matchUserId: match.user_id,
         matchName: match.first_name ?? 'them',
         matchAge: (() => {
-          const age = safeAge(match.date_of_birth);
+          const age = safeAge(match);
           return age > 0 ? String(age) : '';
         })(),
         matchCity: match.city ?? '',
@@ -797,7 +798,7 @@ export default function MatchesTab() {
       key: match.matchId,
       userId: match.user_id,
       name: match.first_name ?? 'Someone',
-      age: safeAge(match.date_of_birth),
+      age: safeAge(match),
       photoUrl: match.displayPhotoUrl,
       matchPercentage: match.match_percentage,
       reason: match.reason,

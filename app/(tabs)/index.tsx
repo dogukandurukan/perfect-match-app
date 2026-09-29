@@ -125,11 +125,12 @@ function dedupePromptCards(cards: PromptCard[]): PromptCard[] {
   return result;
 }
 
+// get_discovery_cards (P0 privacy): same ranking as get_top_matches, but
+// `age` instead of date_of_birth and no district.
 type TopMatchRow = {
   user_id: string;
   first_name: string | null;
-  date_of_birth: string | null;
-  district: string | null;
+  age: number | null;
   city: string | null;
   match_percentage: number;
   match_category: string | null;
@@ -276,8 +277,7 @@ export default function HomeScreen() {
   }, [refreshProfileState]);
 
   const loadFeed = useCallback(async (userId: string): Promise<FeedUser[]> => {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_matches', {
-      p_user_id: userId,
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_discovery_cards', {
       p_limit: 10,
     });
 
@@ -319,8 +319,9 @@ export default function HomeScreen() {
         return {
           user_id: row.user_id,
           first_name: row.first_name,
-          date_of_birth: row.date_of_birth,
-          district: row.district,
+          date_of_birth: null,
+          age: row.age,
+          district: null,
           city: row.city,
           match_percentage: row.match_percentage,
           match_category: row.match_category,
@@ -354,10 +355,11 @@ export default function HomeScreen() {
       }),
     );
 
+    // Other people's public card fields — profile_cards, never profiles (P0).
     const { data: profileRows, error: profileError } = await supabase
-      .from('profiles')
+      .from('profile_cards')
       .select(
-        'id, languages, bio, first_date_expectation, favorite_spots, education, education_detail, occupation, zodiac_sign, gender, pets, morning_night, core_value, impressed_by, favorite_activity, vibe, photo_verified',
+        'id, languages, bio, first_date_expectation, favorite_spots, education, education_detail, occupation, zodiac_sign, gender, pets, morning_night, core_value, impressed_by, favorite_activity, photo_verified',
       )
       .in('id', userIds);
 
@@ -377,7 +379,7 @@ export default function HomeScreen() {
       core_value: string | null;
       impressed_by: string | null;
       favorite_activity: string | null;
-      vibe: string | null;
+      vibe?: string | null;
       photo_verified: boolean | null;
     };
 
@@ -387,7 +389,7 @@ export default function HomeScreen() {
       extras = profileRows as ProfileExtraRow[];
     } else {
       const { data: langRows } = await supabase
-        .from('profiles')
+        .from('profile_cards')
         .select('id, languages')
         .in('id', userIds);
       extras = (langRows ?? []).map((row: { id: string; languages: string[] | null }) => ({
@@ -458,7 +460,7 @@ export default function HomeScreen() {
         const { data: accepted } = await supabase
           .from('matches')
           .select(
-            'id, status, user_a_id, user_b_id, user_a_accepted, user_b_accepted, user_a_intro_answers, user_b_intro_answers, profiles!matches_user_b_id_fkey (first_name)',
+            'id, status, user_a_id, user_b_id, user_a_accepted, user_b_accepted, user_a_intro_answers, user_b_intro_answers',
           )
           .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
           .eq('status', 'accepted')
@@ -467,12 +469,21 @@ export default function HomeScreen() {
 
         if (!mounted) return;
 
+        // The other person's name comes from profile_cards (P0: an embedded
+        // `profiles` join only returns your own row).
+        const otherFirstName = async (m: { user_a_id: string; user_b_id: string }) => {
+          const otherId = m.user_a_id === userId ? m.user_b_id : m.user_a_id;
+          const { data } = await supabase.from('profile_cards').select('first_name').eq('id', otherId).maybeSingle();
+          return (data?.first_name as string | null | undefined) ?? 'Someone';
+        };
+
         if (accepted) {
           const isUserA = accepted.user_a_id === userId;
-          const otherProfile = accepted.profiles as { first_name?: string } | null;
+          const firstName = await otherFirstName(accepted);
+          if (!mounted) return;
           setActiveMatch({
             matchId: accepted.id,
-            firstName: otherProfile?.first_name ?? 'Someone',
+            firstName,
             status: 'accepted',
             isUserA,
             introAnswers: isUserA ? accepted.user_a_intro_answers : accepted.user_b_intro_answers,
@@ -481,7 +492,7 @@ export default function HomeScreen() {
           const { data: pending } = await supabase
             .from('matches')
             .select(
-              'id, status, user_a_id, user_b_id, user_a_accepted, user_b_accepted, profiles!matches_user_b_id_fkey (first_name)',
+              'id, status, user_a_id, user_b_id, user_a_accepted, user_b_accepted',
             )
             .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
             .eq('status', 'pending')
@@ -492,10 +503,11 @@ export default function HomeScreen() {
           if (!mounted) return;
           if (pending) {
             const isUserA = pending.user_a_id === userId;
-            const otherProfile = pending.profiles as { first_name?: string } | null;
+            const firstName = await otherFirstName(pending);
+            if (!mounted) return;
             setActiveMatch({
               matchId: pending.id,
-              firstName: otherProfile?.first_name ?? 'Someone',
+              firstName,
               status: 'pending',
               isUserA,
               introAnswers: null,

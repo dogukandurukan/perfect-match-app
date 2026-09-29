@@ -128,7 +128,7 @@ export default function ChatScreen() {
     let cancelled = false;
     void (async () => {
       const { data } = await supabase
-        .from('profiles')
+        .from('profile_cards')
         .select('photos')
         .eq('id', otherUserId)
         .maybeSingle();

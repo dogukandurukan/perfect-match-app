@@ -20,8 +20,11 @@ function stripLeadingEmoji(s: string): string {
 
 export type HingeProfilePerson = {
   first_name: string | null;
+  /** Own profile only. Other people come from profile_cards / RPCs with `age`
+   * instead (P0 privacy): their DOB and district are never sent to clients. */
   date_of_birth: string | null;
   district: string | null;
+  age?: number | null;
   city: string | null;
   match_percentage?: number | null;
   match_category?: string | null;
@@ -375,6 +378,12 @@ export function strongestCommonLine(
   if (movie) return `You both love ${movie} 🎬`;
 
   return null;
+}
+
+/** Age for display: server-computed `age` (other people) or own DOB. */
+export function personAge(p: { age?: number | null; date_of_birth?: string | null }): number {
+  if (typeof p.age === 'number' && p.age > 0) return p.age;
+  return hingeSafeAge(p.date_of_birth ?? null);
 }
 
 export function hingeSafeAge(dob: string | null | undefined): number {

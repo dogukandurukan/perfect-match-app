@@ -111,7 +111,7 @@ export default function MessagesScreen() {
     const otherIds = [...byOther.keys()];
     if (otherIds.length > 0) {
       const { data: profiles } = await supabase
-        .from('profiles')
+        .from('profile_cards')
         .select('id, first_name, photos')
         .in('id', otherIds);
 

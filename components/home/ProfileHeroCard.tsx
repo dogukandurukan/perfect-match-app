@@ -6,7 +6,7 @@ import { ContextualNoteButton } from '@/components/home/ContextualNoteButton';
 import { MatchScoreBadge } from '@/components/home/MatchScoreBadge';
 import { VerifiedBadge } from '@/components/home/VerifiedBadge';
 import type { NoteTarget } from '@/components/profile/HingeProfileCard';
-import { formatFeedLocation, hingeSafeAge, type HingeProfilePerson } from '@/lib/hingeProfile';
+import { formatFeedLocation, personAge, type HingeProfilePerson } from '@/lib/hingeProfile';
 import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
 
 export function ProfileHeroCard({
@@ -25,7 +25,7 @@ export function ProfileHeroCard({
   // to know about navigation/safe-area context itself.
   heroHeight: number;
 }) {
-  const age = hingeSafeAge(person.date_of_birth);
+  const age = personAge(person);
   const location = formatFeedLocation(person.district, person.city, viewerCity);
   const metaLine = [person.occupation?.trim() || null, location?.replace(/^📍\s*/, '') || null]
     .filter(Boolean)

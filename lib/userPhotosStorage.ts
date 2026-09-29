@@ -4,9 +4,21 @@ import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
 /** Bucket for profile photos; paths stored in DB are relative to this bucket. */
 export const USER_PHOTOS_BUCKET = 'user-photos' as const;
 
-/** `{user_id}/photo_{n}.jpg` — required for Storage RLS (first segment must equal auth.uid()). */
+/**
+ * `{user_id}/p{n}-{random}.jpg` — the folder segment is required for Storage
+ * RLS (first segment must equal auth.uid()); the random part makes the URL
+ * unguessable (P0 privacy: `photo_{n}.jpg` let anyone who knew a user id
+ * open their photos from the public bucket). Every call returns a NEW path,
+ * so a re-upload no longer overwrites the old object; orphan clean-up moves
+ * to the private-bucket migration (plan §3).
+ */
 export function profilePhotoObjectPath(userId: string, slotIndex: number) {
-  return `${userId}/photo_${slotIndex}.jpg`;
+  return `${userId}/p${slotIndex}-${secureRandomToken()}.jpg`;
+}
+
+/** Same unguessable shape for photos added from Edit profile. */
+export function newProfilePhotoPath(userId: string) {
+  return `${userId}/${secureRandomToken()}.jpg`;
 }
 
 /**

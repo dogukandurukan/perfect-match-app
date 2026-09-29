@@ -14,7 +14,7 @@ import {
   buildLookingForChips,
   buildPromptCards,
   formatFeedLocation,
-  hingeSafeAge,
+  personAge,
   type ChipIcon,
   type HingeProfilePerson,
   type ProfileChip,
@@ -164,7 +164,7 @@ export function HingeProfileCard({
   const photoUrls = person.photoUrls.filter((u) => typeof u === 'string' && u.trim().length > 0);
   const heroUri = photoUrls[0] ?? null;
   const extraPhotos = photoUrls.slice(1);
-  const age = hingeSafeAge(person.date_of_birth);
+  const age = personAge(person);
   const pct =
     typeof person.match_percentage === 'number' && Number.isFinite(person.match_percentage)
       ? Math.round(person.match_percentage)

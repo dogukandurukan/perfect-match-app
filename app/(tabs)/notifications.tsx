@@ -22,7 +22,6 @@ import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors, radius } from '@/lib/designTokens';
-import { hingeSafeAge } from '@/lib/hingeProfile';
 import { formatRelativeTime } from '@/lib/labels';
 import {
   acceptMatchInvite,
@@ -979,9 +978,11 @@ export default function NotificationsScreen() {
   const [likers, setLikers] = useState<UnlockedLiker[]>([]);
 
   const fetchLikers = useCallback(async () => {
-    const { data, error } = await supabase.rpc('get_my_likers');
+    // get_my_liker_cards (P0 privacy): age instead of DOB, and only likers
+    // you may see (no one who blocked you / deleted their account).
+    const { data, error } = await supabase.rpc('get_my_liker_cards');
     if (error || !data || data.length === 0) {
-      if (error) console.warn('get_my_likers failed', error.message);
+      if (error) console.warn('get_my_liker_cards failed', error.message);
       setLikeCount(0);
       setLikeUnlocked(false);
       setLikers([]);
@@ -992,7 +993,7 @@ export default function NotificationsScreen() {
       total_count: number;
       liker_id: string | null;
       first_name: string | null;
-      date_of_birth: string | null;
+      age: number | null;
       photo_path: string | null;
       note: string | null;
       created_at: string;
@@ -1023,7 +1024,7 @@ export default function NotificationsScreen() {
           return {
             likerId: r.liker_id,
             firstName: r.first_name,
-            age: hingeSafeAge(r.date_of_birth),
+            age: typeof r.age === 'number' ? r.age : 0,
             photoUrl,
             hasNote: !!r.note?.trim(),
           };
@@ -1067,8 +1068,8 @@ export default function NotificationsScreen() {
       (r) => (r.user_a_id === user.id ? r.user_b_id : r.user_a_id) as string,
     );
     const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, first_name, date_of_birth, photos')
+      .from('profile_cards')
+      .select('id, first_name, age, photos')
       .in('id', otherIds);
     const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
 
@@ -1089,7 +1090,7 @@ export default function NotificationsScreen() {
           matchId: row.id as string,
           userId: otherId,
           firstName: profile?.first_name ?? null,
-          age: hingeSafeAge(profile?.date_of_birth ?? null),
+          age: typeof profile?.age === 'number' ? profile.age : 0,
           photoUrl,
         };
       }),
@@ -1179,7 +1180,7 @@ export default function NotificationsScreen() {
     const photosById = new Map<string, string[]>();
     if (relatedIds.length > 0) {
       const { data: profiles } = await supabase
-        .from('profiles')
+        .from('profile_cards')
         .select('id, first_name, photos')
         .in('id', relatedIds);
       for (const p of profiles ?? []) {
@@ -1432,7 +1433,11 @@ export default function NotificationsScreen() {
         )
         .eq('status', 'pending')
         .maybeSingle(),
-      supabase.from('profiles').select('id, gender').in('id', [user.id, otherId]),
+      // own row from profiles, the other person's from profile_cards (P0)
+      Promise.all([
+        supabase.from('profiles').select('id, gender').eq('id', user.id).maybeSingle(),
+        supabase.from('profile_cards').select('id, gender').eq('id', otherId).maybeSingle(),
+      ]).then(([mine, theirs]) => ({ data: [mine.data, theirs.data].filter(Boolean) as { id: string; gender: string | null }[] })),
     ]);
 
     if (!match) {

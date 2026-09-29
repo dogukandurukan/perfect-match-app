@@ -32,31 +32,20 @@ import {
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
-function safeAge(dob: string | null): number {
-  if (!dob) return 0;
-  const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return 0;
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  const m = now.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age -= 1;
-  return Math.max(0, age);
-}
 function firstParam(val: string | string[] | undefined): string {
   if (Array.isArray(val)) return val[0] ?? '';
   return val ?? '';
 }
 
+// Another person's public card (profile_cards, P0 privacy): no surname,
+// DOB, district or interested-in list — server-computed age instead.
 type UserProfile = {
   first_name: string | null;
-  last_name: string | null;
-  date_of_birth: string | null;
+  age: number | null;
   zodiac_sign: string | null;
   city: string | null;
-  district: string | null;
   gender: string | null;
   languages: string[] | null;
-  meeting_preferences: string[] | null;
   photos: string[] | null;
   morning_night: string | null;
   recharge_style: string | null;
@@ -78,7 +67,6 @@ type UserProfile = {
   impressed_by: string | null;
   dealbreaker: string | null;
   pets: string | null;
-  vibe: string | null;
   photo_verified: boolean | null;
 };
 
@@ -144,16 +132,16 @@ export default function UserProfileScreen() {
 
       try {
         const { data, error: profileError } = await supabase
-          .from('profiles')
+          .from('profile_cards')
           .select(
             `
-            first_name, last_name, date_of_birth, zodiac_sign,
-            city, district, gender, languages, meeting_preferences, photos,
+            first_name, age, zodiac_sign,
+            city, gender, languages, photos,
             morning_night, recharge_style, hobbies, drinking, smoking,
             education, availability_days, availability_hours,
             meeting_environment, first_date_expectation, bio,
             favorite_music, favorite_movie, favorite_book, favorite_activity,
-            core_value, impressed_by, dealbreaker, pets, vibe, photo_verified
+            core_value, impressed_by, dealbreaker, pets, photo_verified
           `,
           )
           .eq('id', userId)
@@ -330,13 +318,14 @@ export default function UserProfileScreen() {
     );
   }
 
-  const age = safeAge(profile?.date_of_birth ?? null);
+  const age = profile?.age ?? 0;
 
   // Home'daki (HingeProfileCard) aynı ikonlu chip sistemi — burada da tekrar kullanılıyor.
   const chipPerson: HingeProfilePerson = {
     first_name: profile.first_name,
-    date_of_birth: profile.date_of_birth,
-    district: profile.district,
+    date_of_birth: null,
+    age: profile.age,
+    district: null,
     city: profile.city,
     intent: profile.intent,
     availability_days: profile.availability_days,
@@ -357,7 +346,7 @@ export default function UserProfileScreen() {
     core_value: profile.core_value,
     impressed_by: profile.impressed_by,
     favorite_activity: profile.favorite_activity,
-    vibe: profile.vibe,
+    vibe: null,
     languages: profile.languages,
     photo_verified: profile.photo_verified,
     photoUrls,
@@ -404,11 +393,11 @@ export default function UserProfileScreen() {
         {/* İsim + konum */}
         <View style={styles.headerWrap}>
           <ThemedText style={styles.name}>
-            {profile?.first_name ?? ''} {profile?.last_name ?? ''}
+            {profile?.first_name ?? ''}
             {age > 0 ? `, ${age}` : ''}
           </ThemedText>
           <ThemedText style={styles.location}>
-            📍 {profile?.district ?? profile?.city ?? 'Unknown'}
+            📍 {profile?.city ?? 'Unknown'}
           </ThemedText>
         </View>
 

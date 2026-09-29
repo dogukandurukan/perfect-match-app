@@ -211,7 +211,7 @@ export default function VibeDetailScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
-            const age = safeAge(item.date_of_birth);
+            const age = item.age ?? safeAge(item.date_of_birth);
             const photoUrl = photoUrls[item.id];
             const location = item.district ?? item.city ?? '—';
 

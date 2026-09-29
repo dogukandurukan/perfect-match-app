@@ -84,9 +84,12 @@ export type MyVibeContext = {
   languages: string[] | null;
 };
 
+// Other people come from profile_cards (P0 privacy): server-computed age,
+// no DOB / district / interested-in list (those stay null here).
 export type VibeProfileRow = {
   id: string;
   first_name: string | null;
+  age: number | null;
   date_of_birth: string | null;
   district: string | null;
   city: string | null;
@@ -104,6 +107,7 @@ export type VibeProfileRow = {
 export type VibeStripUser = {
   id: string;
   first_name: string | null;
+  age: number | null;
   date_of_birth: string | null;
   district: string | null;
   photoUrl: string | null;
@@ -121,10 +125,10 @@ export type VibeListUser = VibeProfileRow & {
 };
 
 const STRIP_SELECT =
-  'id, first_name, date_of_birth, district, photos, gender, city, morning_night, availability_days, favorite_music, hobbies, recharge_style, meeting_preferences, languages';
+  'id, first_name, age, photos, gender, city, morning_night, availability_days, favorite_music, hobbies, recharge_style, languages';
 
 const DETAIL_SELECT =
-  'id, first_name, date_of_birth, district, city, gender, meeting_preferences, morning_night, availability_days, favorite_music, hobbies, recharge_style, languages, photos';
+  'id, first_name, age, city, gender, morning_night, availability_days, favorite_music, hobbies, recharge_style, languages, photos';
 
 const GENDER_PREF_TO_PROFILE: Record<string, string> = {
   Men: 'Man',
@@ -145,7 +149,9 @@ function passesGenderFilter(me: MyVibeContext, profile: VibeProfileRow): boolean
 function shouldSkipCategory(categoryId: VibeCategoryId, me: MyVibeContext): boolean {
   switch (categoryId) {
     case 'district':
-      return !me.district?.trim();
+      // Other people's district is private (P0) — this category can no
+      // longer be computed on the device, so it is not shown.
+      return true;
     case 'recharge':
       return normalizeRecharge(me.recharge_style).length === 0;
     default:
@@ -184,9 +190,8 @@ async function queryCategoryProfiles(
   if (shouldSkipCategory(categoryId, me)) return { profiles: [], totalCount: 0 };
 
   let query = supabase
-    .from('profiles')
+    .from('profile_cards')
     .select(selectFields, { count: 'exact' })
-    .eq('setup_completed', true)
     .eq('city', me.city)
     .neq('id', me.userId);
 
@@ -194,9 +199,6 @@ async function queryCategoryProfiles(
   query = applyBlockedFilter(query, blockedIds);
 
   switch (categoryId) {
-    case 'district':
-      query = query.eq('district', me.district).not('district', 'is', null);
-      break;
     case 'night_owls':
       query = query.eq('morning_night', 'Night owl');
       break;
@@ -234,9 +236,9 @@ async function queryCategoryProfiles(
     return { profiles: [], totalCount: 0 };
   }
 
-  const profiles = ((data ?? []) as unknown as VibeProfileRow[]).filter((profile) =>
-    passesGenderFilter(me, profile),
-  );
+  const profiles = ((data ?? []) as unknown as VibeProfileRow[])
+    .map((profile) => ({ ...profile, date_of_birth: null, district: null, meeting_preferences: null }))
+    .filter((profile) => passesGenderFilter(me, profile));
 
   return {
     profiles,
@@ -258,8 +260,9 @@ async function resolveStripUsers(profiles: VibeProfileRow[]): Promise<VibeStripU
       return {
         id: profile.id,
         first_name: profile.first_name,
-        date_of_birth: profile.date_of_birth,
-        district: profile.district,
+        age: profile.age,
+        date_of_birth: null,
+        district: null,
         photoUrl,
       };
     }),

@@ -9,7 +9,6 @@ import { MatchScoreBadge } from '@/components/matches/MatchScoreBadge';
 import { SafetyCard } from '@/components/matches/SafetyCard';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { hingeSafeAge } from '@/lib/hingeProfile';
 import { formatMeetingTime } from '@/lib/matchInvite';
 import { homeColors, homeRadius, homeShadow, homeSpacing } from '@/lib/homeTheme';
 import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
@@ -70,7 +69,7 @@ export default function PlanDetailScreen() {
             .select('id, match_score, meeting_at, confirmed_place, meetup_confirmed, chat_opened')
             .eq('id', matchId)
             .maybeSingle(),
-          supabase.from('profiles').select('first_name, date_of_birth, photos').eq('id', otherUserId).maybeSingle(),
+          supabase.from('profile_cards').select('first_name, age, photos').eq('id', otherUserId).maybeSingle(),
         ]);
 
         if (!mounted) return;
@@ -90,7 +89,7 @@ export default function PlanDetailScreen() {
 
         setPlan({
           otherName: profile?.first_name ?? 'Someone',
-          otherAge: hingeSafeAge(profile?.date_of_birth ?? null),
+          otherAge: typeof profile?.age === 'number' ? profile.age : 0,
           otherPhoto: photoUrl,
           matchPercentage: typeof match.match_score === 'number' ? Math.round(match.match_score) : null,
           venue,

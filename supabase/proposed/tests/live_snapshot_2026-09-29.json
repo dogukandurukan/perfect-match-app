@@ -1,0 +1,2250 @@
+{
+ "captured_at": "2026-09-29",
+ "source": "live project, read-only catalog queries (no row data); webhook trigger body redacted",
+ "schema": [
+  {
+   "k": "col",
+   "n": "id",
+   "t": "likes",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : \"gen_random_uuid()\", \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "liker_id",
+   "t": "likes",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "likee_id",
+   "t": "likes",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "target_type",
+   "t": "likes",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "target_key",
+   "t": "likes",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "col",
+   "n": "note",
+   "t": "likes",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 6}"
+  },
+  {
+   "k": "col",
+   "n": "status",
+   "t": "likes",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : \"'sent'::text\", \"identity\" : \"\", \"pos\" : 7}"
+  },
+  {
+   "k": "col",
+   "n": "match_id",
+   "t": "likes",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 8}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "likes",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : true, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 9}"
+  },
+  {
+   "k": "col",
+   "n": "updated_at",
+   "t": "likes",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : true, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 10}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : \"gen_random_uuid()\", \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "user_id",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "intent",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "sub_intent",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "friendship_type",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "col",
+   "n": "shared_interests_importance",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 6}"
+  },
+  {
+   "k": "col",
+   "n": "social_preference",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 7}"
+  },
+  {
+   "k": "col",
+   "n": "casualness_expectation",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 8}"
+  },
+  {
+   "k": "col",
+   "n": "exclusivity_view",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 9}"
+  },
+  {
+   "k": "col",
+   "n": "marriage_view",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 10}"
+  },
+  {
+   "k": "col",
+   "n": "children_view",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 11}"
+  },
+  {
+   "k": "col",
+   "n": "living_preference",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 12}"
+  },
+  {
+   "k": "col",
+   "n": "life_priority",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 13}"
+  },
+  {
+   "k": "col",
+   "n": "commitment_view",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 14}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 15}"
+  },
+  {
+   "k": "col",
+   "n": "friendship_value",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 16}"
+  },
+  {
+   "k": "col",
+   "n": "hangout_frequency",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 17}"
+  },
+  {
+   "k": "col",
+   "n": "connection_style",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 18}"
+  },
+  {
+   "k": "col",
+   "n": "relationship_pace",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 19}"
+  },
+  {
+   "k": "col",
+   "n": "excitement_factor",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 20}"
+  },
+  {
+   "k": "col",
+   "n": "connection_energy",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 21}"
+  },
+  {
+   "k": "col",
+   "n": "relationship_vision",
+   "t": "onboarding_answers",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 22}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "profiles",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "first_name",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "last_name",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "phone_number",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "date_of_birth",
+   "t": "profiles",
+   "v": "{\"type\" : \"date\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "col",
+   "n": "zodiac_sign",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 6}"
+  },
+  {
+   "k": "col",
+   "n": "city",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 7}"
+  },
+  {
+   "k": "col",
+   "n": "district",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 8}"
+  },
+  {
+   "k": "col",
+   "n": "lat",
+   "t": "profiles",
+   "v": "{\"type\" : \"double precision\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 9}"
+  },
+  {
+   "k": "col",
+   "n": "lng",
+   "t": "profiles",
+   "v": "{\"type\" : \"double precision\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 10}"
+  },
+  {
+   "k": "col",
+   "n": "full_address",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 11}"
+  },
+  {
+   "k": "col",
+   "n": "gender",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 12}"
+  },
+  {
+   "k": "col",
+   "n": "meeting_preferences",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 13}"
+  },
+  {
+   "k": "col",
+   "n": "languages",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 14}"
+  },
+  {
+   "k": "col",
+   "n": "morning_night",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 15}"
+  },
+  {
+   "k": "col",
+   "n": "recharge_style",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 16}"
+  },
+  {
+   "k": "col",
+   "n": "hobbies",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 17}"
+  },
+  {
+   "k": "col",
+   "n": "vibe",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 18}"
+  },
+  {
+   "k": "col",
+   "n": "drinking",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 19}"
+  },
+  {
+   "k": "col",
+   "n": "smoking",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 20}"
+  },
+  {
+   "k": "col",
+   "n": "pets",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 21}"
+  },
+  {
+   "k": "col",
+   "n": "education",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 22}"
+  },
+  {
+   "k": "col",
+   "n": "education_detail",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 23}"
+  },
+  {
+   "k": "col",
+   "n": "religion",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 24}"
+  },
+  {
+   "k": "col",
+   "n": "bio",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 25}"
+  },
+  {
+   "k": "col",
+   "n": "availability_days",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 26}"
+  },
+  {
+   "k": "col",
+   "n": "availability_hours",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 27}"
+  },
+  {
+   "k": "col",
+   "n": "meeting_environment",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 28}"
+  },
+  {
+   "k": "col",
+   "n": "favorite_spots",
+   "t": "profiles",
+   "v": "{\"type\" : \"jsonb\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 29}"
+  },
+  {
+   "k": "col",
+   "n": "neighborhoods",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 30}"
+  },
+  {
+   "k": "col",
+   "n": "first_date_expectation",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 31}"
+  },
+  {
+   "k": "col",
+   "n": "photos",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 32}"
+  },
+  {
+   "k": "col",
+   "n": "setup_completed",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 33}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "profiles",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 34}"
+  },
+  {
+   "k": "col",
+   "n": "updated_at",
+   "t": "profiles",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 35}"
+  },
+  {
+   "k": "col",
+   "n": "current_step",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : \"1\", \"identity\" : \"\", \"pos\" : 36}"
+  },
+  {
+   "k": "col",
+   "n": "country_code",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 37}"
+  },
+  {
+   "k": "col",
+   "n": "dial_code",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 38}"
+  },
+  {
+   "k": "col",
+   "n": "username",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 39}"
+  },
+  {
+   "k": "col",
+   "n": "setup1_completed",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 40}"
+  },
+  {
+   "k": "col",
+   "n": "favorite_music",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 45}"
+  },
+  {
+   "k": "col",
+   "n": "favorite_movie",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 46}"
+  },
+  {
+   "k": "col",
+   "n": "favorite_book",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 47}"
+  },
+  {
+   "k": "col",
+   "n": "favorite_activity",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 48}"
+  },
+  {
+   "k": "col",
+   "n": "core_value",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 49}"
+  },
+  {
+   "k": "col",
+   "n": "impressed_by",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 50}"
+  },
+  {
+   "k": "col",
+   "n": "dealbreaker",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 51}"
+  },
+  {
+   "k": "col",
+   "n": "expo_push_token",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 52}"
+  },
+  {
+   "k": "col",
+   "n": "preferred_locations",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 53}"
+  },
+  {
+   "k": "col",
+   "n": "daily_views_count",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : \"0\", \"identity\" : \"\", \"pos\" : 54}"
+  },
+  {
+   "k": "col",
+   "n": "daily_views_reset_at",
+   "t": "profiles",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 55}"
+  },
+  {
+   "k": "col",
+   "n": "daily_invites_count",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : \"0\", \"identity\" : \"\", \"pos\" : 56}"
+  },
+  {
+   "k": "col",
+   "n": "daily_invites_reset_at",
+   "t": "profiles",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 57}"
+  },
+  {
+   "k": "col",
+   "n": "photo_verified",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 58}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_age_min",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : \"18\", \"identity\" : \"\", \"pos\" : 59}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_age_max",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : \"60\", \"identity\" : \"\", \"pos\" : 60}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_max_distance",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : \"'whole_city'::text\", \"identity\" : \"\", \"pos\" : 61}"
+  },
+  {
+   "k": "col",
+   "n": "notify_new_match",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"true\", \"identity\" : \"\", \"pos\" : 62}"
+  },
+  {
+   "k": "col",
+   "n": "notify_messages",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"true\", \"identity\" : \"\", \"pos\" : 63}"
+  },
+  {
+   "k": "col",
+   "n": "notify_meeting_invite",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"true\", \"identity\" : \"\", \"pos\" : 64}"
+  },
+  {
+   "k": "col",
+   "n": "is_hidden",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 65}"
+  },
+  {
+   "k": "col",
+   "n": "hide_location",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 66}"
+  },
+  {
+   "k": "col",
+   "n": "deleted_at",
+   "t": "profiles",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 67}"
+  },
+  {
+   "k": "col",
+   "n": "is_premium",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : true, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 68}"
+  },
+  {
+   "k": "col",
+   "n": "instagram_handle",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 69}"
+  },
+  {
+   "k": "col",
+   "n": "verification_selfie_path",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 70}"
+  },
+  {
+   "k": "col",
+   "n": "phone_verified",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : true, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 71}"
+  },
+  {
+   "k": "col",
+   "n": "waitlist_number",
+   "t": "profiles",
+   "v": "{\"type\" : \"bigint\", \"notnull\" : false, \"default\" : \"nextval('waitlist_number_seq'::regclass)\", \"identity\" : \"\", \"pos\" : 72}"
+  },
+  {
+   "k": "col",
+   "n": "waitlist_boost",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : true, \"default\" : \"0\", \"identity\" : \"\", \"pos\" : 73}"
+  },
+  {
+   "k": "col",
+   "n": "occupation",
+   "t": "profiles",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 74}"
+  },
+  {
+   "k": "col",
+   "n": "quick_icebreaker_answers",
+   "t": "profiles",
+   "v": "{\"type\" : \"jsonb\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 75}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_verified_only",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : true, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 76}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_nonsmokers_only",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : true, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 77}"
+  },
+  {
+   "k": "col",
+   "n": "height_cm",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 78}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_height_min",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 79}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_height_max",
+   "t": "profiles",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 80}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_zodiac_signs",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 81}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_pets",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 82}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_education",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 83}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_religion",
+   "t": "profiles",
+   "v": "{\"type\" : \"text[]\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 84}"
+  },
+  {
+   "k": "col",
+   "n": "last_active_at",
+   "t": "profiles",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 85}"
+  },
+  {
+   "k": "col",
+   "n": "discovery_active_today",
+   "t": "profiles",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : true, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 86}"
+  },
+  {
+   "k": "col",
+   "n": "privacy_consent_at",
+   "t": "profiles",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 87}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "reports",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : \"gen_random_uuid()\", \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "reporter_id",
+   "t": "reports",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "reported_id",
+   "t": "reports",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "reason",
+   "t": "reports",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "detail",
+   "t": "reports",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "reports",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 6}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "blocks",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : \"gen_random_uuid()\", \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "blocker_id",
+   "t": "blocks",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "blocked_id",
+   "t": "blocks",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "blocks",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "matches",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : \"gen_random_uuid()\", \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "user_a_id",
+   "t": "matches",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "user_b_id",
+   "t": "matches",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "match_score",
+   "t": "matches",
+   "v": "{\"type\" : \"numeric(5,2)\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "status",
+   "t": "matches",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : \"'pending'::text\", \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "col",
+   "n": "user_a_accepted",
+   "t": "matches",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : true, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 6}"
+  },
+  {
+   "k": "col",
+   "n": "user_b_accepted",
+   "t": "matches",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : true, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 7}"
+  },
+  {
+   "k": "col",
+   "n": "expires_at",
+   "t": "matches",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : true, \"default\" : \"(now() + '48:00:00'::interval)\", \"identity\" : \"\", \"pos\" : 8}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "matches",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : true, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 9}"
+  },
+  {
+   "k": "col",
+   "n": "algo_version",
+   "t": "matches",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : \"'v2'::text\", \"identity\" : \"\", \"pos\" : 10}"
+  },
+  {
+   "k": "col",
+   "n": "user_a_intro_answers",
+   "t": "matches",
+   "v": "{\"type\" : \"jsonb\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 11}"
+  },
+  {
+   "k": "col",
+   "n": "user_b_intro_answers",
+   "t": "matches",
+   "v": "{\"type\" : \"jsonb\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 12}"
+  },
+  {
+   "k": "col",
+   "n": "checkin_a",
+   "t": "matches",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 13}"
+  },
+  {
+   "k": "col",
+   "n": "checkin_b",
+   "t": "matches",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 14}"
+  },
+  {
+   "k": "col",
+   "n": "checkin_confirmed",
+   "t": "matches",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 15}"
+  },
+  {
+   "k": "col",
+   "n": "date_rating_a",
+   "t": "matches",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 16}"
+  },
+  {
+   "k": "col",
+   "n": "date_rating_b",
+   "t": "matches",
+   "v": "{\"type\" : \"integer\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 17}"
+  },
+  {
+   "k": "col",
+   "n": "invited_by",
+   "t": "matches",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 18}"
+  },
+  {
+   "k": "col",
+   "n": "chat_opened",
+   "t": "matches",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 19}"
+  },
+  {
+   "k": "col",
+   "n": "meeting_at",
+   "t": "matches",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 20}"
+  },
+  {
+   "k": "col",
+   "n": "confirmed_slot",
+   "t": "matches",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 21}"
+  },
+  {
+   "k": "col",
+   "n": "confirmed_place",
+   "t": "matches",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 22}"
+  },
+  {
+   "k": "col",
+   "n": "meetup_reminder_sent_at",
+   "t": "matches",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 23}"
+  },
+  {
+   "k": "col",
+   "n": "meetup_morning_reminder_sent_at",
+   "t": "matches",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 24}"
+  },
+  {
+   "k": "col",
+   "n": "source",
+   "t": "matches",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : \"'algo_invite'::text\", \"identity\" : \"\", \"pos\" : 25}"
+  },
+  {
+   "k": "col",
+   "n": "meetup_proposed_by",
+   "t": "matches",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 26}"
+  },
+  {
+   "k": "col",
+   "n": "meetup_confirmed",
+   "t": "matches",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 27}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "messages",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : \"gen_random_uuid()\", \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "sender_id",
+   "t": "messages",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "receiver_id",
+   "t": "messages",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "content",
+   "t": "messages",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "messages",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "col",
+   "n": "read_at",
+   "t": "messages",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 6}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "venues",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : \"gen_random_uuid()\", \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "name",
+   "t": "venues",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "district",
+   "t": "venues",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "city",
+   "t": "venues",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : \"'Istanbul'::text\", \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "address",
+   "t": "venues",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "col",
+   "n": "emoji",
+   "t": "venues",
+   "v": "{\"type\" : \"text\", \"notnull\" : false, \"default\" : \"'☕'::text\", \"identity\" : \"\", \"pos\" : 6}"
+  },
+  {
+   "k": "col",
+   "n": "is_active",
+   "t": "venues",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"true\", \"identity\" : \"\", \"pos\" : 7}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "venues",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 8}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "notifications",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : true, \"default\" : \"gen_random_uuid()\", \"identity\" : \"\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "user_id",
+   "t": "notifications",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "type",
+   "t": "notifications",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "text",
+   "t": "notifications",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "is_read",
+   "t": "notifications",
+   "v": "{\"type\" : \"boolean\", \"notnull\" : false, \"default\" : \"false\", \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "col",
+   "n": "related_user_id",
+   "t": "notifications",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 6}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "notifications",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : false, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 7}"
+  },
+  {
+   "k": "col",
+   "n": "id",
+   "t": "events",
+   "v": "{\"type\" : \"bigint\", \"notnull\" : true, \"default\" : null, \"identity\" : \"a\", \"pos\" : 1}"
+  },
+  {
+   "k": "col",
+   "n": "user_id",
+   "t": "events",
+   "v": "{\"type\" : \"uuid\", \"notnull\" : false, \"default\" : null, \"identity\" : \"\", \"pos\" : 2}"
+  },
+  {
+   "k": "col",
+   "n": "name",
+   "t": "events",
+   "v": "{\"type\" : \"text\", \"notnull\" : true, \"default\" : null, \"identity\" : \"\", \"pos\" : 3}"
+  },
+  {
+   "k": "col",
+   "n": "properties",
+   "t": "events",
+   "v": "{\"type\" : \"jsonb\", \"notnull\" : true, \"default\" : \"'{}'::jsonb\", \"identity\" : \"\", \"pos\" : 4}"
+  },
+  {
+   "k": "col",
+   "n": "created_at",
+   "t": "events",
+   "v": "{\"type\" : \"timestamp with time zone\", \"notnull\" : true, \"default\" : \"now()\", \"identity\" : \"\", \"pos\" : 5}"
+  },
+  {
+   "k": "con",
+   "n": "matches_meetup_proposed_by_fkey",
+   "t": "matches",
+   "v": "FOREIGN KEY (meetup_proposed_by) REFERENCES profiles(id)"
+  },
+  {
+   "k": "con",
+   "n": "events_pkey",
+   "t": "events",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "events_user_id_fkey",
+   "t": "events",
+   "v": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "profiles_pkey",
+   "t": "profiles",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "profiles_id_fkey",
+   "t": "profiles",
+   "v": "FOREIGN KEY (id) REFERENCES auth.users(id)"
+  },
+  {
+   "k": "con",
+   "n": "onboarding_answers_pkey",
+   "t": "onboarding_answers",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "onboarding_answers_user_id_fkey",
+   "t": "onboarding_answers",
+   "v": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "onboarding_answers_user_id_key",
+   "t": "onboarding_answers",
+   "v": "UNIQUE (user_id)"
+  },
+  {
+   "k": "con",
+   "n": "matches_pkey",
+   "t": "matches",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "matches_user_a_id_fkey",
+   "t": "matches",
+   "v": "FOREIGN KEY (user_a_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "matches_user_b_id_fkey",
+   "t": "matches",
+   "v": "FOREIGN KEY (user_b_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "blocks_pkey",
+   "t": "blocks",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "blocks_blocker_id_blocked_id_key",
+   "t": "blocks",
+   "v": "UNIQUE (blocker_id, blocked_id)"
+  },
+  {
+   "k": "con",
+   "n": "blocks_blocker_id_fkey",
+   "t": "blocks",
+   "v": "FOREIGN KEY (blocker_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "blocks_blocked_id_fkey",
+   "t": "blocks",
+   "v": "FOREIGN KEY (blocked_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "reports_pkey",
+   "t": "reports",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "reports_reporter_id_fkey",
+   "t": "reports",
+   "v": "FOREIGN KEY (reporter_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "reports_reported_id_fkey",
+   "t": "reports",
+   "v": "FOREIGN KEY (reported_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "messages_pkey",
+   "t": "messages",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "messages_sender_id_fkey",
+   "t": "messages",
+   "v": "FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "messages_receiver_id_fkey",
+   "t": "messages",
+   "v": "FOREIGN KEY (receiver_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "venues_pkey",
+   "t": "venues",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "notifications_pkey",
+   "t": "notifications",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "notifications_user_id_fkey",
+   "t": "notifications",
+   "v": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "notifications_related_user_id_fkey",
+   "t": "notifications",
+   "v": "FOREIGN KEY (related_user_id) REFERENCES profiles(id) ON DELETE SET NULL"
+  },
+  {
+   "k": "con",
+   "n": "matches_source_check",
+   "t": "matches",
+   "v": "CHECK ((source = ANY (ARRAY['algo_invite'::text, 'mutual_like'::text])))"
+  },
+  {
+   "k": "con",
+   "n": "matches_status_check",
+   "t": "matches",
+   "v": "CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'expired'::text, 'passed'::text])))"
+  },
+  {
+   "k": "con",
+   "n": "likes_target_type_check",
+   "t": "likes",
+   "v": "CHECK ((target_type = ANY (ARRAY['photo'::text, 'prompt'::text, 'profile'::text])))"
+  },
+  {
+   "k": "con",
+   "n": "likes_note_check",
+   "t": "likes",
+   "v": "CHECK ((char_length(note) <= 240))"
+  },
+  {
+   "k": "con",
+   "n": "likes_status_check",
+   "t": "likes",
+   "v": "CHECK ((status = ANY (ARRAY['sent'::text, 'matched'::text, 'passed'::text, 'expired'::text])))"
+  },
+  {
+   "k": "con",
+   "n": "likes_pkey",
+   "t": "likes",
+   "v": "PRIMARY KEY (id)"
+  },
+  {
+   "k": "con",
+   "n": "likes_liker_id_likee_id_key",
+   "t": "likes",
+   "v": "UNIQUE (liker_id, likee_id)"
+  },
+  {
+   "k": "con",
+   "n": "likes_liker_id_fkey",
+   "t": "likes",
+   "v": "FOREIGN KEY (liker_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "likes_likee_id_fkey",
+   "t": "likes",
+   "v": "FOREIGN KEY (likee_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+   "k": "con",
+   "n": "likes_match_id_fkey",
+   "t": "likes",
+   "v": "FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE SET NULL"
+  },
+  {
+   "k": "idx",
+   "n": "likes_pkey",
+   "t": "likes",
+   "v": "CREATE UNIQUE INDEX likes_pkey ON public.likes USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "likes_liker_id_likee_id_key",
+   "t": "likes",
+   "v": "CREATE UNIQUE INDEX likes_liker_id_likee_id_key ON public.likes USING btree (liker_id, likee_id)"
+  },
+  {
+   "k": "idx",
+   "n": "likes_likee_idx",
+   "t": "likes",
+   "v": "CREATE INDEX likes_likee_idx ON public.likes USING btree (likee_id)"
+  },
+  {
+   "k": "idx",
+   "n": "onboarding_answers_pkey",
+   "t": "onboarding_answers",
+   "v": "CREATE UNIQUE INDEX onboarding_answers_pkey ON public.onboarding_answers USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "onboarding_answers_user_id_key",
+   "t": "onboarding_answers",
+   "v": "CREATE UNIQUE INDEX onboarding_answers_user_id_key ON public.onboarding_answers USING btree (user_id)"
+  },
+  {
+   "k": "idx",
+   "n": "profiles_pkey",
+   "t": "profiles",
+   "v": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "idx_profiles_city_norm",
+   "t": "profiles",
+   "v": "CREATE INDEX idx_profiles_city_norm ON public.profiles USING btree (lower(TRIM(BOTH FROM city))) WHERE (setup_completed = true)"
+  },
+  {
+   "k": "idx",
+   "n": "reports_pkey",
+   "t": "reports",
+   "v": "CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "blocks_pkey",
+   "t": "blocks",
+   "v": "CREATE UNIQUE INDEX blocks_pkey ON public.blocks USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "blocks_blocker_id_blocked_id_key",
+   "t": "blocks",
+   "v": "CREATE UNIQUE INDEX blocks_blocker_id_blocked_id_key ON public.blocks USING btree (blocker_id, blocked_id)"
+  },
+  {
+   "k": "idx",
+   "n": "matches_pkey",
+   "t": "matches",
+   "v": "CREATE UNIQUE INDEX matches_pkey ON public.matches USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "idx_matches_unique_pair",
+   "t": "matches",
+   "v": "CREATE UNIQUE INDEX idx_matches_unique_pair ON public.matches USING btree (LEAST((user_a_id)::text, (user_b_id)::text), GREATEST((user_a_id)::text, (user_b_id)::text))"
+  },
+  {
+   "k": "idx",
+   "n": "idx_matches_user_a",
+   "t": "matches",
+   "v": "CREATE INDEX idx_matches_user_a ON public.matches USING btree (user_a_id)"
+  },
+  {
+   "k": "idx",
+   "n": "idx_matches_user_b",
+   "t": "matches",
+   "v": "CREATE INDEX idx_matches_user_b ON public.matches USING btree (user_b_id)"
+  },
+  {
+   "k": "idx",
+   "n": "idx_matches_status",
+   "t": "matches",
+   "v": "CREATE INDEX idx_matches_status ON public.matches USING btree (status)"
+  },
+  {
+   "k": "idx",
+   "n": "messages_pkey",
+   "t": "messages",
+   "v": "CREATE UNIQUE INDEX messages_pkey ON public.messages USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "venues_pkey",
+   "t": "venues",
+   "v": "CREATE UNIQUE INDEX venues_pkey ON public.venues USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "notifications_pkey",
+   "t": "notifications",
+   "v": "CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "events_pkey",
+   "t": "events",
+   "v": "CREATE UNIQUE INDEX events_pkey ON public.events USING btree (id)"
+  },
+  {
+   "k": "idx",
+   "n": "idx_events_name_created",
+   "t": "events",
+   "v": "CREATE INDEX idx_events_name_created ON public.events USING btree (name, created_at DESC)"
+  },
+  {
+   "k": "idx",
+   "n": "idx_events_user_id",
+   "t": "events",
+   "v": "CREATE INDEX idx_events_user_id ON public.events USING btree (user_id)"
+  },
+  {
+   "k": "trg",
+   "n": "profiles_updated_at",
+   "t": "profiles",
+   "v": "CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at()"
+  },
+  {
+   "k": "trg",
+   "n": "trg_match_mutual",
+   "t": "matches",
+   "v": "CREATE TRIGGER trg_match_mutual BEFORE UPDATE ON public.matches FOR EACH ROW EXECUTE FUNCTION update_match_status()"
+  },
+  {
+   "k": "trg",
+   "n": "trg_mutual_accept",
+   "t": "matches",
+   "v": "CREATE TRIGGER trg_mutual_accept BEFORE UPDATE ON public.matches FOR EACH ROW EXECUTE FUNCTION handle_mutual_accept()"
+  },
+  {
+   "k": "trg",
+   "n": "matches-push-notification",
+   "t": "matches",
+   "v": "WEBHOOK_REDACTED"
+  },
+  {
+   "k": "trg",
+   "n": "match_notification_trigger",
+   "t": "matches",
+   "v": "CREATE TRIGGER match_notification_trigger AFTER INSERT OR UPDATE ON public.matches FOR EACH ROW EXECUTE FUNCTION handle_match_notification()"
+  },
+  {
+   "k": "trg",
+   "n": "trg_auto_hide_after_reports",
+   "t": "reports",
+   "v": "CREATE TRIGGER trg_auto_hide_after_reports AFTER INSERT ON public.reports FOR EACH ROW EXECUTE FUNCTION auto_hide_after_reports()"
+  },
+  {
+   "k": "trg",
+   "n": "trg_handle_mutual_like",
+   "t": "likes",
+   "v": "CREATE TRIGGER trg_handle_mutual_like AFTER INSERT OR UPDATE ON public.likes FOR EACH ROW EXECUTE FUNCTION handle_mutual_like()"
+  },
+  {
+   "k": "pol",
+   "n": "likes_insert_own",
+   "t": "public.likes",
+   "v": "{\"cmd\" : \"INSERT\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : null, \"check\" : \"(auth.uid() = liker_id)\"}"
+  },
+  {
+   "k": "pol",
+   "n": "likes_select_own",
+   "t": "public.likes",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = liker_id)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "likes_update_own",
+   "t": "public.likes",
+   "v": "{\"cmd\" : \"UPDATE\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = liker_id)\", \"check\" : \"(auth.uid() = liker_id)\"}"
+  },
+  {
+   "k": "pol",
+   "n": "Users can manage own answers",
+   "t": "public.onboarding_answers",
+   "v": "{\"cmd\" : \"ALL\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = user_id)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "Users can insert own profile",
+   "t": "public.profiles",
+   "v": "{\"cmd\" : \"INSERT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : null, \"check\" : \"(auth.uid() = id)\"}"
+  },
+  {
+   "k": "pol",
+   "n": "Users can update own profile",
+   "t": "public.profiles",
+   "v": "{\"cmd\" : \"UPDATE\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = id)\", \"check\" : \"(auth.uid() = id)\"}"
+  },
+  {
+   "k": "pol",
+   "n": "Users can view own profile",
+   "t": "public.profiles",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = id)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "profiles_select_authenticated",
+   "t": "public.profiles",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"((auth.uid() = id) OR ((COALESCE(is_hidden, false) = false) AND (deleted_at IS NULL)) OR (EXISTS ( SELECT 1\\n   FROM matches m\\n  WHERE (((m.user_a_id = auth.uid()) AND (m.user_b_id = profiles.id)) OR ((m.user_b_id = auth.uid()) AND (m.user_a_id = profiles.id))))))\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "reports_own",
+   "t": "public.reports",
+   "v": "{\"cmd\" : \"ALL\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = reporter_id)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "blocks_own",
+   "t": "public.blocks",
+   "v": "{\"cmd\" : \"ALL\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = blocker_id)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "matches_insert_own",
+   "t": "public.matches",
+   "v": "{\"cmd\" : \"INSERT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : null, \"check\" : \"(((auth.uid() = user_a_id) OR (auth.uid() = user_b_id)) AND (status = 'pending'::text) AND (chat_opened IS NOT TRUE) AND (NOT pair_is_blocked(user_a_id, user_b_id)))\"}"
+  },
+  {
+   "k": "pol",
+   "n": "matches_select_policy",
+   "t": "public.matches",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"((auth.uid() = user_a_id) OR (auth.uid() = user_b_id))\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "matches_update_own",
+   "t": "public.matches",
+   "v": "{\"cmd\" : \"UPDATE\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(((auth.uid() = user_a_id) OR (auth.uid() = user_b_id)) AND (NOT pair_is_blocked(user_a_id, user_b_id)))\", \"check\" : \"((auth.uid() = user_a_id) OR (auth.uid() = user_b_id))\"}"
+  },
+  {
+   "k": "pol",
+   "n": "messages_insert_policy",
+   "t": "public.messages",
+   "v": "{\"cmd\" : \"INSERT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : null, \"check\" : \"((auth.uid() = sender_id) AND (NOT pair_is_blocked(sender_id, receiver_id)) AND (EXISTS ( SELECT 1\\n   FROM matches\\n  WHERE ((matches.status = 'accepted'::text) AND (((matches.user_a_id = auth.uid()) AND (matches.user_b_id = messages.receiver_id)) OR ((matches.user_b_id = auth.uid()) AND (matches.user_a_id = messages.receiver_id)))))))\"}"
+  },
+  {
+   "k": "pol",
+   "n": "messages_select_policy",
+   "t": "public.messages",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"((auth.uid() = sender_id) OR (auth.uid() = receiver_id))\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "messages_update_own",
+   "t": "public.messages",
+   "v": "{\"cmd\" : \"UPDATE\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"((auth.uid() = sender_id) OR (auth.uid() = receiver_id))\", \"check\" : \"((auth.uid() = sender_id) OR (auth.uid() = receiver_id))\"}"
+  },
+  {
+   "k": "pol",
+   "n": "venues_authenticated_select",
+   "t": "public.venues",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(is_active = true)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "venues_select",
+   "t": "public.venues",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(is_active = true)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "notifications_select",
+   "t": "public.notifications",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = user_id)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "notifications_update",
+   "t": "public.notifications",
+   "v": "{\"cmd\" : \"UPDATE\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(auth.uid() = user_id)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "Anyone can view photos",
+   "t": "storage.objects",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(bucket_id = 'user-photos'::text)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "Users can delete their own photos",
+   "t": "storage.objects",
+   "v": "{\"cmd\" : \"DELETE\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"((bucket_id = 'user-photos'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "Users can upload their own photos",
+   "t": "storage.objects",
+   "v": "{\"cmd\" : \"INSERT\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : null, \"check\" : \"((bucket_id = 'user-photos'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))\"}"
+  },
+  {
+   "k": "pol",
+   "n": "own folder delete only",
+   "t": "storage.objects",
+   "v": "{\"cmd\" : \"DELETE\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"((bucket_id = 'verification-selfies'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "own folder upload only",
+   "t": "storage.objects",
+   "v": "{\"cmd\" : \"INSERT\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : null, \"check\" : \"((bucket_id = 'verification-selfies'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))\"}"
+  },
+  {
+   "k": "pol",
+   "n": "photos are public",
+   "t": "storage.objects",
+   "v": "{\"cmd\" : \"SELECT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"(bucket_id = 'user-photos'::text)\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "users can delete own photos",
+   "t": "storage.objects",
+   "v": "{\"cmd\" : \"DELETE\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : \"((bucket_id = 'user-photos'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))\", \"check\" : null}"
+  },
+  {
+   "k": "pol",
+   "n": "users can upload own photos",
+   "t": "storage.objects",
+   "v": "{\"cmd\" : \"INSERT\", \"roles\" : [\"authenticated\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : null, \"check\" : \"((bucket_id = 'user-photos'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))\"}"
+  },
+  {
+   "k": "pol",
+   "n": "events_insert_own",
+   "t": "public.events",
+   "v": "{\"cmd\" : \"INSERT\", \"roles\" : [\"public\"], \"permissive\" : \"PERMISSIVE\", \"qual\" : null, \"check\" : \"(auth.uid() = user_id)\"}"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "likes",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "onboarding_answers",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "profiles",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "blocks",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "reports",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "matches",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "messages",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "venues",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "notifications",
+   "v": "false"
+  },
+  {
+   "k": "rls",
+   "n": "true",
+   "t": "events",
+   "v": "false"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "blocks",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "blocks",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "events",
+   "v": "INSERT"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "likes",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "likes",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "matches",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "matches",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "messages",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "messages",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "notifications",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "notifications",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "onboarding_answers",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "onboarding_answers",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "profiles",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "profiles",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "reports",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "reports",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "anon",
+   "t": "venues",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "grant",
+   "n": "authenticated",
+   "t": "venues",
+   "v": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+  },
+  {
+   "k": "bucket",
+   "n": "true",
+   "t": "profile-photos",
+   "v": ""
+  },
+  {
+   "k": "bucket",
+   "n": "true",
+   "t": "user-photos",
+   "v": ""
+  },
+  {
+   "k": "bucket",
+   "n": "false",
+   "t": "verification-selfies",
+   "v": ""
+  }
+ ],
+ "functions": [
+  {
+   "acl": "postgres=X/postgres service_role=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.auto_hide_after_reports()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_distinct_reporters int;\nbegin\n  select count(distinct reporter_id) into v_distinct_reporters\n  from reports\n  where reported_id = new.reported_id;\n\n  if v_distinct_reporters >= 3 then\n    update profiles set is_hidden = true where id = new.reported_id;\n  end if;\n\n  return new;\nend;\n$function$\n",
+   "kind": "fn",
+   "name": "auto_hide_after_reports"
+  },
+  {
+   "acl": "postgres=X/postgres service_role=X/postgres authenticated=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.get_daily_views_state(p_user uuid)\n RETURNS TABLE(daily_views_count integer, daily_views_reset_at timestamp with time zone, is_premium boolean)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare\n  v_count int;\n  v_reset timestamptz;\n  v_premium boolean;\nbegin\n  if auth.uid() is distinct from p_user then\n    raise exception 'not authorized';\n  end if;\n\n  select p.daily_views_count, p.daily_views_reset_at, coalesce(p.is_premium, false)\n    into v_count, v_reset, v_premium\n    from profiles p\n    where p.id = p_user\n    for update;\n\n  if v_count is null then\n    v_count := 0;\n  end if;\n\n  if v_reset is null or v_reset + interval '24 hours' < now() then\n    v_count := 0;\n    v_reset := now();\n    update profiles\n      set daily_views_count = v_count,\n          daily_views_reset_at = v_reset\n      where id = p_user;\n  end if;\n\n  return query select v_count, v_reset, v_premium;\nend;\n$function$\n",
+   "kind": "fn",
+   "name": "get_daily_views_state"
+  },
+  {
+   "acl": "postgres=X/postgres service_role=X/postgres authenticated=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.get_my_likers(p_limit integer DEFAULT 50)\n RETURNS TABLE(total_count bigint, liker_id uuid, first_name text, date_of_birth date, photo_path text, target_type text, target_key text, note text, created_at timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare\n  v_uid        uuid := auth.uid();\n  v_is_premium boolean;\nbegin\n  if v_uid is null then\n    raise exception 'not authenticated';\n  end if;\n\n  select coalesce(p.is_premium, false)\n    into v_is_premium\n    from public.profiles p\n    where p.id = v_uid;\n\n  v_is_premium := coalesce(v_is_premium, false);\n\n  if v_is_premium then\n    return query\n      select\n        cnt.total_count,\n        l.liker_id,\n        p.first_name,\n        p.date_of_birth,\n        p.photos[1] as photo_path,\n        l.target_type,\n        l.target_key,\n        l.note,\n        l.created_at\n      from public.likes l\n      join public.profiles p on p.id = l.liker_id\n      cross join lateral (\n        select count(*)::bigint as total_count\n        from public.likes l2\n        where l2.likee_id = v_uid and l2.status = 'sent'\n      ) cnt\n      where l.likee_id = v_uid and l.status = 'sent'\n      order by l.created_at desc\n      limit greatest(p_limit, 0);\n  else\n    return query\n      select\n        cnt.total_count,\n        null::uuid,\n        null::text,\n        null::date,\n        null::text,\n        null::text,\n        null::text,\n        null::text,\n        l.created_at\n      from public.likes l\n      cross join lateral (\n        select count(*)::bigint as total_count\n        from public.likes l2\n        where l2.likee_id = v_uid and l2.status = 'sent'\n      ) cnt\n      where l.likee_id = v_uid and l.status = 'sent'\n      order by l.created_at desc\n      limit least(greatest(p_limit, 0), 3);\n  end if;\nend;\n$function$\n",
+   "kind": "fn",
+   "name": "get_my_likers"
+  },
+  {
+   "acl": "postgres=X/postgres service_role=X/postgres authenticated=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.get_top_matches(p_user_id uuid, p_limit integer DEFAULT 3)\n RETURNS TABLE(user_id uuid, first_name text, date_of_birth date, city text, district text, zodiac_sign text, photos text[], match_percentage integer, match_category text, reasons text[], favorite_music text, favorite_movie text, favorite_book text, hobbies text[], availability_days text[], drinking text, smoking text, education text, education_detail text, morning_night text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\nWITH me AS (\n  SELECT p.id, p.gender, p.meeting_preferences, p.city, p.district, p.date_of_birth,\n    p.zodiac_sign, p.morning_night, p.recharge_style, p.hobbies, p.availability_days,\n    p.drinking, p.smoking, p.vibe, p.education, p.meeting_environment, p.languages,\n    p.favorite_spots,\n    p.discovery_max_distance, p.discovery_verified_only, p.discovery_nonsmokers_only,\n    p.discovery_height_min, p.discovery_height_max,\n    p.discovery_zodiac_signs, p.discovery_pets,\n    p.discovery_education, p.discovery_religion, p.discovery_active_today,\n    oa.intent\n  FROM profiles p\n  LEFT JOIN onboarding_answers oa ON oa.user_id = p.id\n  -- auth.uid() = p_user_id is the WHOLE authorization check for this\n  -- function now that it's SECURITY DEFINER: if it doesn't hold, `me` is\n  -- empty, every downstream CTE CROSS JOINs `me`, so the entire result is\n  -- empty. No caller can ever compute \"top matches\" for anyone but\n  -- themselves.\n  WHERE p.id = p_user_id AND auth.uid() = p_user_id\n),\nzodiac_element(sign, element) AS (\n  VALUES\n    ('Aries','Fire'), ('Leo','Fire'), ('Sagittarius','Fire'),\n    ('Taurus','Earth'), ('Virgo','Earth'), ('Capricorn','Earth'),\n    ('Gemini','Air'), ('Libra','Air'), ('Aquarius','Air'),\n    ('Cancer','Water'), ('Scorpio','Water'), ('Pisces','Water')\n),\nzodiac_top3(sign, partner) AS (\n  VALUES\n    ('Aries','Leo'), ('Aries','Sagittarius'), ('Aries','Libra'),\n    ('Taurus','Virgo'), ('Taurus','Capricorn'), ('Taurus','Scorpio'),\n    ('Gemini','Libra'), ('Gemini','Aquarius'), ('Gemini','Sagittarius'),\n    ('Cancer','Scorpio'), ('Cancer','Pisces'), ('Cancer','Capricorn'),\n    ('Leo','Aries'), ('Leo','Sagittarius'), ('Leo','Aquarius'),\n    ('Virgo','Taurus'), ('Virgo','Capricorn'), ('Virgo','Pisces'),\n    ('Libra','Gemini'), ('Libra','Aquarius'), ('Libra','Aries'),\n    ('Scorpio','Cancer'), ('Scorpio','Pisces'), ('Scorpio','Taurus'),\n    ('Sagittarius','Aries'), ('Sagittarius','Leo'), ('Sagittarius','Gemini'),\n    ('Capricorn','Taurus'), ('Capricorn','Virgo'), ('Capricorn','Cancer'),\n    ('Aquarius','Gemini'), ('Aquarius','Libra'), ('Aquarius','Leo'),\n    ('Pisces','Cancer'), ('Pisces','Scorpio'), ('Pisces','Virgo')\n),\ncandidates AS (\n  SELECT p.id, p.first_name, p.date_of_birth, p.city, p.district, p.zodiac_sign, p.photos,\n    p.favorite_music, p.favorite_movie, p.favorite_book, p.hobbies, p.availability_days,\n    p.drinking, p.smoking, p.education, p.education_detail, p.morning_night,\n    p.photo_verified,\n    (SELECT array_agg(h) FROM unnest(p.hobbies) h WHERE h = ANY(me.hobbies)) AS shared_hobbies,\n    (SELECT COUNT(*) FROM unnest(p.hobbies) h WHERE h = ANY(me.hobbies)) AS hobby_overlap,\n    (SELECT COUNT(*) FROM unnest(p.availability_days) d WHERE d = ANY(me.availability_days)) AS avail_overlap,\n    (SELECT COUNT(*) FROM unnest(p.languages) l WHERE l = ANY(me.languages)) AS lang_overlap,\n    (SELECT COUNT(*) FROM unnest(p.meeting_environment) e WHERE e = ANY(me.meeting_environment)) AS env_overlap,\n    CASE\n      WHEN p.district IS NOT NULL AND lower(trim(p.district)) = lower(trim(me.district)) THEN 20\n      WHEN p.city IS NOT NULL AND lower(trim(p.city)) = lower(trim(me.city)) THEN 8\n      ELSE 0\n    END AS location_score,\n    CASE\n      WHEN ABS(DATE_PART('year', AGE(p.date_of_birth)) - DATE_PART('year', AGE(me.date_of_birth))) <= 2 THEN 20\n      WHEN ABS(DATE_PART('year', AGE(p.date_of_birth)) - DATE_PART('year', AGE(me.date_of_birth))) <= 4 THEN 10\n      WHEN ABS(DATE_PART('year', AGE(p.date_of_birth)) - DATE_PART('year', AGE(me.date_of_birth))) <= 6 THEN 5\n      ELSE -5\n    END AS age_score,\n    CASE\n      WHEN oa.intent IS NOT NULL AND me.intent IS NOT NULL AND oa.intent = me.intent THEN 40\n      WHEN (oa.intent = 'not_sure_yet' OR me.intent = 'not_sure_yet') THEN 20\n      WHEN (\n        (oa.intent = 'keeping_it_casual' AND me.intent = 'open_to_relationship') OR\n        (oa.intent = 'open_to_relationship' AND me.intent = 'keeping_it_casual')\n      ) THEN 10\n      WHEN (oa.intent = 'just_friends' OR me.intent = 'just_friends') THEN 5\n      ELSE 0\n    END AS intent_score,\n    CASE WHEN p.morning_night IS NOT NULL AND p.morning_night = me.morning_night THEN 15 ELSE 0 END AS morning_night_score,\n    CASE WHEN p.recharge_style IS NOT NULL AND p.recharge_style = me.recharge_style THEN 15 ELSE 0 END AS recharge_score,\n    CASE\n      WHEN me.drinking IS NULL OR p.drinking IS NULL THEN 0\n      WHEN me.drinking = p.drinking THEN 10\n      WHEN (me.drinking='Yes' AND p.drinking='Socially') OR (me.drinking='Socially' AND p.drinking='Yes') THEN 5\n      WHEN (me.drinking='No' AND p.drinking='Socially') OR (me.drinking='Socially' AND p.drinking='No') THEN 0\n      WHEN (me.drinking='Yes' AND p.drinking='No') OR (me.drinking='No' AND p.drinking='Yes') THEN -6\n      ELSE 0\n    END AS drinking_score,\n    CASE\n      WHEN me.smoking IS NULL OR p.smoking IS NULL THEN 0\n      WHEN me.smoking = p.smoking THEN 10\n      WHEN (me.smoking='No' AND p.smoking='Socially') OR (me.smoking='Socially' AND p.smoking='No') THEN 5\n      WHEN (me.smoking='Yes' AND p.smoking='Socially') OR (me.smoking='Socially' AND p.smoking='Yes') THEN -6\n      WHEN (me.smoking='No' AND p.smoking='Yes') OR (me.smoking='Yes' AND p.smoking='No') THEN -6\n      ELSE 0\n    END AS smoking_score,\n    CASE WHEN p.education IS NOT NULL AND p.education = me.education THEN 8 ELSE 0 END AS education_score,\n    CASE WHEN p.photo_verified THEN 15 ELSE 0 END AS verified_score,\n    CASE\n      WHEN EXISTS (SELECT 1 FROM zodiac_top3 zt WHERE zt.sign = me.zodiac_sign AND zt.partner = p.zodiac_sign) THEN 5\n      WHEN EXISTS (\n        SELECT 1 FROM zodiac_element ze1, zodiac_element ze2\n        WHERE ze1.sign = me.zodiac_sign AND ze2.sign = p.zodiac_sign\n          AND (\n            (ze1.element IN ('Fire','Air') AND ze2.element IN ('Fire','Air'))\n            OR (ze1.element IN ('Earth','Water') AND ze2.element IN ('Earth','Water'))\n          )\n      ) THEN 2\n      ELSE 0\n    END AS zodiac_score,\n    CASE WHEN EXISTS (\n      SELECT 1\n      FROM jsonb_each_text(coalesce(me.favorite_spots, '{}'::jsonb)) me_kv(key, val)\n      JOIN jsonb_each_text(coalesce(p.favorite_spots, '{}'::jsonb)) p_kv(key, val) USING (key)\n      WHERE trim(me_kv.val) <> ''\n        AND translate(lower(trim(me_kv.val)), 'çğıöşü', 'cgiosu')\n          = translate(lower(trim(p_kv.val)), 'çğıöşü', 'cgiosu')\n    ) THEN 5 ELSE 0 END AS spot_score,\n    EXISTS (\n      SELECT 1 FROM likes l\n      WHERE l.liker_id = p.id AND l.likee_id = p_user_id AND l.status = 'sent'\n    ) AS liked_me,\n    (\n      (CASE WHEN me.morning_night IS NOT NULL AND p.morning_night IS NOT NULL THEN 1 ELSE 0 END) +\n      (CASE WHEN me.recharge_style IS NOT NULL AND p.recharge_style IS NOT NULL THEN 1 ELSE 0 END) +\n      (CASE WHEN array_length(me.hobbies,1) > 0 AND array_length(p.hobbies,1) > 0 THEN 1 ELSE 0 END) +\n      (CASE WHEN array_length(me.availability_days,1) > 0 AND array_length(p.availability_days,1) > 0 THEN 1 ELSE 0 END) +\n      (CASE WHEN me.drinking IS NOT NULL AND p.drinking IS NOT NULL THEN 1 ELSE 0 END) +\n      (CASE WHEN me.smoking IS NOT NULL AND p.smoking IS NOT NULL THEN 1 ELSE 0 END) +\n      (CASE WHEN me.education IS NOT NULL AND p.education IS NOT NULL THEN 1 ELSE 0 END) +\n      (CASE WHEN array_length(me.languages,1) > 0 AND array_length(p.languages,1) > 0 THEN 1 ELSE 0 END) +\n      (CASE WHEN array_length(me.meeting_environment,1) > 0 AND array_length(p.meeting_environment,1) > 0 THEN 1 ELSE 0 END)\n    ) AS applicable_fields\n  FROM profiles p\n  LEFT JOIN onboarding_answers oa ON oa.user_id = p.id\n  CROSS JOIN me\n  WHERE p.id != p_user_id\n    AND p.setup_completed = true\n    -- Explicit now (was implicit via profiles' own SELECT RLS under\n    -- SECURITY INVOKER, which SECURITY DEFINER no longer applies) —\n    -- replicates the 2026-08-29 P0 fix's condition exactly so hidden/\n    -- deleted profiles still never resurface as discovery candidates.\n    AND COALESCE(p.is_hidden, false) = false\n    AND p.deleted_at IS NULL\n    AND lower(trim(p.city)) = lower(trim(me.city))\n    AND (\n      me.discovery_max_distance IS NULL\n      OR me.discovery_max_distance = 'whole_city'\n      OR (\n        p.district IS NOT NULL AND me.district IS NOT NULL\n        AND translate(lower(trim(p.district)), 'çğıöşü', 'cgiosu')\n          = translate(lower(trim(me.district)), 'çğıöşü', 'cgiosu')\n      )\n    )\n    AND (NOT COALESCE(me.discovery_verified_only, false) OR p.photo_verified = true)\n    AND (NOT COALESCE(me.discovery_nonsmokers_only, false) OR p.smoking IS DISTINCT FROM 'Yes')\n    AND (me.discovery_height_min IS NULL OR p.height_cm IS NULL OR p.height_cm >= me.discovery_height_min)\n    AND (me.discovery_height_max IS NULL OR p.height_cm IS NULL OR p.height_cm <= me.discovery_height_max)\n    AND (\n      me.discovery_zodiac_signs IS NULL\n      OR array_length(me.discovery_zodiac_signs, 1) IS NULL\n      OR p.zodiac_sign = ANY(me.discovery_zodiac_signs)\n    )\n    AND (\n      me.discovery_pets IS NULL\n      OR array_length(me.discovery_pets, 1) IS NULL\n      OR p.pets IS NULL\n      OR p.pets = ANY(me.discovery_pets)\n    )\n    AND (\n      me.discovery_education IS NULL\n      OR array_length(me.discovery_education, 1) IS NULL\n      OR p.education IS NULL\n      OR p.education = ANY(me.discovery_education)\n    )\n    AND (\n      me.discovery_religion IS NULL\n      OR array_length(me.discovery_religion, 1) IS NULL\n      OR p.religion IS NULL\n      OR p.religion = ANY(me.discovery_religion)\n    )\n    AND (\n      NOT COALESCE(me.discovery_active_today, false)\n      OR p.last_active_at >= now() - interval '24 hours'\n    )\n    AND p.id NOT IN (\n      SELECT CASE WHEN m.user_a_id = p_user_id THEN m.user_b_id ELSE m.user_a_id END\n      FROM matches m\n      WHERE (m.user_a_id = p_user_id OR m.user_b_id = p_user_id)\n        AND (\n          m.status IN ('pending', 'accepted')\n          OR (m.status = 'expired' AND m.created_at > now() - interval '14 days')\n          OR (m.status = 'passed' AND m.created_at > now() - interval '42 days')\n        )\n      UNION\n      SELECT blocked_id FROM blocks WHERE blocker_id = p_user_id\n      UNION\n      SELECT blocker_id FROM blocks WHERE blocked_id = p_user_id\n    )\n    AND (\n      'Everyone' = ANY(me.meeting_preferences)\n      OR ('Women' = ANY(me.meeting_preferences) AND p.gender = 'Woman')\n      OR ('Men' = ANY(me.meeting_preferences) AND p.gender = 'Man')\n      OR ('Non-binary' = ANY(me.meeting_preferences) AND p.gender = 'Non-binary')\n    )\n    AND (\n      'Everyone' = ANY(p.meeting_preferences)\n      OR ('Men' = ANY(p.meeting_preferences) AND me.gender = 'Man')\n      OR ('Women' = ANY(p.meeting_preferences) AND me.gender = 'Woman')\n      OR ('Non-binary' = ANY(p.meeting_preferences) AND me.gender = 'Non-binary')\n    )\n),\nscored AS MATERIALIZED (\n  SELECT c.*,\n    (\n      c.location_score + c.age_score + c.intent_score\n      + LEAST(65,\n          c.morning_night_score\n          + c.recharge_score\n          + LEAST(25, (c.hobby_overlap * 5)::int)\n          + CASE\n              WHEN c.avail_overlap >= 4 THEN 15\n              WHEN c.avail_overlap >= 2 THEN 8\n              WHEN c.avail_overlap >= 1 THEN 3\n              ELSE 0\n            END\n          + c.drinking_score\n          + c.smoking_score\n          + c.education_score\n          + CASE WHEN c.lang_overlap >= 1 THEN 5 ELSE 0 END\n          + CASE\n              WHEN c.env_overlap >= 2 THEN 12\n              WHEN c.env_overlap >= 1 THEN 6\n              ELSE 0\n            END\n          + c.zodiac_score\n          + c.spot_score\n        )\n    ) AS compat_raw_score,\n    (0.85 + 0.15 * (c.applicable_fields::numeric / 9)) AS completeness_multiplier,\n    (c.verified_score + CASE WHEN c.liked_me THEN 40 ELSE 0 END) AS sort_boost\n  FROM candidates c\n),\nadjusted AS (\n  SELECT s.*,\n    (s.compat_raw_score * s.completeness_multiplier) AS adjusted_score\n  FROM scored s\n),\nranked AS (\n  SELECT a.*\n  FROM adjusted a\n  ORDER BY (a.adjusted_score + a.sort_boost) DESC\n  LIMIT p_limit\n),\ncapped AS (\n  SELECT r.*,\n    LEAST(\n      CASE WHEN r.age_score < 0 THEN 85 ELSE 99 END,\n      GREATEST(20, ROUND((r.adjusted_score / 140) * 100))\n    )::integer AS capped_pct\n  FROM ranked r\n)\nSELECT\n  c.id AS user_id, c.first_name, c.date_of_birth, c.city, c.district, c.zodiac_sign, c.photos,\n  c.capped_pct AS match_percentage,\n  CASE\n    WHEN c.capped_pct >= 80 THEN '🔥 Exceptional match'\n    WHEN c.capped_pct >= 60 THEN '✨ Great match'\n    WHEN c.capped_pct >= 40 THEN '👍 Good match'\n    ELSE '🤝 Possible match'\n  END AS match_category,\n  (\n    SELECT COALESCE(array_agg(reason ORDER BY ord), ARRAY[]::text[])\n    FROM (\n      SELECT reason, ord\n      FROM unnest(ARRAY[\n        CASE WHEN c.intent_score = 40 THEN 'Looking for the same thing' END,\n        CASE WHEN array_length(c.shared_hobbies,1) >= 1\n          THEN 'You both love ' || array_to_string(c.shared_hobbies[1:2], ' & ') END,\n        CASE WHEN c.location_score = 20 THEN 'Nearby' END,\n        CASE WHEN c.spot_score = 5 THEN 'Same favorite spot' END,\n        CASE WHEN c.drinking_score = 10 THEN 'Similar drinking habits' END,\n        CASE WHEN c.smoking_score = 10 THEN 'Similar smoking habits' END,\n        CASE WHEN c.env_overlap >= 1 THEN 'Same idea of a first date' END,\n        CASE WHEN c.zodiac_score = 5 THEN 'Great zodiac match' END\n      ]) WITH ORDINALITY AS t(reason, ord)\n      WHERE reason IS NOT NULL\n      ORDER BY ord\n      LIMIT 3\n    ) top3\n  ) AS reasons,\n  c.favorite_music, c.favorite_movie, c.favorite_book, c.hobbies, c.availability_days,\n  c.drinking, c.smoking, c.education, c.education_detail, c.morning_night\nFROM capped c\nORDER BY (c.adjusted_score + c.sort_boost) DESC;\n$function$\n",
+   "kind": "fn",
+   "name": "get_top_matches"
+  },
+  {
+   "acl": "postgres=X/postgres service_role=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.handle_match_notification()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  v_recipient uuid;\n  v_accepter uuid;\nBEGIN\n  -- Yeni eşleşme (insert, pending) — Home/Matches'in arka planda ürettiği\n  -- keşif kartları dahil; bu satır Buzz'da zaten LIKE_TYPES ile gizleniyor.\n  IF TG_OP = 'INSERT' AND NEW.status = 'pending' THEN\n    INSERT INTO notifications (user_id, type, text, related_user_id)\n    VALUES (NEW.user_b_id, 'new_match', 'Yeni bir eşleşmen var! ✨', NEW.user_a_id);\n  END IF;\n\n  -- Davet gönderildi: invited_by bu yazımda yeni set edildi (mutual-like\n  -- invited_by'ı hiç set etmiyor, otomatik olarak hariç kalıyor).\n  IF NEW.invited_by IS NOT NULL\n     AND (TG_OP = 'INSERT' OR NEW.invited_by IS DISTINCT FROM OLD.invited_by) THEN\n    v_recipient := CASE WHEN NEW.invited_by = NEW.user_a_id THEN NEW.user_b_id ELSE NEW.user_a_id END;\n    INSERT INTO notifications (user_id, type, text, related_user_id)\n    VALUES (v_recipient, 'new_invite', 'Seni buluşmaya davet etti! ☕', NEW.invited_by);\n    RETURN NEW; -- aynı yazımda hem \"davet gönderildi\" hem \"kabul edildi\" olamaz\n  END IF;\n\n  -- Davet kabul edildi: chat_opened bu yazımda false/null'dan true'ya geçti\n  -- VE invited_by bu yazımda YENİ set edilmedi (yukarıda ele alındı — o\n  -- durumda kadın-davet-eder kuralı chat'i anında açar, bu ayrı bir \"kabul\"\n  -- olayı değildir) VE mutual-like değil (o kendi bildirimini zaten yazdı).\n  IF TG_OP = 'UPDATE'\n     AND NEW.chat_opened IS TRUE\n     AND COALESCE(OLD.chat_opened, false) IS NOT TRUE\n     AND NEW.source = 'algo_invite'\n     AND NEW.invited_by IS NOT NULL THEN\n    v_accepter := CASE WHEN NEW.invited_by = NEW.user_a_id THEN NEW.user_b_id ELSE NEW.user_a_id END;\n    INSERT INTO notifications (user_id, type, text, related_user_id)\n    VALUES (NEW.invited_by, 'invite_accepted', 'Buluşma isteğin kabul edildi! 🎉', v_accepter);\n  END IF;\n\n  RETURN NEW;\nEND;\n$function$\n",
+   "kind": "fn",
+   "name": "handle_match_notification"
+  },
+  {
+   "acl": "=X/postgres postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.handle_mutual_accept()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nbegin\n  if new.user_a_accepted = true and new.user_b_accepted = true then\n    new.status := 'accepted';\n  end if;\n  return new;\nend;\n$function$\n",
+   "kind": "fn",
+   "name": "handle_mutual_accept"
+  },
+  {
+   "acl": "postgres=X/postgres service_role=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.handle_mutual_like()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_match_id uuid;\nbegin\n  -- Only a live like counts (not one already superseded/expired/passed).\n  if NEW.status <> 'sent' then\n    return NEW;\n  end if;\n\n  -- Does the other side already have a live like pointed back at me?\n  if not exists (\n    select 1 from likes r\n    where r.liker_id = NEW.likee_id\n      and r.likee_id = NEW.liker_id\n      and r.status = 'sent'\n  ) then\n    return NEW;\n  end if;\n\n  -- Elevate (or create) the matches row for this pair straight to an open\n  -- chat. idx_matches_unique_pair means at most one matches row can ever\n  -- exist per pair regardless of status, so this has to be an upsert, not a\n  -- plain insert — an algorithmic candidate that was sitting 'pending' (or\n  -- 'passed'/'expired') between these two gets promoted by the mutual like.\n  -- The `WHERE chat_opened IS NOT TRUE` guard makes this idempotent: if the\n  -- pair is already talking (however that happened), do nothing and skip\n  -- the notification/message-seeding below entirely.\n  insert into matches (user_a_id, user_b_id, status, match_score, chat_opened, source, expires_at, created_at)\n  values (\n    least(NEW.liker_id::text, NEW.likee_id::text)::uuid,\n    greatest(NEW.liker_id::text, NEW.likee_id::text)::uuid,\n    'accepted',\n    100,  -- mutual, explicit consent from both sides — the strongest signal this app has, treated as a perfect score\n    true,\n    'mutual_like',\n    now() + interval '24 hours',\n    now()\n  )\n  on conflict (least(user_a_id::text, user_b_id::text), greatest(user_a_id::text, user_b_id::text))\n  do update set status = 'accepted', chat_opened = true, source = 'mutual_like'\n  where matches.chat_opened is not true\n  returning id into v_match_id;\n\n  if v_match_id is null then\n    return NEW; -- already open — nothing new happened, don't re-notify/re-seed\n  end if;\n\n  -- Link both likes rows to the match they produced.\n  update likes\n    set status = 'matched', match_id = v_match_id\n    where status = 'sent'\n      and ((liker_id = NEW.liker_id and likee_id = NEW.likee_id)\n        or (liker_id = NEW.likee_id and likee_id = NEW.liker_id));\n\n  -- Seed the chat with whichever side(s) wrote a Note — Hinge's own\n  -- mechanic (a contextual like's note becomes the opening message) — so\n  -- the thread never opens completely blank. No note on either side: chat\n  -- opens empty, chat.tsx's existing icebreaker suggestions cover that.\n  insert into messages (sender_id, receiver_id, content, created_at)\n  select l.liker_id, l.likee_id, l.note, l.created_at\n  from likes l\n  where l.match_id = v_match_id\n    and l.note is not null\n    and length(trim(l.note)) > 0\n  order by l.created_at asc;\n\n  insert into notifications (user_id, type, text, related_user_id)\n  values\n    (NEW.liker_id, 'mutual_match', 'Eşleştiniz! Sohbet açıldı 💛', NEW.likee_id),\n    (NEW.likee_id, 'mutual_match', 'Eşleştiniz! Sohbet açıldı 💛', NEW.liker_id);\n\n  insert into events (user_id, name, properties)\n  values\n    (NEW.liker_id, 'mutual_match', jsonb_build_object('match_id', v_match_id)),\n    (NEW.likee_id, 'mutual_match', jsonb_build_object('match_id', v_match_id));\n\n  return NEW;\nend;\n$function$\n",
+   "kind": "fn",
+   "name": "handle_mutual_like"
+  },
+  {
+   "acl": "postgres=X/postgres service_role=X/postgres authenticated=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.increment_daily_views(p_user uuid)\n RETURNS TABLE(daily_views_count integer, daily_views_reset_at timestamp with time zone, is_premium boolean)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_count int;\n  v_reset timestamptz;\n  v_premium boolean;\nbegin\n  IF auth.uid() IS DISTINCT FROM p_user THEN\n    RAISE EXCEPTION 'not authorized';\n  END IF;\n\n  select p.daily_views_count, p.daily_views_reset_at, coalesce(p.is_premium, false)\n    into v_count, v_reset, v_premium\n    from profiles p\n    where p.id = p_user\n    for update;\n\n  if v_count is null then\n    v_count := 0;\n  end if;\n\n  if v_reset is null or v_reset + interval '24 hours' < now() then\n    v_count := 0;\n    v_reset := now();\n  end if;\n\n  v_count := v_count + 1;\n\n  update profiles\n    set daily_views_count = v_count,\n        daily_views_reset_at = v_reset\n    where id = p_user;\n\n  return query select v_count, v_reset, v_premium;\nend;\n$function$\n",
+   "kind": "fn",
+   "name": "increment_daily_views"
+  },
+  {
+   "acl": "postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.pair_is_blocked(a uuid, b uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  -- Least-privilege: only answer for a pair the caller is actually part of.\n  -- Without this, exposing the function to `authenticated` would let anyone\n  -- probe whether two ENTIRELY UNRELATED users have blocked each other —\n  -- a minor info-leak oracle this callable-by-anyone RPC doesn't need to be.\n  select case\n    when auth.uid() is distinct from a and auth.uid() is distinct from b then false\n    else exists (\n      select 1 from blocks\n      where (blocker_id = a and blocked_id = b)\n         or (blocker_id = b and blocked_id = a)\n    )\n  end;\n$function$\n",
+   "kind": "fn",
+   "name": "pair_is_blocked"
+  },
+  {
+   "acl": "postgres=X/postgres service_role=X/postgres authenticated=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.try_send_invite(p_user uuid, p_is_premium boolean DEFAULT false)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE v_limit int; v_count int; v_reset timestamptz; v_is_premium boolean;\nBEGIN\n  IF auth.uid() IS DISTINCT FROM p_user THEN\n    RETURN false;\n  END IF;\n\n  SELECT daily_invites_count, daily_invites_reset_at, COALESCE(is_premium, false)\n    INTO v_count, v_reset, v_is_premium\n    FROM profiles WHERE id = p_user\n    FOR UPDATE;\n\n  IF v_count IS NULL THEN\n    RETURN false;               -- profil bulunamadı\n  END IF;\n\n  IF v_reset IS NULL OR v_reset < now() - interval '24 hours' THEN\n    v_count := 0;                -- 24 saat geçmiş, sıfırla\n    UPDATE profiles SET daily_invites_reset_at = now() WHERE id = p_user;\n  END IF;\n\n  v_limit := CASE WHEN v_is_premium THEN 3 ELSE 1 END;\n\n  IF v_count >= v_limit THEN\n    RETURN false;                -- limit dolu\n  END IF;\n\n  UPDATE profiles SET daily_invites_count = v_count + 1 WHERE id = p_user;\n  RETURN true;                   -- davet hakkı verildi\nEND;\n$function$\n",
+   "kind": "fn",
+   "name": "try_send_invite"
+  },
+  {
+   "acl": "=X/postgres postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.update_match_status()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  IF NEW.user_a_accepted = true AND NEW.user_b_accepted = true THEN\n    NEW.status := 'accepted';\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+   "kind": "fn",
+   "name": "update_match_status"
+  },
+  {
+   "acl": "=X/postgres postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.update_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nbegin\n  new.updated_at = now();\n  return new;\nend;\n$function$\n",
+   "kind": "fn",
+   "name": "update_updated_at"
+  },
+  {
+   "acl": "=X/postgres postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres",
+   "def": "CREATE OR REPLACE FUNCTION public.upsert_match(p_user_a uuid, p_user_b uuid, p_match_score numeric DEFAULT 0)\n RETURNS void\n LANGUAGE sql\n SET search_path TO 'public'\nAS $function$\n  INSERT INTO matches (user_a_id, user_b_id, status, match_score, expires_at, created_at)\n  VALUES (\n    LEAST(p_user_a::text, p_user_b::text)::uuid,\n    GREATEST(p_user_a::text, p_user_b::text)::uuid,\n    'pending',\n    p_match_score,\n    now() + interval '24 hours',\n    now()\n  )\n  ON CONFLICT (\n    LEAST(user_a_id::text, user_b_id::text),\n    GREATEST(user_a_id::text, user_b_id::text)\n  )\n  DO UPDATE SET\n    status = 'pending',\n    match_score = p_match_score,\n    expires_at = now() + interval '24 hours',\n    created_at = now()\n  WHERE matches.status = 'expired';\n$function$\n",
+   "kind": "fn",
+   "name": "upsert_match"
+  },
+  {
+   "acl": "",
+   "def": "CREATE OR REPLACE FUNCTION storage.extension(name text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\nDECLARE\n    _parts text[];\n    _filename text;\nBEGIN\n    -- Split on \"/\" to get path segments\n    SELECT string_to_array(name, '/') INTO _parts;\n    -- Get the last path segment (the actual filename)\n    SELECT _parts[array_length(_parts, 1)] INTO _filename;\n    -- Extract extension: reverse, split on '.', then reverse again\n    RETURN reverse(split_part(reverse(_filename), '.', 1));\nEND\n$function$\n",
+   "kind": "storagefn",
+   "name": "extension"
+  },
+  {
+   "acl": "",
+   "def": "CREATE OR REPLACE FUNCTION storage.filename(name text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\nDECLARE\n    _parts text[];\nBEGIN\n    SELECT string_to_array(name, '/') INTO _parts;\n    RETURN _parts[array_length(_parts, 1)];\nEND\n$function$\n",
+   "kind": "storagefn",
+   "name": "filename"
+  },
+  {
+   "acl": "",
+   "def": "CREATE OR REPLACE FUNCTION storage.foldername(name text)\n RETURNS text[]\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\nDECLARE\n    _parts text[];\nBEGIN\n    -- Split on \"/\" to get path segments\n    SELECT string_to_array(name, '/') INTO _parts;\n    -- Return everything except the last segment\n    RETURN _parts[1 : array_length(_parts,1) - 1];\nEND\n$function$\n",
+   "kind": "storagefn",
+   "name": "foldername"
+  }
+ ],
+ "profile_column_privileges_authenticated": [
+  {
+   "column": "availability_days",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "availability_hours",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "bio",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "city",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "core_value",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "country_code",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "created_at",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "current_step",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "daily_invites_count",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "daily_invites_reset_at",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "daily_views_count",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "daily_views_reset_at",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "date_of_birth",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "dealbreaker",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "deleted_at",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "dial_code",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_active_today",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_age_max",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_age_min",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_education",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_height_max",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_height_min",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_max_distance",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_nonsmokers_only",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_pets",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_religion",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "discovery_verified_only",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "discovery_zodiac_signs",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "district",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "drinking",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "education",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "education_detail",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "expo_push_token",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "favorite_activity",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "favorite_book",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "favorite_movie",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "favorite_music",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "favorite_spots",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "first_date_expectation",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "first_name",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "full_address",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "gender",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "height_cm",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "hide_location",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "hobbies",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "id",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "impressed_by",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "instagram_handle",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "is_hidden",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "is_premium",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "languages",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "last_active_at",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "last_name",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "lat",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "lng",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "meeting_environment",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "meeting_preferences",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "morning_night",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "neighborhoods",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "notify_meeting_invite",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "notify_messages",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "notify_new_match",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "occupation",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "pets",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "phone_number",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "phone_verified",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "photo_verified",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "photos",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "preferred_locations",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "privacy_consent_at",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "quick_icebreaker_answers",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "recharge_style",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "religion",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "setup1_completed",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "setup_completed",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "smoking",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "updated_at",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "username",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "verification_selfie_path",
+   "privs": "INSERT,SELECT,UPDATE"
+  },
+  {
+   "column": "vibe",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "waitlist_boost",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "waitlist_number",
+   "privs": "INSERT,SELECT"
+  },
+  {
+   "column": "zodiac_sign",
+   "privs": "INSERT,SELECT,UPDATE"
+  }
+ ]
+}

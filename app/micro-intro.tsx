@@ -66,51 +66,23 @@ type VenueRow = {
   emoji: string | null;
 };
 
-type VenueReason = 'both' | 'you' | 'them' | null;
+type VenueReason = 'both' | 'you' | null;
 type PickedVenue = VenueRow & { reason: VenueReason };
 
-const TR_DIACRITICS: Record<string, string> = {
-  ş: 's', ğ: 'g', ı: 'i', ö: 'o', ü: 'u', ç: 'c',
-  Ş: 's', Ğ: 'g', İ: 'i', I: 'i', Ö: 'o', Ü: 'u', Ç: 'c',
-};
-
-/** `venues.district` uses proper Turkish diacritics ("Beşiktaş");
- * `profiles.district` is stored ASCII-only ("Besiktas") — raw `===` never
- * matched, silently degrading every suggestion to the generic fallback
- * (2026-08-25, found via device testing). */
-function normalizeDistrict(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[şğıöüçŞĞİIÖÜÇ]/g, (ch) => TR_DIACRITICS[ch] ?? ch);
-}
-
-/** Prefer a venue near both people over one only near you — otherwise the
- * suggestion ignores where the other person actually is (2026-08-24). */
-function pickVenues(venues: VenueRow[], myDistrict: string | null, otherDistrict: string | null): PickedVenue[] {
+/** Server-ranked suggestions (get_date_venue_suggestions, P0 privacy):
+ * "near both of you" first, then near you, then the rest. The other
+ * person's district is private — it is never sent to this device and never
+ * used to label a venue ("Near X" is gone on purpose). Top 3, de-duplicated. */
+function pickVenues(rows: (VenueRow & { reason: string | null })[]): PickedVenue[] {
   const picked: PickedVenue[] = [];
   const seen = new Set<string>();
-  const my = myDistrict ? normalizeDistrict(myDistrict) : null;
-  const other = otherDistrict ? normalizeDistrict(otherDistrict) : null;
-
-  const addVenue = (venue: VenueRow, reason: VenueReason) => {
+  for (const venue of rows) {
     const key = `${venue.name}|${venue.district}`;
-    if (seen.has(key) || picked.length >= 3) return;
+    if (seen.has(key) || picked.length >= 3) continue;
     seen.add(key);
-    picked.push({ ...venue, reason });
-  };
-
-  if (my && my === other) {
-    venues.filter((v) => normalizeDistrict(v.district) === my).forEach((v) => addVenue(v, 'both'));
+    const reason: VenueReason = venue.reason === 'both' || venue.reason === 'you' ? venue.reason : null;
+    picked.push({ name: venue.name, district: venue.district, emoji: venue.emoji, reason });
   }
-  if (my) {
-    venues.filter((v) => normalizeDistrict(v.district) === my).forEach((v) => addVenue(v, 'you'));
-  }
-  if (other) {
-    venues.filter((v) => normalizeDistrict(v.district) === other).forEach((v) => addVenue(v, 'them'));
-  }
-  venues.forEach((venue) => addVenue(venue, null));
-
   return picked;
 }
 
@@ -200,7 +172,6 @@ export default function MicroIntroScreen() {
         } = await supabase.auth.getSession();
         const user = session?.user;
 
-        let userDistrict: string | null = null;
         let myDays: string[] = [];
         if (user) {
           const { data: profile } = await supabase
@@ -209,22 +180,19 @@ export default function MicroIntroScreen() {
             .eq('id', user.id)
             .maybeSingle();
           if (!mounted) return;
-          userDistrict = profile?.district ?? null;
           setMyGender(profile?.gender ?? null);
           myDays = ((profile?.availability_days as string[] | null) ?? []).map((d) => d.toLowerCase());
         }
 
-        let otherDistrict: string | null = null;
         let otherDays: string[] = [];
         if (matchUserId) {
           const { data: other } = await supabase
-            .from('profiles')
-            .select('gender, district, availability_days')
+            .from('profile_cards')
+            .select('gender, availability_days')
             .eq('id', matchUserId)
             .maybeSingle();
           if (!mounted) return;
           setOtherGender(other?.gender ?? null);
-          otherDistrict = other?.district ?? null;
           otherDays = ((other?.availability_days as string[] | null) ?? []).map((d) => d.toLowerCase());
         }
 
@@ -236,16 +204,15 @@ export default function MicroIntroScreen() {
         const effectiveDays = intersected.length > 0 ? intersected : myDays.length > 0 ? myDays : otherDays;
         setDateOptions(upcomingDateOptions(effectiveDays, 4));
 
-        const { data: venues, error } = await supabase
-          .from('venues')
-          .select('name, district, emoji')
-          .eq('is_active', true);
+        const { data: venues, error } = matchUserId
+          ? await supabase.rpc('get_date_venue_suggestions', { p_other: matchUserId })
+          : await supabase.from('venues').select('name, district, emoji').eq('is_active', true);
 
         if (!mounted) return;
         if (error || !venues || venues.length === 0) {
           setVenueOptions([]);
         } else {
-          setVenueOptions(pickVenues(venues as VenueRow[], userDistrict, otherDistrict));
+          setVenueOptions(pickVenues(venues as (VenueRow & { reason: string | null })[]));
         }
       } catch {
         if (mounted) {

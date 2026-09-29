@@ -194,42 +194,13 @@ export default function MapScreen() {
 
       const initial = await getInitialLocation();
 
-      let query = supabase
-        .from('profiles')
-        .select('id, first_name, date_of_birth, photos, district')
-        .not('district', 'is', null)
-        .eq('is_hidden', false)
-        .eq('hide_location', false);
-
-      if (user?.id) {
-        query = query.neq('id', user.id);
-      }
-
-      const { data, error } = await query;
-
-      if (!mounted) return;
-
-      if (error) {
-        setError(true);
-        setLoading(false);
-        return;
-      }
-
-      if (data) {
-        const withDistrict = data
-          .map((row) => {
-            if (!getDistrictCenter(row.district)) return null;
-            return {
-              id: row.id,
-              first_name: row.first_name,
-              date_of_birth: row.date_of_birth,
-              photos: row.photos,
-              district: row.district,
-            };
-          })
-          .filter((row): row is MapUser => row !== null);
-        setUsers(withDistrict);
-      }
+      // P0 privacy: this screen used to place OTHER people on the map by
+      // their district. District is private now and there is no aggregate
+      // endpoint yet, so the people layer is disabled (the route has no
+      // navigation entry). Re-enable only through a server-side, k-anonymous
+      // per-district count — never by reading other users' rows.
+      void user;
+      setUsers([]);
 
       setRegion({
         latitude: initial.latitude,

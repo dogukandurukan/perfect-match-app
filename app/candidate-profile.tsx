@@ -17,7 +17,7 @@ import {
   buildLookingForChips,
   buildPromptCards,
   formatFavoriteSpots,
-  hingeSafeAge,
+  personAge,
   parseFavoriteSpots,
   type HingeProfilePerson,
   type ProfileChip,
@@ -34,9 +34,12 @@ function firstParam(val: string | string[] | undefined): string {
   return val ?? '';
 }
 
+// Other person's public card (profile_cards, P0): date_of_birth / district /
+// vibe are always null here — age comes from the server.
 type CandidateProfile = {
   first_name: string | null;
   date_of_birth: string | null;
+  age?: number | null;
   photos: string[] | null;
   city: string | null;
   district: string | null;
@@ -128,9 +131,9 @@ export default function CandidateProfileScreen() {
             .eq('id', matchId)
             .maybeSingle(),
           supabase
-            .from('profiles')
+            .from('profile_cards')
             .select(
-              'first_name, date_of_birth, photos, city, district, gender, zodiac_sign, education, morning_night, drinking, smoking, pets, availability_days, hobbies, favorite_activity, vibe, core_value, impressed_by, languages, favorite_music, favorite_movie, favorite_book, bio, first_date_expectation, favorite_spots, meeting_environment',
+              'first_name, age, photos, city, gender, zodiac_sign, education, morning_night, drinking, smoking, pets, availability_days, hobbies, favorite_activity, core_value, impressed_by, languages, favorite_music, favorite_movie, favorite_book, bio, first_date_expectation, favorite_spots, meeting_environment',
             )
             .eq('id', matchUserId)
             .maybeSingle(),
@@ -152,7 +155,12 @@ export default function CandidateProfileScreen() {
         }
 
         setMatch(matchRow as MatchRow);
-        setCandidate(candidateRow as CandidateProfile);
+        setCandidate({
+          ...(candidateRow as Omit<CandidateProfile, 'date_of_birth' | 'district' | 'vibe'>),
+          date_of_birth: null,
+          district: null,
+          vibe: null,
+        });
         setIntent(candidateIntentRow?.intent ?? null);
         setViewerCity(typeof meRow?.city === 'string' ? meRow.city : null);
 
@@ -171,7 +179,7 @@ export default function CandidateProfileScreen() {
           intent: candidateIntentRow?.intent ?? null,
           drinking: (candidateRow as CandidateProfile).drinking,
           smoking: (candidateRow as CandidateProfile).smoking,
-          district: (candidateRow as CandidateProfile).district,
+          district: null, // private (P0)
           zodiac_sign: (candidateRow as CandidateProfile).zodiac_sign,
           favorite_spots: parseFavoriteSpots((candidateRow as CandidateProfile).favorite_spots),
           meeting_environment: (candidateRow as CandidateProfile).meeting_environment,
@@ -217,7 +225,7 @@ export default function CandidateProfileScreen() {
   }
 
   const name = candidate.first_name?.trim() || 'Someone';
-  const age = hingeSafeAge(candidate.date_of_birth);
+  const age = personAge(candidate);
   const photos = (candidate.photos ?? []).filter((p) => p?.trim());
   const photoUrl = photos.length > 0 ? getProfilePhotoPublicUrl(photos[0]) : null;
   const matchPercentage = Math.round(match.match_score);

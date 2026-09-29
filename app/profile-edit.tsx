@@ -25,6 +25,7 @@ import type { ChipIcon } from '@/lib/hingeProfile';
 import { MEETING_VENUE_OPTIONS } from '@/lib/meetingVenues';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
+import { newProfilePhotoPath } from '@/lib/userPhotosStorage';
 
 const MAX_PHOTOS = 6;
 const PHOTOS_BUCKET = 'user-photos';
@@ -290,7 +291,7 @@ export default function ProfileEditScreen() {
       if (!user) throw new Error('No active session.');
 
       const uri = result.assets[0].uri;
-      const storagePath = `${user.id}/${Date.now()}.jpg`;
+      const storagePath = newProfilePhotoPath(user.id);
 
       const response = await fetch(uri);
       if (!response.ok) throw new Error('Could not read photo.');

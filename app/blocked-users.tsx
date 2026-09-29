@@ -67,7 +67,7 @@ export default function BlockedUsersScreen() {
         }
 
         const { data: profiles } = await supabase
-          .from('profiles')
+          .from('profile_cards')
           .select('id, first_name, photos')
           .in('id', blockedIds);
 
