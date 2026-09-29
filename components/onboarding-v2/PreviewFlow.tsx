@@ -75,6 +75,7 @@ import {
   emailLooksValid,
   firstMissingStep,
   normalizeEmail,
+  type PhotoUpdater,
   type ProfileDraft,
 } from '@/lib/onboardingV2/yourProfile';
 import {
@@ -340,6 +341,11 @@ export function PreviewFlow({ onExit }: Props) {
   const dProps = { draft: dates, update: updateDates };
   const inDates = pos.section === 'yourDates';
   const pProps = { draft: profile, update: updateProfile };
+  // Photo/prompt edits are functions of the CURRENT list (P07 R2): a late
+  // callback can never overwrite newer photos with a stale array.
+  const updatePhotos = (fn: PhotoUpdater) => setProfile((d) => ({ ...d, photos: fn(d.photos) }));
+  const updatePrompts = (fn: (list: ProfileDraft['prompts']) => ProfileDraft['prompts']) =>
+    setProfile((d) => ({ ...d, prompts: fn(d.prompts) }));
   // "Add later" advances like Continue: it keeps valid selections already
   // made; any uncommitted search text is dropped with the screen.
   const canSkip = inWorld && isWorldStepSkippable(step);
@@ -409,8 +415,10 @@ export function PreviewFlow({ onExit }: Props) {
       {inWorld && step === 6 && <MediaFields {...wProps} />}
       {inDates && step === 1 && <DateTypesFields {...dProps} />}
       {inDates && step === 2 && <DaysTimeFields {...dProps} />}
-      {inProfile && step === PROFILE_STEP.photos && <PhotosFields {...pProps} />}
-      {inProfile && step === PROFILE_STEP.prompts && <PromptsFields {...pProps} />}
+      {inProfile && step === PROFILE_STEP.photos && <PhotosFields photos={profile.photos} updatePhotos={updatePhotos} />}
+      {inProfile && step === PROFILE_STEP.prompts && (
+        <PromptsFields prompts={profile.prompts} updatePrompts={updatePrompts} />
+      )}
       {inProfile && step === PROFILE_STEP.preview && (
         <ProfilePreview blocks={buildProfilePreview(basics, compat, life, world, dates, profile)} />
       )}

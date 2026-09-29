@@ -27,17 +27,13 @@ const E=P.EMPTY_PROFILE_DRAFT;const L3=P.addPhotos([], [ph(1),ph(2),ph(3)]);
 ok(P.photosValid(L3)&&!P.photosValid(P.removePhoto(L3,'p1')),'3 valid, remove->2 invalid');
 ok(P.addPhotos(L3,[ph(4),ph(5),ph(6),ph(7)]).length===6,'max 6');
 ok(eq(P.makeMainPhoto(L3,'p3').map(x=>x.id),['p3','p1','p2'])&&eq(P.movePhoto(L3,'p1',1).map(x=>x.id),['p2','p1','p3']),'main/move');
-// prompts
-ok(eq(P.PROMPTS.map(x=>x.label),['My weird talent…',"Don't judge me, but…","I can't say no to…",'My most used phrase…','You pick the topic…','Together, we could…','Guess this about me…','My Sunday usually looks like…']),'new library');
-ok(eq(E.prompts,[{promptId:'dont_judge',answer:''},{promptId:'together_we_could',answer:''}]),'defaults, empty answers');
-ok(P.promptHint('dont_judge')==='I read the menu, then order the same thing.'&&P.promptHint('together_we_could')==='Find the best tiramisu in Istanbul.','hints');
-ok(!P.promptsValid(E.prompts),'hints never count as answers');
-ok(!JSON.stringify(E).includes('tiramisu'),'hint not stored in draft');
-let pr=P.setAnswer(P.setAnswer(E.prompts,0,'Pineapple pizza'),1,'Walk the Bosphorus');ok(P.promptsValid(pr),'2 answers valid');
-ok(eq(P.changePrompt(pr,1,'dont_judge'),pr),'dup refused');
-ok(P.changePrompt(pr,1,'weird_talent')[1].answer==='Walk the Bosphorus','change keeps answer');
-const p3=P.addThirdPrompt(pr,'guess_about_me');ok(p3.length===3&&P.promptsValid(p3)&&P.publicAnswers(p3).length===2,'optional blank third');
-ok(P.PROMPTS.every(x=>x.label.length<=32),'short labels (<=32 chars)');
+// prompts (R2 model: three empty "Choose a prompt" slots, catalog prompts)
+ok(eq(E.prompts,[{promptId:null,answer:''},{promptId:null,answer:''},{promptId:null,answer:''}]),'three empty slots, no preselected prompts');
+ok(!P.promptsValid(E.prompts),'empty slots never valid');
+let pr=P.saveSlot(P.saveSlot(E.prompts,0,'dont_judge_me','Pineapple pizza'),1,'together_we_could','Walk the Bosphorus');
+ok(P.promptsValid(pr),'2 answers valid');
+ok(eq(P.saveSlot(pr,1,'dont_judge_me','x'),pr),'dup prompt refused');
+const p3=pr;ok(P.promptsValid(p3)&&P.publicAnswers(p3).length===2,'optional third empty');
 // email / submit
 const full={...E,photos:L3,prompts:pr,selfie:{uri:'file:///selfie.jpg'},email:'deniz@example.com',emailCheck:{email:'deniz@example.com'}};
 ok(P.firstMissingStep(full)===null,'complete -> no missing');

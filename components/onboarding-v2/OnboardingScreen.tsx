@@ -18,7 +18,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingHeader } from '@/components/onboarding-v2/OnboardingHeader';
-import { OnboardingScrollContext } from '@/components/onboarding-v2/OnboardingScrollContext';
+import {
+  OnboardingScrollContext,
+  OnboardingScrollLockContext,
+} from '@/components/onboarding-v2/OnboardingScrollContext';
 import { obColors, obFonts, obSpacing, useOnboardingFonts } from '@/lib/onboardingV2/theme';
 
 type Props = {
@@ -78,6 +81,7 @@ export function OnboardingScreen({
   const keyboardVisible = useKeyboardVisible();
   const { height: windowHeight } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
+  const [scrollLocked, setScrollLocked] = useState(false);
   const scrollY = useRef(0);
 
   // Scroll a focused field (and the suggestions rendered under it) to just
@@ -117,6 +121,7 @@ export function OnboardingScreen({
       </View>
       <ScrollView
         key={contentKey}
+        scrollEnabled={!scrollLocked}
         ref={scrollRef}
         onScroll={(e) => {
           scrollY.current = e.nativeEvent.contentOffset.y;
@@ -155,7 +160,9 @@ export function OnboardingScreen({
             compactTitle && styles.bodyCompact,
             keyboardVisible && styles.bodyKeyboard,
           ]}>
-          <OnboardingScrollContext.Provider value={reveal}>{children}</OnboardingScrollContext.Provider>
+          <OnboardingScrollContext.Provider value={reveal}>
+            <OnboardingScrollLockContext.Provider value={setScrollLocked}>{children}</OnboardingScrollLockContext.Provider>
+          </OnboardingScrollContext.Provider>
         </View>
       </ScrollView>
       <View

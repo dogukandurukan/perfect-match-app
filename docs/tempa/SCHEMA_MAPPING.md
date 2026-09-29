@@ -80,7 +80,7 @@ Legend for Gap: **OK** usable as-is · **REVISE** exists but wrong values/place 
 | Logical | Live today | Proposed | Rule | Privacy | Gap |
 |---|---|---|---|---|---|
 | photos / primary | `profiles.photos text[]` | `profile_photos` (draft) | ≥3 at submit, one primary | public | OK in draft |
-| prompt_answers | — | `profile_prompts` (draft) | 2–3 | public | REVISE prompt-key list — preview keys now `weird_talent`, `dont_judge`, `cant_say_no`, `most_used_phrase`, `you_pick_topic`, `together_we_could`, `guess_about_me`, `sunday_usually` (D59, not an approved enum; Q6) |
+| prompt_answers | — | `profile_prompts` (draft) | 2 required + 1 optional, 200-char proposed cap | public | REVISE — local catalog keys now the 20 ids in `lib/onboardingV2/promptCatalog.ts` (D60; replaces the D59 preview keys); not an approved enum (Q6); prefer a `prompt_catalog` table |
 | private_selfie | `verification-selfies` bucket + `profiles.verification_selfie_path` | `profile_account_state_v2.verification_*` (draft) | required at submit | private | OK in draft |
 | application/membership state | — | `profile_account_state_v2` + review RPCs (draft) | server-only transitions | private | OK in draft |
 

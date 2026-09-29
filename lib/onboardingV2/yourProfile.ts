@@ -28,7 +28,7 @@ export const PROFILE_STEP = {
 
 export const PROFILE_SCREENS: { title: string; helper?: string }[] = [
   { title: 'Add your photos', helper: 'Add at least 3 photos.' },
-  { title: 'A little more you', helper: 'Answer 2 questions. Add a third if you like.' },
+  { title: 'A little more you', helper: 'Pick 2 prompts. Add a third if you like.' },
   { title: 'Your profile', helper: 'This is how others will see you.' },
   { title: 'A quick selfie', helper: "Help us check it's really you." },
   { title: 'Your email', helper: "We'll send you a code." },

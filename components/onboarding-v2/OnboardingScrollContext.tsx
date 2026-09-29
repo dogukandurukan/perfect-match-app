@@ -11,3 +11,11 @@ export const OnboardingScrollContext = createContext<RevealFn | null>(null);
 export function useRevealInScroll(): RevealFn {
   return useContext(OnboardingScrollContext) ?? (() => {});
 }
+
+/** Lets a child pause the screen's scrolling (P07 R2: while a photo is being
+ * dragged, so the drag and the scroll view never fight). */
+export const OnboardingScrollLockContext = createContext<(locked: boolean) => void>(() => {});
+
+export function useScrollLock(): (locked: boolean) => void {
+  return useContext(OnboardingScrollLockContext);
+}

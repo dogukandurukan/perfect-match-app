@@ -6,7 +6,7 @@ Owner: Doğukan unless noted. Close a question by moving the answer into
 | # | Question | Blocks | Options / notes |
 |---|---|---|---|
 | Q5 | Where does KVKK consent go in the new flow? (today: checkbox on email register screen) | S1 | Welcome/phone screen before OTP is the likely spot |
-| Q6 | Remaining prompt-library entries and storage-key mapping | S7, `profile_prompts` check | Partially resolved 2026-09-23 → D33: approved two defaults + swap, two required answers/third optional, first-date prompt as alternative. Do not assume the older 8-key library is approved; confirm remaining entries and map keys before implementation. **2026-09-28 (D59):** UI library replaced by eight shorter prompts with preview keys; storage keys and a backend enum are still not approved. |
+| Q6 | Remaining prompt-library entries and storage-key mapping | S7, `profile_prompts` check | Partially resolved 2026-09-23 → D33: approved two defaults + swap, two required answers/third optional, first-date prompt as alternative. Do not assume the older 8-key library is approved; confirm remaining entries and map keys before implementation. **2026-09-28 (D59):** UI library replaced by eight shorter prompts with preview keys; storage keys and a backend enum are still not approved. **2026-09-29 (D60):** UI now uses a 20-prompt local catalog in four categories with preselection removed; storage keys still not approved. |
 | Q7 | SMS provider and dev mock strategy | S1 auth | Mock provider in dev only; no prod bypass |
 | Q8 | Catalog provider for artists / books / movies-series | S5 taste lists | Start with free text + provenance; catalog later |
 | Q9 | Clear-face photo: auto-enforce or reviewer-only? | S7 photos | No AI checker assumed |
