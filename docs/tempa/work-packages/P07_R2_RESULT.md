@@ -1,6 +1,6 @@
 # P07 R2 — Result: photo management, prompt catalog, DEV build label
 
-**Status (2026-09-29): implemented. Checks passing. Web-runtime scenarios verified. iOS device review: PENDING.**
+**Status (2026-09-29): implemented. Checks passing. Web-runtime scenarios verified. ✅ Owner phone acceptance recorded (see §7).**
 Not merged, not deployed, no backend change.
 
 | | |
@@ -144,3 +144,13 @@ Metro on :8081 currently serves `~/tempa-p07-r1` (R1 + the approved `7d64403`). 
 
 ## 6. Security package status
 **Unchanged, not applied.** P0-A / P0-B and the rollbacks are in `supabase/proposed/`, the drafts are archived on `tempa/v2-drafts-archive`, and the exposures described in `P0_PRIVACY_REMEDIATION.md` are still live. The additional review requested earlier (profile_cards definer analysis, access table, real-body wrapper tests, PostgREST/Storage HTTP checks, signed-URL analysis, district removal, fix-forward rollback) is **still to do** and was not part of this R2 completion scope.
+
+## 7. Owner phone acceptance — 2026-09-29
+
+The owner tested R2 on the phone and reported that **photos, reordering, prompts and preview work correctly**. This is recorded as owner visual/functional acceptance of:
+
+- **Branch `tempa/p07-r2-photos-prompts`, commit `be78b0b`** (implementation `6a5c267` + this report). This is the version handed over for the test, with the expected DEV label `dating-app · be78b0b · tempa-p07-r2`.
+
+Note: when this was recorded, the only Metro on :8081 was serving `~/tempa-p07-r1` (started 11:51), and no R2 server was running. So I could not independently confirm which server the phone used. The DEV build label on the landing screen is the check for that.
+
+This acceptance covers what the owner exercised. It is not a full accessibility or device-matrix verification.
