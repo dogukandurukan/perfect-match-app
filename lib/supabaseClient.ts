@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 
-import { resolveBackend, type BackendExtra } from './backendConfig';
+import { allowedDevTestEmail, resolveBackend, type BackendExtra } from './backendConfig';
 
 // Explicitly selected backend — see lib/backendConfig.ts. No fallback to live.
 const extra = Constants.expoConfig?.extra as { backend?: BackendExtra } | undefined;
@@ -18,6 +18,12 @@ export const backend = { env: resolved.env, projectRef: resolved.projectRef } as
  * development backends (dev = perfect-match-dev per the 2026-09-30 decision,
  * or a separate test project) — never with TEMPA_BACKEND=live. */
 export const v2Enabled = resolved.env === 'dev' || resolved.env === 'test';
+
+/** DEV-only test sign-in target (set by scripts/dev-backend/start-app.sh):
+ * only in development builds, only on a dev/test backend, only a
+ * @tempa-test.example.com address. Sign-in still needs a real one-time code. */
+export const devTestEmail: string | null =
+  __DEV__ && v2Enabled ? allowedDevTestEmail(extra?.backend) : null;
 
 export const supabase = createClient(resolved.url, resolved.anonKey, {
   auth: {

@@ -31,6 +31,9 @@ module.exports = ({ config }) => {
         testUrl: process.env.TEMPA_TEST_SUPABASE_URL ?? null,
         // anon / publishable key only (public by design); never a secret key
         testAnonKey: process.env.TEMPA_TEST_SUPABASE_ANON_KEY ?? null,
+        // DEV test sign-in: the one synthetic account the start script
+        // allows (an address only — no password, key or code).
+        devTestEmail: process.env.TEMPA_DEV_TEST_EMAIL ?? null,
       },
       devBuildInfo: {
         packageName: require('./package.json').name ?? 'unavailable',

@@ -2,7 +2,7 @@
 // (owner decision 2026-09-30: email code for the closed beta; phone OTP later
 // once an SMS provider is chosen). Supabase Auth creates the user on first
 // verification; the address is then confirmed, which the application requires.
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 
@@ -12,15 +12,19 @@ import { OnboardingTextField } from '@/components/onboarding-v2/OnboardingTextFi
 import { loadMyOnboarding } from '@/lib/onboardingV2/remote';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { emailLooksValid, normalizeEmail, RESEND_COOLDOWN_SECONDS, sanitizeCode } from '@/lib/onboardingV2/yourProfile';
-import { supabase } from '@/lib/supabaseClient';
+import { devTestEmail, supabase } from '@/lib/supabaseClient';
 import { friendlyNetworkError, withTimeout } from '@/lib/withTimeout';
 
 type Phase = 'email' | 'code';
 
 export default function V2Welcome() {
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>('email');
-  const [email, setEmail] = useState('');
+  // DEV test sign-in: fixed synthetic address, no email is sent — the real
+  // one-time code comes from the Mac terminal (scripts/dev-backend).
+  const params = useLocalSearchParams<{ test?: string }>();
+  const testMode = params.test === '1' && !!devTestEmail;
+  const [phase, setPhase] = useState<Phase>(testMode ? 'code' : 'email');
+  const [email, setEmail] = useState(testMode ? (devTestEmail ?? '') : '');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +69,7 @@ export default function V2Welcome() {
   };
 
   const verify = async () => {
-    if (code.length < 6 || busy) return;
+    if (code.length < 6 || busy || (testMode && !consent)) return;
     setBusy(true);
     setError(null);
     try {
@@ -116,8 +120,16 @@ export default function V2Welcome() {
       step={isEmail ? 1 : 2}
       totalSteps={2}
       title={isEmail ? "What's your email?" : 'Enter your code'}
-      helper={isEmail ? "We'll send you a code to sign in." : `We sent a 6-digit code to ${normalizeEmail(email)}.`}
-      onBack={isEmail ? (router.canGoBack() ? () => router.back() : undefined) : () => setPhase('email')}
+      helper={
+        isEmail
+          ? "We'll send you a code to sign in."
+          : testMode
+            ? `DEV test account ${normalizeEmail(email)} — enter the code shown in your Mac terminal.`
+            : `We sent a 6-digit code to ${normalizeEmail(email)}.`
+      }
+      onBack={
+        isEmail || testMode ? (router.canGoBack() ? () => router.back() : undefined) : () => setPhase('email')
+      }
       contentKey={phase}
       footer={
         <>
@@ -129,7 +141,7 @@ export default function V2Welcome() {
           <OnboardingPrimaryButton
             label={busy ? 'Please wait…' : isEmail ? 'Send code' : 'Continue'}
             onPress={() => void (isEmail ? sendCode() : verify())}
-            disabled={busy || (isEmail ? !emailLooksValid(email) || !consent : code.length < 6)}
+            disabled={busy || (isEmail ? !emailLooksValid(email) || !consent : code.length < 6 || (testMode && !consent))}
           />
         </>
       }>
@@ -182,6 +194,30 @@ export default function V2Welcome() {
             maxLength={6}
             onSubmitEditing={() => void verify()}
           />
+          {testMode ? (
+            <Text style={styles.consentText} maxFontSizeMultiplier={1.6}>
+              Need a new code? On your Mac run: node scripts/dev-backend/test-login-code.mjs
+            </Text>
+          ) : null}
+          {testMode ? (
+            <TouchableOpacity
+              onPress={() => setConsent((c) => !c)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: consent }}
+              accessibilityLabel="I have read the Privacy Notice and agree to the processing of my personal data"
+              hitSlop={6}
+              style={styles.consentRow}>
+              <Text style={styles.box}>{consent ? '☑' : '☐'}</Text>
+              <Text style={styles.consentText} maxFontSizeMultiplier={1.6}>
+                {'I have read the '}
+                <Text style={styles.consentLink} onPress={() => router.push('/privacy-notice')}>
+                  Privacy Notice
+                </Text>
+                {' and agree to the processing of my personal data.'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+          {testMode ? null : (
           <TouchableOpacity
             onPress={() => void sendCode()}
             disabled={cooldown > 0 || busy}
@@ -193,6 +229,7 @@ export default function V2Welcome() {
               {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
             </Text>
           </TouchableOpacity>
+          )}
         </>
       )}
     </OnboardingScreen>

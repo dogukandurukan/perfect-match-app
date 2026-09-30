@@ -1,6 +1,6 @@
 // Explicit backend selection — never falls back to live.
 // Run: node scripts/p0-checks/backend_config.check.mjs
-import { LIVE_PROJECT_REF, LIVE_SUPABASE_ANON_KEY, resolveBackend } from '../../lib/backendConfig.ts';
+import { LIVE_PROJECT_REF, LIVE_SUPABASE_ANON_KEY, allowedDevTestEmail, resolveBackend } from '../../lib/backendConfig.ts';
 
 let passed = 0;
 let failed = 0;
@@ -33,5 +33,8 @@ check(ok.ok && ok.env === 'test' && ok.projectRef === TEST_REF && ok.url === tes
 const pub = resolveBackend({ env: 'test', testUrl, testAnonKey: 'sb_publishable_xyz' });
 check(pub.ok && pub.projectRef === TEST_REF, 'publishable key accepted');
 
+check(allowedDevTestEmail({ devTestEmail: 'tempa-dev-tester@tempa-test.example.com' }) === 'tempa-dev-tester@tempa-test.example.com', 'DEV test email accepted');
+check(allowedDevTestEmail({ devTestEmail: 'someone@gmail.com' }) === null, 'a real address is never a DEV test target');
+check(allowedDevTestEmail({}) === null, 'no DEV test target unless the start script sets one');
 console.log(`backend config: ${passed}/${passed + failed} passed`);
 process.exit(failed ? 1 : 0);

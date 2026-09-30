@@ -26,7 +26,14 @@ export type BackendExtra = {
   env?: string | null;
   testUrl?: string | null;
   testAnonKey?: string | null;
+  devTestEmail?: string | null;
 };
+
+/** The DEV test account address, only if it is a synthetic test address. */
+export function allowedDevTestEmail(extra: BackendExtra | null | undefined): string | null {
+  const e = extra?.devTestEmail?.trim().toLowerCase() ?? '';
+  return /^[a-z0-9._+-]+@tempa-test\.example\.com$/.test(e) ? e : null;
+}
 
 export type BackendConfig =
   | { ok: true; env: 'live' | 'dev' | 'test'; url: string; anonKey: string; projectRef: string }

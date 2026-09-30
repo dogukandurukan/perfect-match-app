@@ -20,7 +20,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { logEvent } from '@/lib/analytics';
 import { colors } from '@/lib/designTokens';
 import { homeColors, homeSpacing } from '@/lib/homeTheme';
-import { backend, supabase, v2Enabled } from '@/lib/supabaseClient';
+import { backend, devTestEmail, supabase, v2Enabled } from '@/lib/supabaseClient';
 import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompletion';
 import {
   DAILY_VIEW_LIMIT,
@@ -883,6 +883,18 @@ export default function HomeScreen() {
                 accessibilityLabel={`Join with the new onboarding (${backend.env} backend)`}
                 onPress={() => router.push('/v2/welcome' as Parameters<typeof router.push>[0])}>
                 <ThemedText style={styles.devPreviewBtnText}>{`${backend.env.toUpperCase()} · Join with new onboarding`}</ThemedText>
+              </TouchableOpacity>
+            ) : null}
+            {/* DEV test sign-in: synthetic account + a real one-time code shown
+                in the Mac terminal by the start script. DEV builds only. */}
+            {devTestEmail ? (
+              <TouchableOpacity
+                style={styles.devPreviewBtn}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Test account sign-in (development only)"
+                onPress={() => router.push('/v2/welcome?test=1' as Parameters<typeof router.push>[0])}>
+                <ThemedText style={styles.devPreviewBtnText}>DEV · Test account sign-in</ThemedText>
               </TouchableOpacity>
             ) : null}
             {/* DEV-ONLY, temporary (P05 R2): iOS input comparison screen. */}
