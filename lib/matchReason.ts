@@ -149,9 +149,8 @@ export function computeFallbackReasons(me: ReasonCompareProfile, them: ReasonCom
   }
 
   // 4. Other real compatibility signals, in the RPC's own sub-order.
-  if (me.district && them.district && me.district.trim().toLowerCase() === them.district.trim().toLowerCase()) {
-    out.push('Nearby');
-  }
+  // ("Nearby" is intentionally never produced: it would reveal that the
+  // other person lives in your district — P0 decision, 2026-09-30.)
   const mySpots = Object.values(me.favorite_spots ?? {})
     .filter((v) => typeof v === 'string' && v.trim())
     .map(foldTr);

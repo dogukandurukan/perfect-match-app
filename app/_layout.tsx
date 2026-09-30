@@ -7,6 +7,7 @@ import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { DevBackendBadge } from '@/components/dev/DevBackendBadge';
 import { applySessionFromUrl, subscribeAuthDeepLinks } from '@/lib/authDeepLinks';
 import { updateLastActive } from '@/lib/lastActive';
 import { requestAndSaveLocation } from '@/lib/location';
@@ -189,6 +190,7 @@ export default function RootLayout() {
           <Stack.Screen name="vibe-detail" options={{ headerShown: true }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         </Stack>
+        <DevBackendBadge />
         <StatusBar style="auto" />
       </ThemeProvider>
     </GestureHandlerRootView>

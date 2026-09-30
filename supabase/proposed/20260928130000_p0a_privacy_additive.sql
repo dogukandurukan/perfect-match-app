@@ -4,6 +4,11 @@
 -- (`supabase db query --linked -f <file>`, never `db push`), then
 -- `NOTIFY pgrst, 'reload schema';`.
 --
+-- Revision 3 (2026-09-30): owner product decisions — hidden profiles only
+-- stay visible to accepted (mutual) matches; blocking hides everything (the
+-- unblock list gets first name only); chat needs mutual consent for everyone;
+-- "Looking for" (intent) on the card; no district signal ("Nearby",
+-- "near both of you", same-district filter).
 -- Revision 2 (2026-09-29): verified against a replica built from the live
 -- catalog (real function bodies, policies, grants) over real PostgREST HTTP
 -- (supabase/proposed/tests/http_p0.test.mjs).
@@ -100,6 +105,12 @@ begin
     end if;
   end if;
 
+  -- "Same district / neighbourhood" discovery would tell you where every
+  -- card lives; it is no longer offered (owner decision 2026-09-30).
+  if new.discovery_max_distance in ('same_district', 'same_neighborhood') then
+    new.discovery_max_distance := 'whole_city';
+  end if;
+
   if new.verification_selfie_path is not null
      and (tg_op = 'INSERT' or new.verification_selfie_path is distinct from old.verification_selfie_path)
      and split_part(new.verification_selfie_path, '/', 1) <> coalesce(auth.uid()::text, '') then
@@ -120,14 +131,13 @@ create trigger profiles_guard_client_writes
 -- ---------------------------------------------------------------------------
 -- p_viewer may see p_target's PUBLIC card when:
 --   - it is their own profile; or
---   - the viewer blocked the target (the blocked-users list shows name +
---     photo so they can unblock); or
---   - neither blocked the other, the target is not deleted, and either
+--   - nobody blocked anybody in the pair (blocking wins over everything,
+--     in both directions), the target is not deleted, and either
 --       * the target is discoverable (setup completed, not hidden), or
---       * there is an established connection: accepted / open chat / an
---         actual invite between them, or the target has a live like on the
---         viewer (so "Liked you" keeps working if the liker later hides).
--- A bare pending candidate row does NOT count (clients can create those).
+--       * the pair has an ACCEPTED (mutual) match — invite accepted or
+--         mutual like. A pending invite or a one-sided like grants nothing.
+-- Blocked people are not visible even to the blocker; the unblock list uses
+-- get_my_blocked_users() (first name only).
 create or replace function public.can_view_profile(p_viewer uuid, p_target uuid)
 returns boolean
 language sql
@@ -137,7 +147,6 @@ set search_path = public, pg_temp
 as $$
   select p_viewer is not null and p_target is not null and (
     p_viewer = p_target
-    or exists (select 1 from blocks b where b.blocker_id = p_viewer and b.blocked_id = p_target)
     or (
       not exists (
         select 1 from blocks b
@@ -153,11 +162,7 @@ as $$
               select 1 from matches m
               where least(m.user_a_id::text, m.user_b_id::text) = least(p_viewer::text, p_target::text)
                 and greatest(m.user_a_id::text, m.user_b_id::text) = greatest(p_viewer::text, p_target::text)
-                and (m.status = 'accepted' or m.chat_opened is true
-                     or (m.status = 'pending' and m.invited_by is not null)))
-            or exists (
-              select 1 from likes l
-              where l.liker_id = p_target and l.likee_id = p_viewer and l.status = 'sent')
+                and m.status = 'accepted')
           )))
   );
 $$;
@@ -191,24 +196,8 @@ as $$
      and public.can_view_profile(auth.uid(), p_target)
 $$;
 
-create or replace function public.match_gender_internal(p_other uuid)
-returns text
-language sql
-stable
-security definer
-set search_path = public, pg_temp
-as $$
-  select p.gender from profiles p
-  where p.id = p_other
-    and exists (
-      select 1 from matches m
-      where (m.user_a_id = auth.uid() and m.user_b_id = p_other)
-         or (m.user_b_id = auth.uid() and m.user_a_id = p_other))
-$$;
 revoke all on function public.can_like_internal(uuid) from public, anon, authenticated;
-revoke all on function public.match_gender_internal(uuid) from public, anon, authenticated;
 grant execute on function public.can_like_internal(uuid) to authenticated;
-grant execute on function public.match_gender_internal(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 3. Write guards: matches / likes / messages / notifications / reports
@@ -225,8 +214,6 @@ as $$
 declare
   v_me uuid := auth.uid();
   v_other uuid;
-  v_my_gender text;
-  v_other_gender text;
 begin
   if current_user not in ('authenticated', 'anon') then
     return new;
@@ -301,6 +288,18 @@ begin
     end if;
   end if;
 
+  -- Mutual consent (owner decision 2026-09-30): accepting an invite IS the
+  -- second consent, so it opens the chat; nothing else does. An invite write
+  -- that also asks to open the chat (the old "woman opens at once" client
+  -- rule) is not an error for old builds — the chat simply stays closed.
+  if new.status = 'accepted' and old.status is distinct from 'accepted' then
+    new.chat_opened := true;
+  end if;
+  if new.invited_by is distinct from old.invited_by and new.chat_opened is true
+     and old.chat_opened is not true and new.status is distinct from 'accepted' then
+    new.chat_opened := false;
+  end if;
+
   if new.status is distinct from old.status then
     if new.status = 'accepted' then
       if old.invited_by is null or old.invited_by = v_me or old.status <> 'pending' then
@@ -313,26 +312,15 @@ begin
     end if;
   end if;
 
-  -- chat_opened: false -> true only (a) by the invitee accepting, or (b) in
-  -- the same write that creates the caller's invite when a woman invites a
-  -- man (lib/matchInvite.ts shouldOpenChatOnInvite).
+  -- chat_opened changes only together with an accepted match (set above);
+  -- never closed again by a client.
   if new.chat_opened is distinct from old.chat_opened then
     if new.chat_opened is not true then
-      if new.chat_opened is false and old.chat_opened is null then
-        null; -- null -> false is not a state change
-      else
+      if not (new.chat_opened is false and old.chat_opened is null) then
         raise exception 'cannot_close_chat' using errcode = '42501';
       end if;
-    elsif old.invited_by is not null and old.invited_by <> v_me and old.status = 'pending' then
-      null; -- invitee accepting
-    elsif old.invited_by is null and new.invited_by = v_me then
-      select gender into v_my_gender from profiles where id = v_me;
-      v_other_gender := public.match_gender_internal(v_other);
-      if not (v_my_gender = 'Woman' and v_other_gender = 'Man') then
-        raise exception 'chat_open_not_allowed' using errcode = '42501';
-      end if;
-    else
-      raise exception 'chat_open_not_allowed' using errcode = '42501';
+    elsif new.status is distinct from 'accepted' then
+      raise exception 'chat_needs_mutual_consent' using errcode = '42501';
     end if;
   end if;
 
@@ -516,6 +504,8 @@ select
   p.dealbreaker,
   p.photos,
   p.photo_verified,
+  -- "Looking for" (owner decision): visible only on a card you may see.
+  (select oa.intent from public.onboarding_answers oa where oa.user_id = p.id) as intent,
   exists (
     select 1 from public.profiles me
     where me.id = auth.uid()
@@ -540,7 +530,8 @@ comment on view public.profile_cards is
 -- ---------------------------------------------------------------------------
 -- Discovery: same ranking/scoring as get_top_matches (body unchanged; it is
 -- SECURITY DEFINER and already filters hidden/deleted/blocked/incomplete
--- and requires auth.uid() = p_user_id). Age instead of DOB, no district.
+-- and requires auth.uid() = p_user_id). Age instead of DOB, no district,
+-- and no "Nearby" reason (it reveals a shared district).
 create or replace function public.get_discovery_cards(p_limit integer default 10)
 returns table(
   user_id uuid, first_name text, age integer, city text,
@@ -558,7 +549,7 @@ as $$
          case when t.date_of_birth is null then null
               else date_part('year', age(t.date_of_birth))::int end,
          t.city, t.zodiac_sign, t.photos, t.match_percentage,
-         t.match_category, t.reasons, t.favorite_music, t.favorite_movie,
+         t.match_category, array_remove(t.reasons, 'Nearby'), t.favorite_music, t.favorite_movie,
          t.favorite_book, t.hobbies, t.availability_days, t.drinking, t.smoking,
          t.education, t.education_detail, t.morning_night
   from public.get_top_matches(auth.uid(), p_limit) with ordinality as t(
@@ -620,9 +611,9 @@ begin
 end;
 $$;
 
--- Venues for an invite: "both" (same district — the same fact the existing
--- "Nearby" match reason already reveals), then "you", then the rest. The
--- other person's district is never returned or used to label a venue.
+-- Venues for an invite: near YOU first, then the rest. The other person's
+-- district is never read, returned or used as a label ("near both of you"
+-- would reveal it). p_other only has to be someone you may see.
 create or replace function public.get_date_venue_suggestions(p_other uuid)
 returns table(name text, district text, emoji text, reason text)
 language sql
@@ -631,34 +622,49 @@ security definer
 set search_path = public, pg_temp
 as $$
   with keys as (
-    select
-      lower(translate(coalesce((select district from profiles where id = auth.uid()), ''),
-        'çğıöşüÇĞİÖŞÜ', 'cgiosuCGIOSU')) as md,
-      lower(translate(coalesce((select t.district from profiles t
-        where t.id = p_other and public.can_view_profile(auth.uid(), p_other)), ''),
-        'çğıöşüÇĞİÖŞÜ', 'cgiosuCGIOSU')) as td
-  ), norm as (
-    select v.name, v.district, v.emoji, v.created_at,
-      lower(translate(coalesce(v.district, ''), 'çğıöşüÇĞİÖŞÜ', 'cgiosuCGIOSU')) as vd
-    from venues v where v.is_active = true
+    select lower(translate(coalesce((select district from profiles where id = auth.uid()), ''),
+      'çğıöşüÇĞİÖŞÜ', 'cgiosuCGIOSU')) as md
   ), ranked as (
-    select n.name, n.district, n.emoji, n.created_at,
-      case when k.md <> '' and n.vd = k.md and k.md = k.td then 'both'
-           when k.md <> '' and n.vd = k.md then 'you' end as reason
-    from norm n cross join keys k
-    where auth.uid() is not null
+    select v.name, v.district, v.emoji, v.created_at,
+      case when k.md <> '' and lower(translate(coalesce(v.district, ''), 'çğıöşüÇĞİÖŞÜ', 'cgiosuCGIOSU')) = k.md
+           then 'you' end as reason
+    from venues v cross join keys k
+    where v.is_active = true
+      and auth.uid() is not null
+      and public.can_view_profile(auth.uid(), p_other)
   )
   select r.name, r.district, r.emoji, r.reason
   from ranked r
-  order by case r.reason when 'both' then 0 when 'you' then 1 else 2 end, r.created_at, r.name;
+  order by case r.reason when 'you' then 0 else 1 end, r.created_at, r.name;
 $$;
+
+-- Unblock list: only what that list needs. No photo, no card.
+create or replace function public.get_my_blocked_users()
+returns table(block_id uuid, blocked_id uuid, first_name text, blocked_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select b.id, b.blocked_id, p.first_name, b.created_at
+  from blocks b
+  left join profiles p on p.id = b.blocked_id and p.deleted_at is null
+  where b.blocker_id = auth.uid()
+  order by b.created_at desc;
+$$;
+
+-- One-time normalisation of the removed district-level filter.
+update public.profiles set discovery_max_distance = 'whole_city'
+where discovery_max_distance in ('same_district', 'same_neighborhood');
 
 revoke all on function public.get_discovery_cards(integer) from public, anon;
 revoke all on function public.get_my_liker_cards(integer) from public, anon;
 revoke all on function public.get_date_venue_suggestions(uuid) from public, anon;
+revoke all on function public.get_my_blocked_users() from public, anon;
 grant execute on function public.get_discovery_cards(integer) to authenticated;
 grant execute on function public.get_my_liker_cards(integer) to authenticated;
 grant execute on function public.get_date_venue_suggestions(uuid) to authenticated;
+grant execute on function public.get_my_blocked_users() to authenticated;
 revoke all on function public.guard_profile_client_writes() from public, anon, authenticated;
 revoke all on function public.guard_match_client_writes() from public, anon, authenticated;
 revoke all on function public.guard_like_client_writes() from public, anon, authenticated;

@@ -23,7 +23,7 @@ import {
   type ProfileChip,
 } from '@/lib/hingeProfile';
 import { computeFallbackReasons, type ReasonCompareProfile } from '@/lib/matchReason';
-import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
+import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -137,7 +137,7 @@ export default function CandidateProfileScreen() {
             )
             .eq('id', matchUserId)
             .maybeSingle(),
-          supabase.from('onboarding_answers').select('intent').eq('user_id', matchUserId).maybeSingle(),
+          supabase.from('profile_cards').select('intent').eq('id', matchUserId).maybeSingle(),
           supabase
             .from('profiles')
             .select('city, district, hobbies, drinking, smoking, zodiac_sign, favorite_spots, meeting_environment')
@@ -155,6 +155,8 @@ export default function CandidateProfileScreen() {
         }
 
         setMatch(matchRow as MatchRow);
+        await preloadProfilePhotoUrls(((candidateRow as { photos?: string[] | null }).photos ?? []).slice(0, 6));
+        if (!mounted) return;
         setCandidate({
           ...(candidateRow as Omit<CandidateProfile, 'date_of_birth' | 'district' | 'vibe'>),
           date_of_birth: null,
@@ -227,7 +229,7 @@ export default function CandidateProfileScreen() {
   const name = candidate.first_name?.trim() || 'Someone';
   const age = personAge(candidate);
   const photos = (candidate.photos ?? []).filter((p) => p?.trim());
-  const photoUrl = photos.length > 0 ? getProfilePhotoPublicUrl(photos[0]) : null;
+  const photoUrl = photos.length > 0 ? cachedProfilePhotoUrl(photos[0]) : null;
   const matchPercentage = Math.round(match.match_score);
 
   const isExpired = !!match.expires_at && new Date(match.expires_at).getTime() < Date.now();

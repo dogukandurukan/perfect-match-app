@@ -135,26 +135,25 @@ export function isHeteroCouple(genderA: GenderValue, genderB: GenderValue): bool
   return (a === 'Man' && b === 'Woman') || (a === 'Woman' && b === 'Man');
 }
 
-/** On invite: hetero + woman inviting → open immediately; otherwise stay closed. */
+/**
+ * Chat consent (P0 decision, 2026-09-30): a chat opens only on MUTUAL
+ * consent — the invitee accepting an invite (or a mutual like, server-side)
+ * — regardless of gender. The old "a woman's invite opens the chat at once"
+ * and "on a hetero accept only the woman opens it" rules are removed; the
+ * database guard enforces the same thing.
+ */
 export function shouldOpenChatOnInvite(
-  inviterGender: GenderValue,
-  inviteeGender: GenderValue,
+  _inviterGender: GenderValue,
+  _inviteeGender: GenderValue,
 ): boolean {
-  if (!isHeteroCouple(inviterGender, inviteeGender)) return false;
-  return inviterGender === 'Woman';
+  return false;
 }
 
-/**
- * On accept by invitee: hetero → only woman opens; all other pairs → open.
- * Unexpected genders fall through to the "other" rule (open on accept).
- */
+/** The invitee accepting IS the second consent → the chat opens. */
 export function shouldOpenChatOnAccept(
-  accepterGender: GenderValue,
-  otherGender: GenderValue,
+  _accepterGender: GenderValue,
+  _otherGender: GenderValue,
 ): boolean {
-  if (isHeteroCouple(accepterGender, otherGender)) {
-    return accepterGender === 'Woman';
-  }
   return true;
 }
 

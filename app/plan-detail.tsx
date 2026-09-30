@@ -11,7 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { formatMeetingTime } from '@/lib/matchInvite';
 import { homeColors, homeRadius, homeShadow, homeSpacing } from '@/lib/homeTheme';
-import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
+import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 
 function firstParam(val: string | string[] | undefined): string {
@@ -85,7 +85,7 @@ export default function PlanDetailScreen() {
 
         const { venue, district } = splitVenueText(match.confirmed_place ?? null);
         const photos = (profile?.photos as string[] | null) ?? null;
-        const photoUrl = photos?.[0]?.trim() ? getProfilePhotoPublicUrl(photos[0]) : null;
+        const photoUrl = await resolveProfilePhotoUrl(photos?.[0]);
 
         setPlan({
           otherName: profile?.first_name ?? 'Someone',

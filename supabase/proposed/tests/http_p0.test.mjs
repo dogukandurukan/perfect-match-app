@@ -23,7 +23,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { buildReplicaSql } from './replica.mjs';
+import { buildReplicaSql, supabasePlatformStandIn } from './replica.mjs';
 import { clientShapes } from './client_shapes.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -61,6 +61,7 @@ export const U = {
   Q: id('18'), // visible Woman, never interacted
   HX: id('19'), // hidden, old expired invite with A
   HI: id('1a'), // hidden, invited A (pending invite)
+  LV: id('1b'), // visible, likes A (used for the mutual-like flow)
 };
 const SECRET_MARK = 'SYNTH-PRIVATE';
 const PRIVATE_COLS = [
@@ -97,7 +98,7 @@ insert into public.profiles (id, ${cols.join(', ')}) values ('${U[k]}', ${vals.j
   };
   return [
     prof('A', { gender: 'Man', meeting_preferences: '{Women}', district: 'Kadıköy', date_of_birth: '1994-01-01' }),
-    prof('B'),
+    prof('B', { discovery_max_distance: 'same_district' }),
     prof('C', { is_hidden: true }),
     prof('D', { is_hidden: true }),
     prof('D2', { is_hidden: true }),
@@ -113,6 +114,7 @@ insert into public.profiles (id, ${cols.join(', ')}) values ('${U[k]}', ${vals.j
     prof('Q', { district: 'Kadıköy' }),
     prof('HX', { is_hidden: true }),
     prof('HI', { is_hidden: true }),
+    prof('LV'),
     `insert into auth.users(id) values ('${U.N}');`,
     `insert into public.onboarding_answers(user_id, intent) select id, 'open_to_relationship' from public.profiles;`,
     match('A', 'C', { status: 'accepted', chat_opened: true, invited_by: U.A }),
@@ -125,7 +127,8 @@ insert into public.profiles (id, ${cols.join(', ')}) values ('${U[k]}', ${vals.j
     `insert into public.blocks(blocker_id, blocked_id) values ('${U.A}', '${U.F}'), ('${U.G}', '${U.A}');`,
     `insert into public.likes(liker_id, likee_id, target_type, note) values
        ('${U.K}', '${U.A}', 'profile', 'note from K'), ('${U.G}', '${U.A}', 'profile', 'note from G'),
-       ('${U.E}', '${U.A}', 'profile', 'note from E'), ('${U.Q}', '${U.A}', 'photo', 'note from Q');`,
+       ('${U.E}', '${U.A}', 'profile', 'note from E'), ('${U.Q}', '${U.A}', 'photo', 'note from Q'),
+       ('${U.LV}', '${U.A}', 'profile', null);`,
     `insert into public.messages(sender_id, receiver_id, content) values ('${U.C}', '${U.A}', 'hi A');`,
     `insert into public.venues(name, district, emoji, created_at) values
        ('Moda Cafe', 'Kadıköy', '☕', '2026-01-01'), ('Bebek Cafe', 'Beşiktaş', '☕', '2026-01-02'),
@@ -181,6 +184,26 @@ const rows = (r) => (Array.isArray(r.json) ? r.json : []);
 const hasPrivate = (r) => rows(r).some((row) => PRIVATE_COLS.some((c) => c in row) || JSON.stringify(row).includes(SECRET_MARK));
 
 const db = new PGlite();
+// PGlite is ONE backend shared by PostgREST (via the socket) and this script.
+// PostgREST may still be closing its transaction (e.g. READ ONLY) when the
+// HTTP response arrives, so direct statements retry briefly on
+// "read-only transaction" / "transaction in progress".
+for (const m of ['exec', 'query']) {
+  const raw = db[m].bind(db);
+  db[m] = async (...args) => {
+    for (let i = 0; ; i += 1) {
+      try {
+        return await raw(...args);
+      } catch (e) {
+        if (i < 40 && (e?.code === '25006' || e?.code === '25001')) {
+          await new Promise((r) => setTimeout(r, 25));
+          continue;
+        }
+        throw e;
+      }
+    }
+  };
+}
 async function asRole(role, uid, sql) {
   await db.exec('reset role');
   await db.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify(uid ? { sub: uid, role } : { role })]);
@@ -348,19 +371,21 @@ async function p0aChecks() {
   check(!del.ok || rows(del).length === 0, 'cannot delete match history');
 
   // legitimate invite → accept → meetup → message → check-in
-  const manOpens = await api('A', 'PATCH', mB, { invited_by: U.A, chat_opened: true, status: 'pending' });
-  check(!manOpens.ok, 'man inviting a woman cannot open the chat immediately');
-  const invite = await api('A', 'PATCH', mB, { invited_by: U.A, chat_opened: false, status: 'pending',
+  const invite = await api('A', 'PATCH', mB, { invited_by: U.A, chat_opened: true, status: 'pending',
     [a === U.A ? 'user_a_intro_answers' : 'user_b_intro_answers']: { place: 'Moda Cafe' } });
   check(invite.ok && rows(invite).length === 1, 'invite (sendMatchInvite patch) works');
+  check(rows(invite)[0]?.chat_opened === false, 'an invite never opens the chat by itself (old client asking to open is ignored)');
   const otherIntro = await api('A', 'PATCH', mB, { [a === U.A ? 'user_b_intro_answers' : 'user_a_intro_answers']: { x: 1 } });
   check(!otherIntro.ok, 'cannot write the other side\'s intro answers');
   const selfAccept = await api('A', 'PATCH', mB, { status: 'accepted', chat_opened: true });
   check(!selfAccept.ok, 'inviter cannot accept own invite');
   const msgEarly = await api('A', 'POST', '/messages', { sender_id: U.A, receiver_id: U.B, content: 'too early' });
   check(!msgEarly.ok, 'cannot message before the invite is accepted');
-  const accept = await api('B', 'PATCH', `/matches?id=eq.${rows(invite)[0].id}`, { chat_opened: true, status: 'accepted' });
-  check(accept.ok && rows(accept).length === 1, 'invitee accept (acceptMatchInvite) works');
+  const pendingOpen = await api('B', 'PATCH', `/matches?id=eq.${rows(invite)[0].id}`, { chat_opened: true });
+  check(!pendingOpen.ok, 'chat cannot be opened without accepting (mutual consent)');
+  const accept = await api('B', 'PATCH', `/matches?id=eq.${rows(invite)[0].id}`, { status: 'accepted' });
+  check(accept.ok && rows(accept).length === 1 && rows(accept)[0].chat_opened === true,
+    'invitee accept opens the chat for any gender pair');
   const custom = await api('B', 'PATCH', `/matches?id=eq.${rows(invite)[0].id}`,
     { meeting_at: '2026-10-10T17:00:00Z', confirmed_place: 'Moda Cafe — Kadıköy', meetup_proposed_by: U.B, meetup_confirmed: null });
   check(custom.ok, 'accept with a custom time (pending proposal) works');
@@ -396,12 +421,14 @@ async function p0aChecks() {
   const both = await api('B', 'PATCH', `/matches?id=eq.${rows(invite)[0].id}`, { checkin_confirmed: true });
   check(ciB.ok && both.ok, 'checkin_confirmed after both check-ins works');
 
-  // woman inviting a man opens the chat (shouldOpenChatOnInvite)
+  // the old "a woman's invite opens the chat at once" rule is gone
   const [am, mm] = U.A < U.M ? [U.A, U.M] : [U.M, U.A];
   await api('M', 'POST', '/rpc/upsert_match', { p_user_a: am, p_user_b: mm, p_match_score: 70 });
   const wInv = await api('M', 'PATCH', `/matches?user_a_id=eq.${am}&user_b_id=eq.${mm}`,
     { invited_by: U.M, chat_opened: true, status: 'pending' });
-  check(wInv.ok && rows(wInv).length === 1, 'woman inviting a man may open the chat at invite time');
+  check(wInv.ok && rows(wInv)[0]?.chat_opened === false, 'a woman inviting a man no longer opens the chat (mutual consent)');
+  const wMsg = await api('M', 'POST', '/messages', { sender_id: U.M, receiver_id: U.A, content: 'hi' });
+  check(!wMsg.ok, 'no message before the invitee accepts, whatever the genders');
 
   // revive of an expired old invite normalises it
   const [al, ll] = U.A < U.L ? [U.A, U.L] : [U.L, U.A];
@@ -426,18 +453,36 @@ async function p0aChecks() {
   const likeRetarget = await api('A', 'PATCH', `/likes?likee_id=eq.${U.J}`, { likee_id: U.B });
   check(!likeRetarget.ok, 'cannot re-point an existing like');
   const kCard = await api('A', 'GET', `/profile_cards?select=id&id=eq.${U.K}`);
-  check(rows(kCard).length === 1, 'hidden user with a live like on me is visible (Liked you)');
+  check(rows(kCard).length === 0, 'a one-sided like from a hidden user grants no access');
   await db.exec(`update public.profiles set is_premium=true where id='${U.A}'`);
   const kLikers = await api('A', 'POST', '/rpc/get_my_liker_cards', { p_limit: 50 });
-  check(rows(kLikers).some((r) => r.liker_id === U.K), 'hidden liker listed for premium');
+  check(!rows(kLikers).some((r) => r.liker_id === U.K), 'hidden liker not listed, even for premium');
+  check(rows(kLikers).some((r) => r.liker_id === U.LV), 'visible liker listed for premium');
   await db.exec(`update public.profiles set is_premium=false where id='${U.A}'`);
   const likeBackK = await api('A', 'POST', '/likes?on_conflict=liker_id,likee_id',
     { liker_id: U.A, likee_id: U.K, target_type: 'profile', status: 'sent' },
     { Prefer: 'resolution=merge-duplicates,return=representation' });
-  const kMatch = await db.query(`select status, chat_opened, source from public.matches
-    where least(user_a_id::text,user_b_id::text)=least('${U.A}','${U.K}') and greatest(user_a_id::text,user_b_id::text)=greatest('${U.A}','${U.K}')`);
-  check(likeBackK.ok && kMatch.rows[0]?.status === 'accepted' && kMatch.rows[0]?.source === 'mutual_like',
-    'liking back someone who liked me (Liked-you) opens the mutual chat');
+  check(!likeBackK.ok, 'cannot like a hidden liker back (no access)');
+  const likeBackLV = await api('A', 'POST', '/likes?on_conflict=liker_id,likee_id',
+    { liker_id: U.A, likee_id: U.LV, target_type: 'profile', status: 'sent' },
+    { Prefer: 'resolution=merge-duplicates,return=representation' });
+  const lvMatch = await db.query(`select status, chat_opened, source from public.matches
+    where least(user_a_id::text,user_b_id::text)=least('${U.A}','${U.LV}') and greatest(user_a_id::text,user_b_id::text)=greatest('${U.A}','${U.LV}')`);
+  check(likeBackLV.ok && lvMatch.rows[0]?.status === 'accepted' && lvMatch.rows[0]?.chat_opened === true
+    && lvMatch.rows[0]?.source === 'mutual_like', 'mutual like still opens the chat (kept)');
+  const hiCard = await api('A', 'GET', `/profile_cards?select=id&id=eq.${U.HI}`);
+  check(rows(hiCard).length === 0, 'a pending invite from a hidden user grants no access');
+  // district-level discovery filter is gone
+  const bDist = await db.query(`select discovery_max_distance from public.profiles where id='${U.B}'`);
+  check(bDist.rows[0].discovery_max_distance === 'whole_city', 'stored same_district filter normalised to whole_city');
+  const setDist = await api('A', 'PATCH', `/profiles?id=eq.${U.A}`, { discovery_max_distance: 'same_district' });
+  check(setDist.ok && rows(setDist)[0]?.discovery_max_distance === 'whole_city', 'client cannot turn on same_district discovery');
+  // blocked users list: first name only
+  const bl = await api('A', 'POST', '/rpc/get_my_blocked_users', {});
+  check(bl.ok && rows(bl).length === 1 && rows(bl)[0].blocked_id === U.F && rows(bl)[0].first_name === 'F'
+    && !('photos' in rows(bl)[0]), 'unblock list: block id + first name only, no photo');
+  const blG = await api('G', 'POST', '/rpc/get_my_blocked_users', {});
+  check(rows(blG).length === 1 && rows(blG)[0].blocked_id === U.A, 'unblock list is per blocker');
 
   // notifications / reports / blocks
   await db.exec(`insert into public.notifications(user_id, type, text) values ('${U.A}', 'x', 'server text')`);
@@ -459,6 +504,7 @@ async function p0aChecks() {
 
   await readPaths('P0-A');
   await storageChecks();
+  await privatePhotoChecks('P0-A');
 }
 
 async function readPaths(label) {
@@ -467,14 +513,16 @@ async function readPaths(label) {
   if (!cards.ok && process.env.DEBUG) console.log(cards.status, cards.json);
   check(cards.ok, `${label}: profile_cards readable when signed in`);
   const ids = new Set(rows(cards).map((r) => r.id));
-  const expectVisible = { A: true, B: true, C: true, J: true, K: true, M: true, F: true, L: true, P: true, Q: true, HI: true };
-  const expectHidden = { D: true, D2: true, E: true, G: true, I: true, HX: true };
+  const expectVisible = { A: true, B: true, C: true, J: true, M: true, L: true, P: true, Q: true, LV: true };
+  const expectHidden = { D: true, D2: true, E: true, G: true, I: true, HX: true, F: true, K: true, HI: true };
   for (const k of Object.keys(expectVisible)) check(ids.has(U[k]), `${label}: profile_cards shows ${k}`);
   for (const k of Object.keys(expectHidden)) check(!ids.has(U[k]), `${label}: profile_cards hides ${k}`);
   check(!hasPrivate(cards), `${label}: profile_cards returns no private columns (incl. district, DOB)`);
   check(rows(cards).every((r) => typeof r.age === 'number'), `${label}: profile_cards returns age`);
   const fromG = await api('G', 'GET', `/profile_cards?id=eq.${U.A}`);
-  check(rows(fromG).length === 1, `${label}: blocker sees the person they blocked (unblock list)`);
+  check(rows(fromG).length === 0, `${label}: blocker does not see the blocked person's card either`);
+  const cCard = rows(cards).find((r) => r.id === U.C);
+  check(cCard && cCard.intent === 'open_to_relationship', `${label}: "Looking for" (intent) on a card you may see`);
   const fromF = await api('F', 'GET', `/profile_cards?id=eq.${U.A}`);
   check(rows(fromF).length === 0, `${label}: blocked person cannot see the blocker`);
 
@@ -490,7 +538,10 @@ async function readPaths(label) {
     const top = await api('A', 'POST', '/rpc/get_top_matches', { p_user_id: U.A, p_limit: 20 });
     check(JSON.stringify(rows(top).map((r) => r.user_id)) === JSON.stringify(dIds),
       'P0-A: get_discovery_cards order == get_top_matches order (scoring unchanged)');
+    check(rows(top).some((r) => (r.reasons ?? []).includes('Nearby')),
+      'P0-A: fixture has a same-district candidate ("Nearby" produced by get_top_matches)');
   }
+  check(rows(disc).every((r) => !(r.reasons ?? []).includes('Nearby')), `${label}: discovery never says "Nearby"`);
   const discOther = await api('B', 'POST', '/rpc/get_discovery_cards', { p_limit: 20 });
   check(!rows(discOther).some((r) => r.user_id === U.B), `${label}: discovery never returns the caller`);
 
@@ -511,12 +562,13 @@ async function readPaths(label) {
   // venues: the other person's district is never exposed or used as a label
   const vB = await api('A', 'POST', '/rpc/get_date_venue_suggestions', { p_other: U.B });
   check(vB.ok && rows(vB).length === 3, `${label}: venue suggestions work`);
-  check(rows(vB).every((r) => r.reason !== 'both') && rows(vB)[0]?.reason === 'you',
-    `${label}: venues: other district not revealed (no "both" across districts, own first)`);
+  check(rows(vB)[0]?.reason === 'you', `${label}: venues: near-you first`);
   const vM = await api('A', 'POST', '/rpc/get_date_venue_suggestions', { p_other: U.M });
-  check(rows(vM)[0]?.reason === 'both', `${label}: venues: same district (diacritics-insensitive) → "both"`);
+  check(rows(vM).every((r) => r.reason === 'you' || r.reason === null)
+    && JSON.stringify(rows(vM)) === JSON.stringify(rows(vB)),
+    `${label}: venues: identical for a same-district and an other-district person (their district unused)`);
   const vD = await api('A', 'POST', '/rpc/get_date_venue_suggestions', { p_other: U.D });
-  check(rows(vD).every((r) => r.reason !== 'both'), `${label}: venues: invisible user contributes nothing`);
+  check(vD.ok && rows(vD).length === 0, `${label}: venues: nothing for someone you may not see`);
 
   // client shapes used by the R-P0 app (must all succeed with data)
   for (const shape of clientShapes(U)) {
@@ -541,6 +593,43 @@ async function storageChecks() {
   check(selfie.ok && selfie.rows.length === 0, 'storage: nobody (not even owner) reads verification selfies');
 }
 
+// Private photo bucket (P1): the SELECT policy is what createSignedUrl(s)
+// needs; checked here as each role. Signing itself + 15-min expiry is
+// checked against the real Storage API in the test project.
+async function privatePhotoChecks(label) {
+  const sel = (actor, owner) =>
+    asRole('authenticated', U[actor], `select name from storage.objects
+      where bucket_id='profile-photos-private' and name like '${U[owner]}/%'`);
+  for (const k of ['A', 'B', 'C', 'J']) {
+    const r = await sel('A', k);
+    check(r.ok && r.rows.length >= 1, `${label}: private photo signable — ${k}`);
+  }
+  for (const k of ['D', 'HI', 'K', 'E', 'F', 'G']) {
+    const r = await sel('A', k);
+    check(r.ok && r.rows.length === 0, `${label}: private photo NOT signable — ${k}`);
+  }
+  const anon = await asRole('anon', null, `select name from storage.objects where bucket_id='profile-photos-private'`);
+  check(anon.ok && anon.rows.length === 0, `${label}: anon cannot read the private bucket`);
+  const tag = label.replace(/[^A-Za-z0-9]/g, '');
+  const upOwn = await asRole('authenticated', U.A,
+    `insert into storage.objects(bucket_id,name) values ('profile-photos-private','${U.A}/new-${tag}.jpg')`);
+  check(upOwn.ok, `${label}: upload into own private folder`);
+  const upOther = await asRole('authenticated', U.A,
+    `insert into storage.objects(bucket_id,name) values ('profile-photos-private','${U.B}/x-${tag}.jpg')`);
+  check(!upOther.ok, `${label}: upload into another folder rejected`);
+  const bad = await asRole('authenticated', U.A,
+    `insert into storage.objects(bucket_id,name) values ('profile-photos-private','not-a-uuid/x-${tag}.jpg')`);
+  check(!bad.ok, `${label}: malformed folder rejected`);
+  const mv = await asRole('authenticated', U.A,
+    `update storage.objects set name='${U.A}/moved-${tag}.jpg' where bucket_id='profile-photos-private' and name='${U.A}/new-${tag}.jpg' returning 1`);
+  check(mv.ok ? mv.rows.length === 0 : true, `${label}: objects cannot be moved/overwritten by clients`);
+  const delOther = await asRole('authenticated', U.A,
+    `delete from storage.objects where bucket_id='profile-photos-private' and name like '${U.B}/%' returning 1`);
+  check(delOther.ok && delOther.rows.length === 0, `${label}: cannot delete someone else's photo`);
+  const bucket = await db.query(`select public from storage.buckets where id='profile-photos-private'`);
+  check(bucket.rows[0]?.public === false, `${label}: bucket is private`);
+}
+
 async function p0bChecks() {
   stage = 'P0-B';
   const own = await api('A', 'GET', `/profiles?id=eq.${U.A}&select=*`);
@@ -560,6 +649,20 @@ async function p0bChecks() {
   check(!lk.ok, 'get_my_likers (DOB) no longer callable');
   await readPaths('P0-B');
   await storageChecks();
+  await privatePhotoChecks('P0-B');
+  // Blocking ends new access at once (existing signed URLs: until expiry).
+  const [ab, bb] = [U.A, U.B];
+  const before = await asRole('authenticated', ab,
+    `select 1 from storage.objects where bucket_id='profile-photos-private' and name like '${bb}/%'`);
+  await api('A', 'POST', '/blocks', { blocker_id: ab, blocked_id: bb });
+  const after = await asRole('authenticated', ab,
+    `select 1 from storage.objects where bucket_id='profile-photos-private' and name like '${bb}/%'`);
+  const afterB = await asRole('authenticated', bb,
+    `select 1 from storage.objects where bucket_id='profile-photos-private' and name like '${ab}/%'`);
+  check(before.rows.length === 1 && after.rows.length === 0 && afterB.rows.length === 0,
+    'P0-B: after a block neither side can sign the other\'s photos');
+  const cardAfter = await api('A', 'GET', `/profile_cards?id=eq.${bb}`);
+  check(rows(cardAfter).length === 0, 'P0-B: after a block the card disappears');
 }
 
 // P0-A revert file must restore the exact live access state (policies,
@@ -599,6 +702,89 @@ async function revertCheck() {
   await d.close();
 }
 
+// The sanitized schema for a real Supabase TEST project loads on a
+// platform stand-in and the packages apply on top in the real order.
+async function supabaseTargetCheck() {
+  stage = 'TEST-PROJECT SQL';
+  const d = new PGlite();
+  const steps = [
+    ['platform stand-in', supabasePlatformStandIn()],
+    ['sanitized base schema', buildReplicaSql({ target: 'supabase' })],
+    ['P0-A', fs.readFileSync(path.join(proposed, '20260928130000_p0a_privacy_additive.sql'), 'utf8')],
+    ['P1 private photos', fs.readFileSync(path.join(proposed, '20260930090000_p1_private_photos.sql'), 'utf8')],
+    ['P0-B', fs.readFileSync(path.join(proposed, '20260928130100_p0b_privacy_restrict.sql'), 'utf8')],
+  ];
+  for (const [name, sql] of steps) {
+    let ok = true;
+    try {
+      await d.exec(sql);
+    } catch (e) {
+      ok = false;
+      if (process.env.DEBUG) console.log(name, e.message);
+    }
+    check(ok, `applies cleanly: ${name}`);
+  }
+  const base = buildReplicaSql({ target: 'supabase' });
+  check(!/eyJ[A-Za-z0-9_-]{20,}|fyqwjduzpnjuxqsloxih|http_request|net\.http/.test(base),
+    'no live project ref, key, webhook or HTTP call in the test-project schema');
+  const pub = await d.query(`select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='messages'`);
+  check(pub.rows.length === 1, 'realtime publishes public.messages (chat)');
+  await d.close();
+}
+
+// Vault-based DB webhooks (key plan): no key in SQL text; the trigger reads
+// the secret from Vault at call time; clients can neither call the helper nor
+// read Vault. pg_net / vault / pg_cron are stubbed (not in PGlite).
+async function webhookVaultCheck() {
+  stage = 'WEBHOOK';
+  const d = new PGlite();
+  await d.exec(buildReplicaSql());
+  await d.exec(`
+    create schema vault; create table vault.decrypted_secrets (name text primary key, decrypted_secret text);
+    revoke all on schema vault from public, anon, authenticated;
+    create schema net; create table net.calls (url text, headers jsonb, body jsonb);
+    create function net.http_post(url text, headers jsonb, body jsonb, timeout_milliseconds int)
+      returns bigint language sql as $$ insert into net.calls values (url, headers, body); select 1::bigint $$;
+    create schema cron; create table cron.job (jobid serial, jobname text, schedule text, command text);
+    create function cron.unschedule(bigint) returns boolean language sql as $$ delete from cron.job where jobid = $1; select true $$;
+    create function cron.schedule(text, text, text) returns bigint language sql
+      as $$ insert into cron.job(jobname, schedule, command) values ($1, $2, $3) returning jobid::bigint $$;
+    insert into cron.job(jobname, schedule, command) values ('daily-meetup-reminders', '0 * * * *', 'select 1');`);
+  const sql = fs.readFileSync(path.join(proposed, '20260930100000_db_webhooks_vault.sql'), 'utf8');
+  check(!/eyJ[A-Za-z0-9_-]{20,}|sb_secret_|fyqwjduzpnjuxqsloxih/.test(sql), 'no key, secret or project ref in the SQL file');
+  await d.exec(sql);
+  const trg = await d.query(`select pg_get_triggerdef(oid) d from pg_trigger where tgname='matches_push_webhook'`);
+  check(trg.rows.length === 1 && !/eyJ|secret/i.test(trg.rows[0].d), 'trigger text holds no secret');
+  const A = '00000000-0000-4000-8000-0000000000a1';
+  const B = '00000000-0000-4000-8000-0000000000b1';
+  await d.exec(`insert into auth.users(id) values ('${A}'),('${B}');
+    insert into public.profiles(id, first_name) values ('${A}','a'),('${B}','b');`);
+  await d.exec(`insert into public.matches(user_a_id,user_b_id,match_score) values ('${A}','${B}',50)`);
+  check((await d.query('select count(*)::int n from net.calls')).rows[0].n === 0, 'missing Vault secret → no call (warning only)');
+  await d.exec(`insert into vault.decrypted_secrets values ('tempa_webhook_secret','S'||repeat('x',40)),
+    ('tempa_project_url','https://abcdefghijklmnopqrst.supabase.co')`);
+  await d.exec(`update public.matches set invited_by='${A}' where user_a_id='${A}'`);
+  const call = (await d.query('select * from net.calls')).rows[0];
+  check(call?.url === 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/send-push-notification'
+    && call.headers['x-tempa-webhook-secret']?.length === 41 && call.body.type === 'UPDATE'
+    && call.body.old_record && call.body.record.invited_by === A, 'update calls the push function with the Vault secret and webhook payload');
+  const job = (await d.query(`select command from cron.job where jobname='daily-meetup-reminders'`)).rows;
+  check(job.length === 1 && job[0].command.includes('call_edge_function') && !/secret|eyJ/.test(job[0].command),
+    'reminder cron re-created without a key in its command');
+  for (const [role, q, name] of [
+    ['authenticated', `select public.call_edge_function('send-push-notification','{}'::jsonb)`, 'clients cannot call the helper'],
+    ['authenticated', 'select * from vault.decrypted_secrets', 'clients cannot read Vault'],
+    ['anon', `select public.call_edge_function('x','{}'::jsonb)`, 'anon cannot call the helper'],
+  ]) {
+    await d.exec(`set role ${role}`);
+    let ok = true;
+    try { await d.query(q); } catch { ok = false; }
+    await d.exec('reset role');
+    check(!ok, name);
+  }
+  await d.close();
+}
+
 // ---------------------------------------------------------------------------
 async function main() {
   await db.exec(buildReplicaSql());
@@ -609,6 +795,12 @@ async function main() {
   try {
     await baselineLive();
     await applyFile('20260928130000_p0a_privacy_additive.sql');
+    await applyFile('20260930090000_p1_private_photos.sql');
+    if (process.env.MUTATE !== 'skip') {
+      const owners = ['A', 'B', 'C', 'J', 'D', 'HI', 'K', 'E', 'F', 'G'];
+      await db.exec(`insert into storage.objects(bucket_id, name) values ${owners
+        .map((k) => `('profile-photos-private', '${U[k]}/seed-${k}.jpg')`).join(', ')}`);
+    }
     await reloadApi();
     await p0aChecks();
     await applyFile('20260928130100_p0b_privacy_restrict.sql');
@@ -619,6 +811,8 @@ async function main() {
     await server.stop();
   }
   await revertCheck();
+  await supabaseTargetCheck();
+  await webhookVaultCheck();
   const out = process.env.RESULTS_JSON;
   if (out) fs.writeFileSync(out, JSON.stringify({ passed, failed, results }, null, 1));
   console.log(`\n${passed} passed, ${failed} failed`);

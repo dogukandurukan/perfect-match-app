@@ -1,6 +1,8 @@
 // Screen: Intent tipleri ve normalize | Status: stable | Last updated: Mayıs 2026
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { backend } from './supabaseClient';
+
 export const ONBOARDING_INTENT_STORAGE_KEY = 'onboarding_intent_v1';
 
 export type IntentKey =
@@ -38,12 +40,18 @@ export function normalizeIntentKey(v: string): IntentKey | null {
   return null;
 }
 
+// Local drafts are kept per backend so a test-project session never reads a
+// live draft (or the other way round). Live keeps the original key.
+function intentStorageKey(): string {
+  return backend.env === 'live' ? ONBOARDING_INTENT_STORAGE_KEY : `${ONBOARDING_INTENT_STORAGE_KEY}:test:${backend.projectRef}`;
+}
+
 export async function savePendingIntent(intent: IntentKey): Promise<void> {
-  await AsyncStorage.setItem(ONBOARDING_INTENT_STORAGE_KEY, intent);
+  await AsyncStorage.setItem(intentStorageKey(), intent);
 }
 
 export async function getPendingIntent(): Promise<IntentKey | null> {
-  const v = await AsyncStorage.getItem(ONBOARDING_INTENT_STORAGE_KEY);
+  const v = await AsyncStorage.getItem(intentStorageKey());
   if (!v) return null;
   return normalizeIntentKey(v);
 }

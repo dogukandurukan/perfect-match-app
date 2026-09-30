@@ -17,12 +17,21 @@ function git(args) {
 }
 
 module.exports = ({ config }) => {
-  if (process.env.EAS_BUILD_PROFILE === 'production') return config;
+  // Backend is chosen explicitly (lib/backendConfig.ts); production pins live.
+  if (process.env.EAS_BUILD_PROFILE === 'production') {
+    return { ...config, extra: { ...config.extra, backend: { env: 'live' } } };
+  }
   const commit = git('rev-parse --short HEAD');
   return {
     ...config,
     extra: {
       ...config.extra,
+      backend: {
+        env: process.env.TEMPA_BACKEND ?? null,
+        testUrl: process.env.TEMPA_TEST_SUPABASE_URL ?? null,
+        // anon / publishable key only (public by design); never a secret key
+        testAnonKey: process.env.TEMPA_TEST_SUPABASE_ANON_KEY ?? null,
+      },
       devBuildInfo: {
         packageName: require('./package.json').name ?? 'unavailable',
         commit: commit ?? 'unavailable',

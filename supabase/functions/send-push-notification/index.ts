@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { authorizeDbCaller, unauthorized } from '../_shared/webhookAuth.ts';
+
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -34,6 +36,9 @@ function otherUserId(record: { user_a_id: string; user_b_id: string }, knownUser
 // and chat_opened flipping false->true on an update that did NOT just set
 // invited_by (the invitee accepted). 2026-08-26 rewrite — CLAUDE.md §4.
 Deno.serve(async (req) => {
+  // Only the database webhook may call this (P0 key plan). Deploy with
+  // --no-verify-jwt once this check is in place.
+  if (!authorizeDbCaller(req, 'service-role-bearer')) return unauthorized();
   const body = await req.json();
   const record = body.record;
   const old_record = body.old_record;

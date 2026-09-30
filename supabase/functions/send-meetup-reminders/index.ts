@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { authorizeDbCaller, unauthorized } from '../_shared/webhookAuth.ts';
+
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -114,7 +116,10 @@ async function notifyBothSides(
 // version (2026-08-27); its copy was past-tense-corrected here too — it used
 // to say "Gidecek misin?" (future tense) even after the meetup had already
 // happened, same class of bug the whole two-stage split exists to avoid.
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  // Was callable by anyone (verify_jwt off, cron sent no auth). Now only the
+  // pg_cron job with the Vault-held secret (P0 key plan).
+  if (!authorizeDbCaller(req, 'unauthenticated')) return unauthorized();
   const now = new Date();
   const istNow = new Date(now.getTime() + IST_OFFSET_MS);
   const istHour = istNow.getUTCHours();

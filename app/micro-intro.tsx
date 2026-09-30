@@ -66,11 +66,13 @@ type VenueRow = {
   emoji: string | null;
 };
 
-type VenueReason = 'both' | 'you' | null;
+// Only "near you" now: "near both of you" would tell you the other person's
+// district (P0 decision, 2026-09-30).
+type VenueReason = 'you' | null;
 type PickedVenue = VenueRow & { reason: VenueReason };
 
 /** Server-ranked suggestions (get_date_venue_suggestions, P0 privacy):
- * "near both of you" first, then near you, then the rest. The other
+ * near you first, then the rest. The other
  * person's district is private — it is never sent to this device and never
  * used to label a venue ("Near X" is gone on purpose). Top 3, de-duplicated. */
 function pickVenues(rows: (VenueRow & { reason: string | null })[]): PickedVenue[] {
@@ -80,7 +82,7 @@ function pickVenues(rows: (VenueRow & { reason: string | null })[]): PickedVenue
     const key = `${venue.name}|${venue.district}`;
     if (seen.has(key) || picked.length >= 3) continue;
     seen.add(key);
-    const reason: VenueReason = venue.reason === 'both' || venue.reason === 'you' ? venue.reason : null;
+    const reason: VenueReason = venue.reason === 'you' ? 'you' : null;
     picked.push({ name: venue.name, district: venue.district, emoji: venue.emoji, reason });
   }
   return picked;
@@ -230,7 +232,7 @@ export default function MicroIntroScreen() {
   }, [matchUserId]);
 
   // Debounced local/Google place search — only while the user is actively
-  // typing (2+ chars); cleared results otherwise so the "Near both of you"
+  // typing (2+ chars); cleared results otherwise so the "Suggested places"
   // suggestions show instead.
   useEffect(() => {
     const q = searchQuery.trim();
@@ -645,7 +647,7 @@ function PlaceStep({
           </View>
         ) : (
           <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>Near both of you</ThemedText>
+            <ThemedText style={styles.sectionTitle}>Suggested places</ThemedText>
             {venuesLoading ? (
               <ActivityIndicator color={homeColors.accent} style={styles.placeLoading} />
             ) : (

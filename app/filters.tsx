@@ -365,6 +365,7 @@ export default function FiltersScreen() {
               />
             </View>
 
+            {DISCOVERY_DISTANCE_OPTIONS.length > 1 ? (
             <View style={styles.card}>
               <ThemedText style={styles.subLabel}>Distance</ThemedText>
               <View style={styles.chipRow}>
@@ -385,6 +386,7 @@ export default function FiltersScreen() {
               </View>
               <ThemedText style={styles.hint}>Current: {distanceLabel}</ThemedText>
             </View>
+            ) : null}
 
             <TouchableOpacity
               style={styles.applyBtn}

@@ -50,7 +50,7 @@ export function clientShapes(U) {
     },
     {
       name: 'Activity waiting/related — profile_cards (notifications.tsx)',
-      actor: 'A', path: `/profile_cards?select=id,first_name,age,photos&id=in.(${U.J},${U.K})`,
+      actor: 'A', path: `/profile_cards?select=id,first_name,age,photos&id=in.(${U.J},${U.B})`,
       expect: (j) => arr(j).length === 2, noPrivate: true,
     },
     {
@@ -78,8 +78,15 @@ export function clientShapes(U) {
       actor: 'A', path: `/profile_cards?select=first_name,age,photos&id=eq.${U.C}`, expect: (j) => arr(j).length === 1,
     },
     {
-      name: 'Blocked users — profile_cards (blocked-users.tsx)',
-      actor: 'A', path: `/profile_cards?select=id,first_name,photos&id=in.(${U.F})`, expect: one(U.F), noPrivate: true,
+      name: 'Blocked users — get_my_blocked_users (blocked-users.tsx)',
+      actor: 'A', method: 'POST', path: '/rpc/get_my_blocked_users', body: {},
+      expect: (j) => arr(j).some((r) => r.blocked_id === U.F && r.first_name === 'F' && !('photos' in r)),
+      noPrivate: true,
+    },
+    {
+      name: '"Looking for" of a visible person — profile_cards.intent (index/matches/candidate/user-profile)',
+      actor: 'A', path: `/profile_cards?select=id,intent&id=in.(${U.P},${U.C})`,
+      expect: (j) => arr(j).length === 2 && arr(j).every((r) => typeof r.intent === 'string'),
     },
     {
       name: 'Plan your date — other person (micro-intro.tsx)',

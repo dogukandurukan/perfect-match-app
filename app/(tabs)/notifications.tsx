@@ -1178,11 +1178,13 @@ export default function NotificationsScreen() {
 
     const nameById = new Map<string, string>();
     const photosById = new Map<string, string[]>();
+    let visibleRelated: Set<string> | null = null;
     if (relatedIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles, error: cardsError } = await supabase
         .from('profile_cards')
         .select('id, first_name, photos')
         .in('id', relatedIds);
+      if (!cardsError) visibleRelated = new Set((profiles ?? []).map((p) => p.id as string));
       for (const p of profiles ?? []) {
         if (typeof p.id === 'string') {
           if (typeof p.first_name === 'string') nameById.set(p.id, p.first_name);
@@ -1191,7 +1193,13 @@ export default function NotificationsScreen() {
       }
     }
 
-    const rows: NotificationRow[] = data.map((row) => ({
+    // P0: activity about someone you may not see (blocked either way, deleted,
+    // or a hidden person with only a pending invite / one-sided like) is not
+    // shown. Skipped if the lookup failed, so an error never empties the feed.
+    const visibleData = visibleRelated
+      ? data.filter((row) => typeof row.related_user_id !== 'string' || visibleRelated!.has(row.related_user_id))
+      : data;
+    const rows: NotificationRow[] = visibleData.map((row) => ({
       id: row.id as string,
       type: String(row.type ?? ''),
       text: typeof row.text === 'string' ? row.text : '',
@@ -1505,9 +1513,9 @@ export default function NotificationsScreen() {
         params: { userId: otherId, userName: item.relatedName ?? '', matchId: match.id },
       } as never);
     } else {
-      // Accepted, but the chat doesn't open on this side yet (gender-pair rule
-      // in shouldOpenChatOnAccept) — say so, otherwise the tap feels like it did
-      // nothing.
+      // Not expected any more (accepting always opens the chat since the
+      // mutual-consent rule, P0) — kept as a safe message if the server
+      // refuses to open it.
       Alert.alert('Invite accepted', "You're in — the chat will open once it's their turn.");
     }
   }

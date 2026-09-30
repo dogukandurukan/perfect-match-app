@@ -180,6 +180,7 @@ export default function Step1Location() {
         ) : null}
       </View>
 
+      {DISCOVERY_DISTANCE_OPTIONS.length > 1 ? (
       <View style={[styles.block, styles.staticBlock]}>
         <ThemedText style={styles.label}>How far should we look for matches?</ThemedText>
         <View style={styles.chipRow}>
@@ -194,6 +195,7 @@ export default function Step1Location() {
           ))}
         </View>
       </View>
+      ) : null}
 
       <TouchableOpacity
         style={styles.locationBtn}

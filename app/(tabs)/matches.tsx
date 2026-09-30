@@ -23,7 +23,7 @@ import { getDailyInvitesState, type DailyInvitesState } from '@/lib/dailyInvites
 import { computeFallbackReason, strongestReason, type ReasonCompareProfile } from '@/lib/matchReason';
 import { parseFavoriteSpots, personAge } from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
-import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
+import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 
 function matchCategory(score: number): string {
   if (score >= 85) return '🔥 Perfect match';
@@ -185,7 +185,7 @@ type ProfileForCard = {
 function photoFor(photos: string[] | null | undefined): string | null {
   const first = photos?.[0];
   if (!first?.trim()) return null;
-  return getProfilePhotoPublicUrl(first);
+  return cachedProfilePhotoUrl(first);
 }
 
 function buildCardFromPending(
@@ -196,7 +196,8 @@ function buildCardFromPending(
 ): MatchCardData {
   const signedPhotos = (profile.photos ?? [])
     .filter((p) => p?.trim())
-    .map((path) => getProfilePhotoPublicUrl(path));
+    .map((path) => cachedProfilePhotoUrl(path))
+    .filter((url): url is string => !!url);
 
   // Real RPC-computed reason when this candidate was freshly backfilled
   // this session; otherwise a client-side fallback that mirrors the SAME
@@ -522,10 +523,16 @@ export default function MatchesTab() {
 
           const nextPending: PendingPlanRaw[] = [];
           const nextConfirmed: ConfirmedPlan[] = [];
+          // Sign every face once (15-min signed URLs; photoFor reads the cache).
+          await preloadProfilePhotoUrls([...profileById.values()].map((p) => p.photos?.[0]));
+          if (!mounted) return;
 
           for (const row of rows) {
             const otherId = (row.user_a_id === userId ? row.user_b_id : row.user_a_id) as string;
             const profile = profileById.get(otherId);
+            // P0: no card = you may not see this person (blocked, deleted, or
+            // hidden with only a pending invite) → the row is not shown.
+            if (!profile) continue;
             const displayPhotoUrl = photoFor(profile?.photos);
             const firstName = profile?.first_name ?? null;
             const age = safeAge(profile);
@@ -647,7 +654,14 @@ export default function MatchesTab() {
                 'id, first_name, age, city, zodiac_sign, photos, favorite_music, favorite_movie, favorite_book, hobbies, availability_days, drinking, smoking, education, education_detail, morning_night, languages, recharge_style, bio, first_date_expectation, favorite_spots, meeting_environment',
               )
               .in('id', cardOtherIds),
-            supabase.from('onboarding_answers').select('user_id, intent').in('user_id', cardOtherIds),
+            supabase
+              .from('profile_cards')
+              .select('id, intent')
+              .in('id', cardOtherIds)
+              .then((r) => ({
+                data: (r.data ?? []).map((x: { id: string; intent: string | null }) => ({ user_id: x.id, intent: x.intent })),
+                error: r.error,
+              })),
           ]);
 
           if (!mounted) return;
@@ -688,6 +702,8 @@ export default function MatchesTab() {
 
           const cardProfileById = new Map(profilesForCards.map((p) => [p.id, p]));
 
+          await preloadProfilePhotoUrls(profilesForCards.flatMap((p) => p.photos ?? []));
+          if (!mounted) return;
           const mappedCards = (
             await Promise.all(
               activePending.map(async (row) => {

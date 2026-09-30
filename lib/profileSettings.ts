@@ -29,9 +29,10 @@ export type ProfileSettingsRow = {
   discovery_active_today: boolean;
 };
 
+// P0 privacy (2026-09-30): "same neighbourhood / same district" are no longer
+// offered — a feed filtered to your own district tells you where every card
+// lives. The server coerces any stored value to whole_city as well.
 export const DISCOVERY_DISTANCE_OPTIONS: { value: DiscoveryDistance; label: string }[] = [
-  { value: 'same_neighborhood', label: 'Same neighbourhood' },
-  { value: 'same_district', label: 'Same district' },
   { value: 'whole_city', label: 'Whole city' },
 ];
 

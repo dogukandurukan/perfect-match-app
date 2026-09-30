@@ -1,8 +1,8 @@
 // Screen: Profil foto storage yardımcıları | Status: stable | Last updated: Temmuz 2026
-import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
+import { PROFILE_PHOTOS_BUCKET, resolveProfilePhotoUrl as resolveSigned } from '@/lib/resolveProfilePhotoUrl';
 
-/** Bucket for profile photos; paths stored in DB are relative to this bucket. */
-export const USER_PHOTOS_BUCKET = 'user-photos' as const;
+/** Bucket for profile photos (private; read via 15-minute signed URLs). Paths stored in DB are relative to it. */
+export const USER_PHOTOS_BUCKET = PROFILE_PHOTOS_BUCKET;
 
 /**
  * `{user_id}/p{n}-{random}.jpg` — the folder segment is required for Storage
@@ -73,12 +73,12 @@ export function verificationSelfiePath(userId: string) {
   return `${userId}/${secureRandomToken()}.jpg`;
 }
 
-/** Public URL for bucket objects (or pass-through for https seed URLs). */
+/** Signed URL for bucket objects (or pass-through for https seed URLs). The TTL is fixed at 15 minutes. */
 export async function resolveProfilePhotoUrl(
   ref: string,
-  _expiresInSec = 3600,
+  _expiresInSec?: number,
 ): Promise<string | null> {
   void _expiresInSec;
   if (!ref.trim()) return null;
-  return getProfilePhotoPublicUrl(ref);
+  return resolveSigned(ref);
 }

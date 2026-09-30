@@ -10,7 +10,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import { supabase } from '@/lib/supabaseClient';
-import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
 const ACCENT = '#1A1A1A';
 
@@ -45,11 +44,10 @@ export default function BlockedUsersScreen() {
           return;
         }
 
-        const { data, error: fetchError } = await supabase
-          .from('blocks')
-          .select('id, blocked_id')
-          .eq('blocker_id', user.id)
-          .order('created_at', { ascending: false });
+        // get_my_blocked_users (P0): only what the unblock list needs — block
+        // id, their id and first name. No photo and no profile access after a
+        // block (profile_cards hides blocked people in both directions).
+        const { data, error: fetchError } = await supabase.rpc('get_my_blocked_users');
 
         if (!mounted) return;
         if (fetchError) {
@@ -59,42 +57,13 @@ export default function BlockedUsersScreen() {
           return;
         }
 
-        const blockedIds = (data ?? []).map((row) => row.blocked_id as string);
-        if (blockedIds.length === 0) {
-          setUsers([]);
-          setLoading(false);
-          return;
-        }
-
-        const { data: profiles } = await supabase
-          .from('profile_cards')
-          .select('id, first_name, photos')
-          .in('id', blockedIds);
-
-        const profileById = new Map(
-          (profiles ?? []).map((p) => [p.id as string, p as { first_name: string | null; photos: string[] | null }]),
-        );
-
-        const resolved = await Promise.all(
-          (data ?? []).map(async (row) => {
-            const profile = profileById.get(row.blocked_id as string);
-            const firstPhoto = profile?.photos?.[0];
-            let photoUrl: string | null = null;
-            if (firstPhoto) {
-              try {
-                photoUrl = await resolveProfilePhotoUrl(firstPhoto, 3600);
-              } catch {
-                /* skip broken photo */
-              }
-            }
-            return {
-              blockId: row.id as string,
-              userId: row.blocked_id as string,
-              firstName: profile?.first_name ?? null,
-              photoUrl,
-            };
-          }),
-        );
+        const rows = (data ?? []) as { block_id: string; blocked_id: string; first_name: string | null }[];
+        const resolved = rows.map((row) => ({
+          blockId: row.block_id,
+          userId: row.blocked_id,
+          firstName: row.first_name,
+          photoUrl: null as string | null,
+        }));
 
         if (mounted) {
           setUsers(resolved);

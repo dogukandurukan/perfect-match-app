@@ -2,9 +2,12 @@
 -- NOT A SAFE DEFAULT: this reopens every hole P0-A closes (INSERT bypass of
 -- server-owned profile fields, forged match acceptance / chat opening,
 -- message/notification rewriting, anonymous photo listing). Preferred
--- recovery is FIX-FORWARD (plan §5.3): drop only the guard that blocks a
--- legitimate flow, fix it, re-create it. Use this file only with an explicit
+-- recovery is FIX-FORWARD (plan §5.3): keep every guard in place, pause the
+-- affected app action if needed, and correct the guard in place with
+-- CREATE OR REPLACE FUNCTION. Use this file only with an explicit
 -- owner decision, and only if P0-B is NOT applied.
+-- The one-time discovery_max_distance normalisation (same_district →
+-- whole_city) is data and is not reverted.
 begin;
 drop function if exists public.get_date_venue_suggestions(uuid);
 drop function if exists public.get_my_liker_cards(integer);
@@ -17,7 +20,7 @@ drop function if exists public.guard_profile_client_writes();
 drop function if exists public.guard_match_client_writes();
 drop function if exists public.guard_like_client_writes();
 drop function if exists public.can_like_internal(uuid);
-drop function if exists public.match_gender_internal(uuid);
+drop function if exists public.get_my_blocked_users();
 drop function if exists public.can_view_profile_as_me(uuid);
 drop function if exists public.can_view_profile(uuid, uuid);
 

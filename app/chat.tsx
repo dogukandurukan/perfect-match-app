@@ -32,7 +32,7 @@ import {
 import { logEvent } from '@/lib/analytics';
 import { colors, radius } from '@/lib/designTokens';
 import { formatMeetingTime, orderedPair, suggestMeetingTimes } from '@/lib/matchInvite';
-import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
+import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 import { emitUnreadMessageCount } from '@/lib/unreadMessageCount';
 
@@ -133,8 +133,9 @@ export default function ChatScreen() {
         .eq('id', otherUserId)
         .maybeSingle();
       if (cancelled) return;
-      const first = data?.photos?.[0];
-      setHeaderPhotoUrl(first?.trim() ? getProfilePhotoPublicUrl(first) : null);
+      const url = await resolveProfilePhotoUrl(data?.photos?.[0]);
+      if (cancelled) return;
+      setHeaderPhotoUrl(url);
     })();
     return () => {
       cancelled = true;
@@ -151,8 +152,9 @@ export default function ChatScreen() {
         .eq('id', currentUserId)
         .maybeSingle();
       if (cancelled) return;
-      const first = data?.photos?.[0];
-      setMyPhotoUrl(first?.trim() ? getProfilePhotoPublicUrl(first) : null);
+      const myUrl = await resolveProfilePhotoUrl(data?.photos?.[0]);
+      if (cancelled) return;
+      setMyPhotoUrl(myUrl);
       setMyInitial((data?.first_name?.trim()[0] ?? '?').toUpperCase());
     })();
     return () => {

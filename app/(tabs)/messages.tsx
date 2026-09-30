@@ -10,7 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
-import { getProfilePhotoPublicUrl } from '@/lib/resolveProfilePhotoUrl';
+import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 import { emitUnreadMessageCount } from '@/lib/unreadMessageCount';
 
@@ -110,11 +110,19 @@ export default function MessagesScreen() {
 
     const otherIds = [...byOther.keys()];
     if (otherIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles, error: cardsError } = await supabase
         .from('profile_cards')
         .select('id, first_name, photos')
         .in('id', otherIds);
+      // P0: a conversation with someone you may no longer see (blocked either
+      // way, deleted) is not listed. Only applied when the lookup succeeded,
+      // so a network error never empties the list.
+      if (!cardsError) {
+        const visible = new Set((profiles ?? []).map((p) => p.id as string));
+        for (const id of otherIds) if (!visible.has(id)) byOther.delete(id);
+      }
 
+      await preloadProfilePhotoUrls((profiles ?? []).map((p) => (Array.isArray(p.photos) ? p.photos[0] : null)));
       for (const p of profiles ?? []) {
         if (typeof p.id !== 'string') continue;
         const conv = byOther.get(p.id);
@@ -124,7 +132,7 @@ export default function MessagesScreen() {
         }
         const first = Array.isArray(p.photos) ? p.photos[0] : null;
         if (typeof first === 'string' && first.trim()) {
-          conv.photoUrl = getProfilePhotoPublicUrl(first);
+          conv.photoUrl = cachedProfilePhotoUrl(first);
         }
       }
     }

@@ -25,10 +25,10 @@ import type { ChipIcon } from '@/lib/hingeProfile';
 import { MEETING_VENUE_OPTIONS } from '@/lib/meetingVenues';
 import { supabase } from '@/lib/supabaseClient';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
-import { newProfilePhotoPath } from '@/lib/userPhotosStorage';
+import { newProfilePhotoPath, USER_PHOTOS_BUCKET } from '@/lib/userPhotosStorage';
 
 const MAX_PHOTOS = 6;
-const PHOTOS_BUCKET = 'user-photos';
+const PHOTOS_BUCKET = USER_PHOTOS_BUCKET;
 const BIO_MAX_LENGTH = 300;
 
 const DAY_OPTIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;

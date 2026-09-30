@@ -4,12 +4,11 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { homeColors, homeRadius, homeSpacing } from '@/lib/homeTheme';
 
-export type VenueReason = 'both' | 'you' | 'them' | null;
+// Only "near you": labels about the other person's area would reveal their district (P0).
+export type VenueReason = 'you' | null;
 
 function reasonLabel(reason: VenueReason, otherName: string): string | null {
-  if (reason === 'both') return 'Near both of you';
   if (reason === 'you') return 'Near you';
-  if (reason === 'them') return `Near ${otherName}`;
   return null;
 }
 

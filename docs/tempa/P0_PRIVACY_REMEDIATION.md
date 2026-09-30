@@ -1,241 +1,149 @@
 # P0 privacy remediation — plan (PROPOSED, NOT APPLIED)
 
-Revision 2 · 2026-09-29 · Branch `tempa/p0-privacy` · Author: Claude Code.
-Result report with test output and the live package: `work-packages/P0_PRIVACY_RESULT.md`.
+Revision 3 · 2026-09-30 · Branch `tempa/p0-privacy-r3` · Author: Claude Code.
+Companion documents:
+- `work-packages/P0_PRIVACY_RESULT.md` — test results and the live package.
+- `P0_KEY_ROTATION_PLAN.md` — the service-role key in the push webhook.
+- `P0_PHONE_TEST.md` — the phone test on the separate test project.
 
 > ⚠️ **The risk is still live.** Nothing here has been applied to the live
-> project. Until P0-A and P0-B are applied, every issue in §1 remains
-> exploitable. It must be closed **before any real user signs up** and before
-> WP1 (persistent V2 profiles).
->
-> **P0-A alone is not privacy.** P0-A closes the write holes and listing, and
-> adds the new read paths, but other signed-in users can still read other
-> users' private columns from `profiles` **until P0-B** is applied. Photos stay
-> **public by URL** until the private-bucket step (§3), which is required
-> before the closed beta.
+> project. **P0-A alone is not privacy:** other signed-in users can read
+> other users' private columns from `profiles` until **P0-B**.
 
-Files (all in `supabase/proposed/`, never `supabase/migrations/`, so no CLI
-command can apply them by accident):
-
-| File | Purpose |
+| File (`supabase/proposed/`) | Purpose |
 |---|---|
-| `20260928130000_p0a_privacy_additive.sql` | P0-A — additive, safe with the current app |
-| `20260928130000_p0a_privacy_additive.rollback.sql` | Exact revert to the live state (reopens P0-A's holes — not a default, §5.3) |
-| `20260928130100_p0b_privacy_restrict.sql` | P0-B — own-row-only `profiles`, original RPCs closed |
-| `20260928130100_p0b_privacy_restrict.emergency_reopen.sql` | Re-exposes private data. **Not a rollback**; owner decision only (§5.3) |
-| `tests/http_p0.test.mjs` (+ `replica.mjs`, `client_shapes.mjs`, `live_snapshot_2026-09-29.json`) | Local verification over real PostgREST (§6) |
+| `20260928130000_p0a_privacy_additive.sql` | P0-A — additive; the current app keeps working |
+| `20260930090000_p1_private_photos.sql` | Private photo bucket + 15-min signed-URL access; applied with P0-A |
+| `20260928130100_p0b_privacy_restrict.sql` | P0-B — own-row-only `profiles`; original RPCs closed |
+| `20260930100000_db_webhooks_vault.sql` | Push webhook + reminder cron without any key in SQL (key plan) |
+| `…p0a….rollback.sql`, `…p1….rollback.sql` | Exact reverts — **not** a default (§6) |
+| `…p0b….emergency_reopen.sql` | Re-exposes private data; written owner decision only (§6) |
+| `tests/` | Local replica + HTTP tests (§7) |
 
-## 1. Findings (live, read-only catalog, 2026-09-28/29)
+## 1. Findings (read-only on live, reproduced only on the local replica)
 
-No other user's data was read. Every exposure below was reproduced only on the
-local replica with synthetic users (§6, stage LIVE).
+| # | Exposure | Closed by |
+|---|---|---|
+| 1 | Any signed-in user reads anyone's private `profiles` columns (surname, DOB, phone, address, lat/lng, district, push token, selfie path, preferences, account state) | P0-B |
+| 2 | Hidden profiles readable through a self-created candidate `matches` row | P0-A + P0-B |
+| 3 | Full DOB + district from `get_top_matches` / `get_my_likers`; premium likers list included people who blocked you or deleted their account | P0-A wrappers, P0-B revoke |
+| 4 | Another user's surname shown in the app | R-P0 |
+| 5 | Server-owned profile fields settable on first INSERT | P0-A |
+| 6 | Self-set `setup_completed`; selfie path into another user's folder | P0-A (interim, V2 server state later) |
+| 7 | Forged consent on `matches`: self-accept, open a chat with anyone, confirm your own meetup, write the other side's check-in | P0-A guard |
+| 8 | Message content / notification text / like state / report target rewritable | P0-A |
+| 9 | Anonymous listing of all profile photos | P0-A |
+| 10 | Photos loadable by URL by anyone, predictable names | P1 private bucket (+ R-P0 random names) |
+| 11 | anon INSERT/UPDATE/DELETE/TRUNCATE on every public table | P0-A |
+| 12 | **Service-role JWT embedded in the push webhook trigger** | Key plan (separate doc) |
+| 13 | `send-meetup-reminders` callable by anyone (verify_jwt off, no auth from cron) | Key plan |
 
-| # | Exposure | Mechanism | Closed by |
+## 2. Owner product decisions (2026-09-30) and their effects
+
+| Decision | Implemented as | Effect on users | Tested |
 |---|---|---|---|
-| 1 | Any signed-in user reads another user's `last_name`, `date_of_birth`, `phone_number`, `full_address`, `lat/lng`, `district`, `instagram_handle`, `expo_push_token`, `verification_selfie_path`, `meeting_preferences`, `discovery_*`, `is_premium`, … | `profiles_select_authenticated` + table-level SELECT on every column | P0-B |
-| 2 | Hidden profiles readable through a **bare candidate** `matches` row — and clients can create such rows themselves | "has any matches row" branch of the same policy | P0-A (rows can't be created towards hidden users) + P0-B |
-| 3 | Full DOB (+ district) of candidates; premium likers list includes people who **blocked you** or **deleted** their account | `get_top_matches`, `get_my_likers` | P0-A wrappers + P0-B revoke |
-| 4 | Surname of another user shown in the UI | `app/user-profile.tsx` header | R-P0 |
-| 5 | New user sets server fields on first insert (`photo_verified`, `is_premium`, `waitlist_*`, `deleted_at`, `daily_*`) | table-level INSERT on all columns (only UPDATE was locked down) | P0-A |
-| 6 | Self-granted onboarding completion; selfie path pointing into another user's folder | client-writable `setup_completed`, `verification_selfie_path` | P0-A trigger (interim; V2 server state later) |
-| 7 | **Forged consent on matches:** a user can set `status='accepted'`, `chat_opened=true` or `invited_by` on any of their own matches rows (incl. rows they create) → opens a chat and messages anyone discoverable without consent; can also write the other side's check-in/rating/intro and confirm their own meetup proposal | `matches_update_own` only checks "participant, not blocked"; all columns updatable | P0-A `guard_match_client_writes` |
-| 8 | Receiver or sender rewrites message **content**; users rewrite notification text, a like's `status`/`match_id`, or a report's target after filing | table-level UPDATE on all columns | P0-A column grants + read-receipt policy |
-| 9 | Anonymous listing of all profile photos (enumerates user IDs) | `photos are public` storage policy (role public) | P0-A |
-| 10 | Photos of any user by URL, even signed out, incl. hidden/blocking users; onboarding names are **predictable** (`{uid}/photo_{n}.jpg`) | public bucket | R-P0 (new names random) → private bucket (§3) |
-| 11 | `anon` has INSERT/UPDATE/DELETE/TRUNCATE on every public table; `authenticated` TRUNCATE/TRIGGER/REFERENCES | Supabase default grants | P0-A |
-| 12 | **The `matches-push-notification` trigger embeds a service-role credential** in its definition (visible to anyone with catalog read access, incl. the read-only MCP role). The value was never printed or copied. | Dashboard "database webhook" | Ops step (§5, step 0) — rotate + move to Vault; not SQL in this package |
+| **"Looking for" only to people allowed to see the profile** | `profile_cards.intent`, joined from `onboarding_answers` (still own-row for direct reads) | Other people's "Looking for" appears again. It was silently blank before, because others could not read `onboarding_answers`. Hidden, blocked and deleted people show nothing | HTTP + smoke |
+| **No district, no "Nearby", no "Near both of you"; handle `same_district`** | District absent from every client-facing surface. `get_discovery_cards` removes "Nearby". Venue RPC never reads the other person's district and labels only "Near you". District filters (`same_district`, `same_neighborhood`) are removed from the UI; stored values normalised to `whole_city` once; the profile guard coerces new writes | Cards show city only. Anyone who used "same district" now sees their whole city — **discovery gets wider for them**. No scoring change | HTTP (equal venue list for same- vs other-district person; stored + new filter values) |
+| **Hidden = out of discovery; only accepted (mutual) matches keep access; pending invite / one-sided like give nothing; block and delete win** | `can_view_profile`: own OR (no block either way AND not deleted AND (discoverable OR accepted match)). Invite and like branches removed | A hidden person's pending invite or like becomes invisible to the recipient: no card, no photo, no Activity row, no Plans row, not counted in Liked-you. It reappears if they un-hide. Existing accepted chats keep working | HTTP + smoke |
+| **Chat needs mutual consent for everyone** | Guard: an invite write never opens the chat; accepting (by the invitee) always opens it; mutual like unchanged. Client rule functions now gender-neutral | A woman's invite no longer opens the chat at once. A man accepting now opens it — before, it stayed closed and the invite hung. **Old app builds:** a woman's invite is accepted but the chat stays closed (no error) | HTTP + smoke |
+| **After a block: no photos, no new access; unblock list minimal** | Blocked people are invisible in both directions, including to the blocker. `get_my_blocked_users()` returns block id + first name only. The client drops cached signed URLs for that person on block. Chats, Activity and Plans rows about invisible people are hidden | The unblock list shows an initial, not a photo. A chat with someone you blocked (or who blocked you) leaves the Chats list | HTTP + smoke |
+| **Private photo bucket now, 15-min signed URLs** | P1 file + client signed-URL cache (re-signs when < 60 s are left) | Photos of people you may not see can't be signed. **Limit kept:** URLs already issued work until they expire; images already on the device stay until evicted | replica policies, cache unit test, smoke with the real Storage |
 
-## 2. Public card vs private account fields
+## 3. Visibility (access table, revision 3)
 
-**Principle:** `profiles` becomes **own-row only** (all columns for the owner).
-Other people are read only through allowlisted surfaces with one visibility rule.
-
-**One visibility rule — `can_view_profile(viewer, target)`** (SECURITY DEFINER,
-not callable by clients; clients only get `can_view_profile_as_me(target)` —
-a function referenced by a view is EXECUTE-checked as the *caller*, and the
-two-argument form would be an oracle: "can B see D?" ⇒ "do B and D have a
-match/like?"). `security_barrier` on the view only prevents leaky functions
-from seeing filtered rows; **the authorization is this explicit predicate.**
-
-### Access table
-
-| Target (relative to the viewer) | `profile_cards` | discovery | likers list | `profiles` row (after P0-B) | photo by URL (until §3) |
+| Target, relative to the viewer | card / photos | discovery | Liked-you | Activity / Plans / Chats rows | `profiles` row after P0-B |
 |---|---|---|---|---|---|
-| Self | ✅ | – | – | ✅ full | ✅ |
-| Discoverable stranger (setup done, not hidden, not deleted) | ✅ | ✅ (filters apply) | – | ❌ | ✅ |
-| Incomplete onboarding, no connection | ❌ (live: ✅) | ❌ | – | ❌ | ✅ if URL known |
-| Hidden, no connection | ❌ | ❌ | – | ❌ | ✅ if URL known |
-| Hidden, only a bare candidate row | ❌ (live: ✅) | ❌ | – | ❌ | ✅ if URL known |
-| Hidden, invite pending / accepted / open chat | ✅ | ❌ | – | ❌ | ✅ |
-| Hidden, has a live like on me | ✅ | ❌ | ✅ | ❌ | ✅ |
-| Old match: expired or passed, target discoverable | ✅ as stranger | ❌ for 14 / 42 days | – | ❌ | ✅ |
-| Old match: expired or passed, target hidden | ❌ | ❌ | – | ❌ | ✅ if URL known |
-| Deleted (`deleted_at` set), even with a chat | ❌ (live: ✅ with a match) | ❌ | ❌ (live: ✅) | ❌ | ✅ until objects are deleted |
-| I blocked them | ✅ card only (unblock list) | ❌ | ❌ | ❌ | ✅ |
-| They blocked me | ❌ | ❌ | ❌ (live: ✅ for premium) | ❌ | ✅ if URL known |
+| Self | ✅ | – | – | – | ✅ full |
+| Discoverable stranger | ✅ | ✅ | ✅ if they liked you | ✅ | ❌ |
+| Incomplete onboarding | ❌ unless accepted | ❌ | ❌ | ❌ | ❌ |
+| Hidden, no relation | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Hidden, bare candidate row | ❌ | ❌ | – | ❌ | ❌ |
+| Hidden, **pending** invite (either way) | ❌ | ❌ | – | ❌ | ❌ |
+| Hidden, one-sided like on you | ❌ | ❌ | ❌ (not counted) | ❌ | ❌ |
+| Hidden, **accepted** match / mutual like | ✅ | ❌ | – | ✅ | ❌ |
+| Old expired/passed match, target discoverable | ✅ as stranger | ❌ 14 / 42 days | – | – | ❌ |
+| Old expired/passed match, target hidden | ❌ | ❌ | – | ❌ | ❌ |
+| Deleted (`deleted_at`), even with a chat | ❌ | ❌ | ❌ | ❌ | ❌ |
+| You blocked them | ❌ (unblock list: first name only) | ❌ | ❌ | ❌ | ❌ |
+| They blocked you | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-"✅ if URL known": the viewer may still hold an old public URL (cached screen,
-earlier chat). That residual access ends only with the private bucket (§3) —
-and even then not instantly (§3.2).
+**Remaining inference risks for district (reported, not redesigned this round):**
+- `get_top_matches` still scores the same district higher (+20 vs +8 for the same city). Ranking and the shown percentage therefore carry a weak "probably near me" signal. Someone comparing many cards could guess who shares their district.
+- `favorite_spots` ("my go-to spot") is public by design and often names a neighbourhood. Users choose what to write there.
+- The server still stores district for scoring and venue ranking; only the viewer's own district is used in labels.
 
-### Columns
+## 4. Photos
 
-- **`profile_cards`:** `id, first_name, age (computed), zodiac_sign, city, gender, languages, morning_night, recharge_style, hobbies, drinking, smoking, pets, education, education_detail, occupation, height_cm, bio, availability_days, availability_hours, meeting_environment, favorite_spots, first_date_expectation, favorite_music, favorite_movie, favorite_book, favorite_activity, core_value, impressed_by, dealbreaker, photos, photo_verified, interested_in_viewer`.
-- **Removed from the card in revision 2:** `district` (see below), `is_hidden`, `hide_location`, `setup_completed`, `vibe` (unused legacy).
-- **Private (owner only):** identity/contact (`last_name, date_of_birth, phone_number, dial_code, country_code, full_address, lat, lng, instagram_handle, district`), device/verification (`expo_push_token, verification_selfie_path`), preferences (`meeting_preferences, discovery_*, notify_*, neighborhoods, preferred_locations, religion`), account state (`is_premium, waitlist_*, daily_*, current_step, setup*_completed, deleted_at, last_active_at, privacy_consent_at, phone_verified, quick_icebreaker_answers, username, created_at, updated_at`, `is_hidden`, `hide_location`).
-- **Not added (open question Q-P0-2):** `intent`. It lives in `onboarding_answers`, which is already own-row only, so today other users' "Looking for" silently shows nothing. Adding it to the card is a product/KVKK decision, not part of P0.
+### 4.1 Access
+- Bucket `profile-photos-private`: `public = false`, 10 MB, image types only.
+- Upload and delete: own folder only. No UPDATE or move by clients.
+- Reading (which `createSignedUrl(s)` requires) is allowed only when `can_view_profile_as_me(owner folder)`, so hidden, blocked and deleted people's photos can't be signed.
+- Client: `lib/resolveProfilePhotoUrl.ts` + `lib/photoUrlCache.ts`.
+  - 15-minute URLs, batch signing, re-sign when < 60 s are left.
+  - Refusals are not cached; entries for a blocked person are forgotten.
+  - New uploads get random names.
 
-### District is private (decision implemented in revision 2)
+### 4.2 What cannot be promised
+- A signed URL is a bearer token until it expires (≤ 15 min after issue). It can't be revoked earlier except by deleting or moving the object.
+- Images already downloaded stay in the device cache until evicted.
+- Promise: **no new access after a block, hide or delete; existing access ends within 15 minutes (device cache aside).**
+- Screens re-sign on focus. An image that first loads more than 15 minutes after its screen was built fails until the screen is refocused.
 
-District is not returned to other users anywhere. Required changes, all made:
+### 4.3 Moving existing objects — resumable, not atomic
+Storage copy/delete and the DB update are **separate systems; no step is
+assumed atomic with another**. Each phase is idempotent and records progress
+in `ops.photo_migration` (service role only). After any failure, re-run the
+same phase.
 
-| Where | Before | After |
+1. **Prepare:** apply P1 (bucket + policies + bookkeeping table). Old objects stay where they are; old clients keep working.
+2. **Plan rows:** for every path in `profiles.photos` without a row, insert `(old_bucket, old_path, owner_id, new_path = {owner}/{random}.{ext})`. The new name is fixed before any copy, so a retry reuses it.
+3. **Copy:** for rows with `copied_at is null`, download the old object and upload it to `new_path` with overwrite (safe to repeat), then set `copied_at`. A crash between upload and `copied_at` only causes a repeat upload.
+4. **Switch references**, one DB transaction per user: replace each `old_path` in `profiles.photos` with `new_path`, only for rows with `copied_at` set; set `db_updated_at`. Re-running is a no-op.
+5. **Verify:** every `profiles.photos` entry exists in the private bucket and no profile still references an old path. If not, go back to step 3 or 4.
+6. **Release the R-P0 client**, which reads the private bucket only. Photos not yet switched show an initial, never an error.
+7. **Delete the old objects** (rows with `old_deleted_at is null`), only after the old client is no longer supported. Set `old_deleted_at`. Then delete the empty public buckets `user-photos` and `profile-photos`.
+
+Live has **0** photo objects today, so steps 2–5 are empty now. They become
+real work with every upload before this ships.
+
+## 5. Order (live — for review after the phone test)
+
+0. Key plan steps 1–5 (webhook secret in Vault; functions verify it). Step 6, revoking the leaked key, follows the app release that uses the publishable key.
+1. Re-snapshot the live catalog; diff against `tests/live_snapshot_2026-09-29.json`.
+2. **P0-A + P1** (one maintenance window). Verify with your own test accounts.
+3. Photo migration phases 2–5 (empty today).
+4. **R-P0 client** on every installed build (forced minimum version once in production).
+5. **P0-B.** Verify.
+6. Photo migration phase 7 (delete old public buckets).
+
+## 6. Recovery — fix-forward, never reopen by default
+
+**Rule:** a security guard is never dropped to "unblock" a flow. That would
+reopen the hole for everyone. Instead:
+
+1. **Pause the affected action**, not the protection. Leave it failing, or hide the button with a client flag or hotfix. Users see "could not save", but no data is exposed and no consent is forged.
+2. **Correct the guard in place** with `CREATE OR REPLACE FUNCTION public.guard_…()`, keeping every other rule. The trigger stays attached throughout, so there is no window without the check.
+3. **Re-run** the local suite plus the smoke test on the test project, then apply.
+
+| Symptom | Action | Exposure while fixing |
 |---|---|---|
-| `profile_cards` | included | removed |
-| `get_discovery_cards` | passed through `get_top_matches.district` | dropped |
-| Home hero / Matches / candidate / user profile | showed "📍 Kadıköy" | city only ("📍 Istanbul · nearby") |
-| Plan your date venues (`micro-intro.tsx`) | read the other's district; labelled "Near {name}" | server RPC `get_date_venue_suggestions(p_other)`: "Near both of you" (same district), "Near you", then the rest. The other's district is never sent or used as a label |
-| Matches fallback reason ("Nearby") | computed from the other's district | only the server's own reasons (see below) |
-| Vibe "same district" strip | filtered other users by district | category removed |
-| Map (hidden route) | placed other users on the map by district | people layer disabled (needs a k-anonymous server count if revived) |
+| A legitimate match / meetup / check-in write is rejected | pause that action; `create or replace function public.guard_match_client_writes()` with the fix | none |
+| A like is rejected | same with `guard_like_client_writes` | none |
+| Onboarding completion rejected wrongly | same with `guard_profile_client_writes` (users stay on the last step) | none |
+| A screen breaks after P0-B | client hotfix (read `profile_cards` / RPCs) or disable that screen | none |
+| Photos don't load after P1 | fix the policy or helper in place (`create or replace`); display falls back to initials | none |
+| Owner decides in writing to accept re-exposure | `…p0b….emergency_reopen.sql`, then re-apply P0-B after the hotfix | #1–#3 reopen |
+| Owner decides to remove P0-A entirely (P0-B not applied) | `…p0a….rollback.sql` (verified exact) | all P0-A holes reopen |
 
-**Residual, by design:** the server still uses district for scoring, the
-`same_district` discovery filter and the "Nearby"/"Near both of you" labels.
-Those reveal one bit — *same district as me* — to people in your own district.
-Removing that would change matching, which P0 does not do.
+## 7. Verification
 
-### RPCs for the client
+See the result report. Summary:
+- **Local suite, 325/325** on PGlite plus PostgREST with the real function bodies and grants. Stages: LIVE exposure reproduced → P0-A (+P1) → P0-B → exact revert → test-project SQL loads cleanly → Vault webhook.
+- **Mutation run:** without the proposed files, 136 checks fail.
+- Unit checks: signed-URL cache 14/14; backend selection 14/14.
+- The real Auth, Storage and Realtime run on the separate test project (`smoke.mjs`) once it exists. Then the phone test follows.
 
-- `get_discovery_cards(p_limit)` — same rows and order as `get_top_matches` (body and scoring unchanged, proven by an order-equality test), `age` instead of DOB, no district.
-- `get_my_liker_cards(p_limit)` — re-implements `get_my_likers` with the same premium gate and order, `age` instead of DOB, **and only likers you may see** (the original returned blocked/deleted likers).
-- `get_date_venue_suggestions(p_other)` — above.
-
-## 3. Photos
-
-### 3.1 Now → P0-A → R-P0
-
-| Path | Live today | After P0-A | After R-P0 |
-|---|---|---|---|
-| Anonymous listing | ✅ | ❌ | ❌ |
-| Signed-in listing of others' folders | ✅ | ❌ own folder only | ❌ |
-| Known public URL | ✅ anyone, predictable names | ✅ unchanged (display uses public URLs) | ✅ unchanged; **new** uploads get random names (`{uid}/p{n}-{random}.jpg`, `{uid}/{random}.jpg`) |
-| Selfies (`verification-selfies`, private) | nobody can read/list; own upload/delete | + `verification_selfie_path` must be in own folder | same |
-
-A random name is **not access control**: anyone who has seen the URL once
-(a match, a screenshot, a cache) can keep loading it. Existing objects keep
-their predictable names until the migration below.
-
-### 3.2 Required before the closed beta — private bucket + signed URLs
-
-Changes (to be packaged as P1-photos after P0-B):
-
-1. **Storage:** new private bucket (e.g. `profile-photos-private`, `public = false`).
-   Policies: INSERT/DELETE own folder only; **SELECT** when
-   `public.can_view_profile_as_me(((storage.foldername(name))[1])::uuid)`.
-   With that policy the client can call `createSignedUrl(s)` itself — no
-   Edge Function needed — and a hidden/blocking/deleted user's photos can no
-   longer be signed.
-2. **Data migration (service role, one-off):** copy every object to the new
-   bucket under a random name, rewrite `profiles.photos` (and liker
-   `photo_path` sources) in the same transaction per user, then delete the
-   old objects and the old `user-photos` public bucket (and the unused,
-   empty public `profile-photos` bucket).
-3. **Client:** replace `getProfilePhotoPublicUrl` / `resolveProfilePhotoUrl`
-   with one batched `createSignedUrls` helper (Home, Matches `PersonAvatar`,
-   chat header + bubbles, Activity, user/candidate profile, plan detail,
-   blocked users, own profile/edit); uploads go to the new bucket.
-4. **Cache:** signed URLs change on every call, so `expo-image` needs a
-   stable `cacheKey` (the object path) to avoid refetch storms; on block,
-   clear that user's cache keys.
-5. **Push / Edge Functions:** must never embed photo URLs.
-
-**Expiry, refresh and revocation — what we can and cannot promise:**
-- Signed URLs are bearer tokens until they expire. Supabase cannot revoke one
-  before expiry (only deleting/moving the object does). Proposed TTL: 15 min
-  for grids, refreshed on screen focus; never > 1 h.
-- After a block, hide or delete, **new** URLs are refused immediately, but a URL
-  issued earlier keeps working until it expires, and images already in the
-  viewer's device cache stay visible until evicted. So the promise is:
-  *"no new access after the change; existing access ends within the TTL
-  (device cache aside)"* — **not** instant revocation.
-- Deleting an account deletes the objects (existing Edge Function), which
-  does end URL access immediately (cache aside).
-
-## 4. Client-writable fields after P0-A
-
-| Table / field | Before | After P0-A |
-|---|---|---|
-| `profiles`: `photo_verified`, `is_premium`, `waitlist_*`, `daily_*`, `deleted_at`, `phone_verified`, `setup1_completed`, `username`, `religion`, `created_at` | insertable | not insertable or updatable |
-| `profiles.setup_completed` | free | true only with first name, 18+ DOB, gender, city, interested-in. **A field check is not a server-controlled review** — V2 moves this to server state transitions (WP2) |
-| `profiles.verification_selfie_path` | any value | own folder only |
-| `matches` insert | any row with anyone not blocked | fresh candidate only, towards someone you can see and haven't blocked |
-| `matches.status → accepted`, `chat_opened → true` | either side, any time | only the **invitee** of a real invite (or, per the existing gender rule, a woman opening the chat in the same write that sends her invite to a man) |
-| `matches.invited_by` | any value | once, to yourself, on a live candidate |
-| `matches` score / TTL / created_at | any | only before an invite; TTL ≤ 48 h |
-| expired → pending (revive) | kept stale invite/chat/meetup | normalized to a clean candidate |
-| intro answers, check-in, rating | either side's | your own side only; rating 1–10; `checkin_confirmed` only when both checked in |
-| meetup proposal | anyone, incl. confirming your own | needs an invite/chat; you propose (or accept one of the inviter's offered times); only the other side confirms |
-| `user_a/b_accepted`, `source`, user ids | writable | immutable |
-| delete match / message | allowed by grants (no policy) | revoked |
-| `messages` | any column by either side | insert `sender_id, receiver_id, content`; update `read_at` by the **receiver** only |
-| `notifications` | any column | `is_read` only |
-| `likes` | any column incl. `status`, `match_id` | `status` must be `sent`; target must be visible to you; liker/likee/match_id immutable |
-| `reports` / `blocks` / `events` | updatable | append-only (blocks deletable = unblock) |
-
-The `matches` guard is an **interim** state machine in a trigger. The durable
-design is still WP2: all match writes through SECURITY DEFINER RPCs with row
-locks.
-
-## 5. Order and recovery
-
-### 5.1 Order
-
-0. **Ops (independent, do first):** rotate the service-role key that is embedded in the `matches-push-notification` webhook and recreate the webhook so the secret lives in Vault / a secret header (never in the trigger text). Do not print or copy the old value.
-1. **P0-A** — additive; the current app keeps working (tested: old read shapes, invite → accept → meetup → message → check-in, likes, blocks, reports, uploads).
-2. **R-P0 client** (this branch) — every other-user read moves to `profile_cards` / the RPCs; own reads stay on `profiles`. Every installed build must have it before step 3 (today: the dev clients; later: a forced minimum version).
-3. **P0-B** — own-row-only `profiles`; original RPCs closed.
-4. **P1-photos** (§3.2) — before the closed beta.
-
-### 5.2 What each step changes on screens
-
-| Screen | P0-A (old client) | R-P0 client |
-|---|---|---|
-| Home | unchanged | district → city; age from server |
-| Matches | unchanged | same; "Nearby" fallback reason only if the server gives it |
-| Plan your date | unchanged | venue labels "Near both of you" / "Near you" only |
-| Other user's profile | unchanged | no surname, no district |
-| Activity likers | unchanged | blocked / deleted likers no longer listed or counted |
-| Vibe / Map (no navigation entry) | unchanged | district strip removed / people layer disabled |
-
-### 5.3 Recovery — fix-forward, not reopen
-
-A rollback that reopens private data is **not** a safe default.
-
-| Symptom after applying | Do this | Exposure while doing it |
-|---|---|---|
-| A legitimate match/meetup/check-in write is rejected by the new guard | Fix-forward: `drop trigger matches_guard_client_writes on public.matches;`, fix the rule, re-create. | Only the forged-consent hole (#7) reopens, for that window |
-| A like write is rejected | Same with `likes_guard_client_writes` | #8 for likes |
-| Onboarding completion rejected wrongly | Same with `profiles_guard_client_writes` | #6 |
-| A screen breaks after P0-B | Ship a client hotfix that reads `profile_cards`/RPCs, or **disable that screen**; do **not** reopen `profiles` | none |
-| Everything is on fire and the owner accepts re-exposure in writing | `…p0b…emergency_reopen.sql`, then re-apply P0-B after the hotfix | #1–#3 reopen |
-| P0-A must be removed entirely (owner decision, P0-B not applied) | `…p0a…rollback.sql` (verified to restore the exact live policies/grants/functions) | all P0-A holes reopen |
-
-## 6. Verification (local, isolated)
-
-See `work-packages/P0_PRIVACY_RESULT.md` for the full output. Summary:
-PGlite (Postgres 18.3 in WASM) loaded with a replica built from the live
-catalog snapshot — **real** function bodies (incl. `get_top_matches`,
-`get_my_likers`, `handle_mutual_like`, `upsert_match`), real triggers
-(webhook excluded), policies, table + column grants and function ACLs —
-served by **PostgREST 13.0.8** (live runs v14.4) with locally signed JWTs.
-Actors: anon, the owner, 14 synthetic users covering every row of the access
-table. **256 / 256 checks pass** across LIVE (exposure reproduced) → P0-A →
-P0-B → revert fidelity. Storage policies are checked in SQL as each role (the
-Storage HTTP server is not part of the replica).
-
-## 7. Open decisions
-
-1. Approve the live order in §5.1 (step 0 first).
-2. Q-P0-2: should the other person's `intent` ("Looking for") be on the card?
-3. Private photo bucket TTL (proposed 15 min) and whether the chat keeps showing a blocked person's past photos from cache.
-4. Should hidden users stay visible to people they already have an invite/chat with (current rule: yes) or only to accepted chats?
+## 8. Open items
+- WP2: replace the `matches` trigger guard with SECURITY DEFINER RPCs; move `setup_completed` to server-controlled review state.
+- Pre-existing, unchanged: re-liking after a match resets the like to `sent`; "Leaked password protection" is still off.
+- The Map people layer and the Vibe district strip stay disabled. A k-anonymous server aggregate would be needed to bring the map back.

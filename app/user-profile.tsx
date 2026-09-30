@@ -30,6 +30,7 @@ import {
   type ProfileChip,
 } from '@/lib/hingeProfile';
 import { supabase } from '@/lib/supabaseClient';
+import { forgetProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 
 function firstParam(val: string | string[] | undefined): string {
@@ -156,9 +157,9 @@ export default function UserProfileScreen() {
 
         // `intent` lives on onboarding_answers, not profiles (see index/profile screens)
         const { data: intentData } = await supabase
-          .from('onboarding_answers')
+          .from('profile_cards')
           .select('intent')
-          .eq('user_id', userId)
+          .eq('id', userId)
           .maybeSingle();
 
         if (!mounted) return;
@@ -231,6 +232,7 @@ export default function UserProfileScreen() {
               blocker_id: currentUserId,
               blocked_id: userId,
             });
+            if (!error) forgetProfilePhotoUrls(userId);
             if (error) {
               Alert.alert('Could not block', 'Please try again.');
               return;

@@ -30,8 +30,9 @@ import {
   type DailyViewsState,
 } from '@/lib/dailyViews';
 import { buildPromptCards, parseFavoriteSpots, type HingeProfilePerson, type PromptCard } from '@/lib/hingeProfile';
+import { forgetProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
-import { devBuildLabel } from '@/lib/devBuildInfo';
+import { devBackendLabel, devBuildLabel } from '@/lib/devBuildInfo';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -292,10 +293,12 @@ export default function HomeScreen() {
     const rows = rpcData as TopMatchRow[];
     const userIds = rows.map((r) => r.user_id);
 
-    const { data: intentRows } = await supabase
-      .from('onboarding_answers')
-      .select('user_id, intent')
-      .in('user_id', userIds);
+    // "Looking for" of people you may see — profile_cards.intent (P0).
+    const { data: intentCards } = await supabase.from('profile_cards').select('id, intent').in('id', userIds);
+    const intentRows = (intentCards ?? []).map((r: { id: string; intent: string | null }) => ({
+      user_id: r.id,
+      intent: r.intent,
+    }));
 
     const intentMap = new Map(
       (intentRows ?? []).map((row: { user_id: string; intent: string | null }) => [
@@ -729,6 +732,7 @@ export default function HomeScreen() {
           const { error } = await supabase
             .from('blocks')
             .insert({ blocker_id: authUserId, blocked_id: targetId });
+          if (!error) forgetProfilePhotoUrls(targetId);
           if (error) {
             Alert.alert('Could not block', 'Please try again.');
             return;
@@ -815,8 +819,10 @@ export default function HomeScreen() {
             {/* DEV-ONLY (P07 R2): which code this phone is actually running —
                 package · commit (+local changes) · worktree, from app.config.js. */}
             {__DEV__ ? (
-              <ThemedText style={styles.devBuildLabel} accessibilityLabel={`Build ${devBuildLabel()}`}>
+              <ThemedText style={styles.devBuildLabel} accessibilityLabel={`Build ${devBuildLabel()}, ${devBackendLabel()}`}>
                 {devBuildLabel()}
+                {'\n'}
+                {devBackendLabel()}
               </ThemedText>
             ) : null}
           </View>

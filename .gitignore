@@ -20,3 +20,6 @@ build/
 
 expo-env.d.ts
 # @end expo-cli
+# Separate Supabase TEST project (P0) — local secrets and generated files
+.env.test.local
+.test-backend/
