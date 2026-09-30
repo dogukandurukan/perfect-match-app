@@ -29,9 +29,13 @@ export const supabase = createClient(resolved.url, resolved.anonKey, {
   auth: {
     storage: AsyncStorage,
     // Session per environment + project: never reuse a live session on the
-    // test project (or the other way round). Live keeps supabase-js's default
-    // key so existing live sessions are not signed out.
-    storageKey: resolved.env === 'test' ? `tempa-test-${resolved.projectRef}-auth` : undefined,
+    // test project (or the other way round). Live/dev keep supabase-js's default
+    // key so existing sessions are not signed out. The key must be OMITTED, not
+    // set to undefined: an explicit `storageKey: undefined` overrides the
+    // default, and AsyncStorage then reads/writes the session under an
+    // undefined key — on the phone the sign-in/sign-up hung right after the
+    // server returned 200 (2026-09-30).
+    ...(resolved.env === 'test' ? { storageKey: `tempa-test-${resolved.projectRef}-auth` } : {}),
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
