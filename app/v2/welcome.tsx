@@ -13,6 +13,7 @@ import { loadMyOnboarding } from '@/lib/onboardingV2/remote';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { emailLooksValid, normalizeEmail, RESEND_COOLDOWN_SECONDS, sanitizeCode } from '@/lib/onboardingV2/yourProfile';
 import { supabase } from '@/lib/supabaseClient';
+import { friendlyNetworkError, withTimeout } from '@/lib/withTimeout';
 
 type Phase = 'email' | 'code';
 
@@ -41,50 +42,71 @@ export default function V2Welcome() {
     if (!emailLooksValid(email) || busy || !consent) return;
     setBusy(true);
     setError(null);
-    const { error: e } = await supabase.auth.signInWithOtp({
-      email: normalizeEmail(email),
-      options: { shouldCreateUser: true },
-    });
-    setBusy(false);
-    if (e) {
-      setError(/rate|seconds/i.test(e.message) ? 'Please wait a moment before asking for another code.' : "We couldn't send a code. Check the address and try again.");
-      return;
+    try {
+      console.log('[v2 welcome] send code: start');
+      const { error: e } = await withTimeout(
+        supabase.auth.signInWithOtp({ email: normalizeEmail(email), options: { shouldCreateUser: true } }),
+        20000,
+        'sendCode',
+      );
+      console.log(`[v2 welcome] send code: done (error: ${e ? e.name : 'none'})`);
+      if (e) {
+        setError(/rate|seconds/i.test(e.message) ? 'Please wait a moment before asking for another code.' : "We couldn't send a code. Check the address and try again.");
+        return;
+      }
+      setSentAt(Date.now());
+      setCode('');
+      setPhase('code');
+    } catch (err) {
+      setError(friendlyNetworkError(err, "We couldn't send a code. Try again."));
+    } finally {
+      setBusy(false);
     }
-    setSentAt(Date.now());
-    setCode('');
-    setPhase('code');
   };
 
   const verify = async () => {
     if (code.length < 6 || busy) return;
     setBusy(true);
     setError(null);
-    const { error: e } = await supabase.auth.verifyOtp({ email: normalizeEmail(email), token: code, type: 'email' });
-    if (e) {
-      setBusy(false);
-      setError(/expired/i.test(e.message) ? 'That code has expired. Send a new one.' : "That code isn't right. Try again.");
-      return;
-    }
-    const loaded = await loadMyOnboarding();
-    if (loaded.ok) {
+    try {
+      console.log('[v2 welcome] verify: start');
+      const { error: e } = await withTimeout(
+        supabase.auth.verifyOtp({ email: normalizeEmail(email), token: code, type: 'email' }),
+        20000,
+        'verifyCode',
+      );
+      console.log(`[v2 welcome] verify: done (error: ${e ? e.name : 'none'})`);
+      if (e) {
+        setError(/expired/i.test(e.message) ? 'That code has expired. Send a new one.' : "That code isn't right. Try again.");
+        return;
+      }
+      const loaded = await withTimeout(loadMyOnboarding(), 20000, 'loadDraft');
+      if (!loaded.ok) {
+        // An existing (V1) member signing in here keeps the current app.
+        router.replace('/');
+        return;
+      }
       const uid = (await supabase.auth.getSession()).data.session?.user.id;
       if (uid) {
-        const { error: ce } = await supabase
-          .from('profiles')
-          .update({ privacy_consent_at: new Date().toISOString() })
-          .eq('id', uid)
-          .is('privacy_consent_at', null);
-        if (ce) console.warn('[v2] consent write failed', ce.message);
+        const { error: ce } = await withTimeout(
+          supabase
+            .from('profiles')
+            .update({ privacy_consent_at: new Date().toISOString() })
+            .eq('id', uid)
+            .is('privacy_consent_at', null),
+          20000,
+          'consent',
+        );
+        if (ce) console.warn('[v2] consent write failed', ce.code);
       }
+      const status = loaded.value.state?.application_status;
+      router.replace(status === 'draft' || status === 'changes_requested' ? '/v2/onboarding' : '/v2/status');
+    } catch (err) {
+      console.log(`[v2 welcome] verify failed: ${err instanceof Error ? err.message : 'unknown'}`);
+      setError(friendlyNetworkError(err, 'Something went wrong. Try again.'));
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    if (!loaded.ok) {
-      // An existing (V1) member signing in here keeps the current app.
-      router.replace('/');
-      return;
-    }
-    const status = loaded.value.state?.application_status;
-    router.replace(status === 'draft' || status === 'changes_requested' ? '/v2/onboarding' : '/v2/status');
   };
 
   const isEmail = phase === 'email';

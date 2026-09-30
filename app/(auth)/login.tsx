@@ -5,7 +5,7 @@ import { Alert, StyleSheet, TextInput, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, v2Enabled } from '@/lib/supabaseClient';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -65,7 +65,11 @@ export default function LoginScreen() {
           Şifreni mi unuttun?
         </ThemedText>
 
-        <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/register')}>
+        {/* On the V2 development backend new accounts go through the V2
+            email-code flow; the V1 password sign-up stays for `live` only. */}
+        <ThemedText
+          style={styles.linkText}
+          onPress={() => router.push((v2Enabled ? '/v2/welcome' : '/(auth)/register') as Parameters<typeof router.push>[0])}>
           Hesabın yok mu? Create account
         </ThemedText>
       </View>

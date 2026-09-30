@@ -855,7 +855,8 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.signUpBtn}
               activeOpacity={0.85}
-              onPress={() => router.push('/(auth)/register' as Parameters<typeof router.push>[0])}>
+              // V2 development backend: "Sign Up" opens the V2 email-code flow.
+              onPress={() => router.push((v2Enabled ? '/v2/welcome' : '/(auth)/register') as Parameters<typeof router.push>[0])}>
               <ThemedText style={styles.signUpBtnText}>Sign Up</ThemedText>
             </TouchableOpacity>
             {/* DEV-ONLY (Tempa P03): opens the isolated onboarding V2 preview
