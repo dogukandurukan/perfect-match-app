@@ -412,6 +412,12 @@ async function run() {
     return id;
   };
   const ok1 = await member(1); // eligible
+  await db.exec(`insert into storage.objects(bucket_id, name) values ('profile-photos-private', '${ok1}/f1.jpg');
+    insert into profile_photos_v2(user_id, storage_path, position) values ('${ok1}', '${ok1}/f1.jpg', 1);
+    update profiles set photos = array['${ok1}/f1.jpg'] where id = '${ok1}';`);
+  const u1SignsF1 = await asRole('authenticated', U.U1,
+    `select name from storage.objects where bucket_id='profile-photos-private' and name like '${ok1}/%'`);
+  check(u1SignsF1.ok && u1SignsF1.rows.length === 1, 'U1 can sign an eligible member\'s photos');
   await member(2, { wants: ['women'] }); // doesn't want men
   await member(3, { city: 'Ankara' }); // other city
   await member(4, { dob: '1955-01-01' }); // outside U1's 18–60
@@ -441,6 +447,19 @@ async function run() {
   await db.exec(`insert into blocks(blocker_id, blocked_id) values ('${U.U1}', '${ok1}')`);
   const afterBlock = await rpc('U1', 'get_discovery_candidates_v2', { p_limit: 20 });
   check(!rows(afterBlock).some((r) => r.user_id === ok1), 'blocking removes the candidate at once');
+  const u1PhotoForF1 = await asRole('authenticated', ok1,
+    `select name from storage.objects where bucket_id='profile-photos-private' and name like '${U.U1}/%'`);
+  const f1PhotoForU1 = await asRole('authenticated', U.U1,
+    `select name from storage.objects where bucket_id='profile-photos-private' and name like '${ok1}/%'`);
+  check(u1PhotoForF1.ok && u1PhotoForF1.rows.length === 0 && f1PhotoForU1.ok && f1PhotoForU1.rows.length === 0,
+    'after the block neither side can sign the other\'s photos');
+  const cardAfter = await asRole('authenticated', ok1, `select id from public.profile_cards where id = '${U.U1}'`);
+  check(cardAfter.ok && cardAfter.rows.length === 0, 'after the block the blocked member loses the card');
+  const likeAfter = await asRole('authenticated', ok1,
+    `insert into public.likes(liker_id, likee_id, target_type, status) values ('${ok1}', '${U.U1}', 'profile', 'sent')`);
+  check(!likeAfter.ok && likeAfter.error.includes('target_not_visible'), 'after the block no like can be sent');
+  const f1After = await asRole('authenticated', ok1, 'select user_id from public.get_discovery_candidates_v2(20)');
+  check(f1After.ok && !f1After.rows.some((r) => r.user_id === U.U1), 'after the block the other side no longer sees U1 either');
 
   stage = 'ORPHAN MEDIA';
   await db.exec(`update storage.objects set created_at = now() - interval '2 days' where name like '${U.U1}/%'`);

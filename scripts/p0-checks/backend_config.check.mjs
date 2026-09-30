@@ -24,6 +24,8 @@ check(!resolveBackend({ env: 'test', testUrl, testAnonKey: LIVE_SUPABASE_ANON_KE
 check(!resolveBackend({ env: 'test', testUrl, testAnonKey: fakeAnon('zzzzzzzzzzzzzzzzzzzz') }).ok, 'key of another project → error');
 check(!resolveBackend({ env: 'test', testUrl, testAnonKey: fakeAnon(TEST_REF, 'service_role') }).ok, 'service_role key → error');
 check(!resolveBackend({ env: 'test', testUrl, testAnonKey: 'sb_secret_abc' }).ok, 'secret key → error');
+check(!resolveBackend({ env: 'test', testUrl: 'https://eiytdoquxlpjvquxmgsp.supabase.co', testAnonKey: fakeAnon('eiytdoquxlpjvquxmgsp') }).ok,
+  'AI HQ project refused');
 const ok = resolveBackend({ env: 'test', testUrl, testAnonKey: fakeAnon(TEST_REF) });
 check(ok.ok && ok.env === 'test' && ok.projectRef === TEST_REF && ok.url === testUrl, 'valid test config → test');
 const pub = resolveBackend({ env: 'test', testUrl, testAnonKey: 'sb_publishable_xyz' });

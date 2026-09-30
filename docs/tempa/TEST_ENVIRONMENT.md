@@ -4,6 +4,16 @@ Branch `tempa/v2-persist-r2` (working folder `~/tempa-p0`). Everything here
 targets a **separate** test project. The scripts refuse the live project's
 URL, keys and DB string, and never print secret values.
 
+## 0. Status (2026-09-30)
+
+The Supabase account has only two projects:
+- `perfect-match-dev` = **live**;
+- `ai-hq` = **not Tempa**, must not be used.
+
+Both are refused by the scripts and the app. **A new project for Tempa's tests has to be created first**:
+- Dashboard → New project → name it e.g. `tempa-test`. `setup.mjs` checks that the name contains "tempa".
+- If the plan's project limit blocks a new free project, that is an account/billing choice for you. Do not repoint any existing project.
+
 ## 1. What you fill in (once)
 
 File: **`~/tempa-p0/.env.test.local`**. It is already created, empty, git-ignored and mode 600.

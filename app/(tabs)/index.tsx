@@ -201,6 +201,9 @@ export default function HomeScreen() {
   const [reportReason, setReportReason] = useState('');
 
   const hasLoadedFeedRef = useRef(false);
+  // Active V2 member (server gate). On the TEST backend such a member's Home is
+  // fed by V2 eligibility (get_discovery_candidates_v2) — fixed order, no score.
+  const v2MemberRef = useRef(false);
   const feedResetAtRef = useRef<string | null>(null);
 
   // Swipe-to-decide (every dating app has this — user request, 2026-09-08).
@@ -267,6 +270,7 @@ export default function HomeScreen() {
       setChecking(false);
       return { state: null, userId: null };
     }
+    v2MemberRef.current = access.gate === 'member';
     if (access.gate === 'member') {
       setProfileState('complete');
       setChecking(false);
@@ -296,7 +300,49 @@ export default function HomeScreen() {
     return () => subscription.unsubscribe();
   }, [refreshProfileState]);
 
+  // V2 (TEST backend only): mutual eligibility from the server, shown in its
+  // fixed order. No compatibility score or percentage is produced or shown
+  // (match_percentage null hides the badge; no reasons hides "Why you match").
+  const loadV2Candidates = useCallback(async (): Promise<FeedUser[]> => {
+    const { data, error } = await supabase.rpc('get_discovery_candidates_v2', { p_limit: 20 });
+    if (error) throw error;
+    const rows = (data ?? []) as { user_id: string; first_name: string | null; age: number | null; city: string | null; photo_paths: string[] | null }[];
+    return Promise.all(
+      rows.map(async (row) => {
+        const photoUrls = (
+          await Promise.all((row.photo_paths ?? []).map((path) => resolveProfilePhotoUrl(path, 900)))
+        ).filter((u): u is string => !!u);
+        return {
+          user_id: row.user_id,
+          first_name: row.first_name,
+          date_of_birth: null,
+          age: row.age,
+          district: null,
+          city: row.city,
+          match_percentage: null,
+          match_category: null,
+          reasons: null,
+          intent: null,
+          availability_days: null,
+          drinking: null,
+          smoking: null,
+          languages: null,
+          hobbies: null,
+          favorite_music: null,
+          favorite_movie: null,
+          favorite_book: null,
+          bio: null,
+          first_date_expectation: null,
+          favorite_spots: null,
+          photo_verified: null,
+          photoUrls,
+        } as FeedUser;
+      }),
+    );
+  }, []);
+
   const loadFeed = useCallback(async (userId: string): Promise<FeedUser[]> => {
+    if (backend.env === 'test' && v2MemberRef.current) return loadV2Candidates();
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_discovery_cards', {
       p_limit: 10,
     });

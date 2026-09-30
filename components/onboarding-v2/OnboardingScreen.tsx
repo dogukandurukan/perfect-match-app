@@ -46,6 +46,10 @@ type Props = {
   /** Changing this remounts the scroll view (e.g. per step) so each step
    * starts scrolled to the top. */
   contentKey?: string | number;
+  /** Reports the scroll offset (e.g. to remember the profile preview position). */
+  onScrollY?: (y: number) => void;
+  /** Scroll to this offset once the content for `contentKey` has laid out. */
+  restoreScrollY?: number | null;
 };
 
 function useKeyboardVisible(): boolean {
@@ -75,6 +79,8 @@ export function OnboardingScreen({
   children,
   footer,
   contentKey,
+  onScrollY,
+  restoreScrollY,
 }: Props) {
   const insets = useSafeAreaInsets();
   const fontsReady = useOnboardingFonts();
@@ -83,6 +89,11 @@ export function OnboardingScreen({
   const scrollRef = useRef<ScrollView>(null);
   const [scrollLocked, setScrollLocked] = useState(false);
   const scrollY = useRef(0);
+  const restoredFor = useRef<string | number | undefined | null>(null);
+  // A new step (new ScrollView) may restore again.
+  useEffect(() => {
+    restoredFor.current = null;
+  }, [contentKey]);
 
   // Scroll a focused field (and the suggestions rendered under it) to just
   // below the top of the visible scroll area, clear of the keyboard and footer.
@@ -125,6 +136,13 @@ export function OnboardingScreen({
         ref={scrollRef}
         onScroll={(e) => {
           scrollY.current = e.nativeEvent.contentOffset.y;
+          onScrollY?.(scrollY.current);
+        }}
+        onContentSizeChange={(_w, h) => {
+          if (!restoreScrollY || restoredFor.current === contentKey) return;
+          if (h < restoreScrollY) return; // wait until the content is tall enough
+          restoredFor.current = contentKey;
+          scrollRef.current?.scrollTo({ y: restoreScrollY, animated: false });
         }}
         scrollEventThrottle={32}
         style={styles.flex}

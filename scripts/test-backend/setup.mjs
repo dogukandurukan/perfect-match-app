@@ -18,6 +18,28 @@ import { loadTestEnv, outDir } from './_env.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const env = loadTestEnv({ needDb: true, needService: true }); // validates the file, refuses live
+// The target must be Tempa's own test project: its name (from the account's
+// project list — names/refs only) must contain "tempa", unless explicitly
+// confirmed. Never the live project or AI HQ (refused in _env.mjs as well).
+{
+  const r = spawnSync('npx', ['supabase', 'projects', 'list', '--output', 'json'], { cwd: outDir, encoding: 'utf8' });
+  let name = null;
+  try {
+    const list = JSON.parse(r.stdout || '[]');
+    name = list.find((p) => (p.id ?? p.ref) === env.ref)?.name ?? null;
+  } catch {}
+  if (!name) {
+    console.error(`[setup] project ${env.ref} is not in this Supabase account's project list — check TEST_SUPABASE_URL`);
+    process.exit(2);
+  }
+  if (!/tempa/i.test(name) && !process.argv.includes('--i-confirm-tempa-test-project')) {
+    console.error(`[setup] project "${name}" (${env.ref}) is not named like a Tempa test project. ` +
+      'Rename it (e.g. "tempa-test") or re-run with --i-confirm-tempa-test-project.');
+    process.exit(2);
+  }
+  console.log(`[setup] target: "${name}" (${env.ref})`);
+}
+
 const stateFile = path.join(outDir, 'setup-state.json');
 const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
 if (state.projectRef && state.projectRef !== env.ref) {

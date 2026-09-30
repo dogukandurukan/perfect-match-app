@@ -28,6 +28,7 @@ import {
 import { DateTypesFields, DaysTimeFields } from '@/components/onboarding-v2/yourDates/YourDatesFields';
 import { LifeQuestionFields } from '@/components/onboarding-v2/yourLife/YourLifeFields';
 import { ReceivedFields } from '@/components/onboarding-v2/yourProfile/ApplicationFields';
+import { EditProfileSheet, type EditRow } from '@/components/onboarding-v2/yourProfile/EditProfileSheet';
 import { CodeFields, EmailFields } from '@/components/onboarding-v2/yourProfile/EmailFields';
 import { PhotosFields } from '@/components/onboarding-v2/yourProfile/PhotosFields';
 import { ProfilePreview } from '@/components/onboarding-v2/yourProfile/ProfilePreview';
@@ -85,7 +86,7 @@ import {
   worldToServer,
 } from '@/lib/onboardingV2/serverMapping';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
-import { DATES_SCREENS, EMPTY_DATES_DRAFT, type DatesDraft } from '@/lib/onboardingV2/yourDates';
+import { DATES_SCREENS, DATE_TYPES, EMPTY_DATES_DRAFT, datesSummary, type DatesDraft } from '@/lib/onboardingV2/yourDates';
 import { EMPTY_LIFE_DRAFT, LIFE_QUESTIONS, type LifeDraft } from '@/lib/onboardingV2/yourLife';
 import {
   EMPTY_PROFILE_DRAFT,
@@ -97,6 +98,7 @@ import {
   emailLooksValid,
   firstMissingStep,
   normalizeEmail,
+  usablePhotos,
   type PhotoUpdater,
   type ProfileDraft,
 } from '@/lib/onboardingV2/yourProfile';
@@ -258,6 +260,10 @@ export function PreviewFlow({ onExit, live }: Props) {
   const [selfieError, setSelfieError] = useState<SelfieError | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  // Profile preview scroll position, restored when returning from an edit.
+  const previewScrollRef = useRef(0);
+  const [restorePreview, setRestorePreview] = useState(false);
   const submittingRef = useRef(false);
 
   const patcher =
@@ -282,6 +288,7 @@ export function PreviewFlow({ onExit, live }: Props) {
     setSelfieCandidate(null);
     setSelfieError(null);
     setCodeError(null);
+    setRestorePreview(samePos(returnTo, next) && samePos(next, PREVIEW_POS));
     if (samePos(returnTo, next)) setReturnTo(null);
     if (samePos(RECEIVED_POS, next)) setReviewing(false);
     setPos(next);
@@ -381,22 +388,40 @@ export function PreviewFlow({ onExit, live }: Props) {
   });
 
   // ─── Your Profile actions ────────────────────────────────────────────────
-  const openEditMenu = () => {
-    const edit = (to: FlowPos) => () => {
-      setReturnTo(PREVIEW_POS);
-      goTo(to);
-    };
-    Alert.alert('Edit profile', 'Your answers are kept. Use "Back to preview" when you are done.', [
-      { text: 'Photos', onPress: edit({ section: 'yourProfile', step: PROFILE_STEP.photos }) },
-      { text: 'Answers', onPress: edit({ section: 'yourProfile', step: PROFILE_STEP.prompts }) },
-      { text: 'Name, age, location, height', onPress: edit({ section: 'basics', step: 1 }) },
-      { text: 'Looking for & values', onPress: edit({ section: 'compatibility', step: 1 }) },
-      { text: 'Lifestyle', onPress: edit({ section: 'yourLife', step: 1 }) },
-      { text: 'Work, school, interests, favorites', onPress: edit({ section: 'yourWorld', step: 1 }) },
-      { text: 'First dates', onPress: edit({ section: 'yourDates', step: 1 }) },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  const openEditMenu = () => setEditOpen(true);
+  const editTo = (to: FlowPos) => () => {
+    setEditOpen(false);
+    setReturnTo(PREVIEW_POS);
+    goTo(to);
   };
+  // Descriptions come from the real draft (counts, chosen answers).
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const photoCount = usablePhotos(profile.photos).length;
+  const answerCount = profile.prompts.filter((a) => a.promptId && a.answer.trim()).length;
+  const intentTitle = SINGLE_QUESTIONS[0].options.find((o) => o.key === compat.intent)?.title;
+  const lifeAnswered = [life.smoking, life.drinking, life.pets, life.activity].filter(Boolean).length;
+  const dateTypeLabels = dates.dateTypes
+    .map((k) => DATE_TYPES.find((t) => t.key === k)?.label)
+    .filter((x): x is string => !!x);
+  const editRows: EditRow[] = [
+    { key: 'photos', icon: 'images-outline', title: 'Photos', description: plural(photoCount, 'photo', 'photos'),
+      onPress: editTo({ section: 'yourProfile', step: PROFILE_STEP.photos }) },
+    { key: 'prompts', icon: 'chatbubble-ellipses-outline', title: 'Prompts', description: plural(answerCount, 'answer', 'answers'),
+      onPress: editTo({ section: 'yourProfile', step: PROFILE_STEP.prompts }) },
+    { key: 'basics', icon: 'person-outline', title: 'Basics', description: 'Name, birthday, location, height',
+      onPress: editTo({ section: 'basics', step: 1 }) },
+    { key: 'looking', icon: 'heart-outline', title: 'Looking for',
+      description: [intentTitle, compat.values.length ? plural(compat.values.length, 'value', 'values') : null].filter(Boolean).join(' · ') || 'Not answered yet',
+      onPress: editTo({ section: 'compatibility', step: 1 }) },
+    { key: 'life', icon: 'leaf-outline', title: 'Lifestyle', description: `${lifeAnswered} of 4 answered`,
+      onPress: editTo({ section: 'yourLife', step: 1 }) },
+    { key: 'world', icon: 'globe-outline', title: 'Your world',
+      description: [world.jobTitle.trim() || null, plural(world.interests.length, 'interest', 'interests')].filter(Boolean).join(' · '),
+      onPress: editTo({ section: 'yourWorld', step: 1 }) },
+    { key: 'dates', icon: 'cafe-outline', title: 'First dates',
+      description: [dateTypeLabels.join(', ') || null, datesSummary(dates)].filter(Boolean).join(' · ') || 'Not answered yet',
+      onPress: editTo({ section: 'yourDates', step: 1 }) },
+  ];
 
   const takeSelfie = async () => {
     if (capturing) return;
@@ -581,6 +606,8 @@ export function PreviewFlow({ onExit, live }: Props) {
       reserveTitleBlock={!(inProfile && step === PROFILE_STEP.preview)}
       onBack={handleBack}
       contentKey={`${pos.section}-${step}`}
+      onScrollY={inProfile && step === PROFILE_STEP.preview ? (y) => (previewScrollRef.current = y) : undefined}
+      restoreScrollY={inProfile && step === PROFILE_STEP.preview && restorePreview ? previewScrollRef.current : null}
       footer={
         <>
           {saveError ? (
@@ -684,6 +711,7 @@ export function PreviewFlow({ onExit, live }: Props) {
         />
       )}
       {inProfile && step === PROFILE_STEP.received && <ReceivedFields live={!!live} />}
+      <EditProfileSheet visible={editOpen} rows={editRows} onClose={() => setEditOpen(false)} />
     </OnboardingScreen>
   );
 }

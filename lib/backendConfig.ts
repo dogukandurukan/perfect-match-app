@@ -12,6 +12,8 @@
 // scripts/p0-checks/backend_config.check.mjs.
 
 export const LIVE_PROJECT_REF = 'fyqwjduzpnjuxqsloxih';
+// Another project in the same Supabase account that is NOT Tempa's (AI HQ).
+const NOT_TEMPA_REFS = ['eiytdoquxlpjvquxmgsp'];
 export const LIVE_SUPABASE_URL = `https://${LIVE_PROJECT_REF}.supabase.co`;
 // Public (anon/publishable) key — ships in every app bundle by design.
 export const LIVE_SUPABASE_ANON_KEY =
@@ -68,6 +70,9 @@ export function resolveBackend(extra: BackendExtra | null | undefined): BackendC
   const ref = m[1];
   if (ref === LIVE_PROJECT_REF) {
     return { ok: false, reason: 'TEMPA_TEST_SUPABASE_URL points at the LIVE project. Use the separate test project.' };
+  }
+  if (NOT_TEMPA_REFS.includes(ref)) {
+    return { ok: false, reason: 'TEMPA_TEST_SUPABASE_URL points at a project that is not Tempa (AI HQ).' };
   }
   if (!key) return { ok: false, reason: 'TEMPA_TEST_SUPABASE_ANON_KEY is missing.' };
   if (key.startsWith('sb_secret_')) {

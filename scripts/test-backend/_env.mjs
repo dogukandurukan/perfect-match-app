@@ -5,6 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const LIVE_REF = 'fyqwjduzpnjuxqsloxih';
+// Other projects in the same account that must never be used as Tempa's test
+// backend (owner instruction 2026-09-30: not AI HQ).
+export const FORBIDDEN_REFS = { [LIVE_REF]: 'the LIVE project', eiytdoquxlpjvquxmgsp: 'the AI HQ project (not Tempa)' };
 export const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const outDir = path.join(repo, '.test-backend');
 
@@ -28,7 +31,7 @@ export function loadTestEnv({ needDb = false, needService = false } = {}) {
   const m = /^https:\/\/([a-z0-9]{20})\.supabase\.co\/?$/.exec(url);
   if (!m) fail('TEST_SUPABASE_URL must be https://<ref>.supabase.co');
   const ref = m[1];
-  if (ref === LIVE_REF) fail('TEST_SUPABASE_URL is the LIVE project — refusing.');
+  if (FORBIDDEN_REFS[ref]) fail(`TEST_SUPABASE_URL is ${FORBIDDEN_REFS[ref]} — refusing.`);
   const anon = env.TEST_SUPABASE_ANON_KEY ?? '';
   if (!anon) fail('TEST_SUPABASE_ANON_KEY missing');
   if (anon.startsWith('sb_secret_')) fail('TEST_SUPABASE_ANON_KEY is a secret key');
@@ -47,7 +50,7 @@ export function loadTestEnv({ needDb = false, needService = false } = {}) {
   if (needDb) {
     const db = env.TEST_DB_URL ?? '';
     if (!db.startsWith('postgres')) fail('TEST_DB_URL missing');
-    if (db.includes(LIVE_REF)) fail('TEST_DB_URL points at the LIVE project — refusing.');
+    for (const [bad, what] of Object.entries(FORBIDDEN_REFS)) if (db.includes(bad)) fail(`TEST_DB_URL points at ${what} — refusing.`);
     if (!db.includes(ref)) fail('TEST_DB_URL does not belong to the test project in TEST_SUPABASE_URL');
     out.dbUrl = db;
   }
