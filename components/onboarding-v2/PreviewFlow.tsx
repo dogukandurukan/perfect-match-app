@@ -10,8 +10,8 @@
 // with an error if it can't), photos/selfie are uploaded, the email is the
 // one verified at sign-in (email steps skipped), and "You're on the list!"
 // appears only after the server has recorded the application.
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { Alert, BackHandler, Keyboard, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { Alert, AppState, BackHandler, Keyboard, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
 import {
   BirthdayFields,
@@ -153,6 +153,8 @@ export type LiveOptions = {
     profile: ProfileDraft;
     serverPhotoIds: string[];
   };
+  /** Reviewer asked for changes: shown on open and on the submit screen. */
+  review?: { note: string | null; items: string[] } | null;
 };
 
 type Props = {
@@ -185,6 +187,69 @@ export function PreviewFlow({ onExit, live }: Props) {
   const serverPhotoIdsRef = useRef<string[]>(live?.initial.serverPhotoIds ?? []);
   // One id for this application, reused by every retry (idempotent submit).
   const requestIdRef = useRef<string>(newRequestId());
+
+  // ─── Live photo auto-save ────────────────────────────────────────────────
+  // Photos are saved as soon as they are picked (short debounce) and when the
+  // app goes to the background — not only on Continue — so closing the app
+  // right after picking loses at most the upload that was in flight. Tiles
+  // without a server id are marked "Not saved yet" until then.
+  const photosRef = useRef(profile.photos);
+  photosRef.current = profile.photos;
+  const registeredRef = useRef(new Map<string, { serverId: string; path: string }>());
+  const photoSyncRef = useRef({ running: false, again: false });
+  const photoSyncErrorRef = useRef(false);
+  const [photoSync, setPhotoSync] = useState<{ status: string | null; error: boolean }>({ status: null, error: false });
+
+  const runPhotoSync = useCallback(async (): Promise<boolean> => {
+    if (!live) return true;
+    const st = photoSyncRef.current;
+    if (st.running) {
+      st.again = true;
+      while (st.running) await new Promise((r) => setTimeout(r, 50));
+      return !photoSyncErrorRef.current;
+    }
+    st.running = true;
+    let ok = true;
+    do {
+      st.again = false;
+      // Merge synchronously-known registrations (state may not have re-rendered yet).
+      const list = photosRef.current.map((ph) => {
+        const reg = registeredRef.current.get(ph.id);
+        return reg && !ph.serverId ? { ...ph, ...reg } : ph;
+      });
+      const listIds = list.map((ph) => ph.serverId).filter(Boolean).join();
+      const upToDate = list.every((ph) => ph.serverId || ph.broken) && listIds === serverPhotoIdsRef.current.join();
+      if (upToDate) break;
+      setPhotoSync({ status: 'Saving photos…', error: false });
+      const r = await syncPhotos(live.userId, list, serverPhotoIdsRef.current, (localId, serverId, path) => {
+        registeredRef.current.set(localId, { serverId, path });
+        setProfile((d) => ({ ...d, photos: d.photos.map((ph) => (ph.id === localId ? { ...ph, serverId, path } : ph)) }));
+      });
+      if (r.ok) serverPhotoIdsRef.current = r.value.serverIds;
+      else {
+        ok = false;
+        setPhotoSync({ status: `${r.message} Photos marked "Not saved yet" are not stored.`, error: true });
+        break;
+      }
+    } while (st.again);
+    st.running = false;
+    photoSyncErrorRef.current = !ok;
+    if (ok) setPhotoSync({ status: photosRef.current.length ? 'All photos saved.' : null, error: false });
+    return ok;
+  }, [live]);
+  useEffect(() => {
+    if (!live) return;
+    const t = setTimeout(() => void runPhotoSync(), 800);
+    return () => clearTimeout(t);
+  }, [live, profile.photos, runPhotoSync]);
+
+  useEffect(() => {
+    if (!live) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') void runPhotoSync();
+    });
+    return () => sub.remove();
+  }, [live, runPhotoSync]);
   // Editing from the profile preview: where "Back to preview" returns to.
   const [returnTo, setReturnTo] = useState<FlowPos | null>(null);
   // Preview opened from "You're on the list" (read-only review).
@@ -256,11 +321,8 @@ export function PreviewFlow({ onExit, live }: Props) {
     } else if (from.section === 'yourDates') {
       r = await saveSection('yourDates', datesToServer(dates), resume);
     } else if (from.step === PROFILE_STEP.photos) {
-      const synced = await syncPhotos(live.userId, profile.photos, serverPhotoIdsRef.current, (localId, serverId, path) =>
-        setProfile((d) => ({ ...d, photos: d.photos.map((ph) => (ph.id === localId ? { ...ph, serverId, path } : ph)) })),
-      );
-      if (synced.ok) serverPhotoIdsRef.current = synced.value.serverIds;
-      r = synced.ok ? await saveSection('yourProfile', {}, resume) : synced;
+      const synced = await runPhotoSync();
+      r = synced ? await saveSection('yourProfile', {}, resume) : { ok: false, message: 'Some photos are not saved yet. Try again.' };
     } else if (from.step === PROFILE_STEP.prompts) {
       r = await savePrompts(profile.prompts);
       if (r.ok) r = await saveSection('yourProfile', {}, resume);
@@ -579,7 +641,13 @@ export function PreviewFlow({ onExit, live }: Props) {
       {inWorld && step === 6 && <MediaFields {...wProps} />}
       {inDates && step === 1 && <DateTypesFields {...dProps} />}
       {inDates && step === 2 && <DaysTimeFields {...dProps} />}
-      {inProfile && step === PROFILE_STEP.photos && <PhotosFields photos={profile.photos} updatePhotos={updatePhotos} />}
+      {inProfile && step === PROFILE_STEP.photos && (
+        <PhotosFields
+          photos={profile.photos}
+          updatePhotos={updatePhotos}
+          live={live ? { status: photoSync.status, statusIsError: photoSync.error } : undefined}
+        />
+      )}
       {inProfile && step === PROFILE_STEP.prompts && (
         <PromptsFields prompts={profile.prompts} updatePrompts={updatePrompts} />
       )}
@@ -588,7 +656,8 @@ export function PreviewFlow({ onExit, live }: Props) {
       )}
       {inProfile && step === PROFILE_STEP.selfie && (
         <SelfieFields
-          selfieUri={profile.selfie?.uri ?? null}
+          savedPrivately={!!profile.selfie?.uploaded && !profile.selfie?.uri}
+          selfieUri={profile.selfie?.uri || null}
           candidateUri={selfieCandidate}
           error={selfieError}
         />
@@ -596,7 +665,9 @@ export function PreviewFlow({ onExit, live }: Props) {
       {inProfile && step === PROFILE_STEP.email && <EmailFields {...pProps} onSubmit={sendCode} />}
       {inProfile && step === PROFILE_STEP.code && live && (
         <Text style={styles.liveEmail} maxFontSizeMultiplier={1.6}>
-          {`Your email ${live.email} was confirmed when you signed in. Send your application when you're ready.`}
+          {live.review
+            ? `Thanks for the changes. ${live.review.note ? `Reviewer's note: "${live.review.note}" ` : ''}Send your application again when you're ready.`
+            : `Your email ${live.email} was confirmed when you signed in. Send your application when you're ready.`}
         </Text>
       )}
       {inProfile && step === PROFILE_STEP.code && !live && (

@@ -8,7 +8,8 @@
 //   1. Verify the caller's own JWT (never trust a client-supplied user id —
 //      you can only ever delete yourself).
 //   2. Remove their Storage objects (photos + verification selfie all live
-//      under `{userId}/` in the user-photos bucket).
+//      under `{userId}/` in user-photos, profile-photos-private and
+//      verification-selfies).
 //   3. Delete the `profiles` row — cascades to blocks/likes/matches/
 //      messages/notifications/onboarding_answers/reports/events (all FK'd
 //      to profiles with ON DELETE CASCADE, verified against pg_constraint
@@ -55,13 +56,24 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    const { data: files, error: listError } = await admin.storage.from('user-photos').list(userId);
-    if (listError) {
-      console.error('delete-account: storage list failed', listError);
-    } else if (files && files.length > 0) {
-      const paths = files.map((f) => `${userId}/${f.name}`);
-      const { error: removeError } = await admin.storage.from('user-photos').remove(paths);
-      if (removeError) console.error('delete-account: storage remove failed', removeError);
+    // Every bucket that can hold this user's files (P0/V2: private photos and
+    // the private selfie too — previously only the legacy public bucket was
+    // cleaned). Paged, because list() returns at most `limit` entries.
+    for (const bucket of ['user-photos', 'profile-photos-private', 'verification-selfies']) {
+      for (let round = 0; round < 50; round++) {
+        const { data: files, error: listError } = await admin.storage.from(bucket).list(userId, { limit: 100 });
+        if (listError) {
+          console.error(`delete-account: storage list failed (${bucket})`, listError);
+          break;
+        }
+        if (!files || files.length === 0) break;
+        const paths = files.map((f) => `${userId}/${f.name}`);
+        const { error: removeError } = await admin.storage.from(bucket).remove(paths);
+        if (removeError) {
+          console.error(`delete-account: storage remove failed (${bucket})`, removeError);
+          break;
+        }
+      }
     }
 
     const { error: profileError } = await admin.from('profiles').delete().eq('id', userId);

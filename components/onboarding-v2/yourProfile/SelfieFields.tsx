@@ -48,15 +48,29 @@ type Props = {
   /** Freshly captured, not yet confirmed with "Use selfie". */
   candidateUri: string | null;
   error: SelfieError | null;
+  /** Live mode: a selfie is already stored server-side. It can't be read back
+   * (private), so show "Selfie received" instead of an empty frame. */
+  savedPrivately?: boolean;
 };
 
-export function SelfieFields({ selfieUri, candidateUri, error }: Props) {
+export function SelfieFields({ selfieUri, candidateUri, error, savedPrivately = false }: Props) {
   const shown = candidateUri ?? selfieUri;
+  const received = !shown && savedPrivately;
   return (
     <View style={styles.wrap}>
-      <View style={styles.oval} accessible accessibilityLabel={shown ? 'Your selfie preview' : 'Selfie frame'}>
+      <View
+        style={styles.oval}
+        accessible
+        accessibilityLabel={shown ? 'Your selfie preview' : received ? 'Selfie received' : 'Selfie frame'}>
         {shown ? (
           <Image source={{ uri: shown }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        ) : received ? (
+          <View style={styles.received}>
+            <Ionicons name="checkmark-circle" size={56} color={obColors.cta} importantForAccessibility="no" />
+            <Text style={styles.receivedText} maxFontSizeMultiplier={1.4}>
+              Selfie received
+            </Text>
+          </View>
         ) : (
           <Ionicons name="person-outline" size={72} color={obColors.border} importantForAccessibility="no" />
         )}
@@ -98,6 +112,8 @@ export function SelfieFields({ selfieUri, candidateUri, error }: Props) {
 }
 
 const styles = StyleSheet.create({
+  received: { alignItems: 'center', justifyContent: 'center', gap: 8 },
+  receivedText: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.textPrimary },
   wrap: {
     gap: obSpacing.lg,
     alignItems: 'stretch',

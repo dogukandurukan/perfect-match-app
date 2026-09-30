@@ -54,6 +54,9 @@ import {
 type Props = {
   photos: LocalPhoto[];
   updatePhotos: (fn: PhotoUpdater) => void;
+  /** Live mode: photos without a server id are marked "Not saved yet" and
+   * this line reports the save state (saving / saved / not saved + why). */
+  live?: { status: string | null; statusIsError?: boolean };
 };
 
 const LONG_PRESS_MS = 280;
@@ -108,7 +111,9 @@ function PhotoTile({
   onDragEnd,
   onBroken,
   onAction,
+  unsaved = false,
 }: {
+  unsaved?: boolean;
   photo: LocalPhoto;
   index: number;
   count: number;
@@ -189,7 +194,7 @@ function PhotoTile({
         layout={LinearTransition.duration(180)}
         accessible
         accessibilityRole="imagebutton"
-        accessibilityLabel={photo.broken ? `${label}, couldn't load` : label}
+        accessibilityLabel={`${photo.broken ? `${label}, couldn't load` : label}${unsaved ? ', not saved yet' : ''}`}
         accessibilityHint="Opens the photo. Hold and drag to reorder."
         accessibilityActions={actions}
         onAccessibilityAction={(e) =>
@@ -213,6 +218,14 @@ function PhotoTile({
             accessible={false}
           />
         )}
+        {unsaved ? (
+          <View style={styles.unsavedTag} pointerEvents="none" accessibilityElementsHidden>
+            <Ionicons name="cloud-upload-outline" size={13} color="#FFFFFF" />
+            <Text style={styles.unsavedTagText} maxFontSizeMultiplier={1.2}>
+              Not saved yet
+            </Text>
+          </View>
+        ) : null}
         {index === 0 ? (
           <View style={styles.mainTag} pointerEvents="none">
             <Text style={styles.mainTagText} maxFontSizeMultiplier={1.2}>
@@ -225,7 +238,7 @@ function PhotoTile({
   );
 }
 
-export function PhotosFields({ photos, updatePhotos }: Props) {
+export function PhotosFields({ photos, updatePhotos, live }: Props) {
   const { width, fontScale } = useWindowDimensions();
   const geometry = gridGeometry(width, fontScale);
   const insets = useSafeAreaInsets();
@@ -341,6 +354,7 @@ export function PhotosFields({ photos, updatePhotos }: Props) {
                 }}
                 onBroken={(id) => updatePhotos((l) => markPhotoBroken(l, id))}
                 onAction={act}
+                unsaved={!!live && !p.serverId}
               />
             );
           }
@@ -367,6 +381,14 @@ export function PhotosFields({ photos, updatePhotos }: Props) {
       {photos.length > 0 ? (
         <Text style={styles.hint} maxFontSizeMultiplier={1.6}>
           Tap a photo to preview it. Hold and drag to reorder.
+        </Text>
+      ) : null}
+      {live?.status ? (
+        <Text
+          style={[styles.liveStatus, live.statusIsError && styles.liveStatusError]}
+          accessibilityLiveRegion="polite"
+          maxFontSizeMultiplier={1.6}>
+          {live.status}
         </Text>
       ) : null}
       {notice ? (
@@ -509,6 +531,21 @@ const styles = StyleSheet.create({
     borderColor: obColors.cta,
     backgroundColor: obColors.selectedFill,
   },
+  unsavedTag: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: 'rgba(28,27,24,0.72)',
+  },
+  unsavedTagText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontFamily: obFonts.bodySemiBold },
+  liveStatus: { marginTop: 10, fontSize: 14, lineHeight: 20, color: obColors.textSecondary, fontFamily: obFonts.body },
+  liveStatusError: { color: obColors.error },
   broken: {
     flex: 1,
     alignItems: 'center',

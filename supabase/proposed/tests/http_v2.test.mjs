@@ -164,7 +164,7 @@ const DATES = { date_types: ['coffee', 'walk'], favorite_spot: 'Moda sahil', day
 async function main() {
   await db.exec(buildReplicaSql());
   for (const f of ['20260928130000_p0a_privacy_additive.sql', '20260930090000_p1_private_photos.sql',
-    '20260930120000_v2_onboarding_persistence.sql']) {
+    '20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql']) {
     await db.exec(fs.readFileSync(path.join(proposed, f), 'utf8'));
   }
   // seed: auth users; legacy V1 members L and W; V2 member M activated by a reviewer
@@ -351,16 +351,129 @@ async function run() {
   const u2 = await rpc('U2', 'submit_application_v2', { p_request_id: crypto.randomUUID() });
   check(u2.ok && u2.json.status === 'draft' && (u2.json.missing ?? []).length > 5, 'incomplete applicant cannot submit');
 
-  stage = 'REVIEW';
-  await db.exec(`select public.review_application_v2('${U.U1}', 'accept', 'synthetic test')`); // service role / Studio
-  check((await rpc('U1', 'get_my_access_v2')).json?.gate === 'member', 'after reviewer acceptance: member');
+  stage = 'REVIEW LOOP';
+  await rejects('U1', 'review_application_v2', { p_user: U.U1, p_decision: 'accept' }, 'permission denied', 'client cannot review');
+  const noNote = await asRole('postgres', null, `select public.review_application_v2('${U.U1}', 'request_changes')`);
+  check(!noNote.ok && noNote.error.includes('changes_need_note_or_items'), 'request changes needs a note or items');
+  const oldSelfie = (await db.query(`select selfie_path from account_state_v2 where user_id='${U.U1}'`)).rows[0].selfie_path;
+  await db.exec(`select public.review_application_v2('${U.U1}', 'request_changes', 'Please add a clearer main photo and retake your selfie.',
+    array['yourProfile.photos','yourProfile.selfie'])`);
+  const cr = (await db.query(`select application_status, verification_status, membership_status, selfie_path, review_items from account_state_v2 where user_id='${U.U1}'`)).rows[0];
+  check(cr.application_status === 'changes_requested' && cr.membership_status === 'none' && cr.selfie_path === null
+    && cr.review_items.join() === 'yourProfile.photos,yourProfile.selfie', 'DB: changes requested, selfie dropped, items stored');
+  const g1 = (await rpc('U1', 'get_my_access_v2')).json;
+  check(g1?.gate === 'onboarding' && g1?.application_status === 'changes_requested', 'gate: back to the V2 flow (no Home)');
+  const mine = (await rpc('U1', 'get_my_onboarding_v2')).json;
+  check(mine.state.review_note?.includes('clearer main photo') && mine.state.review_items?.length === 2 && mine.state.has_selfie === false,
+    'the user sees the reviewer note and what to change');
+  const u2see = await api('U2', 'GET', `/account_state_v2?user_id=eq.${U.U1}&select=review_note`);
+  check(rows(u2see).length === 0, 'another user cannot see the review note');
+  check((await rpc('U1', 'save_onboarding_v2', { p_section: 'basics', p_data: { height_cm: 182 } })).ok, 'editing is allowed again');
+  check((await upload(U.U1, 'profile-photos-private', P(8))).ok, 'new photo uploaded');
+  const p8 = await rpc('U1', 'add_profile_photo_v2', { p_path: P(8) });
+  const cur = (await db.query(`select id from profile_photos_v2 where user_id='${U.U1}' order by position`)).rows.map((r) => r.id);
+  check(p8.ok && (await rpc('U1', 'reorder_profile_photos_v2', { p_ids: [p8.json.id, ...cur.filter((x) => x !== p8.json.id)] })).ok,
+    'new photo made the main photo');
+  const early2 = await rpc('U1', 'submit_application_v2', { p_request_id: crypto.randomUUID() });
+  check(early2.ok && early2.json.status === 'changes_requested' && early2.json.missing?.includes('yourProfile.selfie'),
+    'resubmit without the new selfie → not submitted');
+  const sp2 = `${U.U1}/${crypto.randomBytes(8).toString('hex')}.jpg`;
+  check((await upload(U.U1, 'verification-selfies', sp2)).ok && (await rpc('U1', 'set_verification_selfie_v2', { p_path: sp2 })).ok,
+    'new selfie stored');
+  const re = await Promise.all([1, 2, 3].map(() => rpc('U1', 'submit_application_v2', { p_request_id: crypto.randomUUID() })));
+  check(re.every((r) => r.ok && r.json.status === 'submitted') && re.filter((r) => r.json.already === false).length === 1,
+    'resubmission: exactly one, even with rapid taps');
+  const afterRe = (await db.query(`select application_status, review_items from account_state_v2 where user_id='${U.U1}'`)).rows[0];
+  check(afterRe.application_status === 'submitted' && afterRe.review_items === null, 'DB: submitted again, request cleared');
+  await db.exec(`select public.review_application_v2('${U.U1}', 'accept', 'looks good')`); // service role / Studio
+  check((await rpc('U1', 'get_my_access_v2')).json?.gate === 'member', 'after acceptance: member');
+  const ev = (await db.query(`select event from application_events_v2 where user_id='${U.U1}' order by id`)).rows.map((r) => r.event);
+  check(ev.join() === 'submitted,changes_requested,submitted,accepted', `audit trail: ${ev.join(' → ')}`);
+  const proj = (await db.query(`select setup_completed, first_name, photos from profiles where id='${U.U1}'`)).rows[0];
+  const order2 = (await db.query(`select storage_path from profile_photos_v2 where user_id='${U.U1}' order by position`)).rows.map((r) => r.storage_path);
+  check(proj.setup_completed === true && proj.first_name === 'Test' && JSON.stringify(proj.photos) === JSON.stringify(order2),
+    'acceptance projects the public card basics (server-side) in photo order');
   const md = await rpc('L', 'get_discovery_cards', { p_limit: 10 });
   check(md.ok && rows(md).some((r) => r.user_id === U.W), 'V1 member discovery still works');
-  const mm = await rpc('M', 'get_discovery_cards', { p_limit: 10 });
-  check(mm.ok, 'active V2 member can call discovery');
+
+  stage = 'V2 DISCOVERY (eligibility only)';
+  // Synthetic active V2 members, one per rule. U1: man, interested in women, born 1995, İstanbul, range 18–60.
+  const F = (n) => `00000000-0000-4000-8000-0000000003${String(n).padStart(2, '0')}`;
+  const member = async (n, { gender = 'woman', wants = ['men'], dob = '1996-01-01', city = 'İstanbul', state = 'active',
+    hidden = false, amin = 18, amax = 60 } = {}) => {
+    const id = F(n);
+    await db.exec(`insert into auth.users(id, email) values ('${id}', 'f${n}@tempa-test.invalid');
+      insert into profiles(id, first_name, is_hidden, discovery_age_min, discovery_age_max, setup_completed)
+        values ('${id}', 'F${n}', ${hidden}, ${amin}, ${amax}, ${state === 'active'});
+      insert into onboarding_v2(user_id, first_name, gender, interested_in, date_of_birth, location_city)
+        values ('${id}', 'F${n}', '${gender}', array[${wants.map((w) => `'${w}'`).join(',')}], '${dob}', '${city}');
+      insert into account_state_v2(user_id, application_status, verification_status, membership_status) values ('${id}',
+        ${state === 'active' ? "'accepted','verified','active'" : "'submitted','pending','none'"});`);
+    return id;
+  };
+  const ok1 = await member(1); // eligible
+  await member(2, { wants: ['women'] }); // doesn't want men
+  await member(3, { city: 'Ankara' }); // other city
+  await member(4, { dob: '1955-01-01' }); // outside U1's 18–60
+  await member(5, { amax: 25 }); // U1 (31) outside her range
+  await member(6, { hidden: true }); // hidden
+  const blocker = await member(7); // blocks U1
+  await db.exec(`insert into blocks(blocker_id, blocked_id) values ('${blocker}', '${U.U1}')`);
+  await member(8, { state: 'pending' }); // not accepted yet
+  const ok9 = await member(9, { wants: ['everyone'] }); // everyone
+  const cand = await rpc('U1', 'get_discovery_candidates_v2', { p_limit: 20 });
+  const candIds = rows(cand).map((r) => r.user_id);
+  check(cand.ok && JSON.stringify(candIds) === JSON.stringify([ok1, ok9].sort()), `U1 sees exactly the eligible members, fixed order (${candIds.length})`);
+  check(rows(cand).every((r) => Object.keys(r).sort().join() === 'age,city,first_name,photo_paths,user_id'),
+    'no score or ranking field is produced');
+  const f1sees = await asRole('authenticated', ok1, 'select user_id from public.get_discovery_candidates_v2(20)');
+  check(f1sees.ok && f1sees.rows.some((r) => r.user_id === U.U1), 'the other eligible member sees U1 too (mutual)');
+  const again2 = await rpc('U1', 'get_discovery_candidates_v2', { p_limit: 20 });
+  check(JSON.stringify(rows(again2).map((r) => r.user_id)) === JSON.stringify(candIds), 'order is stable between calls');
+  const pendingSees = await asRole('authenticated', F(8), 'select user_id from public.get_discovery_candidates_v2(20)');
+  check(pendingSees.ok && pendingSees.rows.length === 0, 'a pending applicant gets no candidates');
+  const legacySees = await rpc('L', 'get_discovery_candidates_v2', {});
+  check(legacySees.ok && rows(legacySees).length === 0, 'a V1 account is not part of V2 discovery');
+  check((await rpcSqlError('anon', 'get_discovery_candidates_v2', {}))?.includes('permission denied'), 'anon cannot call it');
+  const f1photo = await asRole('authenticated', ok1,
+    `select name from storage.objects where bucket_id='profile-photos-private' and name like '${U.U1}/%'`);
+  check(f1photo.ok && f1photo.rows.length >= 1, 'an eligible member can sign the accepted member\'s photos');
+  await db.exec(`insert into blocks(blocker_id, blocked_id) values ('${U.U1}', '${ok1}')`);
+  const afterBlock = await rpc('U1', 'get_discovery_candidates_v2', { p_limit: 20 });
+  check(!rows(afterBlock).some((r) => r.user_id === ok1), 'blocking removes the candidate at once');
+
+  stage = 'ORPHAN MEDIA';
+  await db.exec(`update storage.objects set created_at = now() - interval '2 days' where name like '${U.U1}/%'`);
+  const orphans = await asRole('postgres', null, `select bucket_id, name from public.list_orphan_media_v2(interval '1 hour')`);
+  const onames = (orphans.rows ?? []).map((r) => `${r.bucket_id}:${r.name}`);
+  check(onames.includes(`profile-photos-private:${P(7)}`), 'uploaded-but-never-registered photo is listed');
+  check(onames.includes(`verification-selfies:${oldSelfie}`), 'the replaced selfie is listed');
+  const registered = (await db.query(`select storage_path from profile_photos_v2 where user_id='${U.U1}'`)).rows.map((r) => r.storage_path);
+  check(!registered.some((pth) => onames.includes(`profile-photos-private:${pth}`)) && !onames.includes(`verification-selfies:${sp2}`),
+    'registered photos and the current selfie are never listed');
+  const fresh = await asRole('postgres', null, `select count(*)::int n from public.list_orphan_media_v2(interval '0')`);
+  check(fresh.ok, 'grace period cannot be set below 1 hour (in-flight uploads protected)');
+  check((await rpcSqlError('U1', 'list_orphan_media_v2', {}))?.includes('permission denied'), 'clients cannot list orphans');
+
+  stage = 'AFTER P0-B';
+  await db.exec(fs.readFileSync(path.join(proposed, '20260928130100_p0b_privacy_restrict.sql'), 'utf8'));
+  pgrst.kill('SIGTERM');
+  await new Promise((r) => pgrst.once('exit', r));
+  await startApi();
+  check((await rpc('U1', 'get_my_onboarding_v2')).ok, 'P0-B applied: own V2 bundle still loads');
+  check((await rpc('U1', 'get_my_access_v2')).json?.gate === 'member', 'P0-B applied: gate still member');
+  const cand2 = await rpc('U1', 'get_discovery_candidates_v2', { p_limit: 20 });
+  check(cand2.ok && rows(cand2).some((r) => r.user_id === ok9), 'P0-B applied: V2 discovery still works');
+  const other = await api('U1', 'GET', `/profiles?id=eq.${ok9}&select=first_name`);
+  check(rows(other).length === 0, 'P0-B applied: other people\'s profiles rows are private');
+  const card9 = await api('U1', 'GET', `/profile_cards?id=eq.${ok9}&select=first_name`);
+  check(rows(card9).length === 1, 'P0-B applied: an eligible V2 member\'s public card is readable');
+  const u2b = await rpc('U2', 'get_my_onboarding_v2');
+  check(u2b.ok && u2b.json.state.application_status === 'draft', 'P0-B applied: a draft applicant still loads and saves');
 
   stage = 'SCHEMA';
-  const noSecrets = fs.readFileSync(path.join(proposed, '20260930120000_v2_onboarding_persistence.sql'), 'utf8');
+  const noSecrets = ['20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql']
+    .map((f) => fs.readFileSync(path.join(proposed, f), 'utf8')).join('\n');
   check(!/eyJ[A-Za-z0-9_-]{20,}|fyqwjduzpnjuxqsloxih/.test(noSecrets), 'no key or live ref in the migration');
 }
 

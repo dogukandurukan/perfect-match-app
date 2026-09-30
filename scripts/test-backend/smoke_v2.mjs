@@ -175,9 +175,70 @@ async function main() {
   const bSubmit = await rpc(B.c, 'submit_application_v2', { p_request_id: crypto.randomUUID() });
   check(!bSubmit.error && bSubmit.data.status === 'draft' && (bSubmit.data.missing ?? []).length > 0, 'incomplete B cannot submit');
 
+  // ---- reviewer loop: request changes → edit → resubmit → accept -------------
+  const rq = await admin.rpc('review_application_v2', { p_user: A.userId, p_decision: 'request_changes',
+    p_note: 'Please retake your selfie in better light.', p_items: ['yourProfile.selfie'] });
+  check(!rq.error, 'reviewer requests changes (service role)');
+  const gA = (await rpc(A.c, 'get_my_access_v2')).data;
+  check(gA?.gate === 'onboarding' && gA?.application_status === 'changes_requested', 'A is sent back to the V2 flow (no Home)');
+  const bundleA = (await rpc(A.c, 'get_my_onboarding_v2')).data;
+  check(bundleA?.state?.review_note?.includes('retake your selfie') && bundleA?.state?.has_selfie === false,
+    'A sees the note; the old selfie is no longer counted');
+  const selfie2 = `${A.userId}/${crypto.randomBytes(16).toString('hex')}.jpg`;
+  check(!(await A.c.storage.from(SELFIES).upload(selfie2, png([210, 190, 170]), { contentType: 'image/jpeg' })).error
+    && !(await rpc(A.c, 'set_verification_selfie_v2', { p_path: selfie2 })).error, 'A retakes the selfie');
+  const resub = await Promise.all([1, 2].map(() => rpc(A.c, 'submit_application_v2', { p_request_id: crypto.randomUUID() })));
+  check(resub.every((r) => r.data?.status === 'submitted') && resub.filter((r) => r.data?.already === false).length === 1, 'A resubmits (once)');
+  check(!(await admin.rpc('review_application_v2', { p_user: A.userId, p_decision: 'accept' })).error, 'reviewer accepts A');
+  check((await rpc(A.c, 'get_my_access_v2')).data?.gate === 'member', 'A is an active member');
+  const eventsA = ((await admin.from('application_events_v2').select('event').eq('user_id', A.userId).order('id')).data ?? []).map((e) => e.event);
+  check(eventsA.join() === 'submitted,changes_requested,submitted,accepted', `audit trail: ${eventsA.join(' → ')}`);
+
+  // ---- complete + accept B, then mutual V2 eligibility (no score) ------------
+  const saveB = (section, data) => rpc(B.c, 'save_onboarding_v2', { p_section: section, p_data: data });
+  await saveB('basics', { first_name: 'Test', last_name: 'Deniz', date_of_birth: '1994-03-10', gender: 'man', interested_in: ['women'],
+    location_id: 'tr-istanbul-kadikoy', location_city: 'İstanbul', location_district: 'Kadıköy', location_label: 'Kadıköy, İstanbul, Turkey', height_cm: 180 });
+  await saveB('compatibility', { intent: 'long_term', social_energy: 'social', message_frequency: 'often', relationship_space: 'balance',
+    emotional_expression: 'reserved', meeting_pace: 'quickly', core_values: ['fun'] });
+  await saveB('yourLife', { smoking: 'no', drinking: 'none', pets: 'neutral', activity: 'very' });
+  await saveB('yourWorld', { interests: ['sports'] });
+  await saveB('yourDates', { date_types: ['drinks'], days_pref: 'either', time_pref: 'either' });
+  for (let i = 0; i < 3; i += 1) {
+    const p = `${B.userId}/${crypto.randomBytes(12).toString('hex')}.png`;
+    await B.c.storage.from(PHOTOS).upload(p, png([60, 120 + i * 30, 80]), { contentType: 'image/png' });
+    await rpc(B.c, 'add_profile_photo_v2', { p_path: p });
+  }
+  await rpc(B.c, 'save_prompts_v2', { p_prompts: [{ slot: 1, prompt_id: 'ask_me_about', answer: 'Football.' },
+    { slot: 2, prompt_id: 'comfort_food', answer: 'Lentil soup.' }] });
+  const selfieB = `${B.userId}/${crypto.randomBytes(16).toString('hex')}.jpg`;
+  await B.c.storage.from(SELFIES).upload(selfieB, png([100, 100, 100]), { contentType: 'image/jpeg' });
+  await rpc(B.c, 'set_verification_selfie_v2', { p_path: selfieB });
+  await B.c.from('profiles').update({ privacy_consent_at: new Date().toISOString() }).eq('id', B.userId);
+  const subB = await rpc(B.c, 'submit_application_v2', { p_request_id: crypto.randomUUID() });
+  check(subB.data?.status === 'submitted', 'B completes and submits');
+  check(((await rpc(A.c, 'get_discovery_candidates_v2', { p_limit: 50 })).data ?? []).every((r) => r.user_id !== B.userId),
+    'B is not a candidate while pending');
+  check(!(await admin.rpc('review_application_v2', { p_user: B.userId, p_decision: 'accept' })).error, 'reviewer accepts B');
+  const candA = (await rpc(A.c, 'get_discovery_candidates_v2', { p_limit: 50 })).data ?? [];
+  const candB = (await rpc(B.c, 'get_discovery_candidates_v2', { p_limit: 50 })).data ?? [];
+  check(candA.some((r) => r.user_id === B.userId) && candB.some((r) => r.user_id === A.userId), 'A and B see each other (mutual eligibility)');
+  check(JSON.stringify(candA.map((r) => r.user_id)) === JSON.stringify(candA.map((r) => r.user_id).sort()), 'fixed order (by id), no ranking');
+  check(candA.every((r) => !('match_percentage' in r) && !('score' in r)), 'no compatibility score produced');
+  const bPhoto = candA.find((r) => r.user_id === B.userId)?.photo_paths?.[0];
+  const signedB = bPhoto ? await A.c.storage.from(PHOTOS).createSignedUrl(bPhoto, 900) : { error: true };
+  check(!signedB.error && (await fetch(signedB.data.signedUrl)).status === 200, 'A can load B\'s photo (15-minute signed URL)');
+  check(!(await A.c.from('blocks').insert({ blocker_id: A.userId, blocked_id: B.userId })).error, 'A blocks B');
+  check(!((await rpc(B.c, 'get_discovery_candidates_v2', { p_limit: 50 })).data ?? []).some((r) => r.user_id === A.userId),
+    'after the block B no longer sees A');
+  check(!!(await B.c.storage.from(PHOTOS).createSignedUrl(dbPhotos[0].storage_path, 900)).error, 'after the block B cannot sign A\'s photos');
+  await admin.from('blocks').delete().eq('blocker_id', A.userId).eq('blocked_id', B.userId);
+
   // ---- evidence (stored data, no secrets) ------------------------------------
   const evidence = {
     run,
+    application_events: (await admin.from('application_events_v2').select('user_id, event, note, items, created_at')
+      .in('user_id', [A.userId, B.userId]).order('id')).data,
+    discovery: { A_sees: candA.map((r) => r.user_id), B_sees: candB.map((r) => r.user_id) },
     account_state: st.map(({ selfie_path, ...rest }) => ({ ...rest, selfie_path: selfie_path ? '<stored, private>' : null })),
     onboarding: (await admin.from('onboarding_v2').select('*').eq('user_id', A.userId)).data,
     photos: dbPhotos,

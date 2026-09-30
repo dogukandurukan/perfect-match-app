@@ -21,7 +21,10 @@ const files = {
     ['11_p1_private_photos.sql', fs.readFileSync(path.join(proposed, '20260930090000_p1_private_photos.sql'), 'utf8')],
   ],
   p0b: [['20_p0b.sql', fs.readFileSync(path.join(proposed, '20260928130100_p0b_privacy_restrict.sql'), 'utf8')]],
-  v2: [['30_v2_onboarding.sql', fs.readFileSync(path.join(proposed, '20260930120000_v2_onboarding_persistence.sql'), 'utf8')]],
+  v2: [
+    ['30_v2_onboarding.sql', fs.readFileSync(path.join(proposed, '20260930120000_v2_onboarding_persistence.sql'), 'utf8')],
+    ['31_v2_review_discovery_media.sql', fs.readFileSync(path.join(proposed, '20260930140000_v2_review_discovery_media.sql'), 'utf8')],
+  ],
 }[stage];
 if (!files) fail('usage: apply.mjs base|p0a|p0b|v2');
 

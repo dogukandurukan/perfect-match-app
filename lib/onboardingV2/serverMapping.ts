@@ -59,6 +59,9 @@ export type ServerBundle = {
     membership_status: string;
     has_selfie: boolean;
     submitted_at: string | null;
+    /** Only while application_status = 'changes_requested'. */
+    review_note?: string | null;
+    review_items?: string[] | null;
   } | null;
   email: { address: string | null; confirmed: boolean } | null;
 };

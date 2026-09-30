@@ -3,7 +3,7 @@
 // live mode (PreviewFlow `live`). A submitted application goes to /v2/status.
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { PreviewFlow, type LiveOptions } from '@/components/onboarding-v2/PreviewFlow';
 import { loadMyOnboarding, photosForBundle } from '@/lib/onboardingV2/remote';
@@ -11,6 +11,7 @@ import {
   basicsFromServer,
   compatFromServer,
   datesFromServer,
+  firstMissingPos,
   lifeFromServer,
   promptsFromServer,
   resumePos,
@@ -49,11 +50,24 @@ export default function V2Onboarding() {
     const d = b.draft ?? {};
     const photos = await photosForBundle(b);
     const email = b.email?.address ?? user.email ?? '';
+    const review =
+      status === 'changes_requested'
+        ? { note: b.state?.review_note ?? null, items: b.state?.review_items ?? [] }
+        : null;
+    // Changes requested: open at the first thing the reviewer asked for.
+    const startPos = (review && firstMissingPos(review.items)) || resumePos(d);
+    if (review) {
+      Alert.alert(
+        'A few changes, please',
+        review.note?.trim() || 'Our team asked you to update a few things before we can review your application again.',
+      );
+    }
     setLive({
       userId: user.id,
       email,
+      review,
       initial: {
-        pos: resumePos(d),
+        pos: startPos,
         basics: basicsFromServer(d),
         compat: compatFromServer(d),
         life: lifeFromServer(d),
