@@ -4,6 +4,12 @@
 // across the section boundary never resets answers; nothing is persisted,
 // uploaded, sent anywhere or logged. Continue advances only when the answer is
 // valid. Your Profile email/code and submission are SIMULATED (P07).
+//
+// LIVE mode (`live` prop, V2 persistence): the same screens, but every
+// Continue saves that section on the server first (and stays on the step
+// with an error if it can't), photos/selfie are uploaded, the email is the
+// one verified at sign-in (email steps skipped), and "You're on the list!"
+// appears only after the server has recorded the application.
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Alert, BackHandler, Keyboard, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
@@ -62,6 +68,22 @@ import {
   sectionOf,
   type FlowPos,
 } from '@/lib/onboardingV2/previewFlow';
+import {
+  saveSection,
+  savePrompts,
+  submitApplication,
+  syncPhotos,
+  uploadSelfie,
+} from '@/lib/onboardingV2/remote';
+import {
+  basicsToServer,
+  compatToServer,
+  datesToServer,
+  dobToIso,
+  firstMissingPos,
+  lifeToServer,
+  worldToServer,
+} from '@/lib/onboardingV2/serverMapping';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { DATES_SCREENS, EMPTY_DATES_DRAFT, type DatesDraft } from '@/lib/onboardingV2/yourDates';
 import { EMPTY_LIFE_DRAFT, LIFE_QUESTIONS, type LifeDraft } from '@/lib/onboardingV2/yourLife';
@@ -117,21 +139,52 @@ const RECEIVED_POS: FlowPos = { section: 'yourProfile', step: PROFILE_STEP.recei
 
 const samePos = (a: FlowPos | null, b: FlowPos) => !!a && a.section === b.section && a.step === b.step;
 
+export type LiveOptions = {
+  userId: string;
+  /** The address verified at sign-in (email OTP). */
+  email: string;
+  initial: {
+    pos: FlowPos;
+    basics: BasicsDraft;
+    compat: CompatDraft;
+    life: LifeDraft;
+    world: WorldDraft;
+    dates: DatesDraft;
+    profile: ProfileDraft;
+    serverPhotoIds: string[];
+  };
+};
+
 type Props = {
   /** Called when Back is pressed on Basics step 1. Omit to hide it there. */
   onExit?: () => void;
+  /** Live persistence (omit for the local DEV preview). */
+  live?: LiveOptions;
 };
+
+function newRequestId(): string {
+  const c = (globalThis as { crypto?: Crypto }).crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  const h = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
+  return `${h()}${h()}-${h()}-4${h().slice(1)}-8${h().slice(1)}-${h()}${h()}${h()}`;
+}
 
 type Action = { label: string; onPress: () => void; disabled?: boolean };
 
-export function PreviewFlow({ onExit }: Props) {
-  const [pos, setPos] = useState<FlowPos>(FIRST_POS);
-  const [basics, setBasics] = useState<BasicsDraft>(EMPTY_BASICS_DRAFT);
-  const [compat, setCompat] = useState<CompatDraft>(EMPTY_COMPAT_DRAFT);
-  const [life, setLife] = useState<LifeDraft>(EMPTY_LIFE_DRAFT);
-  const [world, setWorld] = useState<WorldDraft>(EMPTY_WORLD_DRAFT);
-  const [dates, setDates] = useState<DatesDraft>(EMPTY_DATES_DRAFT);
-  const [profile, setProfile] = useState<ProfileDraft>(EMPTY_PROFILE_DRAFT);
+export function PreviewFlow({ onExit, live }: Props) {
+  const [pos, setPos] = useState<FlowPos>(live?.initial.pos ?? FIRST_POS);
+  const [basics, setBasics] = useState<BasicsDraft>(live?.initial.basics ?? EMPTY_BASICS_DRAFT);
+  const [compat, setCompat] = useState<CompatDraft>(live?.initial.compat ?? EMPTY_COMPAT_DRAFT);
+  const [life, setLife] = useState<LifeDraft>(live?.initial.life ?? EMPTY_LIFE_DRAFT);
+  const [world, setWorld] = useState<WorldDraft>(live?.initial.world ?? EMPTY_WORLD_DRAFT);
+  const [dates, setDates] = useState<DatesDraft>(live?.initial.dates ?? EMPTY_DATES_DRAFT);
+  const [profile, setProfile] = useState<ProfileDraft>(live?.initial.profile ?? EMPTY_PROFILE_DRAFT);
+  // Live mode: save/submit progress, the last error, and the server's photo ids.
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const serverPhotoIdsRef = useRef<string[]>(live?.initial.serverPhotoIds ?? []);
+  // One id for this application, reused by every retry (idempotent submit).
+  const requestIdRef = useRef<string>(newRequestId());
   // Editing from the profile preview: where "Back to preview" returns to.
   const [returnTo, setReturnTo] = useState<FlowPos | null>(null);
   // Preview opened from "You're on the list" (read-only review).
@@ -160,6 +213,7 @@ export function PreviewFlow({ onExit }: Props) {
 
   const goTo = (next: FlowPos) => {
     Keyboard.dismiss();
+    setSaveError(null);
     setSelfieCandidate(null);
     setSelfieError(null);
     setCodeError(null);
@@ -168,9 +222,71 @@ export function PreviewFlow({ onExit }: Props) {
     setPos(next);
   };
 
-  const handleContinue = () => {
-    if (!valid) return;
-    const next = nextPos(pos);
+  // Live mode skips the email + code screens' email entry: the address was
+  // verified at sign-in, so Selfie → the confirmation/submit screen.
+  const nextOf = (p: FlowPos): FlowPos | null => {
+    const n = nextPos(p);
+    if (live && n && n.section === 'yourProfile' && n.step === PROFILE_STEP.email) {
+      return { section: 'yourProfile', step: PROFILE_STEP.code };
+    }
+    return n;
+  };
+  const prevOf = (p: FlowPos): FlowPos | null => {
+    const b = prevPos(p);
+    if (live && b && b.section === 'yourProfile' && b.step === PROFILE_STEP.email) {
+      return { section: 'yourProfile', step: PROFILE_STEP.selfie };
+    }
+    return b;
+  };
+
+  /** Saves what the current step owns. Returns false (and shows why) on failure. */
+  const persistStep = async (from: FlowPos, to: FlowPos | null): Promise<boolean> => {
+    if (!live) return true;
+    const resume = to ?? from;
+    let r: { ok: boolean; message?: string } = { ok: true };
+    if (from.section === 'basics') {
+      const dobNow = parseDob(basics.dobDay, basics.dobMonth, basics.dobYear);
+      r = await saveSection('basics', basicsToServer(basics, dobToIso(dobNow.ok ? dobNow.date : null)), resume);
+    } else if (from.section === 'compatibility') {
+      r = await saveSection('compatibility', compatToServer(compat), resume);
+    } else if (from.section === 'yourLife') {
+      r = await saveSection('yourLife', lifeToServer(life), resume);
+    } else if (from.section === 'yourWorld') {
+      r = await saveSection('yourWorld', worldToServer(world), resume);
+    } else if (from.section === 'yourDates') {
+      r = await saveSection('yourDates', datesToServer(dates), resume);
+    } else if (from.step === PROFILE_STEP.photos) {
+      const synced = await syncPhotos(live.userId, profile.photos, serverPhotoIdsRef.current, (localId, serverId, path) =>
+        setProfile((d) => ({ ...d, photos: d.photos.map((ph) => (ph.id === localId ? { ...ph, serverId, path } : ph)) })),
+      );
+      if (synced.ok) serverPhotoIdsRef.current = synced.value.serverIds;
+      r = synced.ok ? await saveSection('yourProfile', {}, resume) : synced;
+    } else if (from.step === PROFILE_STEP.prompts) {
+      r = await savePrompts(profile.prompts);
+      if (r.ok) r = await saveSection('yourProfile', {}, resume);
+    } else if (from.step === PROFILE_STEP.selfie && profile.selfie) {
+      r = await uploadSelfie(live.userId, profile.selfie);
+      if (r.ok) {
+        setProfile((d) => (d.selfie ? { ...d, selfie: { ...d.selfie, uploaded: true } } : d));
+        r = await saveSection('yourProfile', {}, resume);
+      }
+    } else {
+      r = await saveSection('yourProfile', {}, resume);
+    }
+    if (!r.ok) setSaveError(r.message ?? 'Could not save. Try again.');
+    return r.ok;
+  };
+
+  const handleContinue = async () => {
+    if (!valid || saving) return;
+    const next = nextOf(pos);
+    if (live) {
+      setSaving(true);
+      setSaveError(null);
+      const ok = await persistStep(pos, next);
+      setSaving(false);
+      if (!ok) return;
+    }
     if (next) goTo(next);
   };
 
@@ -183,7 +299,7 @@ export function PreviewFlow({ onExit }: Props) {
       ? null
       : inProfile && step === PROFILE_STEP.preview && reviewing
         ? RECEIVED_POS
-        : prevPos(pos);
+        : prevOf(pos);
   const handleBack = backTarget
     ? () => goTo(backTarget)
     : inProfile && step === PROFILE_STEP.received
@@ -257,7 +373,38 @@ export function PreviewFlow({ onExit }: Props) {
     [PROFILE_STEP.code]: 'Confirm your email first.',
   };
 
+  const submitLive = async () => {
+    if (submittingRef.current || !live) return;
+    submittingRef.current = true;
+    setSaving(true);
+    setSaveError(null);
+    const outcome = await submitApplication(requestIdRef.current);
+    setSaving(false);
+    submittingRef.current = false;
+    if (outcome.kind === 'submitted') {
+      // Shown only now — the server has the application.
+      updateProfile({ applicationPreview: { receivedAt: Date.now() } });
+      goTo(RECEIVED_POS);
+      return;
+    }
+    if (outcome.kind === 'missing') {
+      const where = firstMissingPos(outcome.missing);
+      Alert.alert(
+        'Almost there',
+        where
+          ? 'Something still needs an answer.'
+          : outcome.missing.includes('account.consent')
+            ? 'Please accept the Privacy Notice first (sign in again with your email code).'
+            : 'Your email is not confirmed yet. Sign in again with your email code.',
+        where ? [{ text: 'OK', onPress: () => goTo(where) }] : [{ text: 'OK' }],
+      );
+      return;
+    }
+    setSaveError(outcome.message);
+  };
+
   const submit = () => {
+    if (live) return void submitLive();
     if (submittingRef.current) return;
     const missing = firstMissingStep(profile);
     if (missing !== null) {
@@ -289,7 +436,7 @@ export function PreviewFlow({ onExit }: Props) {
       primary = reviewing
         ? { label: 'Back to status', onPress: () => goTo(RECEIVED_POS), disabled: !valid }
         : { label: 'Continue', onPress: handleContinue, disabled: !valid };
-      secondary = { label: 'Edit profile', onPress: openEditMenu };
+      secondary = live && profile.applicationPreview ? null : { label: 'Edit profile', onPress: openEditMenu };
     }
     if (step === S.selfie) {
       if (selfieCandidate) {
@@ -309,11 +456,15 @@ export function PreviewFlow({ onExit }: Props) {
     }
     if (step === S.email) primary = { label: 'Send code', onPress: sendCode, disabled: !valid };
     if (step === S.code) {
-      primary = !valid
-        ? { label: 'Verify email', onPress: verifyCode }
-        : profile.applicationPreview
+      primary = live
+        ? profile.applicationPreview
           ? { label: 'Back to status', onPress: () => goTo(RECEIVED_POS) }
-          : { label: 'Submit application', onPress: submit };
+          : { label: saving ? 'Sending…' : 'Submit application', onPress: submit, disabled: saving }
+        : !valid
+          ? { label: 'Verify email', onPress: verifyCode }
+          : profile.applicationPreview
+            ? { label: 'Back to status', onPress: () => goTo(RECEIVED_POS) }
+            : { label: 'Submit application', onPress: submit };
     }
     if (step === S.received) {
       primary = {
@@ -325,6 +476,13 @@ export function PreviewFlow({ onExit }: Props) {
         },
       };
     }
+  }
+  if (live && saving && primary.onPress === handleContinue) {
+    primary = { ...primary, label: 'Saving…', disabled: true };
+  }
+  if (live && primary.onPress === handleContinue) {
+    const run = primary;
+    primary = { ...run, onPress: () => void handleContinue() };
   }
   if (returnTo && !samePos(returnTo, pos) && !secondary) {
     secondary = { label: 'Back to preview', onPress: () => goTo(returnTo), disabled: !valid };
@@ -363,6 +521,11 @@ export function PreviewFlow({ onExit }: Props) {
       contentKey={`${pos.section}-${step}`}
       footer={
         <>
+          {saveError ? (
+            <Text style={styles.saveError} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
+              {saveError}
+            </Text>
+          ) : null}
           <OnboardingPrimaryButton
             label={primary.label}
             onPress={primary.onPress}
@@ -384,7 +547,8 @@ export function PreviewFlow({ onExit }: Props) {
             </TouchableOpacity>
           ) : canSkip ? (
             <TouchableOpacity
-              onPress={handleContinue}
+              onPress={() => void handleContinue()}
+              disabled={saving}
               accessibilityRole="button"
               accessibilityLabel="Add later"
               hitSlop={8}
@@ -430,7 +594,12 @@ export function PreviewFlow({ onExit }: Props) {
         />
       )}
       {inProfile && step === PROFILE_STEP.email && <EmailFields {...pProps} onSubmit={sendCode} />}
-      {inProfile && step === PROFILE_STEP.code && (
+      {inProfile && step === PROFILE_STEP.code && live && (
+        <Text style={styles.liveEmail} maxFontSizeMultiplier={1.6}>
+          {`Your email ${live.email} was confirmed when you signed in. Send your application when you're ready.`}
+        </Text>
+      )}
+      {inProfile && step === PROFILE_STEP.code && !live && (
         <CodeFields
           {...pProps}
           error={codeError}
@@ -443,7 +612,7 @@ export function PreviewFlow({ onExit }: Props) {
           }}
         />
       )}
-      {inProfile && step === PROFILE_STEP.received && <ReceivedFields />}
+      {inProfile && step === PROFILE_STEP.received && <ReceivedFields live={!!live} />}
     </OnboardingScreen>
   );
 }
@@ -463,5 +632,19 @@ const styles = StyleSheet.create({
   },
   secondaryDisabled: {
     color: obColors.textSecondary,
+  },
+  saveError: {
+    fontFamily: obFonts.body,
+    fontSize: 15,
+    lineHeight: 21,
+    color: '#A33A2B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  liveEmail: {
+    fontFamily: obFonts.body,
+    fontSize: 17,
+    lineHeight: 24,
+    color: obColors.textPrimary,
   },
 });

@@ -2,6 +2,7 @@
 //   node scripts/test-backend/apply.mjs base   (sanitized live schema, no data)
 //   node scripts/test-backend/apply.mjs p0a    (P0-A + P1 private photos)
 //   node scripts/test-backend/apply.mjs p0b    (P0-B)
+//   node scripts/test-backend/apply.mjs v2     (V2 onboarding persistence; needs p0a)
 // Uses `supabase db query --db-url` with the TEST connection string only —
 // never --linked (the linked project may be live).
 import fs from 'node:fs';
@@ -20,8 +21,9 @@ const files = {
     ['11_p1_private_photos.sql', fs.readFileSync(path.join(proposed, '20260930090000_p1_private_photos.sql'), 'utf8')],
   ],
   p0b: [['20_p0b.sql', fs.readFileSync(path.join(proposed, '20260928130100_p0b_privacy_restrict.sql'), 'utf8')]],
+  v2: [['30_v2_onboarding.sql', fs.readFileSync(path.join(proposed, '20260930120000_v2_onboarding_persistence.sql'), 'utf8')]],
 }[stage];
-if (!files) fail('usage: apply.mjs base|p0a|p0b');
+if (!files) fail('usage: apply.mjs base|p0a|p0b|v2');
 
 for (const [name, sql] of [...files, ['99_reload.sql', "notify pgrst, 'reload schema';"]]) {
   const f = path.join(outDir, name);

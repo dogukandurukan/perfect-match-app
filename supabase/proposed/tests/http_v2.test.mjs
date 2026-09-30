@@ -64,11 +64,29 @@ const rows = (r) => (Array.isArray(r.json) ? r.json : []);
 const errMsg = (r) => (r.json && typeof r.json === 'object' ? `${r.json.message ?? ''}` : '');
 
 const db = new PGlite();
+db.__rawQuery = db.query.bind(db);
+db.__rawExec = db.exec.bind(db);
 for (const m of ['exec', 'query']) {
   const raw = db[m].bind(db);
   db[m] = async (...a) => {
+    // Wait until no other connection's transaction is open in the shared
+    // session (now() is the transaction start; equal to the statement time
+    // only when this statement runs in its own transaction).
+    for (let w = 0; w < 200; w += 1) {
+      try {
+        const probe = await db.__rawQuery('select now() = statement_timestamp() as fresh');
+        if (probe.rows[0]?.fresh) break;
+      } catch (e) {
+        if (e?.code === '25P02') { await db.__rawExec('rollback'); break; }
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 15));
+    }
     for (let i = 0; ; i += 1) {
       try { return await raw(...a); } catch (e) {
+        // 25P02: a transaction left aborted by a dropped bridge connection
+        // (single PGlite session) — it belongs to a dead connection; end it.
+        if (i < 40 && e?.code === '25P02') { await raw('rollback'); continue; }
         if (i < 40 && (e?.code === '25006' || e?.code === '25001')) { await new Promise((r) => setTimeout(r, 25)); continue; }
         throw e;
       }
@@ -196,6 +214,9 @@ async function run() {
   check(reload.json.draft.resume_section === 'basics' && reload.json.draft.resume_step === 3, 'reopen: resume position = next unfinished step');
   const stored = (await db.query(`select first_name, last_name, date_of_birth::text dob, resume_step from onboarding_v2 where user_id='${U.U1}'`)).rows[0];
   check(stored.first_name === 'Test' && stored.dob === '1995-04-12' && stored.resume_step === 3, 'DB row holds the saved values');
+  const cross = await rpc('U1', 'save_onboarding_v2', { p_section: 'basics', p_data: {}, p_resume_step: 1, p_resume_section: 'compatibility' });
+  const crossRow = (await db.query(`select resume_section, resume_step from onboarding_v2 where user_id='${U.U1}'`)).rows[0];
+  check(cross.ok && crossRow.resume_section === 'compatibility' && crossRow.resume_step === 1, 'resume position can cross into the next section');
   const retry = await rpc('U1', 'save_onboarding_v2', { p_section: 'basics', p_data: { date_of_birth: '1995-04-12' }, p_resume_step: 3 });
   check(retry.ok, 'the same save re-sent after a dropped connection is harmless (idempotent)');
   for (const [name, section, data] of [
@@ -308,6 +329,11 @@ async function run() {
   check((await db.query(`select application_status from account_state_v2 where user_id='${U.U1}'`)).rows[0].application_status === 'draft',
     'DB: still draft after refused submit');
   await db.exec(`update auth.users set email_confirmed_at = now() where id='${U.U1}'`); // email OTP sign-in confirms it
+  const noConsent = await rpc('U1', 'submit_application_v2', { p_request_id: crypto.randomUUID() });
+  check(noConsent.ok && noConsent.json.status === 'draft' && noConsent.json.missing?.includes('account.consent'),
+    'no KVKK consent → not submitted');
+  const consent = await api('U1', 'PATCH', `/profiles?id=eq.${U.U1}`, { privacy_consent_at: new Date().toISOString() });
+  check(consent.ok, 'consent recorded by the user (allowed column)');
   const req = crypto.randomUUID();
   const burst = await Promise.all([1, 2, 3, 4, 5].map(() => rpc('U1', 'submit_application_v2', { p_request_id: req })));
   check(burst.every((r) => r.ok && r.json.status === 'submitted'), '5 rapid taps all report submitted');

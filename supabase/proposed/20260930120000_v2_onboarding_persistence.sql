@@ -381,7 +381,8 @@ $$;
 
 -- Saves one section (partial values allowed while drafting; every value
 -- present is validated by the table CHECKs). Unknown keys are rejected.
-create or replace function public.save_onboarding_v2(p_section text, p_data jsonb, p_resume_step smallint default null)
+create or replace function public.save_onboarding_v2(p_section text, p_data jsonb, p_resume_step smallint default null,
+  p_resume_section text default null)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp
 as $$
 declare
@@ -406,6 +407,10 @@ begin
     when 'yourProfile' then array[]::text[]
     else null end;
   if v_allowed is null then raise exception 'invalid_section' using errcode = '22023'; end if;
+  if p_resume_section is not null and p_resume_section not in
+     ('basics','compatibility','yourLife','yourWorld','yourDates','yourProfile') then
+    raise exception 'invalid_section' using errcode = '22023';
+  end if;
   select k into v_bad from jsonb_object_keys(p_data) k where k <> all(v_allowed) limit 1;
   if v_bad is not null then raise exception 'unknown_field: %', v_bad using errcode = '22023'; end if;
 
@@ -456,7 +461,7 @@ begin
     favorite_spot = case when p_data ? 'favorite_spot' then nullif(btrim(p_data ->> 'favorite_spot'), '') else o.favorite_spot end,
     days_pref = case when p_data ? 'days_pref' then p_data ->> 'days_pref' else o.days_pref end,
     time_pref = case when p_data ? 'time_pref' then p_data ->> 'time_pref' else o.time_pref end,
-    resume_section = case when p_resume_step is not null then p_section else o.resume_section end,
+    resume_section = coalesce(p_resume_section, case when p_resume_step is not null then p_section end, o.resume_section),
     resume_step = coalesce(p_resume_step, o.resume_step),
     updated_at = now()
   where o.user_id = v_uid;
@@ -598,10 +603,12 @@ as $$
     case when (select count(*) from profile_photos_v2 f where f.user_id = p_uid) not between 3 and 6 then 'yourProfile.photos' end,
     case when (select count(*) from profile_prompts_v2 p where p.user_id = p_uid) < 2 then 'yourProfile.prompts' end,
     case when s.selfie_path is null then 'yourProfile.selfie' end,
-    case when u.email_confirmed_at is null then 'account.email' end
+    case when u.email_confirmed_at is null then 'account.email' end,
+    case when pr.privacy_consent_at is null then 'account.consent' end
   ], null)
   from onboarding_v2 o
   join account_state_v2 s on s.user_id = o.user_id
+  join profiles pr on pr.id = o.user_id
   left join auth.users u on u.id = o.user_id
   where o.user_id = p_uid
 $$;
@@ -689,7 +696,7 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'get_my_onboarding_v2()', 'save_onboarding_v2(text, jsonb, smallint)', 'save_prompts_v2(jsonb)',
+    'get_my_onboarding_v2()', 'save_onboarding_v2(text, jsonb, smallint, text)', 'save_prompts_v2(jsonb)',
     'add_profile_photo_v2(text)', 'reorder_profile_photos_v2(uuid[])', 'delete_profile_photo_v2(uuid)',
     'set_verification_selfie_v2(text)', 'submit_application_v2(uuid)', 'get_my_access_v2()'] loop
     execute format('revoke all on function public.%s from public, anon', f);

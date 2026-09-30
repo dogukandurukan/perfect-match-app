@@ -80,7 +80,8 @@ function Confetti() {
   );
 }
 
-export function ReceivedFields() {
+/** `live`: shown after the server recorded the application — no preview notice. */
+export function ReceivedFields({ live = false }: { live?: boolean } = {}) {
   return (
     <View style={styles.wrap}>
       <View style={styles.celebrate}>
@@ -108,7 +109,7 @@ export function ReceivedFields() {
           Review pending
         </Text>
       </View>
-      <DevNotice text="Preview only — no application was submitted." />
+      {live ? null : <DevNotice text="Preview only — no application was submitted." />}
     </View>
   );
 }

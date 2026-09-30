@@ -186,6 +186,7 @@ export default function RootLayout() {
           <Stack.Screen name="micro-intro" options={{ headerShown: false }} />
           <Stack.Screen name="candidate-profile" options={{ headerShown: false }} />
           <Stack.Screen name="plan-detail" options={{ headerShown: false }} />
+          <Stack.Screen name="v2" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="chat" options={{ headerShown: false }} />
           <Stack.Screen name="vibe-detail" options={{ headerShown: true }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

@@ -53,6 +53,10 @@ export type LocalPhoto = {
   height?: number;
   /** Set when the image failed to load; never counts toward the minimum. */
   broken?: boolean;
+  /** Live mode only: id of the registered server photo (profile_photos_v2). */
+  serverId?: string;
+  /** Live mode only: storage path in the private bucket. */
+  path?: string;
 };
 
 /** Photo edits are applied as functions of the CURRENT list (P07 R2): a
@@ -226,7 +230,11 @@ export function publicAnswers(list: PromptAnswer[]): { promptId: PromptId; answe
 // ─── Selfie (private) ──────────────────────────────────────────────────────
 
 /** Front-camera capture kept only as a local URI; never public, never sent. */
-export type LocalSelfie = { uri: string };
+export type LocalSelfie = {
+  uri: string;
+  /** Live mode: already stored server-side (the private selfie can't be read back, so uri may be ''). */
+  uploaded?: boolean;
+};
 
 // ─── Email + demo code (SIMULATED — no email is sent, nothing is verified) ─
 
@@ -308,7 +316,7 @@ export function checklist(d: ProfileDraft): Checklist {
   return {
     photos: photosValid(d.photos),
     answers: promptsValid(d.prompts),
-    selfie: !!d.selfie?.uri,
+    selfie: !!d.selfie?.uri || !!d.selfie?.uploaded,
     email: emailChecked(d.email, d.emailCheck),
   };
 }
@@ -340,7 +348,7 @@ export function isProfileStepValid(step: number, d: ProfileDraft): boolean {
     case PROFILE_STEP.preview:
       return photosValid(d.photos) && promptsValid(d.prompts);
     case PROFILE_STEP.selfie:
-      return !!d.selfie?.uri;
+      return !!d.selfie?.uri || !!d.selfie?.uploaded;
     case PROFILE_STEP.email:
       return emailLooksValid(d.email);
     case PROFILE_STEP.code:

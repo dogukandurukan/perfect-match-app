@@ -188,13 +188,34 @@ const db = new PGlite();
 // PostgREST may still be closing its transaction (e.g. READ ONLY) when the
 // HTTP response arrives, so direct statements retry briefly on
 // "read-only transaction" / "transaction in progress".
+db.__rawQuery = db.query.bind(db);
+db.__rawExec = db.exec.bind(db);
 for (const m of ['exec', 'query']) {
   const raw = db[m].bind(db);
   db[m] = async (...args) => {
+    // Wait until no other connection's transaction is open in the shared
+    // session (now() is the transaction start; equal to the statement time
+    // only when this statement runs in its own transaction).
+    for (let w = 0; w < 200; w += 1) {
+      try {
+        const probe = await db.__rawQuery('select now() = statement_timestamp() as fresh');
+        if (probe.rows[0]?.fresh) break;
+      } catch (e) {
+        if (e?.code === '25P02') { await db.__rawExec('rollback'); break; }
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 15));
+    }
     for (let i = 0; ; i += 1) {
       try {
         return await raw(...args);
       } catch (e) {
+        // 25P02: a transaction left aborted by a dropped bridge connection
+        // (single PGlite session) — it belongs to a dead connection; end it.
+        if (i < 40 && e?.code === '25P02') {
+          await raw('rollback');
+          continue;
+        }
         if (i < 40 && (e?.code === '25006' || e?.code === '25001')) {
           await new Promise((r) => setTimeout(r, 25));
           continue;

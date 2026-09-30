@@ -20,7 +20,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { logEvent } from '@/lib/analytics';
 import { colors } from '@/lib/designTokens';
 import { homeColors, homeSpacing } from '@/lib/homeTheme';
-import { supabase } from '@/lib/supabaseClient';
+import { backend, supabase } from '@/lib/supabaseClient';
 import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompletion';
 import {
   DAILY_VIEW_LIMIT,
@@ -33,6 +33,7 @@ import { buildPromptCards, parseFavoriteSpots, type HingeProfilePerson, type Pro
 import { forgetProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { devBackendLabel, devBuildLabel } from '@/lib/devBuildInfo';
+import { getAccessGate } from '@/lib/onboardingV2/remote';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -252,6 +253,24 @@ export default function HomeScreen() {
       setProfileState(null);
       setChecking(false);
       return { state: null, userId: null };
+    }
+    // V2 gate first (server-owned state). Pending V2 applicants never reach
+    // Home; V1 accounts and backends without the V2 migration keep the V1 flow.
+    const access = await getAccessGate();
+    if (access.gate === 'waiting' || access.gate === 'error') {
+      router.replace('/v2/status');
+      setChecking(false);
+      return { state: null, userId: null };
+    }
+    if (access.gate === 'onboarding' && access.applicationStatus) {
+      router.replace('/v2/onboarding');
+      setChecking(false);
+      return { state: null, userId: null };
+    }
+    if (access.gate === 'member') {
+      setProfileState('complete');
+      setChecking(false);
+      return { state: 'complete', userId: user.id };
     }
     const state = await getProfileSetupState(user.id);
     if (state === 'setup1') router.replace('/profile-setup/step1');
@@ -804,6 +823,19 @@ export default function HomeScreen() {
                 accessibilityLabel="Preview new onboarding (development only)"
                 onPress={() => router.push('/dev/onboarding-v2-name' as Parameters<typeof router.push>[0])}>
                 <ThemedText style={styles.devPreviewBtnText}>DEV · Preview new onboarding</ThemedText>
+              </TouchableOpacity>
+            ) : null}
+            {/* V2 live onboarding (email code → persistent answers → application).
+                Only in DEV builds AND only against the separate TEST backend
+                until V2 is validated; V1 Log In / Sign Up stay the default. */}
+            {__DEV__ && backend.env === 'test' ? (
+              <TouchableOpacity
+                style={styles.devPreviewBtn}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Join with the new onboarding (test backend)"
+                onPress={() => router.push('/v2/welcome' as Parameters<typeof router.push>[0])}>
+                <ThemedText style={styles.devPreviewBtnText}>TEST · Join with new onboarding</ThemedText>
               </TouchableOpacity>
             ) : null}
             {/* DEV-ONLY, temporary (P05 R2): iOS input comparison screen. */}
