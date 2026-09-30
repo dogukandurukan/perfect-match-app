@@ -13,6 +13,8 @@ const testUrl = `https://${TEST_REF}.supabase.co`;
 check(!resolveBackend(undefined).ok, 'no config → error (no default)');
 check(!resolveBackend({ env: '' }).ok, 'empty env → error');
 check(!resolveBackend({ env: 'staging' }).ok, 'unknown env → error');
+const dev = resolveBackend({ env: 'dev' });
+check(dev.ok && dev.env === 'dev' && dev.projectRef === LIVE_PROJECT_REF, 'dev explicit → perfect-match-dev (owner decision)');
 const live = resolveBackend({ env: 'live' });
 check(live.ok && live.projectRef === LIVE_PROJECT_REF, 'live explicit → live');
 check(!resolveBackend({ env: 'test' }).ok, 'test without URL/key → error, not live');

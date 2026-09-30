@@ -1,7 +1,10 @@
 // Explicit backend selection (P0 test environment, 2026-09-30).
 //
 // The app talks to exactly one Supabase project, chosen explicitly:
-//   TEMPA_BACKEND=live  → the live project (constants below)
+//   TEMPA_BACKEND=dev   → perfect-match-dev as the V2 DEVELOPMENT target (owner
+//                         decision 2026-09-30: not released, no real users; no
+//                         separate test project). Enables the V2 entry + V2 Home.
+//   TEMPA_BACKEND=live  → the same project with production behaviour (V1 flows)
 //   TEMPA_BACKEND=test  → TEMPA_TEST_SUPABASE_URL + TEMPA_TEST_SUPABASE_ANON_KEY
 // read by app.config.js into `extra.backend`. There is NO default and NO
 // fallback: a missing, unknown or incomplete test configuration is an error
@@ -26,7 +29,7 @@ export type BackendExtra = {
 };
 
 export type BackendConfig =
-  | { ok: true; env: 'live' | 'test'; url: string; anonKey: string; projectRef: string }
+  | { ok: true; env: 'live' | 'dev' | 'test'; url: string; anonKey: string; projectRef: string }
   | { ok: false; reason: string };
 
 const URL_RE = /^https:\/\/([a-z0-9]{20})\.supabase\.co\/?$/;
@@ -57,11 +60,11 @@ export function resolveBackend(extra: BackendExtra | null | undefined): BackendC
   if (!env) {
     return { ok: false, reason: 'TEMPA_BACKEND is not set. Start Metro with TEMPA_BACKEND=live or TEMPA_BACKEND=test.' };
   }
-  if (env === 'live') {
-    return { ok: true, env: 'live', url: LIVE_SUPABASE_URL, anonKey: LIVE_SUPABASE_ANON_KEY, projectRef: LIVE_PROJECT_REF };
+  if (env === 'live' || env === 'dev') {
+    return { ok: true, env, url: LIVE_SUPABASE_URL, anonKey: LIVE_SUPABASE_ANON_KEY, projectRef: LIVE_PROJECT_REF };
   }
   if (env !== 'test') {
-    return { ok: false, reason: `TEMPA_BACKEND="${env}" is not "live" or "test".` };
+    return { ok: false, reason: `TEMPA_BACKEND="${env}" is not "dev", "test" or "live".` };
   }
   const url = extra?.testUrl?.trim() ?? '';
   const key = extra?.testAnonKey?.trim() ?? '';

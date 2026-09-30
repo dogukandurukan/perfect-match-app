@@ -20,7 +20,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { logEvent } from '@/lib/analytics';
 import { colors } from '@/lib/designTokens';
 import { homeColors, homeSpacing } from '@/lib/homeTheme';
-import { backend, supabase } from '@/lib/supabaseClient';
+import { backend, supabase, v2Enabled } from '@/lib/supabaseClient';
 import { getProfileSetupState, type ProfileSetupState } from '@/lib/profileCompletion';
 import {
   DAILY_VIEW_LIMIT,
@@ -342,7 +342,7 @@ export default function HomeScreen() {
   }, []);
 
   const loadFeed = useCallback(async (userId: string): Promise<FeedUser[]> => {
-    if (backend.env === 'test' && v2MemberRef.current) return loadV2Candidates();
+    if (v2Enabled && v2MemberRef.current) return loadV2Candidates();
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_discovery_cards', {
       p_limit: 10,
     });
@@ -874,14 +874,14 @@ export default function HomeScreen() {
             {/* V2 live onboarding (email code → persistent answers → application).
                 Only in DEV builds AND only against the separate TEST backend
                 until V2 is validated; V1 Log In / Sign Up stay the default. */}
-            {__DEV__ && backend.env === 'test' ? (
+            {__DEV__ && v2Enabled ? (
               <TouchableOpacity
                 style={styles.devPreviewBtn}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel="Join with the new onboarding (test backend)"
+                accessibilityLabel={`Join with the new onboarding (${backend.env} backend)`}
                 onPress={() => router.push('/v2/welcome' as Parameters<typeof router.push>[0])}>
-                <ThemedText style={styles.devPreviewBtnText}>TEST · Join with new onboarding</ThemedText>
+                <ThemedText style={styles.devPreviewBtnText}>{`${backend.env.toUpperCase()} · Join with new onboarding`}</ThemedText>
               </TouchableOpacity>
             ) : null}
             {/* DEV-ONLY, temporary (P05 R2): iOS input comparison screen. */}

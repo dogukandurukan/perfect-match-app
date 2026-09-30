@@ -92,16 +92,19 @@ async function main() {
   check(!acc.error && acc.data.chat_opened === true, 'accept: opens the chat (mutual consent)');
 
   let received = false;
+  let subscribed = false;
   const channel = s2
     .channel(`smoke-${Date.now()}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${ids.S2}` },
       () => { received = true; })
-    .subscribe();
-  for (let i = 0; i < 40 && channel.state !== 'joined'; i++) await sleep(250);
-  await sleep(1000);
+    .subscribe((status) => { if (status === 'SUBSCRIBED') subscribed = true; });
+  // Wait for the server to confirm the subscription, then give the
+  // postgres_changes listener a moment before sending.
+  for (let i = 0; i < 60 && !subscribed; i++) await sleep(250);
+  await sleep(2500);
   const sent = await s1.from('messages').insert({ sender_id: ids.S1, receiver_id: ids.S2, content: 'hello from smoke' });
   check(!sent.error, 'chat: message after acceptance');
-  for (let i = 0; i < 40 && !received; i++) await sleep(250);
+  for (let i = 0; i < 60 && !received; i++) await sleep(250);
   check(received, 'realtime: receiver gets the message live');
   await s2.removeChannel(channel);
 

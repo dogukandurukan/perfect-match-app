@@ -19,7 +19,41 @@ function claim(jwt, name) {
   }
 }
 
+// Owner decision 2026-09-30: no separate test project — perfect-match-dev
+// (unreleased, no real users) is the V2 development target. It is used ONLY
+// when explicitly selected with TEMPA_TARGET=dev, from .env.dev.local, and
+// only for that one project ref; AI HQ stays forbidden. Schema changes on the
+// dev target go through scripts/dev-backend/apply-dev.mjs (linked CLI).
+export const DEV_REF = LIVE_REF;
+
+function loadDevEnv({ needService }) {
+  const file = path.join(repo, '.env.dev.local');
+  if (!fs.existsSync(file)) fail('missing .env.dev.local');
+  const env = {};
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
+    if (m && !line.trim().startsWith('#')) env[m[1]] = m[2];
+  }
+  const m = /^https:\/\/([a-z0-9]{20})\.supabase\.co\/?$/.exec(env.DEV_SUPABASE_URL ?? '');
+  if (!m || m[1] !== DEV_REF) fail('DEV_SUPABASE_URL must be the perfect-match-dev project');
+  const anon = env.DEV_SUPABASE_ANON_KEY ?? '';
+  if (claim(anon, 'ref') !== DEV_REF || claim(anon, 'role') !== 'anon') fail('DEV_SUPABASE_ANON_KEY is not this project\'s anon key');
+  const out = { url: `https://${DEV_REF}.supabase.co`, ref: DEV_REF, anonKey: anon, target: 'dev' };
+  if (needService) {
+    const svc = env.DEV_SUPABASE_SERVICE_ROLE_KEY ?? '';
+    if (claim(svc, 'ref') !== DEV_REF || claim(svc, 'role') !== 'service_role') fail('DEV_SUPABASE_SERVICE_ROLE_KEY is not this project\'s service key');
+    out.serviceKey = svc;
+  }
+  fs.mkdirSync(outDir, { recursive: true, mode: 0o700 });
+  return out;
+}
+
 export function loadTestEnv({ needDb = false, needService = false } = {}) {
+  if (process.env.TEMPA_TARGET === 'dev') {
+    if (needDb) fail('the dev target applies schema via scripts/dev-backend/apply-dev.mjs (linked CLI), not TEST_DB_URL');
+    return loadDevEnv({ needService });
+  }
+  if (process.env.TEMPA_TARGET && process.env.TEMPA_TARGET !== 'test') fail(`unknown TEMPA_TARGET "${process.env.TEMPA_TARGET}"`);
   const file = path.join(repo, '.env.test.local');
   if (!fs.existsSync(file)) fail(`missing ${file} (copy scripts/test-backend/env.example)`);
   const env = {};

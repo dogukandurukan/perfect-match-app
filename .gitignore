@@ -23,3 +23,6 @@ expo-env.d.ts
 # Separate Supabase TEST project (P0) — local secrets and generated files
 .env.test.local
 .test-backend/
+
+# Tempa dev project keys (never commit)
+.env.dev.local
