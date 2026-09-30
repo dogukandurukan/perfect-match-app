@@ -11,11 +11,17 @@ import { OnboardingScreen } from '@/components/onboarding-v2/OnboardingScreen';
 import { OnboardingTextField } from '@/components/onboarding-v2/OnboardingTextField';
 import { loadMyOnboarding } from '@/lib/onboardingV2/remote';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
-import { emailLooksValid, normalizeEmail, RESEND_COOLDOWN_SECONDS, sanitizeCode } from '@/lib/onboardingV2/yourProfile';
+import { emailLooksValid, normalizeEmail, RESEND_COOLDOWN_SECONDS } from '@/lib/onboardingV2/yourProfile';
 import { devTestEmail, supabase } from '@/lib/supabaseClient';
 import { friendlyNetworkError, withTimeout } from '@/lib/withTimeout';
 
 type Phase = 'email' | 'code';
+
+// Supabase email codes are 6–10 digits depending on the project's OTP length
+// setting (perfect-match-dev issues 7). Digits only; pasted text is cleaned.
+const MIN_CODE = 6;
+const MAX_CODE = 10;
+const cleanCode = (v: string) => v.replace(/\D/g, '').slice(0, MAX_CODE);
 
 export default function V2Welcome() {
   const router = useRouter();
@@ -69,7 +75,7 @@ export default function V2Welcome() {
   };
 
   const verify = async () => {
-    if (code.length < 6 || busy || (testMode && !consent)) return;
+    if (code.length < MIN_CODE || busy || (testMode && !consent)) return;
     setBusy(true);
     setError(null);
     try {
@@ -125,7 +131,7 @@ export default function V2Welcome() {
           ? "We'll send you a code to sign in."
           : testMode
             ? `DEV test account ${normalizeEmail(email)} — enter the code shown in your Mac terminal.`
-            : `We sent a 6-digit code to ${normalizeEmail(email)}.`
+            : `We sent a sign-in code to ${normalizeEmail(email)}.`
       }
       onBack={
         isEmail || testMode ? (router.canGoBack() ? () => router.back() : undefined) : () => setPhase('email')
@@ -141,7 +147,7 @@ export default function V2Welcome() {
           <OnboardingPrimaryButton
             label={busy ? 'Please wait…' : isEmail ? 'Send code' : 'Continue'}
             onPress={() => void (isEmail ? sendCode() : verify())}
-            disabled={busy || (isEmail ? !emailLooksValid(email) || !consent : code.length < 6 || (testMode && !consent))}
+            disabled={busy || (isEmail ? !emailLooksValid(email) || !consent : code.length < MIN_CODE || (testMode && !consent))}
           />
         </>
       }>
@@ -182,16 +188,16 @@ export default function V2Welcome() {
       ) : (
         <>
           <OnboardingTextField
-            label="6-digit code"
+            label="Sign-in code"
             value={code}
             onChangeText={(v) => {
-              setCode(sanitizeCode(v));
+              setCode(cleanCode(v));
               setError(null);
             }}
             keyboardType="number-pad"
             textContentType="oneTimeCode"
             autoComplete="one-time-code"
-            maxLength={6}
+            maxLength={MAX_CODE}
             onSubmitEditing={() => void verify()}
           />
           {testMode ? (
