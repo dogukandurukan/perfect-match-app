@@ -218,6 +218,17 @@ async function asRole(role, uid, sql) {
   }
 }
 
+// RPC rejections are asserted in SQL as the same role + JWT subject (what
+// PostgREST executes), not over the local bridge: pglite-socket drops the
+// connection on an error raised inside a function (generic 503), and with a
+// single PGlite session that leaves a dangling transaction (flaky runs).
+async function sqlErr(actor, sql) {
+  const r = await asRole(actor === 'anon' ? 'anon' : 'authenticated', actor === 'anon' ? null : U[actor], sql);
+  return r.ok ? '' : r.error;
+}
+
+
+
 let pgrst;
 async function startApi() {
   const conf = path.join(process.env.TMPDIR || '/tmp', `pgrst-p0-${process.pid}.conf`);
@@ -312,12 +323,12 @@ async function p0aChecks() {
   }
   const anonIns = await api('anon', 'POST', '/profiles', { id: U.N, first_name: 'x' });
   check(!anonIns.ok, 'anon cannot insert profiles');
-  const anonRpc = await api('anon', 'POST', '/rpc/get_discovery_cards', { p_limit: 5 });
-  check(!anonRpc.ok, 'anon cannot call get_discovery_cards');
-  const oracle = await api('A', 'POST', '/rpc/can_view_profile', { p_viewer: U.B, p_target: U.D });
-  check(!oracle.ok, 'two-party visibility rule is not callable by clients (no oracle)');
-  const anonUpsert = await api('anon', 'POST', '/rpc/upsert_match', { p_user_a: U.A, p_user_b: U.B });
-  check(!anonUpsert.ok, 'anon cannot call upsert_match');
+  check((await sqlErr('anon', 'select * from public.get_discovery_cards(5)')).includes('permission denied'),
+    'anon cannot call get_discovery_cards');
+  check((await sqlErr('A', `select public.can_view_profile('${U.B}','${U.D}')`)).includes('permission denied'),
+    'two-party visibility rule is not callable by clients (no oracle)');
+  check((await sqlErr('anon', `select public.upsert_match('${U.A}','${U.B}')`)).includes('permission denied'),
+    'anon cannot call upsert_match');
 
   // profiles: server-owned fields
   const ins = await api('N', 'POST', '/profiles', { id: U.N, first_name: 'N', is_premium: true });
@@ -362,11 +373,11 @@ async function p0aChecks() {
   const [ad, dd] = U.A < U.D ? [U.A, U.D] : [U.D, U.A];
   const hid = await api('A', 'POST', '/matches', { user_a_id: ad, user_b_id: dd, match_score: 10 });
   check(!hid.ok, 'cannot create a matches row with a hidden user');
-  const upHid = await api('A', 'POST', '/rpc/upsert_match', { p_user_a: ad, p_user_b: dd, p_match_score: 10 });
-  check(!upHid.ok, 'upsert_match towards a hidden user rejected');
+  check((await sqlErr('A', `select public.upsert_match('${ad}','${dd}',10)`)).includes('target_not_visible'),
+    'upsert_match towards a hidden user rejected');
   const [ag, gg] = U.A < U.G ? [U.A, U.G] : [U.G, U.A];
-  const blk = await api('A', 'POST', '/rpc/upsert_match', { p_user_a: ag, p_user_b: gg, p_match_score: 10 });
-  check(!blk.ok, 'upsert_match with someone who blocked me rejected');
+  check((await sqlErr('A', `select public.upsert_match('${ag}','${gg}',10)`)).includes('target_not_visible'),
+    'upsert_match with someone who blocked me rejected');
   const del = await api('A', 'DELETE', mB);
   check(!del.ok || rows(del).length === 0, 'cannot delete match history');
 
@@ -392,6 +403,7 @@ async function p0aChecks() {
   const ownConfirm = await api('B', 'PATCH', `/matches?id=eq.${rows(invite)[0].id}`, { meetup_confirmed: true });
   check(!ownConfirm.ok, 'proposer cannot confirm own proposal');
   const confirm = await api('A', 'PATCH', `/matches?id=eq.${rows(invite)[0].id}`, { meetup_confirmed: true });
+  if (process.env.DEBUG) console.log('confirm', confirm.status, JSON.stringify(confirm.json).slice(0, 300));
   check(confirm.ok, 'other side confirms the proposal');
   const pick = await api('B', 'PATCH', `/matches?id=eq.${rows(invite)[0].id}`,
     { meeting_at: '2026-10-11T17:00:00Z', meetup_proposed_by: U.A, meetup_confirmed: true });
@@ -643,10 +655,10 @@ async function p0bChecks() {
   const emb = await api('A', 'GET',
     `/matches?select=id,profiles!matches_user_b_id_fkey(first_name,date_of_birth)&status=eq.accepted&or=(user_a_id.eq.${U.A},user_b_id.eq.${U.A})`);
   check(rows(emb).every((m) => m.profiles === null || m.profiles?.first_name === 'A'), 'embedded join no longer exposes other profiles');
-  const top = await api('A', 'POST', '/rpc/get_top_matches', { p_user_id: U.A, p_limit: 5 });
-  check(!top.ok, 'get_top_matches (DOB + district) no longer callable');
-  const lk = await api('A', 'POST', '/rpc/get_my_likers', {});
-  check(!lk.ok, 'get_my_likers (DOB) no longer callable');
+  check((await sqlErr('A', `select * from public.get_top_matches('${U.A}',5)`)).includes('permission denied'),
+    'get_top_matches (DOB + district) no longer callable');
+  check((await sqlErr('A', 'select * from public.get_my_likers(5)')).includes('permission denied'),
+    'get_my_likers (DOB) no longer callable');
   await readPaths('P0-B');
   await storageChecks();
   await privatePhotoChecks('P0-B');
