@@ -63,6 +63,20 @@ async function main() {
   check((await pair()).every((m) => m.status !== 'accepted' && m.chat_opened !== true), 'one-sided like: no match, no chat');
   check(((await A.rpc('get_my_matches_v2')).data ?? []).length === 0, 'one-sided like: Matches empty');
   check(!!(await A.from('messages').insert({ sender_id: MAN, receiver_id: WOMAN, content: 'early' })).error, 'one-sided like: no messages');
+  // ---- "Likes you" → shared V2 profile (before the match) ------------------
+  const bPremium = (await admin.from('profiles').select('is_premium').eq('id', WOMAN).single()).data?.is_premium === true;
+  const cards = (await B.rpc('get_my_liker_cards', { p_limit: 50 })).data ?? [];
+  const card = cards.find((r) => r.liker_id === MAN);
+  check(bPremium ? !!card : cards.every((r) => r.liker_id === null),
+    `Likes you: identity only for premium (B premium=${bPremium})`);
+  const lp = (await B.rpc('get_profile_v2', { p_user: MAN })).data;
+  const ALLOWED = ['activity', 'age', 'artists', 'books', 'city', 'core_values', 'date_types', 'days_pref', 'drinking',
+    'favorite_spot', 'first_name', 'height_cm', 'hometown', 'intent', 'interests', 'job_title', 'pet_kind', 'pets',
+    'photo_paths', 'prompts', 'school', 'screen', 'smoking', 'time_pref', 'user_id', 'work_status', 'zodiac'];
+  check(lp && JSON.stringify(Object.keys(lp).sort()) === JSON.stringify(ALLOWED), 'Likes you → full V2 profile with only the allowed fields');
+  check(((await B.from('onboarding_v2').select('first_name').eq('user_id', MAN)).data ?? []).length === 0, 'Likes you: raw draft not readable');
+  check(errIs(await O.rpc('propose_date_v2', { p_match: crypto.randomUUID(), p_meeting_at: new Date(Date.now() + 3600e3).toISOString(), p_place: null, p_request_id: crypto.randomUUID() }), 'chat_not_active'),
+    'no suggestion without a match');
   check(!(await B.from('likes').insert({ liker_id: WOMAN, likee_id: MAN, target_type: 'profile', status: 'sent' })).error, 'B likes A back');
   const p0 = await pair();
   check(p0.length === 1 && p0[0].status === 'accepted' && p0[0].chat_opened === true && p0[0].source === 'mutual_like',
@@ -77,6 +91,8 @@ async function main() {
   check(!!(await A.from('matches').update({ invited_by: MAN }).eq('id', mid)).error, 'no pre-match / new invitations from clients');
 
   // ---- suggestion, counter, accept ------------------------------------------
+  check(errIs(await A.rpc('propose_date_v2', { p_match: mid, p_meeting_at: new Date(Date.now() - 60000).toISOString(), p_place: null, p_request_id: crypto.randomUUID() }), 'invalid_time'),
+    'a past time is refused by the server');
   const r1 = crypto.randomUUID();
   const s1 = await A.rpc('propose_date_v2', { p_match: mid, p_meeting_at: fut(48), p_place: 'Moda', p_request_id: r1 });
   check(!s1.error && s1.data.status === 'pending' && s1.data.mine === true, 'A suggests a date → pending ("Awaiting reply")');

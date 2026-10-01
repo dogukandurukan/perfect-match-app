@@ -180,3 +180,81 @@ Then **DEV · Test account sign-in** with the printed code (or `r` in a running 
 - Suggested time chips: they use V1 availability columns, so V2 members see only "Pick another time". Mapping V2 days / time preferences to chips is a follow-up.
 - The "Likes you" grid still opens the V1 `user-profile` screen.
 - Profile-edit policy, Magic Link, key rotation, `delete-account`, old public photo — unchanged.
+
+---
+
+# Round 2 (2026-10-01): V2 date ideas, "Likes you" → V2 profile, receiver-side phone test
+
+Branch `tempa/v2-persist-r2`, from `b35196c` (clean, same as origin). No server / schema change this round. Perfect-match-dev only.
+
+## A. "Suggest a date" ideas from V2 preferences
+
+**Meaning, checked against DECISIONS D57:**
+- *When are you free?* asks Days (Weekdays / Weekends / Either) and Time (Daytime / Evening / Either).
+- These are **general first-date preferences, not scheduling** ("Choose the exact time together.").
+
+**Before:** the sheet used V1 `profiles.availability_*`. For V2 members that is empty, so the old helper fell back to three **fixed** Saturday / Sunday times that were based on no data at all.
+
+**Now** (`lib/onboardingV2/dateSuggestions.ts`, used only on the V2 backends):
+- **Ideas:**
+    - up to 3, from the caller's own `days_pref` / `time_pref`;
+    - when the other person's public preferences (`get_profile_v2`) overlap, the overlap is used; otherwise only the caller's own;
+    - representative local times: Daytime 13:00, Evening 19:30.
+- **Label:** "Ideas from (both) your first-date preferences. Choose the exact time together." Never "available", never implying the other side agreed.
+- **No preferences → no ideas**, just the date / time picker.
+- **"Pick another time" is always visible**, also after a time is chosen.
+- **No past times:**
+    - ideas start tomorrow;
+    - the picker's minimum is now + 5 min and it opens 1 h ahead;
+    - Send refuses anything under 5 minutes ahead;
+    - the server already refuses past times (`invalid_time` — tested).
+- **Time zone:** built in the device's local time, sent as a UTC ISO string to a `timestamptz`, displayed in local time. The checks pass under Europe/Istanbul, America/Los_Angeles, Pacific/Auckland and UTC.
+- The live V1 path keeps the old helper.
+
+## B. "Likes you" → shared V2 profile
+
+On the V2 backends a liker card opens `/v2/profile`. That is the same `PublicProfileView` / `get_profile_v2` used everywhere:
+- the server selects the fields;
+- blocked / hidden / deleted / ended pairs → "This profile isn't available";
+- the raw draft is never sent.
+
+Who may see likers is unchanged (`get_my_liker_cards`): identity only for premium, while locked tiles go to `/premium`. The phone test account is **not premium** (unchanged), so on the phone the tiles stay locked.
+
+## C. Receiver side on one phone (`scripts/dev-backend/date-partner.mjs`)
+
+The script plays **"Test" (`2344b540-…`)**, the phone account's existing match. It:
+- signs in through the normal email-code path (code issued locally by the admin API, verified by the client);
+- then calls **only the app's RPCs**, so every server rule applies;
+- never acts as the phone account, never resets or unmatches it, and adds nothing to the app;
+- refuses unless both accounts are synthetic.
+
+Commands: `status`, `propose [h] ["place"]`, `counter [h] ["place"]`, `accept`, `decline`, `say "text"`.
+
+Checked today: `status` showed the active match with no suggestions; `accept` correctly refused ("no pending suggestion from the phone"). Nothing was created on the phone account's match.
+
+## D. Tests
+
+| Run this round | Where | Result |
+|---|---|---|
+| `smoke_match_chat_v2.mjs` (+5 checks: Likes-you identity follows premium, liker → V2 profile with only the allowed fields, raw draft not readable, no suggestion without a match, past time refused) | **real services** | **51 / 51** |
+| `date-partner.mjs status` / guarded `accept` | real services | as expected |
+| `tsc --noEmit` | local | clean |
+| Onboarding logic, incl. new **V2 date ideas 14 / 14** | local | 45 · 69 · 56 · 14 · 6 |
+| Date ideas under 4 time zones | local | 14 / 14 each |
+
+Earlier runs (not repeated — no server change): replica 208 / 208, P0 38 / 38, `smoke_v2` 83 / 83.
+
+**Not tested:**
+- **The phone:** not tested at all this round.
+- **The premium "unlocked" liker-card tap:** not tested on real services. Both synthetic test accounts are non-premium and I did not change premium flags; the profile access it uses is tested.
+- Android: the date picker uses `mode="datetime"` (as before), which is iOS-oriented.
+
+## E. Phone check (≤ 5)
+
+Reload (Metro `r`), signed in as the DEV test account. Run the commands from `~/tempa-p0` on the Mac.
+
+1. Chat with **Test** → **+ → Suggest a date**: up to 3 ideas from weekend evenings, plus "Ideas from both your first-date preferences…" and **Pick another time**, which stays visible after choosing. Send → "Awaiting reply".
+2. `node scripts/dev-backend/date-partner.mjs counter` → reopen the chat or wait ~20 s: your card shows "Another time suggested", and Test's new card shows **Accept / Suggest another time / Not now**. Plans → "Waiting for your reply".
+3. Tap **Suggest another time** → pick a time → Send. Then `… date-partner.mjs accept` → the card shows **Accepted**. Plans → **Confirmed**.
+4. Receiver side from scratch: `… date-partner.mjs propose` → on the phone, **Not now** → the card shows "Not now". A new `propose` works again.
+5. Activity: "Test suggested a date / another time" and "Test accepted your date" rows, each opening the chat. "Likes you" tiles stay locked (not premium).

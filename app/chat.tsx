@@ -34,6 +34,9 @@ import { colors, radius } from '@/lib/designTokens';
 import { formatMeetingTime, orderedPair, suggestMeetingTimes } from '@/lib/matchInvite';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase, v2Enabled } from '@/lib/supabaseClient';
+import { dateIdeas, isSendableTime, MIN_LEAD_MS } from '@/lib/onboardingV2/dateSuggestions';
+import { loadMyOnboarding } from '@/lib/onboardingV2/remote';
+import type { DaysKey, TimeKey } from '@/lib/onboardingV2/yourDates';
 import {
   loadChatState,
   newRequestId,
@@ -88,6 +91,7 @@ export default function ChatScreen() {
   const [showProposeTimePicker, setShowProposeTimePicker] = useState(false);
   const [proposeTimePickerDraft, setProposeTimePickerDraft] = useState(new Date());
   const [proposing, setProposing] = useState(false);
+  const [proposeIdeasBasis, setProposeIdeasBasis] = useState<'both' | 'mine' | null>(null);
   const [gateError, setGateError] = useState(false);
   // V2 (dev/test backends): server chat state + date suggestions shown as
   // in-chat cards. The suggestion is opened by the user from the + menu —
@@ -471,6 +475,25 @@ export default function ChatScreen() {
     setSelectedProposeTime(null);
     setShowProposeTimePicker(false);
     setProposeTimes([]);
+    setProposeIdeasBasis(null);
+    if (v2Enabled) {
+      // V2: ideas only from the first-date preferences (D57 — general, not
+      // availability). No preferences → no ideas, just the picker.
+      const [mineRes, theirsRes] = await Promise.all([
+        loadMyOnboarding(),
+        otherUserId ? supabase.rpc('get_profile_v2', { p_user: otherUserId }) : Promise.resolve({ data: null }),
+      ]);
+      const myDraft = mineRes.ok ? mineRes.value.draft : null;
+      const theirs = (theirsRes as { data: { days_pref?: string | null; time_pref?: string | null } | null }).data;
+      const ideas = dateIdeas(
+        myDraft ? { days: (myDraft.days_pref as DaysKey | null) ?? null, time: (myDraft.time_pref as TimeKey | null) ?? null } : null,
+        theirs ? { days: (theirs.days_pref as DaysKey | null) ?? null, time: (theirs.time_pref as TimeKey | null) ?? null } : null,
+      );
+      setProposeTimes(ideas.times);
+      setProposeIdeasBasis(ideas.basis);
+      setProposeModalVisible(true);
+      return;
+    }
     if (currentUserId) {
       const { data } = await supabase
         .from('profiles')
@@ -615,6 +638,10 @@ export default function ChatScreen() {
   // per opening of the sheet, so a double tap or retry never creates two.
   async function confirmProposeV2() {
     if (!matchId || !selectedProposeTime || proposing) return;
+    if (!isSendableTime(selectedProposeTime)) {
+      Alert.alert('Pick a later time', 'Choose a time at least a few minutes from now.');
+      return;
+    }
     setProposing(true);
     const place = proposePlace.trim() || null;
     const requestId = proposeRequestRef.current ?? newRequestId();
@@ -1085,6 +1112,13 @@ export default function ChatScreen() {
             {!v2Enabled ? 'Suggest a time to meet up' : counterTarget ? 'Suggest another time' : 'Suggest a date'}
           </ThemedText>
 
+          {v2Enabled && proposeTimes.length > 0 ? (
+            <ThemedText style={styles.proposeIdeasLabel}>
+              {proposeIdeasBasis === 'both'
+                ? 'Ideas from both your first-date preferences. Choose the exact time together.'
+                : 'Ideas from your first-date preferences. Choose the exact time together.'}
+            </ThemedText>
+          ) : null}
           {proposeTimes.length > 0 ? (
             <View style={styles.slotChipsRow}>
               {proposeTimes.map((t) => {
@@ -1121,10 +1155,12 @@ export default function ChatScreen() {
                 </ThemedText>
               </TouchableOpacity>
             </View>
-          ) : (
+          ) : null}
+          {v2Enabled || !(selectedProposeTime && !proposeTimes.includes(selectedProposeTime)) ? (
             <TouchableOpacity
               onPress={() => {
-                setProposeTimePickerDraft(new Date());
+                // Start an hour ahead so "Use this time" is always sendable.
+                setProposeTimePickerDraft(new Date(Date.now() + 60 * 60 * 1000));
                 setShowProposeTimePicker(true);
               }}
               activeOpacity={0.7}
@@ -1132,7 +1168,7 @@ export default function ChatScreen() {
               accessibilityLabel="Pick another time">
               <ThemedText style={styles.proposeCustomLink}>Pick another time</ThemedText>
             </TouchableOpacity>
-          )}
+          ) : null}
 
           {showProposeTimePicker ? (
             <View style={styles.proposeTimePickerColumn}>
@@ -1140,7 +1176,7 @@ export default function ChatScreen() {
                 value={proposeTimePickerDraft}
                 mode="datetime"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={new Date()}
+                minimumDate={new Date(Date.now() + MIN_LEAD_MS)}
                 onChange={onProposeTimePickerChange}
                 themeVariant="light"
                 textColor="#1A1A1A"
@@ -1198,6 +1234,7 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
+  proposeIdeasLabel: { fontSize: 13, lineHeight: 18, color: colors.textMuted, marginBottom: 6 },
   menuBtn: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },
   dateCard: {
     marginVertical: 8,

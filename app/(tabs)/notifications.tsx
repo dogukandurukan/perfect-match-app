@@ -1673,10 +1673,16 @@ export default function NotificationsScreen() {
         likers={likers}
         onPressLocked={() => router.push('/premium' as never)}
         onPressLiker={(likerId) =>
-          router.push({
-            pathname: '/user-profile',
-            params: { userId: likerId, context: 'liked_you' },
-          } as never)
+          // V2: the shared full profile (get_profile_v2 — server-selected
+          // fields; blocked / hidden / deleted / ended → "isn't available").
+          // Who may see the likers at all stays with get_my_liker_cards
+          // (identity only for premium; locked tiles go to /premium).
+          v2Enabled
+            ? router.push(`/v2/profile?userId=${likerId}` as never)
+            : router.push({
+                pathname: '/user-profile',
+                params: { userId: likerId, context: 'liked_you' },
+              } as never)
         }
       />
       <WaitingOnThemSection
