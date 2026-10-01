@@ -403,6 +403,31 @@ function nonEmpty<T>(xs: (T | null | undefined | false | '')[]): T[] {
   return xs.filter((x): x is T => !!x);
 }
 
+/** The public profile's fields, already reduced to what others may see
+ * (no surname, DOB, district, email, phone or selfie). Built from the drafts
+ * (own preview) or from get_profile_v2 (another member) — same blocks. */
+export type PublicProfileInput = {
+  name: string;
+  age: number | null;
+  zodiac: string | null;
+  city: string | null;
+  heightCm: number | null;
+  workStatus: string | null;
+  jobTitle: string;
+  school: TasteItem | null;
+  hometown: TasteItem | null;
+  intent: string | null;
+  values: string[];
+  interests: string[];
+  life: LifeDraft;
+  dates: DatesDraft;
+  artists: TasteItem[];
+  books: TasteItem[];
+  screen: TasteItem[];
+  prompts: { promptId: PromptId; answer: string }[];
+  photos: LocalPhoto[];
+};
+
 /**
  * Assembles what others would see, from the current drafts only, as one
  * scrolling profile. Excludes surname, exact DOB, phone, email and the
@@ -417,34 +442,60 @@ export function buildProfilePreview(
   dates: DatesDraft,
   profile: ProfileDraft,
 ): PreviewBlock[] {
-  const photos = usablePhotos(profile.photos);
-  const answers = publicAnswers(profile.prompts).filter((a) => a.answer);
   const dob = parseDob(basics.dobDay, basics.dobMonth, basics.dobYear);
+  const h = Number(basics.heightCm);
+  return buildPublicProfileBlocks({
+    name: basics.firstName.trim(),
+    age: dob.ok ? dob.age : null,
+    zodiac: dob.ok ? getZodiacFromDate(dob.date).sign : null,
+    city: basics.location?.city ?? null,
+    heightCm: /^\d+$/.test(basics.heightCm.trim()) && h > 0 ? h : null,
+    workStatus: world.workStatus,
+    jobTitle: world.jobTitle,
+    school: world.school,
+    hometown: world.hometown,
+    intent: compat.intent,
+    values: compat.values,
+    interests: world.interests,
+    life,
+    dates,
+    artists: world.artists,
+    books: world.books,
+    screen: world.screen,
+    prompts: publicAnswers(profile.prompts).filter((a) => a.answer),
+    photos: usablePhotos(profile.photos),
+  });
+}
+
+/** Blocks for a public profile (own preview and other members' profiles). */
+export function buildPublicProfileBlocks(p: PublicProfileInput): PreviewBlock[] {
+  const { life, dates } = p;
+  const photos = p.photos;
+  const answers = p.prompts.filter((a) => a.answer);
 
   // About: city, height, zodiac, work, school, hometown
-  const h = Number(basics.heightCm);
-  const job = world.jobTitle.trim() || WORK_OPTIONS.find((w) => w.key === world.workStatus)?.title;
+  const job = p.jobTitle.trim() || WORK_OPTIONS.find((w) => w.key === p.workStatus)?.title;
   const about: PreviewFact[] = nonEmpty<PreviewFact>([
-    basics.location && { icon: 'location-outline', text: basics.location.city },
-    /^\d+$/.test(basics.heightCm.trim()) && h > 0 && { icon: 'resize-outline', text: `${h} cm` },
-    dob.ok && { icon: 'planet-outline', text: getZodiacFromDate(dob.date).sign },
+    p.city && { icon: 'location-outline', text: p.city },
+    p.heightCm !== null && p.heightCm > 0 && { icon: 'resize-outline', text: `${p.heightCm} cm` },
+    p.zodiac && { icon: 'planet-outline', text: p.zodiac },
     job && { icon: 'briefcase-outline', text: job },
-    world.school && { icon: 'school-outline', text: world.school.title },
-    world.hometown && { icon: 'home-outline', text: `From ${world.hometown.title}` },
+    p.school && { icon: 'school-outline', text: p.school.title },
+    p.hometown && { icon: 'home-outline', text: `From ${p.hometown.title}` },
   ]);
 
   // Looking for · values · interests
   const intentQ = SINGLE_QUESTIONS.find((q) => q.id === 'intent');
-  const intent = compat.intent && intentQ?.options.some((o) => o.key === compat.intent) ? INTENT_TEXT[compat.intent] : null;
+  const intent = p.intent && intentQ?.options.some((o) => o.key === p.intent) ? INTENT_TEXT[p.intent] : null;
   // Same icons as the answer cards the user picked them from (D51/D56).
   const values: PreviewFact[] = nonEmpty<PreviewFact>(
-    compat.values.map((k) => {
+    p.values.map((k) => {
       const v = VALUE_OPTIONS.find((o) => o.key === k);
       return v ? { icon: v.icon.name, family: v.icon.family, text: v.label } : null;
     }),
   );
   const interests: PreviewFact[] = nonEmpty<PreviewFact>(
-    world.interests.map((k) => {
+    p.interests.map((k) => {
       const it = INTERESTS.find((i) => i.key === k);
       return it ? { icon: it.icon, text: it.label } : null;
     }),
@@ -479,9 +530,9 @@ export function buildProfilePreview(
 
   // Favorites (titles/metadata from the chosen catalog items only)
   const taste: PreviewTaste[] = nonEmpty<PreviewTaste>([
-    world.artists.length > 0 && { label: 'Artists', kind: 'artist', items: world.artists },
-    world.books.length > 0 && { label: 'Books', kind: 'book', items: world.books },
-    world.screen.length > 0 && { label: 'Movies & series', kind: 'screen', items: world.screen },
+    p.artists.length > 0 && { label: 'Artists', kind: 'artist', items: p.artists },
+    p.books.length > 0 && { label: 'Books', kind: 'book', items: p.books },
+    p.screen.length > 0 && { label: 'Movies & series', kind: 'screen', items: p.screen },
   ]);
 
   // Content sections, interleaved with photos 2… and prompts.
@@ -496,8 +547,8 @@ export function buildProfilePreview(
 
   // Name + age live on the main photo (no separate line, not repeated);
   // only if there is no usable photo does a plain header stand in.
-  const name = basics.firstName.trim();
-  const age = dob.ok ? dob.age : null;
+  const name = p.name;
+  const age = p.age;
   const blocks: PreviewBlock[] = photos[0]
     ? [{ type: 'hero', photo: photos[0], name, age }]
     : [{ type: 'header', name, age }];

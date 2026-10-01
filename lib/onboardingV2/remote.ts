@@ -9,7 +9,14 @@ import { verificationSelfiePath, VERIFICATION_SELFIE_BUCKET } from '@/lib/userPh
 
 import type { FlowPos, SectionId } from './previewFlow';
 import type { LocalPhoto, LocalSelfie, PromptAnswer } from './yourProfile';
-import { photosFromServer, promptsToServer, type ServerBundle } from './serverMapping';
+import {
+  photosFromServer,
+  promptsToServer,
+  publicProfileFromServer,
+  type ServerBundle,
+  type ServerPublicProfile,
+} from './serverMapping';
+import type { PublicProfileInput } from './yourProfile';
 
 export type Result<T = void> = { ok: true; value: T } | { ok: false; message: string };
 
@@ -182,4 +189,19 @@ export async function getAccessGate(): Promise<AccessGate> {
   if (d.gate === 'waiting') return { gate: 'waiting', applicationStatus: d.application_status, verificationStatus: d.verification_status };
   if (d.gate === 'member' || d.gate === 'legacy_member' || d.gate === 'signed_out') return { gate: d.gate };
   return { gate: 'error', message: 'Unexpected account state.' };
+}
+
+/** Another member's public profile. `null` value = not available to you
+ * (not eligible, blocked, hidden, deleted or not a member) — the server
+ * answers the same way in every case. */
+export async function loadPublicProfile(userId: string): Promise<Result<PublicProfileInput | null>> {
+  const { data, error } = await supabase.rpc('get_profile_v2', { p_user: userId });
+  if (error) return { ok: false, message: friendly(error, 'Could not load this profile. Try again.') };
+  if (!data) return { ok: true, value: null };
+  const row = data as ServerPublicProfile;
+  const paths = row.photo_paths ?? [];
+  await preloadProfilePhotoUrls(paths);
+  const signed = new Map<string, string | null>();
+  for (const p of paths) signed.set(p, await resolveProfilePhotoUrl(p));
+  return { ok: true, value: publicProfileFromServer(row, signed) };
 }

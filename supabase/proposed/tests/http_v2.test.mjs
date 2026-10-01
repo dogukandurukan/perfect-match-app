@@ -164,7 +164,8 @@ const DATES = { date_types: ['coffee', 'walk'], favorite_spot: 'Moda sahil', day
 async function main() {
   await db.exec(buildReplicaSql());
   for (const f of ['20260928130000_p0a_privacy_additive.sql', '20260930090000_p1_private_photos.sql',
-    '20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql']) {
+    '20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql',
+    '20261001090000_v2_public_profile.sql']) {
     await db.exec(fs.readFileSync(path.join(proposed, f), 'utf8'));
   }
   // seed: auth users; legacy V1 members L and W; V2 member M activated by a reviewer
@@ -444,6 +445,62 @@ async function run() {
   const f1photo = await asRole('authenticated', ok1,
     `select name from storage.objects where bucket_id='profile-photos-private' and name like '${U.U1}/%'`);
   check(f1photo.ok && f1photo.rows.length >= 1, 'an eligible member can sign the accepted member\'s photos');
+  stage = 'V2 PUBLIC PROFILE';
+  const prof = async (viewer, target) => {
+    const r = await asRole('authenticated', viewer, `select public.get_profile_v2('${target}') as p`);
+    return r.ok ? r.rows[0].p : { __error: r.error };
+  };
+  const ALLOWED = ['activity', 'age', 'artists', 'books', 'city', 'core_values', 'date_types', 'days_pref', 'drinking',
+    'favorite_spot', 'first_name', 'height_cm', 'hometown', 'intent', 'interests', 'job_title', 'pet_kind', 'pets',
+    'photo_paths', 'prompts', 'school', 'screen', 'smoking', 'time_pref', 'user_id', 'work_status', 'zodiac'];
+  const u1p = await prof(ok1, U.U1);
+  check(u1p && JSON.stringify(Object.keys(u1p).sort()) === JSON.stringify(ALLOWED), 'profile returns exactly the allowed fields');
+  check(u1p?.first_name === 'Test' && u1p.age >= 30 && u1p.zodiac === 'Aries' && u1p.city === 'İstanbul'
+    && u1p.height_cm === (await db.query(`select height_cm from onboarding_v2 where user_id='${U.U1}'`)).rows[0].height_cm,
+    `name, age, zodiac (server-computed), city and height (${JSON.stringify([u1p?.first_name, u1p?.age, u1p?.zodiac, u1p?.city, u1p?.height_cm])})`);
+  check(u1p?.intent === 'long_term' && JSON.stringify(u1p.core_values) === '["trust","respect"]' && u1p.job_title === 'Designer'
+    && u1p.school?.title === 'Boğaziçi' && u1p.artists?.[0]?.title === 'Sezen Aksu' && u1p.favorite_spot === 'Moda sahil'
+    && u1p.days_pref === 'weekends' && u1p.smoking === 'no' && u1p.pet_kind === 'cat', 'looking for, values, work, school, taste, dates, lifestyle');
+  check(Array.isArray(u1p?.prompts) && u1p.prompts.length >= 2 && u1p.prompts.every((q, i, a) => i === 0 || a[i - 1].slot < q.slot),
+    'prompts in slot order');
+  const u1photos = (await db.query(`select storage_path from profile_photos_v2 where user_id='${U.U1}' order by position`)).rows
+    .map((r) => r.storage_path);
+  check(JSON.stringify(u1p?.photo_paths) === JSON.stringify(u1photos), 'photos in the owner\'s order');
+  const raw = JSON.stringify(u1p);
+  check(!/Applicant|1995-04-12|Kadıköy|tr-istanbul|tempa-test|selfie|few_checkins|after_chatting|"gender"|"mix"/.test(raw),
+    'no surname, DOB, district, location id, email, selfie, gender or compatibility answers');
+  check(!!(await prof(U.U1, ok9)), 'a mutually eligible member\'s profile opens');
+  for (const [n, why] of [[2, 'does not want this gender'], [3, 'other city'], [4, 'outside the age range'],
+    [5, 'viewer outside their range'], [6, 'hidden'], [7, 'blocked the viewer'], [8, 'pending applicant']]) {
+    check((await prof(U.U1, F(n))) === null, `no profile when the target ${why}`);
+  }
+  check((await prof(F(8), U.U1)) === null, 'a pending applicant cannot open member profiles');
+  check((await prof(U.L, U.U1)) === null, 'a V1 account cannot open V2 profiles');
+  check((await prof(U.U2, U.U1)) === null, 'a draft applicant cannot open member profiles');
+  check(!!(await prof(U.U1, U.U1)), 'the owner can open their own profile');
+  check((await rpcSqlError('anon', 'get_profile_v2', { p_user: U.U1 }))?.includes('permission denied'), 'anon cannot call it');
+  const raw2 = await asRole('authenticated', ok1, `select first_name from public.onboarding_v2 where user_id = '${U.U1}'`);
+  check(raw2.ok && raw2.rows.length === 0, 'the raw onboarding draft stays owner-only');
+  // eligibility used by the profile = discovery's eligibility
+  let same = true;
+  for (let n = 1; n <= 9; n += 1) {
+    const e = (await db.query(`select public.v2_pair_eligible('${U.U1}', '${F(n)}') as e`)).rows[0].e;
+    if (e !== candIds.includes(F(n))) same = false;
+  }
+  check(same, 'pair eligibility equals the discovery candidate list');
+  // an existing match row keeps the profile reachable even when not eligible
+  const [ma, mb] = [U.U1, F(2)].sort();
+  await db.exec(`insert into matches(user_a_id, user_b_id, status, match_score) values ('${ma}', '${mb}', 'pending', 50)`);
+  check(!!(await prof(U.U1, F(2))), 'a matched (not eligible) member\'s profile opens');
+  await db.exec(`insert into blocks(blocker_id, blocked_id) values ('${F(2)}', '${U.U1}')`);
+  check((await prof(U.U1, F(2))) === null, 'a block closes it again, even with a match');
+  const gone = await member(10);
+  check(!!(await prof(U.U1, gone)), 'member 10 visible before deletion');
+  await db.exec(`update profiles set deleted_at = now() where id = '${gone}'`);
+  check((await prof(U.U1, gone)) === null, 'a deleted member\'s profile is gone');
+  await db.exec(`update profiles set deleted_at = null, is_hidden = true where id = '${gone}'`);
+  check((await prof(U.U1, gone)) === null, 'a member who hid their profile is gone');
+
   await db.exec(`insert into blocks(blocker_id, blocked_id) values ('${U.U1}', '${ok1}')`);
   const afterBlock = await rpc('U1', 'get_discovery_candidates_v2', { p_limit: 20 });
   check(!rows(afterBlock).some((r) => r.user_id === ok1), 'blocking removes the candidate at once');
@@ -460,6 +517,9 @@ async function run() {
   check(!likeAfter.ok && likeAfter.error.includes('target_not_visible'), 'after the block no like can be sent');
   const f1After = await asRole('authenticated', ok1, 'select user_id from public.get_discovery_candidates_v2(20)');
   check(f1After.ok && !f1After.rows.some((r) => r.user_id === U.U1), 'after the block the other side no longer sees U1 either');
+  check((await asRole('authenticated', ok1, `select public.get_profile_v2('${U.U1}') as p`)).rows?.[0]?.p === null
+    && (await asRole('authenticated', U.U1, `select public.get_profile_v2('${ok1}') as p`)).rows?.[0]?.p === null,
+    'after the block neither side can open the other\'s profile');
 
   stage = 'ORPHAN MEDIA';
   await db.exec(`update storage.objects set created_at = now() - interval '2 days' where name like '${U.U1}/%'`);
@@ -491,7 +551,8 @@ async function run() {
   check(u2b.ok && u2b.json.state.application_status === 'draft', 'P0-B applied: a draft applicant still loads and saves');
 
   stage = 'SCHEMA';
-  const noSecrets = ['20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql']
+  const noSecrets = ['20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql',
+    '20261001090000_v2_public_profile.sql']
     .map((f) => fs.readFileSync(path.join(proposed, f), 'utf8')).join('\n');
   check(!/eyJ[A-Za-z0-9_-]{20,}|fyqwjduzpnjuxqsloxih/.test(noSecrets), 'no key or live ref in the migration');
 }

@@ -34,6 +34,7 @@ import { forgetProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { devBackendLabel, devBuildLabel } from '@/lib/devBuildInfo';
 import { getAccessGate } from '@/lib/onboardingV2/remote';
+import { PublicProfileView } from '@/components/onboarding-v2/PublicProfileView';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -156,6 +157,8 @@ type ActiveMatch = {
 };
 
 type FeedUser = HingeProfilePerson & {
+  /** V2 member from get_discovery_candidates_v2: the full profile comes from get_profile_v2. */
+  v2Member?: boolean;
   user_id: string;
   languages: string[] | null;
 };
@@ -336,6 +339,7 @@ export default function HomeScreen() {
           favorite_spots: null,
           photo_verified: null,
           photoUrls,
+          v2Member: true,
         } as FeedUser;
       }),
     );
@@ -1027,6 +1031,12 @@ export default function HomeScreen() {
                       on purpose. Hero photo is the first thing in the
                       scroll, right below HomeHeader — quota/filter live in
                       that persistent bar now, not floating on the photo. */}
+                  {currentUser.v2Member ? (
+                    // V2 member: the full public profile from the server
+                    // (approved preview design). No score, no reasons.
+                    <PublicProfileView key={currentUser.user_id} userId={currentUser.user_id} />
+                  ) : (
+                    <>
                   <ProfileHeroCard
                     person={currentUser}
                     viewerCity={myCity}
@@ -1057,6 +1067,8 @@ export default function HomeScreen() {
                   {extraPhotos.slice(2).map((uri, i) => (
                     <SecondaryPhotoCard key={uri} uri={uri} index={i + 3} onNoteTarget={handleOpenNote} />
                   ))}
+                    </>
+                  )}
                   <ProfileActionButtons
                     disabled={animating}
                     onPass={() => flyOffAndDecide(-1, currentUser.user_id)}

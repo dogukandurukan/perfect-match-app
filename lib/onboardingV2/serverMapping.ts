@@ -7,7 +7,7 @@ import type { CompatDraft } from './compatibility';
 import type { FlowPos, SectionId } from './previewFlow';
 import type { DatesDraft, DaysKey, TimeKey } from './yourDates';
 import type { LifeDraft } from './yourLife';
-import type { LocalPhoto, PromptAnswer } from './yourProfile';
+import type { LocalPhoto, PromptAnswer, PublicProfileInput } from './yourProfile';
 import type { TasteItem, WorldDraft } from './yourWorld';
 
 export type ServerDraft = {
@@ -272,4 +272,67 @@ const MISSING_POS: Record<string, FlowPos> = {
 export function firstMissingPos(missing: string[]): FlowPos | null {
   for (const key of Object.keys(MISSING_POS)) if (missing.includes(key)) return MISSING_POS[key];
   return null;
+}
+
+// ─── another member's public profile (get_profile_v2) ──────────────────────
+
+/** Exactly the fields get_profile_v2 returns (supabase/proposed/20261001090000_v2_public_profile.sql). */
+export type ServerPublicProfile = {
+  user_id: string;
+  first_name: string | null;
+  age: number | null;
+  zodiac: string | null;
+  city: string | null;
+  height_cm: number | null;
+  work_status: string | null;
+  job_title: string | null;
+  school: TasteItem | null;
+  hometown: TasteItem | null;
+  intent: string | null;
+  core_values: string[] | null;
+  interests: string[] | null;
+  smoking: string | null;
+  drinking: string | null;
+  pets: string | null;
+  pet_kind: string | null;
+  activity: string | null;
+  artists: TasteItem[] | null;
+  books: TasteItem[] | null;
+  screen: TasteItem[] | null;
+  date_types: string[] | null;
+  favorite_spot: string | null;
+  days_pref: string | null;
+  time_pref: string | null;
+  prompts: { slot: number; prompt_id: string; answer: string }[] | null;
+  photo_paths: string[] | null;
+};
+
+/** Server public profile + signed photo URLs → the shared preview input. Photos
+ * that could not be signed are dropped (never shown as a broken slot). */
+export function publicProfileFromServer(p: ServerPublicProfile, signed: Map<string, string | null>): PublicProfileInput {
+  const photos: LocalPhoto[] = (p.photo_paths ?? [])
+    .map((path) => ({ path, uri: signed.get(path) ?? '' }))
+    .filter((x) => !!x.uri)
+    .map((x) => ({ id: `public:${x.path}`, uri: x.uri, path: x.path }));
+  return {
+    name: (p.first_name ?? '').trim(),
+    age: typeof p.age === 'number' ? p.age : null,
+    zodiac: p.zodiac ?? null,
+    city: p.city ?? null,
+    heightCm: typeof p.height_cm === 'number' ? p.height_cm : null,
+    workStatus: p.work_status ?? null,
+    jobTitle: p.job_title ?? '',
+    school: p.school ?? null,
+    hometown: p.hometown ?? null,
+    intent: p.intent ?? null,
+    values: p.core_values ?? [],
+    interests: p.interests ?? [],
+    life: lifeFromServer(p),
+    dates: datesFromServer(p),
+    artists: p.artists ?? [],
+    books: p.books ?? [],
+    screen: p.screen ?? [],
+    prompts: [...(p.prompts ?? [])].sort((a, b) => a.slot - b.slot).map((r) => ({ promptId: r.prompt_id, answer: r.answer })),
+    photos,
+  };
 }

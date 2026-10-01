@@ -218,6 +218,7 @@ async function main() {
   check(subB.data?.status === 'submitted', 'B completes and submits');
   check(((await rpc(A.c, 'get_discovery_candidates_v2', { p_limit: 50 })).data ?? []).every((r) => r.user_id !== B.userId),
     'B is not a candidate while pending');
+  check((await rpc(B.c, 'get_profile_v2', { p_user: A.userId })).data === null, 'profile: a pending applicant cannot open a member\'s profile');
   check(!(await admin.rpc('review_application_v2', { p_user: B.userId, p_decision: 'accept' })).error, 'reviewer accepts B');
   const candA = (await rpc(A.c, 'get_discovery_candidates_v2', { p_limit: 50 })).data ?? [];
   const candB = (await rpc(B.c, 'get_discovery_candidates_v2', { p_limit: 50 })).data ?? [];
@@ -227,11 +228,43 @@ async function main() {
   const bPhoto = candA.find((r) => r.user_id === B.userId)?.photo_paths?.[0];
   const signedB = bPhoto ? await A.c.storage.from(PHOTOS).createSignedUrl(bPhoto, 900) : { error: true };
   check(!signedB.error && (await fetch(signedB.data.signedUrl)).status === 200, 'A can load B\'s photo (15-minute signed URL)');
+  // ---- the other side's full public profile (get_profile_v2) ----------------
+  const ALLOWED = ['activity', 'age', 'artists', 'books', 'city', 'core_values', 'date_types', 'days_pref', 'drinking',
+    'favorite_spot', 'first_name', 'height_cm', 'hometown', 'intent', 'interests', 'job_title', 'pet_kind', 'pets',
+    'photo_paths', 'prompts', 'school', 'screen', 'smoking', 'time_pref', 'user_id', 'work_status', 'zodiac'];
+  const pB = (await rpc(A.c, 'get_profile_v2', { p_user: B.userId })).data;
+  check(pB && JSON.stringify(Object.keys(pB).sort()) === JSON.stringify(ALLOWED), 'profile: A opens B — exactly the allowed fields');
+  check(pB?.first_name === 'Test' && pB.zodiac === 'Pisces' && pB.city === 'İstanbul' && pB.height_cm === 180 && typeof pB.age === 'number'
+    && pB.intent === 'long_term' && pB.drinking === 'none' && pB.prompts?.length === 2 && pB.photo_paths?.length === 3,
+    'profile: B\'s name, age, zodiac, city, height, intent, lifestyle, prompts and photos');
+  const rawB = JSON.stringify(pB);
+  check(![ 'Deniz', '1994-03-10', 'Kadıköy', 'tr-istanbul', emailB, selfieB, '"gender"', 'message_frequency', 'meeting_pace']
+    .some((x) => rawB.includes(x)), 'profile: no surname, DOB, district, location id, email, selfie, gender or compatibility answers');
+  const pA = (await rpc(B.c, 'get_profile_v2', { p_user: A.userId })).data;
+  const dbOrderA = ((await admin.from('profile_photos_v2').select('storage_path').eq('user_id', A.userId).order('position')).data ?? [])
+    .map((r) => r.storage_path);
+  check(pA?.job_title === 'Designer' && pA.favorite_spot === 'Bebek' && pA.pet_kind === 'cat'
+    && JSON.stringify(pA.interests) === '["travel","music"]' && JSON.stringify(pA.core_values) === '["trust","respect"]'
+    && JSON.stringify(pA.photo_paths) === JSON.stringify(dbOrderA), 'profile: B opens A — work, spot, pets, interests, values, photos in A\'s order');
+  const signedA = await B.c.storage.from(PHOTOS).createSignedUrl(pA?.photo_paths?.[0] ?? '-', 900);
+  check(!signedA.error && (await fetch(signedA.data.signedUrl)).status === 200, 'profile: B can load A\'s first photo');
+  check(((await B.c.from('onboarding_v2').select('first_name').eq('user_id', A.userId)).data ?? []).length === 0,
+    'profile: the raw onboarding draft stays owner-only');
+  const anon = createClient(env.url, env.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  check(!!(await anon.rpc('get_profile_v2', { p_user: A.userId })).error, 'profile: anon cannot call it');
   check(!(await A.c.from('blocks').insert({ blocker_id: A.userId, blocked_id: B.userId })).error, 'A blocks B');
   check(!((await rpc(B.c, 'get_discovery_candidates_v2', { p_limit: 50 })).data ?? []).some((r) => r.user_id === A.userId),
     'after the block B no longer sees A');
   check(!!(await B.c.storage.from(PHOTOS).createSignedUrl(dbPhotos[0].storage_path, 900)).error, 'after the block B cannot sign A\'s photos');
+  check((await rpc(B.c, 'get_profile_v2', { p_user: A.userId })).data === null
+    && (await rpc(A.c, 'get_profile_v2', { p_user: B.userId })).data === null, 'after the block neither side can open the other\'s profile');
   await admin.from('blocks').delete().eq('blocker_id', A.userId).eq('blocked_id', B.userId);
+  check(!!(await rpc(A.c, 'get_profile_v2', { p_user: B.userId })).data, 'profile: open again after unblocking');
+  await admin.from('profiles').update({ is_hidden: true }).eq('id', B.userId);
+  check((await rpc(A.c, 'get_profile_v2', { p_user: B.userId })).data === null, 'profile: a hidden member\'s profile is gone');
+  await admin.from('profiles').update({ is_hidden: false, deleted_at: new Date().toISOString() }).eq('id', B.userId);
+  check((await rpc(A.c, 'get_profile_v2', { p_user: B.userId })).data === null, 'profile: a deleted member\'s profile is gone');
+  await admin.from('profiles').update({ deleted_at: null }).eq('id', B.userId);
 
   // ---- evidence (stored data, no secrets) ------------------------------------
   const evidence = {
