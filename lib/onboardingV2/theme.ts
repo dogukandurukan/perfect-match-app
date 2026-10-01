@@ -1,8 +1,7 @@
 // Tempa onboarding V2 — visual tokens (P01).
-// Scoped to V2 onboarding only (docs/tempa DECISIONS D2, D42, D43). Do NOT
-// import these from other app screens and do not merge them into
-// lib/designTokens.ts — the rest of the app keeps its own palette until it is
-// evaluated separately.
+// Approved for V2 onboarding (docs/tempa DECISIONS D2, D42, D43) and, since
+// 2026-10-01 (owner), for the five main screens via lib/homeTheme.ts. Still
+// not merged into lib/designTokens.ts (legacy V1 screens keep their palette).
 import { useFonts } from 'expo-font';
 
 export const obColors = {

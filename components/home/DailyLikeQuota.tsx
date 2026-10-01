@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { homeColors, homeSpacing } from '@/lib/homeTheme';
+import { homeColors, homeFonts, homeSpacing } from '@/lib/homeTheme';
 
 const SEGMENTS_WIDTH = 58;
 const SEGMENT_HEIGHT = 5;
@@ -31,7 +31,9 @@ export function DailyLikeQuota({
   const segmentCount = loading ? 5 : limit;
   const filled = loading ? 0 : remaining;
 
-  const label = loading ? '…' : remaining === 1 ? '1 left' : `${remaining} left`;
+  // Counts likes only (passes are free) against the daily limit from
+  // lib/dailyViews.ts (5, or 10 with is_premium; 24 h window) — label only.
+  const label = loading ? '…' : remaining === 1 ? '1 like left' : `${remaining} likes left`;
   const a11yLabel = loading
     ? 'Loading your daily likes'
     : remaining === 1
@@ -67,8 +69,9 @@ const styles = StyleSheet.create({
     height: 34,
   },
   label: {
+    fontFamily: homeFonts.bodySemiBold,
     fontSize: 14.5,
-    fontWeight: '700',
+    lineHeight: 20,
     color: homeColors.textPrimary,
   },
   segments: {

@@ -13,17 +13,16 @@ import {
   ProfileHeaderActions,
   TabHeaderActions,
 } from '@/components/ui/TabHeaderActions';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { homeColors } from '@/lib/homeTheme';
+import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 
-const ACCENT = '#1A1A1A';
+const ACCENT = obColors.cta;
 
 const headerOptions = {
   headerShown: true as const,
   headerTitle: '',
   headerShadowVisible: false,
-  headerStyle: { backgroundColor: '#FFFFFF' },
+  headerStyle: { backgroundColor: obColors.background },
+  headerTitleStyle: { fontFamily: obFonts.heading, fontSize: 22, color: obColors.textPrimary },
   headerRight: () => <TabHeaderActions />,
 };
 
@@ -35,24 +34,23 @@ function TabLabel({ focused, color, children }: { focused: boolean; color: strin
 
 const styles = StyleSheet.create({
   label: {
-    fontSize: 10,
-    fontWeight: '500',
+    fontSize: 10.5,
+    fontFamily: obFonts.bodyMedium,
   },
   labelActive: {
-    fontWeight: '700',
+    fontFamily: obFonts.bodySemiBold,
     transform: [{ translateY: -2 }],
   },
 });
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const palette = Colors[colorScheme ?? 'light'];
-
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: ACCENT,
-        tabBarInactiveTintColor: palette.tabIconDefault,
+        tabBarInactiveTintColor: obColors.textSecondary,
+        tabBarStyle: { backgroundColor: obColors.background, borderTopColor: '#E4DCCB' },
+        sceneStyle: { backgroundColor: obColors.background },
         tabBarButton: HapticTab,
         tabBarLabel: ({ focused, color, children }) => (
           <TabLabel focused={focused} color={color}>
@@ -110,7 +108,6 @@ export default function TabLayout() {
           // Navigator-wide black ACCENT below, matching the mockup's coral
           // heart/label when this tab is active. Every other tab keeps the
           // shared black active tint.
-          tabBarActiveTintColor: homeColors.accent,
           // Matches now builds its own in-body header (wordmark + big
           // title + subtitle, MatchesHeader component) with its own
           // insets.top handling — same reasoning as Home's headerShown:

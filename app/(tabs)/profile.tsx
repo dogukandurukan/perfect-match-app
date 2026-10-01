@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 
 import { ErrorState } from '@/components/ErrorState';
+import { V2ProfileHome } from '@/components/main/V2ProfileHome';
+import { useV2Member } from '@/lib/onboardingV2/useV2Member';
 import { ThemedText } from '@/components/themed-text';
 import { HingeProfileCard } from '@/components/profile/HingeProfileCard';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -83,6 +85,21 @@ const PROFILE_SELECT = `
 `;
 
 export default function ProfileTab() {
+  // Approved V2 members get the V2 profile management view; V1 accounts keep
+  // the existing screen below unchanged.
+  const v2 = useV2Member();
+  if (v2 === 'checking') {
+    return (
+      <ScreenContainer style={styles.screenFlush}>
+        <ActivityIndicator color={colors.accent} style={styles.loader} />
+      </ScreenContainer>
+    );
+  }
+  if (v2 === 'yes') return <V2ProfileHome />;
+  return <LegacyProfileTab />;
+}
+
+function LegacyProfileTab() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [intent, setIntent] = useState<string | null>(null);

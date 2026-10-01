@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DailyLikeQuota } from '@/components/home/DailyLikeQuota';
 import { HeaderFilterButton } from '@/components/home/HeaderFilterButton';
 import { ThemedText } from '@/components/themed-text';
-import { HOME_BRAND_NAME, homeColors, homeSpacing } from '@/lib/homeTheme';
+import { HOME_BRAND_NAME, homeColors, homeFonts, homeSpacing } from '@/lib/homeTheme';
 
 // Content height only (safe-area excluded) — the header's real on-screen
 // height is this plus insets.top, applied as its own paddingTop below.
@@ -70,8 +70,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   wordmark: {
-    fontSize: 29,
-    fontWeight: '800',
+    fontFamily: homeFonts.heading,
+    fontSize: 26,
+    lineHeight: 32,
     color: homeColors.textPrimary,
   },
   utilityCluster: {

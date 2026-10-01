@@ -11,6 +11,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
 import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
+import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { supabase } from '@/lib/supabaseClient';
 import { emitUnreadMessageCount } from '@/lib/unreadMessageCount';
 
@@ -255,11 +256,12 @@ export default function MessagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { justifyContent: 'flex-start' },
+  container: { justifyContent: 'flex-start', backgroundColor: obColors.background },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontFamily: obFonts.heading,
+    fontSize: 28,
+    lineHeight: 36,
+    color: obColors.textPrimary,
     marginBottom: 8,
   },
 

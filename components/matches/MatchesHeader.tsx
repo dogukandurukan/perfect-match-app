@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { HOME_BRAND_NAME, homeColors, homeSpacing } from '@/lib/homeTheme';
+import { HOME_BRAND_NAME, homeColors, homeFonts, homeSpacing } from '@/lib/homeTheme';
 
 /**
  * Safe-area-aware header: wordmark → big screen title → subtitle. Reuses
@@ -38,23 +38,26 @@ const styles = StyleSheet.create({
     backgroundColor: homeColors.background,
   },
   wordmark: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: homeColors.accent,
+    fontFamily: homeFonts.heading,
+    fontSize: 18,
+    lineHeight: 24,
+    color: homeColors.textPrimary,
   },
   // Explicit lineHeight required — ThemedText's inherited default is too
   // short for a 34px bold weight, clipping the top of ascenders/tall
   // glyphs (the exact same bug this app hit on HingeProfileCard's name
   // line, 2026-09-03/04, fixed the same way there).
   title: {
+    fontFamily: homeFonts.heading,
     fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '800',
+    lineHeight: 42,
     color: homeColors.textPrimary,
     marginTop: 6,
   },
   subtitle: {
+    fontFamily: homeFonts.body,
     fontSize: 15.5,
+    lineHeight: 21,
     color: homeColors.textSecondary,
     marginTop: 4,
   },

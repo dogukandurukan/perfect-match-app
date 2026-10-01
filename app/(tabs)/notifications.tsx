@@ -31,6 +31,7 @@ import {
 } from '@/lib/matchInvite';
 import { emitUnreadNotificationCount } from '@/lib/unreadNotificationCount';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
+import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { supabase } from '@/lib/supabaseClient';
 
 type NotificationType = string;
@@ -442,63 +443,15 @@ function LikesSection({
   );
 }
 
-// --- Zero-activity empty state: activation checklist, not a fake/blank screen --
-// UI-3 (CLAUDE.md §4/§5): no fake likes on 0-state — show a real, actionable path
-// (profile completeness) instead of "nothing here yet".
-type ActivationChecklist = { hasPhoto: boolean; hasPrompt: boolean; hasSentLike: boolean };
-
-function ActivityActivationCard({
-  checklist,
-  onGoProfile,
-  onGoHome,
-}: {
-  checklist: ActivationChecklist;
-  onGoProfile: () => void;
-  onGoHome: () => void;
-}) {
-  const items: { key: string; done: boolean; icon: IoniconName; label: string; onPress: () => void }[] = [
-    { key: 'photo', done: checklist.hasPhoto, icon: 'camera-outline', label: 'Add a photo', onPress: onGoProfile },
-    {
-      key: 'prompt',
-      done: checklist.hasPrompt,
-      icon: 'chatbubble-ellipses-outline',
-      label: 'Answer a prompt',
-      onPress: onGoProfile,
-    },
-    { key: 'like', done: checklist.hasSentLike, icon: 'heart-outline', label: 'Send your first like', onPress: onGoHome },
-  ];
-  const doneCount = items.filter((i) => i.done).length;
-
+// --- Zero-activity empty state ------------------------------------------------
+// Plain and honest: no checklist (it read V1 profile columns and showed filled
+// V2 prompts as missing) and no sample matches or notifications.
+function ActivityEmptyState() {
   return (
-    <View style={styles.activation}>
-      <ThemedText style={styles.activationTitle}>Get your profile buzz-ready</ThemedText>
-      <ThemedText style={styles.activationSub}>
-        {doneCount}/{items.length} done — finish these and Activity fills up here
-      </ThemedText>
-      <View style={styles.activationBar}>
-        <View style={[styles.activationBarFill, { width: `${(doneCount / items.length) * 100}%` }]} />
-      </View>
-      {items.map((item) => (
-        <TouchableOpacity
-          key={item.key}
-          style={styles.activationRow}
-          onPress={item.onPress}
-          disabled={item.done}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={item.label}
-          accessibilityState={{ disabled: item.done }}>
-          <Ionicons
-            name={item.done ? 'checkmark-circle' : item.icon}
-            size={20}
-            color={item.done ? '#2E9E5B' : colors.textMuted}
-          />
-          <ThemedText style={[styles.activationRowText, item.done && styles.activationRowDone]}>
-            {item.label}
-          </ThemedText>
-          {!item.done ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
-        </TouchableOpacity>
-      ))}
+    <View style={styles.empty} accessible accessibilityRole="text">
+      <Ionicons name="notifications-outline" size={28} color={colors.textMuted} importantForAccessibility="no" />
+      <ThemedText style={styles.emptyTitle}>Nothing here yet</ThemedText>
+      <ThemedText style={styles.emptySub}>Likes, matches and invitations will show up here.</ThemedText>
     </View>
   );
 }
@@ -1098,45 +1051,6 @@ export default function NotificationsScreen() {
     setWaitingOnThem(resolved);
   }, []);
 
-  // UI-3: activation checklist for the 0-activity empty state. Cheap (one
-  // profiles row + one count query) so it's fetched every focus alongside the
-  // rest — no separate gating on emptiness.
-  const [checklist, setChecklist] = useState<ActivationChecklist>({
-    hasPhoto: false,
-    hasPrompt: false,
-    hasSentLike: false,
-  });
-
-  const fetchChecklist = useCallback(async () => {
-    // getSession() (local, no network) instead of getUser() — this, plus
-    // fetchNotifications and fetchLikers below, all independently called
-    // getUser() on every Activity focus (2026-09-15 fix).
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) return;
-
-    const [{ data: prof }, { count: sentCount }] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('photos, bio, first_date_expectation, favorite_spots')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabase.from('likes').select('id', { count: 'exact', head: true }).eq('liker_id', user.id),
-    ]);
-
-    const spots = prof?.favorite_spots;
-    const hasSpots =
-      !!spots && typeof spots === 'object' && Object.keys(spots as Record<string, unknown>).length > 0;
-
-    setChecklist({
-      hasPhoto: Array.isArray(prof?.photos) && prof.photos.length > 0,
-      hasPrompt: !!prof?.bio?.trim() || !!prof?.first_date_expectation?.trim() || hasSpots,
-      hasSentLike: (sentCount ?? 0) > 0,
-    });
-  }, []);
-
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     setError(false);
@@ -1329,9 +1243,8 @@ export default function NotificationsScreen() {
     useCallback(() => {
       void fetchNotifications();
       void fetchLikers();
-      void fetchChecklist();
       void fetchWaitingOnThem();
-    }, [fetchNotifications, fetchLikers, fetchChecklist, fetchWaitingOnThem]),
+    }, [fetchNotifications, fetchLikers, fetchWaitingOnThem]),
   );
 
   // Derived zones — recompute on items change (read-state edits included).
@@ -1802,12 +1715,8 @@ export default function NotificationsScreen() {
         <ActivityIndicator color={colors.accent} style={styles.loader} />
       ) : error ? (
         <ErrorState onRetry={() => void fetchNotifications()} />
-      ) : items.length === 0 && likeCount === 0 ? (
-        <ActivityActivationCard
-          checklist={checklist}
-          onGoProfile={() => router.push('/(tabs)/profile' as never)}
-          onGoHome={() => router.push('/(tabs)' as never)}
-        />
+      ) : items.length === 0 && likeCount === 0 && waitingOnThem.length === 0 ? (
+        <ActivityEmptyState />
       ) : (
         <SectionList
           sections={feedSections}
@@ -1827,7 +1736,7 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { justifyContent: 'flex-start' },
+  container: { justifyContent: 'flex-start', backgroundColor: obColors.background },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1836,9 +1745,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pageTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontFamily: obFonts.heading,
+    fontSize: 28,
+    lineHeight: 36,
+    color: obColors.textPrimary,
     flex: 1,
   },
   markAllBtn: {
@@ -2260,53 +2170,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     marginLeft: 4,
   },
-  activation: {
-    marginTop: 24,
-    backgroundColor: '#FFFFFF',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    padding: 18,
-  },
-  activationTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  activationSub: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 2,
-    marginBottom: 14,
-  },
-  activationBar: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#F0F0F0',
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  activationBarFill: {
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: colors.accent,
-  },
-  activationRow: {
-    flexDirection: 'row',
+  empty: {
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#F0F0F0',
+    gap: 8,
+    paddingTop: 72,
+    paddingHorizontal: 24,
   },
-  activationRowText: {
-    flex: 1,
+  emptyTitle: {
+    fontFamily: obFonts.heading,
+    fontSize: 22,
+    lineHeight: 28,
+    color: obColors.textPrimary,
+    textAlign: 'center',
+  },
+  emptySub: {
     fontSize: 15,
-    fontWeight: '500',
-    color: colors.textPrimary,
-  },
-  activationRowDone: {
+    lineHeight: 21,
     color: colors.textMuted,
-    textDecorationLine: 'line-through',
+    textAlign: 'center',
   },
 });

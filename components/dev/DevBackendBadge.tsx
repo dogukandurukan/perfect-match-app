@@ -12,7 +12,7 @@ export function DevBackendBadge() {
   const isLive = backend.env === 'live';
   const isDev = backend.env === 'dev';
   return (
-    <View pointerEvents="none" style={[styles.wrap, { top: insets.top + 2 }]}>
+    <View pointerEvents="none" style={[styles.wrap, { bottom: Math.max(insets.bottom - 16, 2) }]}>
       <Text
         style={[styles.text, isLive ? styles.live : isDev ? styles.dev : styles.test]}
         accessibilityLabel={`Backend ${backend.env}, project ${backend.projectRef}`}
@@ -24,7 +24,9 @@ export function DevBackendBadge() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 9999, elevation: 9999 },
+  // Bottom-left, inside the home-indicator inset: never over a screen title,
+  // the tab labels or a primary button.
+  wrap: { position: 'absolute', left: 8, alignItems: 'flex-start', zIndex: 9999, elevation: 9999, opacity: 0.85 },
   text: { fontSize: 10, lineHeight: 13, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, overflow: 'hidden' },
   live: { backgroundColor: '#B3261E', color: '#FFFFFF' },
   test: { backgroundColor: '#1F6F43', color: '#FFFFFF' },

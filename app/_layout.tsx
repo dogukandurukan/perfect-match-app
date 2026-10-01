@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { DevBackendBadge } from '@/components/dev/DevBackendBadge';
+import { useOnboardingFonts } from '@/lib/onboardingV2/theme';
 import { applySessionFromUrl, subscribeAuthDeepLinks } from '@/lib/authDeepLinks';
 import { updateLastActive } from '@/lib/lastActive';
 import { requestAndSaveLocation } from '@/lib/location';
@@ -151,6 +152,9 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  // Approved fonts for onboarding and the main screens. Not gating: text falls
+  // back to the system font for the first frame if they are still loading.
+  useOnboardingFonts();
   // App has no real dark-mode design — every screen hardcodes a light
   // palette (colors.bgPrimary etc. in lib/designTokens.ts). Following the
   // system scheme here only re-themed the navigation chrome (tab bar,

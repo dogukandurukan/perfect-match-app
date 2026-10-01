@@ -1,3 +1,5 @@
+import { obColors, obFonts } from '@/lib/onboardingV2/theme';
+
 /**
  * Home/Discovery-only design tokens ("Warm Editorial" visual direction,
  * 2026-09-16 — ChatGPT-authored redesign brief, approved by user).
@@ -10,20 +12,25 @@
  * iç tasarımlarını değiştirme").
  */
 
+// 2026-10-01 (owner): the main screens use the APPROVED onboarding theme —
+// warm ivory, very dark forest green, pale sage (lib/onboardingV2/theme.ts,
+// DECISIONS D2/D46). Same keys as before so every Discover/Matches component
+// follows without per-file edits; the former coral/near-white values are gone.
 export const homeColors = {
-  background: '#F7F4EF',
-  surface: '#FFFDFC',
-  textPrimary: '#171717',
-  textSecondary: '#6F6B68',
-  accent: '#B65F54',
-  accentSoft: '#F3DFDA',
-  border: '#E8E2DD',
-  mutedSurface: '#F1EEEA',
-  verifiedBadge: 'rgba(23,23,23,0.88)',
-  // Unfilled daily-like segment track — a step darker than `border` so the
-  // used/remaining split reads clearly at a glance (2026-09-17 contrast fix).
-  segmentTrack: '#DCD1C6',
+  background: obColors.background, // warm ivory
+  surface: '#FFFDF8', // card surface (same as the approved profile preview cards)
+  textPrimary: obColors.textPrimary,
+  textSecondary: obColors.textSecondary,
+  accent: obColors.cta, // dark forest green
+  accentSoft: obColors.selectedFill, // pale sage
+  border: '#E4DCCB',
+  mutedSurface: obColors.notice,
+  verifiedBadge: 'rgba(28,27,24,0.88)',
+  segmentTrack: '#D9D1C0',
 } as const;
+
+/** Approved fonts: Playfair Display (titles, names, prompt answers) + DM Sans. */
+export const homeFonts = obFonts;
 
 // 4px-based scale (brief asks for 4/8/12/16/20/24/32 — the shared
 // `spacing` token in designTokens.ts already covers 4/8/12/16/24; only
@@ -58,4 +65,4 @@ export const homeShadow = {
 // Wordmark is a placeholder — the real name/logo isn't decided yet. Kept as
 // a single constant so swapping it later doesn't mean hunting through
 // components.
-export const HOME_BRAND_NAME = 'tempa';
+export const HOME_BRAND_NAME = 'Tempa';

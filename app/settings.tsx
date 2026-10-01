@@ -22,6 +22,7 @@ import {
   type ProfileSettingsRow,
 } from '@/lib/profileSettings';
 import { supabase } from '@/lib/supabaseClient';
+import { useV2Member } from '@/lib/onboardingV2/useV2Member';
 
 const ACCENT = '#1A1A1A';
 const PRIVACY_URL = 'https://perfectmatch.app/privacy';
@@ -110,6 +111,9 @@ function ToggleRow({
 }
 
 export default function SettingsScreen() {
+  // Approved V2 members: answers are locked after the application (no decided
+  // post-approval edit policy yet) — never send them to the V1 editor.
+  const v2Member = useV2Member() === 'yes';
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState<string | null>(null);
@@ -254,13 +258,14 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <SectionTitle title="Account" />
-          <NavRow label="Edit profile" onPress={() => router.push('/profile-edit')} />
-          <NavRow label="Photos" onPress={() => router.push('/profile-edit')} />
+          {v2Member ? null : <NavRow label="Edit profile" onPress={() => router.push('/profile-edit')} />}
+          {v2Member ? null : <NavRow label="Photos" onPress={() => router.push('/profile-edit')} />}
           <NavRow label="Email" value={email} />
           <NavRow label="Phone number" value={phone ?? 'Not set'} />
           <NavRow label="Change password" onPress={() => router.push('/change-password')} />
         </View>
 
+        {v2Member ? null : (
         <View style={styles.card}>
           <SectionTitle title="Discovery" />
           <NavRow
@@ -269,6 +274,7 @@ export default function SettingsScreen() {
             onPress={() => router.push('/profile-edit')}
           />
         </View>
+        )}
 
         <View style={styles.card}>
           <SectionTitle title="Notifications" />

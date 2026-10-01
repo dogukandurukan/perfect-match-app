@@ -24,6 +24,7 @@ import { colors } from '@/lib/designTokens';
 import type { ChipIcon } from '@/lib/hingeProfile';
 import { MEETING_VENUE_OPTIONS } from '@/lib/meetingVenues';
 import { supabase } from '@/lib/supabaseClient';
+import { useV2Member } from '@/lib/onboardingV2/useV2Member';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 import { newProfilePhotoPath, USER_PHOTOS_BUCKET } from '@/lib/userPhotosStorage';
 
@@ -135,6 +136,30 @@ async function resolvePhotoUrls(refs: string[]): Promise<string[]> {
 }
 
 export default function ProfileEditScreen() {
+  // The V1 editor writes V1 columns only. Approved V2 members are kept out of
+  // it: their answers live in the V2 tables and are locked after the
+  // application (post-approval editing is not decided yet).
+  const v2 = useV2Member();
+  if (v2 === 'yes') return <V2EditNotAvailable />;
+  if (v2 === 'checking') return <ScreenContainer><ActivityIndicator color={colors.accent} /></ScreenContainer>;
+  return <V1ProfileEditScreen />;
+}
+
+function V2EditNotAvailable() {
+  const router = useRouter();
+  return (
+    <ScreenContainer>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+        <ThemedText style={{ textAlign: 'center' }}>Editing after approval isn&apos;t available yet.</ThemedText>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" hitSlop={10}>
+          <ThemedText style={{ textDecorationLine: 'underline' }}>Back</ThemedText>
+        </TouchableOpacity>
+      </View>
+    </ScreenContainer>
+  );
+}
+
+function V1ProfileEditScreen() {
   const router = useRouter();
 
   const [bio, setBio] = useState('');
