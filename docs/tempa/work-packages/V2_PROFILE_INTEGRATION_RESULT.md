@@ -154,3 +154,77 @@ Checklist:
 3. After acceptance: Home, with no percentage or "Why you match".
 4. The card shows the full profile: name/age on the photo, prompts, About, Looking for / values / interests, Lifestyle, First dates, and for one of them Artists / Books / Movies. No surname, district or selfie.
 5. Block that person → they're gone from Home.
+
+---
+
+# Round 2 (2026-10-01): approval, submit-screen copy, image providers
+
+## A. Synthetic application approved (normal reviewer flow)
+
+- Account `13adb65c-…` (`tempa-dev-tester@tempa-test.example.com`, synthetic). Before the decision it was `submitted`, and its events were `submitted → changes_requested → submitted` (resubmitted from the phone at 07:43 UTC).
+- **Note:** it still has 5 photos. The note asked for one more, and the server does not enforce the note's content, so the resubmission was accepted as sent. This is behaviour as designed, not a bug; the reviewer decides.
+- `review.mjs accept --user=13adb65c-…` gave `accepted / verified / active`. No other account was touched.
+- Home for this account, checked on the server with `v2_pair_eligible`: two eligible synthetic members, `2344b540-…` and `67acc178-…` (the latter has school, hometown, artist, book and series).
+- **Not yet checked on the phone.**
+
+## B. Live submit screen follows the real state
+
+`components/onboarding-v2/PreviewFlow.tsx` (live mode only; the approved DEV preview is unchanged):
+
+| State | Title | Short line | Content | Button |
+|---|---|---|---|---|
+| email not confirmed | Check your email | Confirm your email before you send your application. | sign-in-again hint | (unchanged) |
+| confirmed, first application | **Email verified** | Send your application and we'll review your profile. | verified address with a line icon | **Submit application** |
+| after "changes requested" | **Send your update** | We'll look at your profile again after you send it. | **"Our note"** in a pale sage card (only if there is a note) | **Submit again** |
+
+Other details:
+- The old paragraph ("Thanks for the changes… Reviewer's note…") is gone.
+- No wording implies the change was accepted or approved.
+- The reserved two-line title block is dropped on this screen, so the content starts right under the short line.
+- No new checklist and no extra confirmation step.
+- The verification and submit logic is unchanged (same `submitApplication`, same idempotent request id).
+- **Step counter:** hidden only on the read-only profile preview reached through "Review my profile" after an application. Normal onboarding keeps "N of M".
+- E-mail / Magic Link for real users stays **open**; this round does not count as fixing it.
+
+Checks:
+- `tsc` clean;
+- onboarding UI checks 45/45 · 69/69 · 56/56 · 6/6.
+
+**Not checked on the phone.**
+
+## C. Artist / movie images — provider comparison (nothing switched, no account or payment started, no scraping)
+
+Root cause, unchanged: MusicBrainz gives no artist images, and Wikidata has no image for *Esaretin Bedeli*. The app stores and renders correctly; it falls back to a placeholder.
+
+Read-only probe today:
+- **Tarkan** (stored MusicBrainz id) → MusicBrainz "wikidata" link Q485771 → P18 `Tarkan (9).jpg` on Commons. An id-based path exists.
+- **Esaretin Bedeli** (Q172241) → no image.
+
+| | Wikimedia Commons via Wikidata (P18) | Spotify Web API | TMDB |
+|---|---|---|---|
+| Use | artist photos (and some other items) | artist photos | movie / series posters |
+| Account / key | none (descriptive User-Agent) | developer app + client credentials | free account + API key |
+| Development | free | Dev Mode needs a **Premium** account and allows **5** test users (Feb 2026) | free, non-commercial |
+| Commercial | allowed under each file's free licence | needs **Extended Quota**: registered business, launched service, **≥ 250k MAU** (since 15 May 2025); Developer Terms limit storing content | **not allowed** under the free licence — commercial licence from TMDB sales (price on request) |
+| Obligations | per-file licence; attribution / credit line (author + licence + link), via `imageinfo` `extmetadata` | Spotify attribution / link-back | TMDB logo + "This product uses the TMDB API but is not endorsed or certified by TMDB." in About / Credits |
+| Coverage | good for well-known artists; movie posters mostly absent (copyright) | very good for artists | very good for posters |
+
+**Recommendation:**
+- **Artists → Commons via the stored MusicBrainz id** (MBID → Wikidata QID → P18). It is free and id-based, never matched by name. The round avatar needs a small credit line (author + licence) on the profile or in Credits.
+- **Movies / series → TMDB posters, only after a TMDB commercial licence is agreed.** Until then, keep the current placeholder.
+- **Spotify is not viable** for this app now: Premium dev account, 5 test users, and the 250k-MAU business bar for wider use.
+
+Next step if you approve:
+- resolve images server-side or at selection time;
+- store the provider id with the image and its credit;
+- use round crops for artists and 2:3 crops for posters;
+- leave book covers as they are.
+
+Official sources:
+- Wikimedia Commons reuse: https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia
+- Commons credit line: https://commons.wikimedia.org/wiki/Commons:Credit_line
+- Wikidata P18: https://www.wikidata.org/wiki/Property_talk:P18
+- Spotify extended access criteria: https://developer.spotify.com/blog/2025-04-15-updating-the-criteria-for-web-api-extended-access
+- Spotify Feb 2026 Dev Mode changes (report): https://techcrunch.com/2026/02/06/spotify-changes-developer-mode-api-to-require-premium-accounts-limits-test-users/
+- TMDB API terms: https://www.themoviedb.org/api-terms-of-use
+- TMDB FAQ (commercial use): https://developer.themoviedb.org/docs/faq

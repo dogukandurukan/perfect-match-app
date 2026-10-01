@@ -28,6 +28,8 @@ type Props = {
   sectionLabel?: string;
   step: number;
   totalSteps: number;
+  /** Hide the "N of M" counter (read-only screens after an application). */
+  hideProgress?: boolean;
   title: string;
   /** Optional small line under the title. */
   helper?: string;
@@ -71,6 +73,7 @@ export function OnboardingScreen({
   sectionLabel,
   step,
   totalSteps,
+  hideProgress = false,
   title,
   helper,
   compactTitle = false,
@@ -127,6 +130,7 @@ export function OnboardingScreen({
           sectionLabel={sectionLabel}
           step={step}
           totalSteps={totalSteps}
+          hideProgress={hideProgress}
           onBack={onBack}
         />
       </View>

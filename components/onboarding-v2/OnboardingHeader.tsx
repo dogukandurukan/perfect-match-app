@@ -12,11 +12,14 @@ type Props = {
   sectionLabel?: string;
   step: number;
   totalSteps: number;
+  /** Read-only screens outside the questionnaire (e.g. the profile preview after
+   * an application was sent) show no step counter. */
+  hideProgress?: boolean;
   /** Omit to hide the back control (keeps the wordmark centered). */
   onBack?: () => void;
 };
 
-export function OnboardingHeader({ sectionLabel, step, totalSteps, onBack }: Props) {
+export function OnboardingHeader({ sectionLabel, step, totalSteps, onBack, hideProgress = false }: Props) {
   return (
     <View style={styles.row}>
       <View style={styles.side}>
@@ -32,6 +35,7 @@ export function OnboardingHeader({ sectionLabel, step, totalSteps, onBack }: Pro
       </View>
       <TempaWordmark />
       <View style={[styles.side, styles.sideRight]}>
+        {hideProgress ? null : (
         <View
           accessible
           accessibilityLabel={`${sectionLabel ? `${sectionLabel}, ` : ''}step ${step} of ${totalSteps}`}
@@ -45,6 +49,7 @@ export function OnboardingHeader({ sectionLabel, step, totalSteps, onBack }: Pro
             {step} of {totalSteps}
           </Text>
         </View>
+        )}
       </View>
     </View>
   );

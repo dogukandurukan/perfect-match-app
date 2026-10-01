@@ -11,7 +11,8 @@
 // one verified at sign-in (email steps skipped), and "You're on the list!"
 // appears only after the server has recorded the application.
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { Alert, AppState, BackHandler, Keyboard, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Alert, AppState, BackHandler, Keyboard, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import {
   BirthdayFields,
@@ -85,7 +86,7 @@ import {
   lifeToServer,
   worldToServer,
 } from '@/lib/onboardingV2/serverMapping';
-import { obColors, obFonts } from '@/lib/onboardingV2/theme';
+import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import { DATES_SCREENS, DATE_TYPES, EMPTY_DATES_DRAFT, datesSummary, type DatesDraft } from '@/lib/onboardingV2/yourDates';
 import { EMPTY_LIFE_DRAFT, LIFE_QUESTIONS, type LifeDraft } from '@/lib/onboardingV2/yourLife';
 import {
@@ -546,7 +547,7 @@ export function PreviewFlow({ onExit, live }: Props) {
       primary = live
         ? profile.applicationPreview
           ? { label: 'Back to status', onPress: () => goTo(RECEIVED_POS) }
-          : { label: saving ? 'Sending…' : 'Submit application', onPress: submit, disabled: saving }
+          : { label: saving ? 'Sending…' : live.review ? 'Submit again' : 'Submit application', onPress: submit, disabled: saving }
         : !valid
           ? { label: 'Verify email', onPress: verifyCode }
           : profile.applicationPreview
@@ -595,15 +596,30 @@ export function PreviewFlow({ onExit, live }: Props) {
   // made; any uncommitted search text is dropped with the screen.
   const canSkip = inWorld && isWorldStepSkippable(step);
 
+  // Live submit screen (step "code"): what it says follows the real state —
+  // the email still needs confirming, the first application, or an update
+  // after a reviewer asked for changes. It never implies approval.
+  const liveCode: 'check' | 'verified' | 'update' | null =
+    live && inProfile && step === PROFILE_STEP.code ? (!valid ? 'check' : live.review ? 'update' : 'verified') : null;
+  const liveCodeCopy =
+    liveCode === 'update'
+      ? { title: 'Send your update', helper: "We'll look at your profile again after you send it." }
+      : liveCode === 'verified'
+        ? { title: 'Email verified', helper: "Send your application and we'll review your profile." }
+        : liveCode === 'check'
+          ? { title: 'Check your email', helper: 'Confirm your email before you send your application.' }
+          : null;
+
   return (
     <OnboardingScreen
       sectionLabel={section.label}
       step={step}
       totalSteps={section.steps}
-      title={titleFor(pos)}
-      helper={helperFor(pos)}
+      title={liveCodeCopy ? liveCodeCopy.title : titleFor(pos)}
+      helper={liveCodeCopy ? liveCodeCopy.helper : helperFor(pos)}
       compactTitle={pos.section !== 'basics'}
-      reserveTitleBlock={!(inProfile && step === PROFILE_STEP.preview)}
+      reserveTitleBlock={!(inProfile && step === PROFILE_STEP.preview) && !liveCodeCopy}
+      hideProgress={inProfile && step === PROFILE_STEP.preview && reviewing}
       onBack={handleBack}
       contentKey={`${pos.section}-${step}`}
       onScrollY={inProfile && step === PROFILE_STEP.preview ? (y) => (previewScrollRef.current = y) : undefined}
@@ -690,13 +706,29 @@ export function PreviewFlow({ onExit, live }: Props) {
         />
       )}
       {inProfile && step === PROFILE_STEP.email && <EmailFields {...pProps} onSubmit={sendCode} />}
-      {inProfile && step === PROFILE_STEP.code && live && (
+      {inProfile && step === PROFILE_STEP.code && live && liveCode === 'update' && live.review?.note?.trim() ? (
+        <View style={styles.noteCard} accessible accessibilityLabel={`Our note. ${live.review.note.trim()}`}>
+          <Text style={styles.noteTitle} maxFontSizeMultiplier={1.5}>
+            Our note
+          </Text>
+          <Text style={styles.noteText} maxFontSizeMultiplier={1.6}>
+            {live.review.note.trim()}
+          </Text>
+        </View>
+      ) : null}
+      {inProfile && step === PROFILE_STEP.code && live && liveCode === 'verified' ? (
+        <View style={styles.emailRow} accessible accessibilityLabel={`Verified email ${live.email}`}>
+          <Ionicons name="mail-outline" size={18} color={obColors.cta} importantForAccessibility="no" />
+          <Text style={styles.liveEmail} numberOfLines={1} maxFontSizeMultiplier={1.6}>
+            {live.email}
+          </Text>
+        </View>
+      ) : null}
+      {inProfile && step === PROFILE_STEP.code && live && liveCode === 'check' ? (
         <Text style={styles.liveEmail} maxFontSizeMultiplier={1.6}>
-          {live.review
-            ? `Thanks for the changes. ${live.review.note ? `Reviewer's note: "${live.review.note}" ` : ''}Send your application again when you're ready.`
-            : `Your email ${live.email} was confirmed when you signed in. Send your application when you're ready.`}
+          Sign in again with the code we send to {live.email} to confirm it.
         </Text>
-      )}
+      ) : null}
       {inProfile && step === PROFILE_STEP.code && !live && (
         <CodeFields
           {...pProps}
@@ -717,6 +749,31 @@ export function PreviewFlow({ onExit, live }: Props) {
 }
 
 const styles = StyleSheet.create({
+  noteCard: {
+    backgroundColor: obColors.selectedFill, // pale sage
+    borderRadius: 14,
+    padding: obSpacing.lg,
+    gap: obSpacing.xs,
+  },
+  noteTitle: {
+    fontFamily: obFonts.bodySemiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: obColors.cta,
+  },
+  noteText: {
+    fontFamily: obFonts.body,
+    fontSize: 16,
+    lineHeight: 22,
+    color: obColors.textPrimary,
+  },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: obSpacing.sm,
+  },
   secondary: {
     minHeight: 44,
     alignItems: 'center',
