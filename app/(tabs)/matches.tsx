@@ -22,7 +22,8 @@ import {
 import { getDailyInvitesState, type DailyInvitesState } from '@/lib/dailyInvites';
 import { computeFallbackReason, strongestReason, type ReasonCompareProfile } from '@/lib/matchReason';
 import { parseFavoriteSpots, personAge } from '@/lib/hingeProfile';
-import { supabase } from '@/lib/supabaseClient';
+import { V2MatchesScreen } from '@/components/main/V2MatchesScreen';
+import { supabase, v2Enabled } from '@/lib/supabaseClient';
 import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 
 function matchCategory(score: number): string {
@@ -294,7 +295,15 @@ function splitVenueText(raw: string | null): { venue: string | null; district: s
   return { venue: venue || null, district: rest || null };
 }
 
+// V2 backends (dev/test): only real mutual matches + date plans — no
+// algorithmic candidates, no %, no pre-match "Plan a date" (2026-10-01).
+// The legacy screen below stays for the live (V1) build only.
 export default function MatchesTab() {
+  if (v2Enabled) return <V2MatchesScreen />;
+  return <LegacyMatchesTab />;
+}
+
+function LegacyMatchesTab() {
   const router = useRouter();
   const [tab, setTab] = useState<MatchesTabKey>('ready');
   const [cards, setCards] = useState<MatchCardData[]>([]);

@@ -33,7 +33,16 @@ import { logEvent } from '@/lib/analytics';
 import { colors, radius } from '@/lib/designTokens';
 import { formatMeetingTime, orderedPair, suggestMeetingTimes } from '@/lib/matchInvite';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, v2Enabled } from '@/lib/supabaseClient';
+import {
+  loadChatState,
+  newRequestId,
+  proposeDate,
+  respondDate,
+  unmatch,
+  type ChatState,
+  type Proposal,
+} from '@/lib/matchChatV2';
 import { emitUnreadMessageCount } from '@/lib/unreadMessageCount';
 
 function firstParam(val: string | string[] | undefined): string {
@@ -80,6 +89,13 @@ export default function ChatScreen() {
   const [proposeTimePickerDraft, setProposeTimePickerDraft] = useState(new Date());
   const [proposing, setProposing] = useState(false);
   const [gateError, setGateError] = useState(false);
+  // V2 (dev/test backends): server chat state + date suggestions shown as
+  // in-chat cards. The suggestion is opened by the user from the + menu —
+  // no persistent bar, no pop-up.
+  const [chatState, setChatState] = useState<ChatState | null>(null);
+  const [counterTarget, setCounterTarget] = useState<Proposal | null>(null);
+  const [answering, setAnswering] = useState<string | null>(null);
+  const proposeRequestRef = useRef<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesError, setMessagesError] = useState(false);
   const [text, setText] = useState('');
@@ -220,6 +236,23 @@ export default function ChatScreen() {
     useCallback(() => {
       void resolveMatchAndGate();
     }, [resolveMatchAndGate]),
+  );
+
+  const refreshChatState = useCallback(async () => {
+    if (!v2Enabled || !matchId) return;
+    const r = await loadChatState(matchId);
+    if (r.ok) setChatState(r.value);
+  }, [matchId]);
+
+  // On focus, and every 20 s while the chat is open (suggestions are not on
+  // the realtime feed) — a light poll, no pop-up.
+  useFocusEffect(
+    useCallback(() => {
+      if (!v2Enabled || !matchId) return;
+      void refreshChatState();
+      const t = setInterval(() => void refreshChatState(), 20000);
+      return () => clearInterval(t);
+    }, [matchId, refreshChatState]),
   );
 
   useEffect(() => {
@@ -431,7 +464,9 @@ export default function ChatScreen() {
   // wrong here — both sides already gave equal consent. Writes meeting_at/
   // confirmed_place directly, no quota, no accept step (either side can
   // just propose a time in the open conversation, low-friction by design).
-  async function openProposeModal() {
+  async function openProposeModal(counter: Proposal | null = null) {
+    setCounterTarget(counter);
+    proposeRequestRef.current = newRequestId();
     setProposePlace('');
     setSelectedProposeTime(null);
     setShowProposeTimePicker(false);
@@ -457,6 +492,7 @@ export default function ChatScreen() {
   }
 
   async function confirmProposeMeetup() {
+    if (v2Enabled) return confirmProposeV2();
     if (!matchId || !selectedProposeTime || !currentUserId || !otherUserId) return;
     setProposing(true);
     const place = proposePlace.trim();
@@ -575,8 +611,126 @@ export default function ChatScreen() {
     void openProposeModal();
   }
 
+  // V2: send a suggestion (or a counter to theirs). The request id is fixed
+  // per opening of the sheet, so a double tap or retry never creates two.
+  async function confirmProposeV2() {
+    if (!matchId || !selectedProposeTime || proposing) return;
+    setProposing(true);
+    const place = proposePlace.trim() || null;
+    const requestId = proposeRequestRef.current ?? newRequestId();
+    proposeRequestRef.current = requestId;
+    const r = counterTarget
+      ? await respondDate(counterTarget.id, 'counter', { meetingAt: selectedProposeTime, place, requestId })
+      : await proposeDate(matchId, selectedProposeTime, place, requestId);
+    setProposing(false);
+    if (!r.ok) {
+      Alert.alert('Could not send', r.message);
+      return;
+    }
+    setProposeModalVisible(false);
+    setCounterTarget(null);
+    void refreshChatState();
+  }
+
+  async function answerProposal(p: Proposal, action: 'accept' | 'decline') {
+    if (answering) return;
+    setAnswering(p.id);
+    const r = await respondDate(p.id, action);
+    setAnswering(null);
+    if (!r.ok) Alert.alert('Could not send your answer', r.message);
+    void refreshChatState();
+  }
+
+  function openPlusMenu() {
+    if (inputDisabled) return;
+    Alert.alert('Add to chat', undefined, [
+      { text: 'Suggest a date', onPress: () => void openProposeModal(null) },
+      { text: 'Add a photo', onPress: handleAddPhoto },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  function openChatMenu() {
+    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+      { text: 'View profile', onPress: openUserProfile },
+    ];
+    if (matchId && chatState?.active) {
+      buttons.push({
+        text: 'Unmatch',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert(`Unmatch ${userName}?`, 'The conversation ends for both of you. This can’t be undone.', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Unmatch',
+              style: 'destructive',
+              onPress: async () => {
+                const r = await unmatch(matchId);
+                if (!r.ok) return Alert.alert('Could not unmatch', r.message);
+                router.back();
+              },
+            },
+          ]),
+      });
+    }
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert(userName, undefined, buttons);
+  }
+
+  function renderProposal(p: Proposal) {
+    const when = formatMeetingTime(p.meeting_at);
+    const statusText =
+      p.status === 'pending'
+        ? p.mine
+          ? 'Awaiting reply'
+          : null
+        : p.status === 'accepted'
+          ? 'Accepted'
+          : p.status === 'declined'
+            ? 'Not now'
+            : p.status === 'countered'
+              ? 'Another time suggested'
+              : 'Cancelled';
+    const canAnswer = p.status === 'pending' && !p.mine && chatState?.active === true;
+    return (
+      <View style={[styles.dateCard, p.mine ? styles.dateCardMine : styles.dateCardTheirs]}
+        accessible={!canAnswer}
+        accessibilityLabel={`${p.mine ? 'You suggested' : `${userName} suggested`} a date, ${when}${p.place ? `, ${p.place}` : ''}${statusText ? `. ${statusText}` : ''}`}>
+        <View style={styles.dateCardHead}>
+          <Ionicons name="calendar-outline" size={18} color={colors.textPrimary} />
+          <ThemedText style={styles.dateCardTitle}>
+            {p.mine ? 'You suggested a date' : `${userName} suggested a date`}
+          </ThemedText>
+        </View>
+        <ThemedText style={styles.dateCardWhen}>{when}</ThemedText>
+        {p.place ? <ThemedText style={styles.dateCardPlace}>{p.place}</ThemedText> : null}
+        {statusText ? <ThemedText style={styles.dateCardStatus}>{statusText}</ThemedText> : null}
+        {canAnswer ? (
+          <View style={styles.dateCardActions}>
+            <TouchableOpacity style={[styles.dateBtn, styles.dateBtnPrimary]} disabled={!!answering}
+              onPress={() => void answerProposal(p, 'accept')} accessibilityRole="button" accessibilityLabel="Accept">
+              {answering === p.id ? <ActivityIndicator color="#FFF" size="small" /> : <ThemedText style={styles.dateBtnPrimaryText}>Accept</ThemedText>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dateBtn} disabled={!!answering}
+              onPress={() => void openProposeModal(p)} accessibilityRole="button" accessibilityLabel="Suggest another time">
+              <ThemedText style={styles.dateBtnText}>Suggest another time</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dateBtn} disabled={!!answering}
+              onPress={() => void answerProposal(p, 'decline')} accessibilityRole="button" accessibilityLabel="Not now">
+              <ThemedText style={styles.dateBtnText}>Not now</ThemedText>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   function openUserProfile() {
     if (!otherUserId) return;
+    if (v2Enabled) {
+      router.push(`/v2/profile?userId=${otherUserId}` as never);
+      return;
+    }
     const activeMatchId = matchId ?? matchIdParam;
     router.push({
       pathname: '/user-profile',
@@ -632,7 +786,10 @@ export default function ChatScreen() {
   }
 
   const chatLoading = chatOpened === null;
-  const inputLocked = chatOpened === false;
+  // V2: the server decides whether this chat is still active (unmatched or
+  // blocked chats end; their history stays readable).
+  const chatEnded = v2Enabled && chatState !== null && chatState.active === false;
+  const inputLocked = chatOpened === false || chatEnded;
   const inputDisabled = chatLoading || inputLocked;
   const showIcebreakers =
     !inputDisabled && messages.length === 0 && !iceDone && icebreakerChecked;
@@ -644,7 +801,13 @@ export default function ChatScreen() {
   // algorithmic invite's inviter has somewhere to counter-propose after
   // declining the accepter's custom time on the Activity review card — same
   // meetup_proposed_by/meetup_confirmed columns drive both paths now.
-  const meetupUiEnabled = !inputDisabled;
+  // V2 replaces this persistent bar with in-chat cards + the + menu.
+  const meetupUiEnabled = !inputDisabled && !v2Enabled;
+  type ChatItem = { kind: 'msg'; at: string; msg: Message } | { kind: 'date'; at: string; p: Proposal };
+  const chatItems: ChatItem[] = [
+    ...messages.map((m) => ({ kind: 'msg' as const, at: m.created_at, msg: m })),
+    ...(v2Enabled ? (chatState?.proposals ?? []).map((p) => ({ kind: 'date' as const, at: p.created_at, p })) : []),
+  ].sort((a, b) => a.at.localeCompare(b.at));
   // 'none' = no active proposal · 'proposed_by_me' = waiting on the other
   // person · 'proposed_by_them' = I need to respond · 'confirmed' = settled.
   const meetupState: 'none' | 'proposed_by_me' | 'proposed_by_them' | 'confirmed' = !meetingAt
@@ -680,7 +843,14 @@ export default function ChatScreen() {
           )}
           <ThemedText style={styles.headerName}>{userName}</ThemedText>
         </TouchableOpacity>
-        <View style={{ width: 40 }} />
+        {v2Enabled ? (
+          <TouchableOpacity onPress={openChatMenu} style={styles.menuBtn} hitSlop={10}
+            accessibilityRole="button" accessibilityLabel="More options">
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
       </View>
 
       <KeyboardAvoidingView
@@ -695,9 +865,9 @@ export default function ChatScreen() {
           </View>
         ) : inputLocked ? (
           <View style={styles.lockedWrap}>
-            <ThemedText style={styles.lockedTitle}>Chat is locked</ThemedText>
+            <ThemedText style={styles.lockedTitle}>{chatEnded ? 'This conversation has ended' : 'Chat is locked'}</ThemedText>
             <ThemedText style={styles.lockedText}>
-              Chat opens once {userName} accepts.
+              {chatEnded ? 'You can no longer send messages or suggest a date here.' : `Chat opens once ${userName} accepts.`}
             </ThemedText>
             {matchId ? (
               <ThemedText style={styles.lockedHint}>You can go back to Matches to wait.</ThemedText>
@@ -707,10 +877,14 @@ export default function ChatScreen() {
           <ErrorState onRetry={() => void fetchMessages()} />
         ) : (
           <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={renderMessage}
+            ref={flatListRef as never}
+            data={chatItems}
+            keyExtractor={(item) => (item.kind === 'msg' ? item.msg.id : `date-${item.p.id}`)}
+            renderItem={({ item }) => {
+              if (item.kind === 'date') return renderProposal(item.p);
+              const index = messages.findIndex((m) => m.id === item.msg.id);
+              return renderMessage({ item: item.msg, index });
+            }}
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
@@ -857,11 +1031,11 @@ export default function ChatScreen() {
           ]}>
           <TouchableOpacity
             style={[styles.attachBtn, inputDisabled && { opacity: 0.4 }]}
-            onPress={handleAddPhoto}
+            onPress={v2Enabled ? openPlusMenu : handleAddPhoto}
             disabled={inputDisabled}
             accessibilityRole="button"
-            accessibilityLabel="Add a photo">
-            <Ionicons name="camera-outline" size={22} color={colors.textPrimary} />
+            accessibilityLabel={v2Enabled ? 'More: suggest a date or add a photo' : 'Add a photo'}>
+            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 26 : 22} color={colors.textPrimary} />
           </TouchableOpacity>
           <TextInput
             ref={inputRef}
@@ -907,7 +1081,9 @@ export default function ChatScreen() {
         style={styles.proposeBackdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.proposeSheet}>
-          <ThemedText style={styles.proposeTitle}>Suggest a time to meet up</ThemedText>
+          <ThemedText style={styles.proposeTitle}>
+            {!v2Enabled ? 'Suggest a time to meet up' : counterTarget ? 'Suggest another time' : 'Suggest a date'}
+          </ThemedText>
 
           {proposeTimes.length > 0 ? (
             <View style={styles.slotChipsRow}>
@@ -1009,7 +1185,7 @@ export default function ChatScreen() {
               {proposing ? (
                 <ActivityIndicator color="#FFF" size="small" />
               ) : (
-                <ThemedText style={styles.proposeConfirmBtnText}>Suggest</ThemedText>
+                <ThemedText style={styles.proposeConfirmBtnText}>{v2Enabled ? 'Send' : 'Suggest'}</ThemedText>
               )}
             </TouchableOpacity>
           </View>
@@ -1022,6 +1198,37 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start' },
+  menuBtn: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },
+  dateCard: {
+    marginVertical: 8,
+    maxWidth: '86%',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E4DCCB',
+    backgroundColor: '#FFFDF8',
+    padding: 14,
+    gap: 4,
+  },
+  dateCardMine: { alignSelf: 'flex-end' },
+  dateCardTheirs: { alignSelf: 'flex-start' },
+  dateCardHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dateCardTitle: { fontSize: 14, lineHeight: 19, fontWeight: '600', color: colors.textPrimary },
+  dateCardWhen: { fontSize: 18, lineHeight: 24, fontWeight: '700', color: colors.textPrimary },
+  dateCardPlace: { fontSize: 15, lineHeight: 21, color: colors.textPrimary },
+  dateCardStatus: { marginTop: 4, fontSize: 13, lineHeight: 18, color: colors.textMuted },
+  dateCardActions: { marginTop: 8, gap: 8 },
+  dateBtn: {
+    minHeight: 44,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#C9C0AF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  dateBtnPrimary: { backgroundColor: '#1F3A2E', borderColor: '#1F3A2E' },
+  dateBtnPrimaryText: { fontSize: 15, lineHeight: 20, fontWeight: '600', color: '#FFFFFF' },
+  dateBtnText: { fontSize: 15, lineHeight: 20, fontWeight: '600', color: colors.textPrimary },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

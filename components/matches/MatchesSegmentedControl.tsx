@@ -20,7 +20,7 @@ export function MatchesSegmentedControl({
   return (
     <View style={styles.track} accessibilityRole="tablist">
       <Segment
-        label="Ready"
+        label="Matches"
         count={readyCount}
         active={value === 'ready'}
         onPress={() => onChange('ready')}

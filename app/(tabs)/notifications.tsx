@@ -32,7 +32,7 @@ import {
 import { emitUnreadNotificationCount } from '@/lib/unreadNotificationCount';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, v2Enabled } from '@/lib/supabaseClient';
 
 type NotificationType = string;
 
@@ -105,6 +105,11 @@ const FEATURED_TYPES = new Set([
   'meetup_reminder_morning',
 ]);
 const isLikeType = (t: NotificationType) => LIKE_TYPES.has(t);
+// Invite-first funnel (retired 2026-10-01: no invitation before a match). On
+// the V2 backends these old rows are kept in the database but not shown —
+// date suggestions now come from the chat (date_proposed / date_accepted).
+const LEGACY_INVITE_TYPES = new Set(['new_invite', 'meeting_invite', 'invite_accepted']);
+const isRetiredType = (t: NotificationType) => v2Enabled && LEGACY_INVITE_TYPES.has(t);
 const isFeaturedType = (t: NotificationType) => FEATURED_TYPES.has(t);
 
 function typeIcon(type: NotificationType): IconSpec {
@@ -130,6 +135,10 @@ function typeIcon(type: NotificationType): IconSpec {
       return { name: 'heart-circle', color: '#FF3B5C', bg: '#FFE7EC' };
     case 'like_sent':
       return { name: 'heart-outline', color: colors.accent, bg: '#FBF3DF' };
+    case 'date_proposed':
+      return { name: 'calendar-outline', color: obColors.cta, bg: obColors.selectedFill };
+    case 'date_accepted':
+      return { name: 'calendar', color: obColors.cta, bg: obColors.selectedFill };
     case 'meetup_reminder':
       return { name: 'cafe-outline', color: colors.accent, bg: '#FBF3DF' };
     case 'meetup_reminder_morning':
@@ -186,6 +195,10 @@ function feedRowText(
       return `Your match with ${who} expires soon`;
     case 'mutual_match':
       return `You matched with ${who}! Say hi 👋`;
+    case 'date_proposed':
+      return item.text === 'suggested another time' ? `${who} suggested another time` : `${who} suggested a date`;
+    case 'date_accepted':
+      return `${who} accepted your date`;
     // Demoted featured cards without a fresh in-session summary (e.g. after
     // reload) — rebuilt from persisted data (matches.meeting_at/confirmed_place),
     // not just the raw proposal, so a reload doesn't lose what was decided.
@@ -217,6 +230,8 @@ function routeForType(
   switch (item.type) {
     case 'invite_accepted':
     case 'mutual_match':
+    case 'date_proposed':
+    case 'date_accepted':
     case 'new_message':
     case 'message':
       return item.related_user_id
@@ -1264,11 +1279,12 @@ export default function NotificationsScreen() {
     const notificationFeed = items.filter(
       (r) =>
         !isLikeType(r.type) &&
+        !isRetiredType(r.type) &&
         r.type !== 'invite_accepted' &&
         (!isFeaturedType(r.type) || r.is_read),
     );
     return {
-      featured: items.filter((r) => isFeaturedType(r.type) && !r.is_read),
+      featured: items.filter((r) => isFeaturedType(r.type) && !r.is_read && !isRetiredType(r.type)),
       feed: notificationFeed,
     };
   }, [items]);
@@ -1664,7 +1680,7 @@ export default function NotificationsScreen() {
         }
       />
       <WaitingOnThemSection
-        invites={waitingOnThem}
+        invites={v2Enabled ? [] : waitingOnThem}
         onPressInvite={(userId) =>
           router.push({ pathname: '/user-profile', params: { userId } } as never)
         }
@@ -1715,7 +1731,7 @@ export default function NotificationsScreen() {
         <ActivityIndicator color={colors.accent} style={styles.loader} />
       ) : error ? (
         <ErrorState onRetry={() => void fetchNotifications()} />
-      ) : items.length === 0 && likeCount === 0 && waitingOnThem.length === 0 ? (
+      ) : items.filter((r) => !isRetiredType(r.type)).length === 0 && likeCount === 0 && (v2Enabled || waitingOnThem.length === 0) ? (
         <ActivityEmptyState />
       ) : (
         <SectionList

@@ -165,7 +165,7 @@ async function main() {
   await db.exec(buildReplicaSql());
   for (const f of ['20260928130000_p0a_privacy_additive.sql', '20260930090000_p1_private_photos.sql',
     '20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql',
-    '20261001090000_v2_public_profile.sql']) {
+    '20261001090000_v2_public_profile.sql', '20261001120000_v2_match_chat_date.sql']) {
     await db.exec(fs.readFileSync(path.join(proposed, f), 'utf8'));
   }
   // seed: auth users; legacy V1 members L and W; V2 member M activated by a reviewer
@@ -491,7 +491,12 @@ async function run() {
   // an existing match row keeps the profile reachable even when not eligible
   const [ma, mb] = [U.U1, F(2)].sort();
   await db.exec(`insert into matches(user_a_id, user_b_id, status, match_score) values ('${ma}', '${mb}', 'pending', 50)`);
+  check((await prof(U.U1, F(2))) === null, 'a pending (not mutual) row does not open a not-eligible profile');
+  await db.exec(`update matches set status = 'accepted', chat_opened = true where user_a_id = '${ma}' and user_b_id = '${mb}'`);
   check(!!(await prof(U.U1, F(2))), 'a matched (not eligible) member\'s profile opens');
+  await db.exec(`update matches set status = 'passed' where user_a_id = '${ma}' and user_b_id = '${mb}'`);
+  check((await prof(U.U1, F(2))) === null, 'after the match is ended (unmatched) the profile closes');
+  await db.exec(`update matches set status = 'accepted' where user_a_id = '${ma}' and user_b_id = '${mb}'`);
   await db.exec(`insert into blocks(blocker_id, blocked_id) values ('${F(2)}', '${U.U1}')`);
   check((await prof(U.U1, F(2))) === null, 'a block closes it again, even with a match');
   const gone = await member(10);
@@ -520,6 +525,100 @@ async function run() {
   check((await asRole('authenticated', ok1, `select public.get_profile_v2('${U.U1}') as p`)).rows?.[0]?.p === null
     && (await asRole('authenticated', U.U1, `select public.get_profile_v2('${ok1}') as p`)).rows?.[0]?.p === null,
     'after the block neither side can open the other\'s profile');
+
+  stage = 'MATCH → CHAT → DATE';
+  const X = await member(11, { gender: 'man', wants: ['women'] });
+  const Y = await member(12);
+  const as = (uid, sql) => asRole('authenticated', uid, sql);
+  const one = async (uid, sql) => { const r = await as(uid, sql); return r.ok ? r.rows[0] : { __error: r.error }; };
+  const pairRows = async () => (await db.query(`select id, status, chat_opened, source from matches
+    where least(user_a_id::text,user_b_id::text) = least('${X}','${Y}') and greatest(user_a_id::text,user_b_id::text) = greatest('${X}','${Y}')`)).rows;
+  check((await as(X, `insert into likes(liker_id, likee_id, target_type, status) values ('${X}','${Y}','profile','sent')`)).ok, 'X likes Y');
+  check((await pairRows()).every((r) => r.status !== 'accepted' && r.chat_opened !== true), 'a one-sided like opens no match and no chat');
+  check((await as(X, `select * from public.get_my_matches_v2()`)).rows?.length === 0, 'one-sided like: Matches stays empty');
+  check((await as(Y, `insert into likes(liker_id, likee_id, target_type, status) values ('${Y}','${X}','profile','sent')`)).ok, 'Y likes X back');
+  const pairNow = await pairRows();
+  check(pairNow.length === 1 && pairNow[0].status === 'accepted' && pairNow[0].chat_opened === true && pairNow[0].source === 'mutual_like',
+    'mutual like: exactly one match, chat open');
+  const mid = pairNow[0].id;
+  const mx = await as(X, `select * from public.get_my_matches_v2()`);
+  check(mx.ok && mx.rows.length === 1 && mx.rows[0].other_id === Y && mx.rows[0].first_name === 'F12'
+    && !Object.keys(mx.rows[0]).some((k) => /score|percent/.test(k)), 'Matches lists the real match (first name, no score)');
+  check(!(await as(X, `select user_id from public.get_discovery_candidates_v2(50)`)).rows.some((r) => r.user_id === Y),
+    'a matched person leaves Discover');
+  check((await as(X, `insert into messages(sender_id, receiver_id, content) values ('${X}','${Y}','hi')`)).ok, 'chat works');
+
+  const fut = (h) => new Date(Date.now() + h * 3600e3).toISOString();
+  const rq = () => crypto.randomUUID();
+  const r1 = rq();
+  const p1 = await one(X, `select public.propose_date_v2('${mid}', '${fut(48)}', 'Moda', '${r1}') as j`);
+  check(p1?.j?.status === 'pending' && p1.j.mine === true && p1.j.already === false, 'X suggests a date → pending');
+  const p1b = await one(X, `select public.propose_date_v2('${mid}', '${fut(48)}', 'Moda', '${r1}') as j`);
+  const cnt = async () => (await db.query(`select count(*)::int n from date_proposals_v2 where match_id='${mid}'`)).rows[0].n;
+  check(p1b?.j?.already === true && p1b.j.id === p1.j.id && (await cnt()) === 1, 'repeat tap: same suggestion, no duplicate');
+  check((await one(X, `select public.propose_date_v2('${mid}', '${fut(50)}', null, '${rq()}') as j`)).__error?.includes('proposal_pending'),
+    'a second suggestion waits for the reply');
+  check((await one(Y, `select public.propose_date_v2('${mid}', '${fut(50)}', null, '${rq()}') as j`)).__error?.includes('reply_to_pending'),
+    'the other side must answer before starting a new one');
+  check((await one(X, `select public.respond_date_v2('${p1.j.id}', 'accept') as j`)).__error?.includes('cannot_respond_own_proposal'),
+    'cannot accept your own suggestion');
+  const r2 = rq();
+  const c1 = await one(Y, `select public.respond_date_v2('${p1.j.id}', 'counter', '${fut(72)}', 'Karaköy', '${r2}') as j`);
+  check(c1?.j?.status === 'pending' && c1.j.mine === true && c1.j.reply_to === p1.j.id, 'Y suggests another time → new pending, linked');
+  const c1b = await one(Y, `select public.respond_date_v2('${p1.j.id}', 'counter', '${fut(72)}', 'Karaköy', '${r2}') as j`);
+  check(c1b?.j?.already === true && c1b.j.id === c1.j.id && (await cnt()) === 2, 'repeat counter: no duplicate');
+  const firstNow = (await db.query(`select status from date_proposals_v2 where id='${p1.j.id}'`)).rows[0].status;
+  check(firstNow === 'countered', 'the first suggestion is marked countered (not accepted)');
+  const planPending = await as(X, `select * from public.get_my_date_plans_v2()`);
+  check(planPending.rows?.length === 1 && planPending.rows[0].status === 'pending' && planPending.rows[0].mine === false,
+    'Plans: X sees one pending suggestion to answer');
+  check((await one(Y, `select public.respond_date_v2('${c1.j.id}', 'accept') as j`)).__error?.includes('cannot_respond_own_proposal'),
+    'the counter can only be accepted by the other side');
+  const acc = await one(X, `select public.respond_date_v2('${c1.j.id}', 'accept') as j`);
+  check(acc?.j?.status === 'accepted', 'X accepts the counter → accepted');
+  check((await one(X, `select public.respond_date_v2('${c1.j.id}', 'accept') as j`))?.j?.already === true, 'repeat accept: no change');
+  const mrow = (await db.query(`select meeting_at, confirmed_place, meetup_confirmed from matches where id='${mid}'`)).rows[0];
+  check(mrow.meetup_confirmed === true && mrow.confirmed_place === 'Karaköy', 'the accepted plan lands on the match (reminders/check-in)');
+  const plans = await as(Y, `select * from public.get_my_date_plans_v2()`);
+  check(plans.rows?.length === 1 && plans.rows[0].status === 'accepted', 'Plans: one accepted plan, no pending');
+  check(!(await as(X, `update matches set meeting_at = now() + interval '9 days' where id='${mid}'`)).ok,
+    'clients cannot write the date columns directly (RPC only)');
+  check((await as(X, `update matches set invited_by = '${X}' where id='${mid}'`)).error?.includes('invites_retired'),
+    'no new invitations from clients');
+  const outsider = await as(F(1), `select public.get_chat_v2('${mid}') as j`);
+  check(outsider.ok && outsider.rows[0].j === null, 'a non-participant cannot read the chat state');
+  check((await one(F(1), `select public.propose_date_v2('${mid}', '${fut(30)}', null, '${rq()}') as j`)).__error?.includes('chat_not_active'),
+    'a non-participant cannot suggest');
+  check((await as(F(1), `select * from date_proposals_v2 where match_id='${mid}'`)).rows?.length === 0, 'a non-participant cannot read suggestions');
+  check((await rpcSqlError('anon', 'get_my_matches_v2', {}))?.includes('permission denied'), 'anon cannot read matches');
+
+  const p3 = await one(Y, `select public.propose_date_v2('${mid}', '${fut(96)}', null, '${rq()}') as j`);
+  check(p3?.j?.status === 'pending', 'Y suggests a new date (rescheduling allowed one at a time)');
+  await db.exec(`insert into blocks(blocker_id, blocked_id) values ('${Y}', '${X}')`);
+  check((await one(X, `select public.respond_date_v2('${p3.j.id}', 'accept') as j`)).__error?.includes('chat_not_active'), 'after a block: no accept');
+  check((await one(X, `select public.propose_date_v2('${mid}', '${fut(30)}', null, '${rq()}') as j`)).__error?.includes('chat_not_active'),
+    'after a block: no new suggestion');
+  check((await as(X, `select * from public.get_my_matches_v2()`)).rows?.length === 0, 'after a block: gone from Matches');
+  check((await prof(X, Y)) === null, 'after a block: no profile');
+  await db.exec(`delete from blocks where blocker_id = '${Y}' and blocked_id = '${X}'`);
+  const un = await one(X, `select public.unmatch_v2('${mid}') as j`);
+  check(un?.j?.status === 'passed' && un.j.already === false, 'X unmatches');
+  check((await one(X, `select public.unmatch_v2('${mid}') as j`))?.j?.already === true, 'repeat unmatch: no change');
+  check((await db.query(`select status from date_proposals_v2 where id='${p3.j.id}'`)).rows[0].status === 'cancelled',
+    'the pending suggestion is cancelled');
+  check((await one(Y, `select public.respond_date_v2('${p3.j.id}', 'accept') as j`)).__error?.includes('cannot_respond_own_proposal')
+    && (await one(X, `select public.respond_date_v2('${p3.j.id}', 'accept') as j`)).__error?.includes('proposal_not_pending'),
+    'after unmatch: the suggestion cannot be accepted');
+  check((await one(Y, `select public.propose_date_v2('${mid}', '${fut(30)}', null, '${rq()}') as j`)).__error?.includes('chat_not_active'),
+    'after unmatch: no new suggestion');
+  check(!(await as(Y, `insert into messages(sender_id, receiver_id, content) values ('${Y}','${X}','still there?')`)).ok,
+    'after unmatch: no messages');
+  check((await prof(Y, X)) === null && (await prof(X, Y)) === null, 'after unmatch: neither profile opens');
+  check(!(await as(Y, `select user_id from public.get_discovery_candidates_v2(50)`)).rows.some((r) => r.user_id === X),
+    'after unmatch: not back in Discover');
+  check((await as(Y, `insert into likes(liker_id, likee_id, target_type, status) values ('${Y}','${X}','profile','sent')
+    on conflict (liker_id, likee_id) do update set status = 'sent'`)).ok
+    && (await pairRows())[0].status === 'passed', 'liking again does not silently re-open an ended match');
 
   stage = 'ORPHAN MEDIA';
   await db.exec(`update storage.objects set created_at = now() - interval '2 days' where name like '${U.U1}/%'`);

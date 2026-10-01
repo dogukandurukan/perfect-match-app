@@ -7,6 +7,7 @@
 //   node scripts/dev-backend/apply-dev.mjs v2    # V2 persistence + review/discovery/media
 //   node scripts/dev-backend/apply-dev.mjs p0b   # P0-B (after the R-P0 client is the one in use)
 //   node scripts/dev-backend/apply-dev.mjs profile # V2 public profile read (get_profile_v2)
+//   node scripts/dev-backend/apply-dev.mjs matchchat # match → chat → date suggestions
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,8 +21,9 @@ const files = {
   v2: ['20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql'],
   p0b: ['20260928130100_p0b_privacy_restrict.sql'],
   profile: ['20261001090000_v2_public_profile.sql'],
+  matchchat: ['20261001120000_v2_match_chat_date.sql'],
 }[stage];
-if (!files) fail('usage: apply-dev.mjs p0a|v2|p0b|profile');
+if (!files) fail('usage: apply-dev.mjs p0a|v2|p0b|profile|matchchat');
 
 const linkedDir = path.join(os.homedir(), 'dating-app-recovered');
 const linked = fs.readFileSync(path.join(linkedDir, 'supabase', '.temp', 'project-ref'), 'utf8').trim();

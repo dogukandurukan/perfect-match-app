@@ -79,17 +79,17 @@ async function main() {
   const again = await sign(deniz, 'ECE');
   check(!again.error && (await fetch(again.data.signedUrl)).status === 200, 'expiry: re-signing (what the app does) works again');
 
-  // --- invite → accept → realtime chat → block, with the smoke users -------
+  // --- mutual like → chat → realtime → block, with the smoke users ---------
+  // (2026-10-01: no invitation before a match — a mutual like opens the chat.)
+  await admin.from('likes').delete().or(`and(liker_id.eq.${ids.S1},likee_id.eq.${ids.S2}),and(liker_id.eq.${ids.S2},likee_id.eq.${ids.S1})`);
   const [a, b] = ids.S1 < ids.S2 ? [ids.S1, ids.S2] : [ids.S2, ids.S1];
-  const up = await s1.rpc('upsert_match', { p_user_a: a, p_user_b: b, p_match_score: 70 });
-  check(!up.error, 'invite: candidate row');
-  const row = (await s1.from('matches').select('id').eq('user_a_id', a).eq('user_b_id', b).single()).data;
-  const inv = await s1.from('matches').update({ invited_by: ids.S1, chat_opened: true, status: 'pending' }).eq('id', row.id).select('chat_opened').single();
-  check(!inv.error && inv.data.chat_opened === false, 'invite: never opens the chat by itself');
+  check(!(await s1.from('likes').insert({ liker_id: ids.S1, likee_id: ids.S2, target_type: 'profile', status: 'sent' })).error, 'like: S1 likes S2');
   check(!!(await s1.from('messages').insert({ sender_id: ids.S1, receiver_id: ids.S2, content: 'early' })).error,
-    'chat: no message before acceptance');
-  const acc = await s2.from('matches').update({ status: 'accepted' }).eq('id', row.id).select('chat_opened').single();
-  check(!acc.error && acc.data.chat_opened === true, 'accept: opens the chat (mutual consent)');
+    'chat: no message before a mutual match');
+  check(!(await s2.from('likes').insert({ liker_id: ids.S2, likee_id: ids.S1, target_type: 'profile', status: 'sent' })).error, 'like: S2 likes back');
+  const row = (await s1.from('matches').select('id, status, chat_opened').eq('user_a_id', a).eq('user_b_id', b).single()).data;
+  check(row?.status === 'accepted' && row?.chat_opened === true, 'mutual like: one match, chat open');
+  check(!!(await s1.from('matches').update({ invited_by: ids.S1 }).eq('id', row.id)).error, 'invitations are refused (retired)');
 
   let received = false;
   let subscribed = false;
@@ -122,6 +122,8 @@ async function main() {
   await admin.from('blocks').delete().eq('blocker_id', ids.S1);
   await admin.from('messages').delete().in('sender_id', [ids.S1, ids.S2]);
   await admin.from('matches').delete().eq('id', row.id);
+  await admin.from('likes').delete().or(`and(liker_id.eq.${ids.S1},likee_id.eq.${ids.S2}),and(liker_id.eq.${ids.S2},likee_id.eq.${ids.S1})`);
+  await admin.from('notifications').delete().in('user_id', [ids.S1, ids.S2]).eq('type', 'mutual_match');
 
   console.log(`[smoke ${stageArg}] ${env.ref}: ${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
