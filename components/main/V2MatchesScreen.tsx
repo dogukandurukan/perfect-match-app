@@ -82,18 +82,18 @@ export function V2MatchesScreen() {
           renderItem={({ item }) => {
             const started = !!item.last_message_at;
             return (
-              <View style={styles.card}>
-                <TouchableOpacity onPress={() => openProfile(item.other_id)} accessibilityRole="button" accessibilityLabel={`View ${item.first_name ?? 'profile'}`}>
-                  <PersonAvatar photoUrl={cachedProfilePhotoUrl(item.photo_path)} name={item.first_name} size={64} />
-                </TouchableOpacity>
-                <View style={styles.cardText}>
-                  <Text style={styles.name} numberOfLines={1}>{item.first_name ?? 'Your match'}</Text>
-                  <Text style={styles.sub} numberOfLines={1}>
-                    {started
-                      ? `${item.last_from_me ? 'You: ' : ''}${item.last_message ?? ''}`
-                      : 'You matched. Start the conversation.'}
-                  </Text>
-                  {item.unread > 0 ? <Text style={styles.unread}>{item.unread === 1 ? '1 new message' : `${item.unread} new messages`}</Text> : null}
+              <View style={[styles.card, styles.matchCard]}>
+                <View style={styles.cardTop}>
+                  <TouchableOpacity onPress={() => openProfile(item.other_id)} accessibilityRole="button" accessibilityLabel={`View ${item.first_name ?? 'profile'}`}>
+                    <PersonAvatar photoUrl={cachedProfilePhotoUrl(item.photo_path)} name={item.first_name} size={64} />
+                  </TouchableOpacity>
+                  <View style={styles.cardText}>
+                    <Text style={styles.name} numberOfLines={1}>{item.first_name ?? 'Your match'}</Text>
+                    <Text style={styles.sub} numberOfLines={2}>
+                      {started ? `${item.last_from_me ? 'You: ' : ''}${item.last_message ?? ''}` : 'You matched. Say hello when you’re ready.'}
+                    </Text>
+                    {item.unread > 0 ? <Text style={styles.unread}>{item.unread === 1 ? '1 new message' : `${item.unread} new messages`}</Text> : null}
+                  </View>
                 </View>
                 <TouchableOpacity
                   style={styles.cta}
@@ -181,6 +181,9 @@ const styles = StyleSheet.create({
     padding: homeSpacing.md,
   },
   cardText: { flex: 1, gap: 2 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: homeSpacing.md },
+  // Text gets the full width; the action sits under it (no truncation).
+  matchCard: { flexDirection: 'column', alignItems: 'stretch' },
   name: { fontFamily: homeFonts.heading, fontSize: 19, lineHeight: 25, color: homeColors.textPrimary },
   sub: { fontFamily: homeFonts.body, fontSize: 14, lineHeight: 20, color: homeColors.textSecondary },
   unread: { fontFamily: homeFonts.bodySemiBold, fontSize: 13, lineHeight: 18, color: homeColors.accent },

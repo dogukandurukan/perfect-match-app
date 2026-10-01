@@ -30,13 +30,13 @@ import {
   type QuickIcebreakerChoice,
 } from '@/lib/quickIcebreaker';
 import { logEvent } from '@/lib/analytics';
-import { colors, radius } from '@/lib/designTokens';
+import { radius } from '@/lib/designTokens';
 import { formatMeetingTime, orderedPair, suggestMeetingTimes } from '@/lib/matchInvite';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase, v2Enabled } from '@/lib/supabaseClient';
-import { dateIdeas, isSendableTime, MIN_LEAD_MS } from '@/lib/onboardingV2/dateSuggestions';
-import { loadMyOnboarding } from '@/lib/onboardingV2/remote';
-import type { DaysKey, TimeKey } from '@/lib/onboardingV2/yourDates';
+import { isSendableTime } from '@/lib/onboardingV2/dateSuggestions';
+import { obColors, obFonts } from '@/lib/onboardingV2/theme';
+import { SuggestDateSheet } from '@/components/chat/SuggestDateSheet';
 import {
   loadChatState,
   newRequestId,
@@ -91,7 +91,6 @@ export default function ChatScreen() {
   const [showProposeTimePicker, setShowProposeTimePicker] = useState(false);
   const [proposeTimePickerDraft, setProposeTimePickerDraft] = useState(new Date());
   const [proposing, setProposing] = useState(false);
-  const [proposeIdeasBasis, setProposeIdeasBasis] = useState<'both' | 'mine' | null>(null);
   const [gateError, setGateError] = useState(false);
   // V2 (dev/test backends): server chat state + date suggestions shown as
   // in-chat cards. The suggestion is opened by the user from the + menu —
@@ -475,22 +474,9 @@ export default function ChatScreen() {
     setSelectedProposeTime(null);
     setShowProposeTimePicker(false);
     setProposeTimes([]);
-    setProposeIdeasBasis(null);
     if (v2Enabled) {
-      // V2: ideas only from the first-date preferences (D57 — general, not
-      // availability). No preferences → no ideas, just the picker.
-      const [mineRes, theirsRes] = await Promise.all([
-        loadMyOnboarding(),
-        otherUserId ? supabase.rpc('get_profile_v2', { p_user: otherUserId }) : Promise.resolve({ data: null }),
-      ]);
-      const myDraft = mineRes.ok ? mineRes.value.draft : null;
-      const theirs = (theirsRes as { data: { days_pref?: string | null; time_pref?: string | null } | null }).data;
-      const ideas = dateIdeas(
-        myDraft ? { days: (myDraft.days_pref as DaysKey | null) ?? null, time: (myDraft.time_pref as TimeKey | null) ?? null } : null,
-        theirs ? { days: (theirs.days_pref as DaysKey | null) ?? null, time: (theirs.time_pref as TimeKey | null) ?? null } : null,
-      );
-      setProposeTimes(ideas.times);
-      setProposeIdeasBasis(ideas.basis);
+      // V2: the sheet starts empty — the person picks day and time (D57
+      // preferences are general, never turned into availability).
       setProposeModalVisible(true);
       return;
     }
@@ -515,7 +501,6 @@ export default function ChatScreen() {
   }
 
   async function confirmProposeMeetup() {
-    if (v2Enabled) return confirmProposeV2();
     if (!matchId || !selectedProposeTime || !currentUserId || !otherUserId) return;
     setProposing(true);
     const place = proposePlace.trim();
@@ -636,14 +621,14 @@ export default function ChatScreen() {
 
   // V2: send a suggestion (or a counter to theirs). The request id is fixed
   // per opening of the sheet, so a double tap or retry never creates two.
-  async function confirmProposeV2() {
-    if (!matchId || !selectedProposeTime || proposing) return;
-    if (!isSendableTime(selectedProposeTime)) {
+  async function confirmProposeV2(meetingAt: string, place: string | null) {
+    if (!matchId || proposing) return;
+    if (!isSendableTime(meetingAt)) {
       Alert.alert('Pick a later time', 'Choose a time at least a few minutes from now.');
       return;
     }
     setProposing(true);
-    const place = proposePlace.trim() || null;
+    const selectedProposeTime = meetingAt;
     const requestId = proposeRequestRef.current ?? newRequestId();
     proposeRequestRef.current = requestId;
     const r = counterTarget
@@ -719,18 +704,22 @@ export default function ChatScreen() {
               ? 'Another time suggested'
               : 'Cancelled';
     const canAnswer = p.status === 'pending' && !p.mine && chatState?.active === true;
+    const confirmed = p.status === 'accepted';
+    const closed = p.status !== 'pending' && !confirmed;
     return (
-      <View style={[styles.dateCard, p.mine ? styles.dateCardMine : styles.dateCardTheirs]}
+      <View style={[styles.dateCard, confirmed && styles.dateCardConfirmed, closed && styles.dateCardClosed,
+          p.mine ? styles.dateCardMine : styles.dateCardTheirs]}
         accessible={!canAnswer}
-        accessibilityLabel={`${p.mine ? 'You suggested' : `${userName} suggested`} a date, ${when}${p.place ? `, ${p.place}` : ''}${statusText ? `. ${statusText}` : ''}`}>
+        accessibilityLabel={`${confirmed ? 'Plan confirmed' : 'Date suggestion'}. ${p.mine ? 'You suggested' : `${userName} suggested`} ${when}, ${p.place ?? 'decide the place together'}${statusText ? `. ${statusText}` : ''}`}>
         <View style={styles.dateCardHead}>
-          <Ionicons name="calendar-outline" size={18} color={colors.textPrimary} />
-          <ThemedText style={styles.dateCardTitle}>
-            {p.mine ? 'You suggested a date' : `${userName} suggested a date`}
-          </ThemedText>
+          <Ionicons name={confirmed ? 'checkmark-circle' : 'calendar-outline'} size={16} color={obColors.cta} />
+          <ThemedText style={styles.dateCardKicker}>{confirmed ? 'Plan confirmed' : 'Date suggestion'}</ThemedText>
         </View>
+        <ThemedText style={styles.dateCardTitle}>
+          {p.mine ? 'You suggested' : `${userName} suggested`}
+        </ThemedText>
         <ThemedText style={styles.dateCardWhen}>{when}</ThemedText>
-        {p.place ? <ThemedText style={styles.dateCardPlace}>{p.place}</ThemedText> : null}
+        <ThemedText style={styles.dateCardPlace}>{p.place ?? 'Decide together'}</ThemedText>
         {statusText ? <ThemedText style={styles.dateCardStatus}>{statusText}</ThemedText> : null}
         {canAnswer ? (
           <View style={styles.dateCardActions}>
@@ -873,7 +862,7 @@ export default function ChatScreen() {
         {v2Enabled ? (
           <TouchableOpacity onPress={openChatMenu} style={styles.menuBtn} hitSlop={10}
             accessibilityRole="button" accessibilityLabel="More options">
-            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
+            <Ionicons name="ellipsis-horizontal" size={22} color={obColors.textPrimary} />
           </TouchableOpacity>
         ) : (
           <View style={{ width: 40 }} />
@@ -888,7 +877,7 @@ export default function ChatScreen() {
           <ErrorState onRetry={() => void resolveMatchAndGate()} />
         ) : chatLoading ? (
           <View style={styles.lockedWrap}>
-            <ActivityIndicator color={colors.accent} size="large" />
+            <ActivityIndicator color={obColors.cta} size="large" />
           </View>
         ) : inputLocked ? (
           <View style={styles.lockedWrap}>
@@ -982,7 +971,7 @@ export default function ChatScreen() {
             accessibilityLabel="Suggest a time to meet up">
             <ThemedText style={styles.meetupBarIcon}>☕</ThemedText>
             <ThemedText style={styles.meetupBarText}>Suggest a time to meet up</ThemedText>
-            <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+            <Ionicons name="chevron-forward" size={16} color={obColors.cta} />
           </TouchableOpacity>
         ) : null}
 
@@ -1062,13 +1051,13 @@ export default function ChatScreen() {
             disabled={inputDisabled}
             accessibilityRole="button"
             accessibilityLabel={v2Enabled ? 'More: suggest a date or add a photo' : 'Add a photo'}>
-            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 26 : 22} color={colors.textPrimary} />
+            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 26 : 22} color={obColors.textPrimary} />
           </TouchableOpacity>
           <TextInput
             ref={inputRef}
             style={[styles.input, inputDisabled && styles.inputDisabled]}
             placeholder={inputLocked ? 'Chat locked' : `Message ${userName}…`}
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={obColors.textSecondary}
             value={text}
             onChangeText={(v) => {
               setText(v);
@@ -1099,6 +1088,20 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
     </ScreenContainer>
 
+    {v2Enabled ? (
+      <SuggestDateSheet
+        visible={proposeModalVisible}
+        counter={!!counterTarget}
+        otherName={userName}
+        otherPhotoUrl={headerPhotoUrl}
+        sending={proposing}
+        onClose={() => {
+          setProposeModalVisible(false);
+          setCounterTarget(null);
+        }}
+        onSend={(iso, place) => void confirmProposeV2(iso, place)}
+      />
+    ) : (
     <Modal
       visible={proposeModalVisible}
       transparent
@@ -1112,13 +1115,6 @@ export default function ChatScreen() {
             {!v2Enabled ? 'Suggest a time to meet up' : counterTarget ? 'Suggest another time' : 'Suggest a date'}
           </ThemedText>
 
-          {v2Enabled && proposeTimes.length > 0 ? (
-            <ThemedText style={styles.proposeIdeasLabel}>
-              {proposeIdeasBasis === 'both'
-                ? 'Ideas from both your first-date preferences. Choose the exact time together.'
-                : 'Ideas from your first-date preferences. Choose the exact time together.'}
-            </ThemedText>
-          ) : null}
           {proposeTimes.length > 0 ? (
             <View style={styles.slotChipsRow}>
               {proposeTimes.map((t) => {
@@ -1156,7 +1152,7 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
-          {v2Enabled || !(selectedProposeTime && !proposeTimes.includes(selectedProposeTime)) ? (
+          {!(selectedProposeTime && !proposeTimes.includes(selectedProposeTime)) ? (
             <TouchableOpacity
               onPress={() => {
                 // Start an hour ahead so "Use this time" is always sendable.
@@ -1176,7 +1172,7 @@ export default function ChatScreen() {
                 value={proposeTimePickerDraft}
                 mode="datetime"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={new Date(Date.now() + MIN_LEAD_MS)}
+                minimumDate={new Date()}
                 onChange={onProposeTimePickerChange}
                 themeVariant="light"
                 textColor="#1A1A1A"
@@ -1199,7 +1195,7 @@ export default function ChatScreen() {
           <TextInput
             style={styles.proposePlaceInput}
             placeholder="e.g. a coffee place near you"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={obColors.textSecondary}
             value={proposePlace}
             onChangeText={setProposePlace}
             returnKeyType="done"
@@ -1228,44 +1224,50 @@ export default function ChatScreen() {
         </View>
       </KeyboardAvoidingView>
     </Modal>
+    )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { justifyContent: 'flex-start' },
-  proposeIdeasLabel: { fontSize: 13, lineHeight: 18, color: colors.textMuted, marginBottom: 6 },
+  container: { justifyContent: 'flex-start', backgroundColor: obColors.background },
+  proposeIdeasLabel: { fontSize: 13, lineHeight: 18, color: obColors.textSecondary, marginBottom: 6 },
   menuBtn: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },
   dateCard: {
     marginVertical: 8,
-    maxWidth: '86%',
+    maxWidth: '88%',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E4DCCB',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#B9AF9B',
     backgroundColor: '#FFFDF8',
     padding: 14,
     gap: 4,
   },
+  dateCardConfirmed: { borderStyle: 'solid', borderColor: obColors.cta, backgroundColor: obColors.selectedFill },
+  dateCardClosed: { borderStyle: 'solid', borderColor: '#E4DCCB', opacity: 0.75 },
   dateCardMine: { alignSelf: 'flex-end' },
   dateCardTheirs: { alignSelf: 'flex-start' },
   dateCardHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dateCardTitle: { fontSize: 14, lineHeight: 19, fontWeight: '600', color: colors.textPrimary },
-  dateCardWhen: { fontSize: 18, lineHeight: 24, fontWeight: '700', color: colors.textPrimary },
-  dateCardPlace: { fontSize: 15, lineHeight: 21, color: colors.textPrimary },
-  dateCardStatus: { marginTop: 4, fontSize: 13, lineHeight: 18, color: colors.textMuted },
+  dateCardKicker: { fontFamily: obFonts.bodySemiBold, fontSize: 12, lineHeight: 16, letterSpacing: 0.5, textTransform: 'uppercase', color: obColors.textSecondary },
+  dateCardTitle: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
+  dateCardWhen: { fontFamily: obFonts.heading, fontSize: 20, lineHeight: 26, color: obColors.textPrimary },
+  dateCardPlace: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 21, color: obColors.textPrimary },
+  dateCardStatus: { marginTop: 4, fontFamily: obFonts.bodyMedium, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
   dateCardActions: { marginTop: 8, gap: 8 },
   dateBtn: {
     minHeight: 44,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#C9C0AF',
+    backgroundColor: '#FFFDF8',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
   },
-  dateBtnPrimary: { backgroundColor: '#1F3A2E', borderColor: '#1F3A2E' },
-  dateBtnPrimaryText: { fontSize: 15, lineHeight: 20, fontWeight: '600', color: '#FFFFFF' },
-  dateBtnText: { fontSize: 15, lineHeight: 20, fontWeight: '600', color: colors.textPrimary },
+  dateBtnPrimary: { backgroundColor: obColors.cta, borderColor: obColors.cta },
+  dateBtnPrimaryText: { fontFamily: obFonts.bodySemiBold, fontSize: 15, lineHeight: 20, color: '#FFFFFF' },
+  dateBtnText: { fontFamily: obFonts.bodySemiBold, fontSize: 15, lineHeight: 20, color: obColors.textPrimary },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1273,10 +1275,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#E4DCCB',
   },
   backBtn: { width: 40, alignItems: 'flex-start' },
-  backText: { fontSize: 24, color: colors.accent },
+  backText: { fontSize: 24, color: obColors.cta },
   headerCenter: {
     flex: 1,
     flexDirection: 'row',
@@ -1289,12 +1291,12 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#E8E8E8',
+    backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerAvatarInitial: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  headerName: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
+  headerAvatarInitial: { fontSize: 14, fontWeight: '700', color: obColors.textPrimary },
+  headerName: { fontFamily: obFonts.heading, fontSize: 19, lineHeight: 25, color: obColors.textPrimary },
   messagesList: { padding: 16, gap: 8, flexGrow: 1 },
   emptyWrap: {
     flex: 1,
@@ -1302,7 +1304,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 60,
   },
-  emptyText: { color: '#AAA', fontSize: 14, textAlign: 'center' },
+  emptyText: { color: obColors.textSecondary, fontSize: 14, textAlign: 'center' },
   lockedWrap: {
     flex: 1,
     alignItems: 'center',
@@ -1313,10 +1315,10 @@ const styles = StyleSheet.create({
   lockedTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: obColors.textPrimary,
     textAlign: 'center',
   },
-  lockedText: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22 },
+  lockedText: { fontSize: 15, color: obColors.textSecondary, textAlign: 'center', lineHeight: 22 },
   sendErrorText: {
     fontSize: 13,
     color: '#C0392B',
@@ -1324,25 +1326,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 6,
   },
-  lockedHint: { fontSize: 13, color: '#999', textAlign: 'center', marginTop: 8 },
+  lockedHint: { fontSize: 13, color: obColors.textSecondary, textAlign: 'center', marginTop: 8 },
   iceWrap: {
     paddingTop: 4,
     paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EFEFEF',
+    borderTopColor: '#E4DCCB',
   },
   iceTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.accent,
+    color: obColors.cta,
     marginBottom: 8,
     paddingHorizontal: 12,
   },
   iceSavedChip: {
     marginHorizontal: 12,
-    backgroundColor: '#FFF8E8',
+    backgroundColor: obColors.selectedFill,
     borderWidth: 1,
-    borderColor: '#1A1A1A',
+    borderColor: obColors.cta,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1350,7 +1352,7 @@ const styles = StyleSheet.create({
   iceChipText: {
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textPrimary,
+    color: obColors.textPrimary,
   },
   iceQuizRow: {
     flexDirection: 'row',
@@ -1362,15 +1364,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF8E8',
+    backgroundColor: obColors.selectedFill,
     borderWidth: 1,
-    borderColor: '#1A1A1A',
+    borderColor: obColors.cta,
     borderRadius: 14,
     paddingVertical: 12,
   },
   iceQuizEmoji: { fontSize: 24 },
-  iceQuizLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
-  iceQuizOr: { fontSize: 12, color: colors.textMuted },
+  iceQuizLabel: { fontSize: 13, fontWeight: '600', color: obColors.textPrimary },
+  iceQuizOr: { fontSize: 12, color: obColors.textSecondary },
   meetupBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1380,20 +1382,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 14,
-    backgroundColor: colors.bgSubtle,
+    backgroundColor: '#F1ECE1',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E4DCCB',
   },
   meetupBarIcon: { fontSize: 16 },
-  meetupBarText: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+  meetupBarText: { flex: 1, fontSize: 13, fontWeight: '600', color: obColors.textPrimary },
   meetupRespondCard: {
     marginHorizontal: 12,
     marginBottom: 8,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: colors.bgSubtle,
+    backgroundColor: '#F1ECE1',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E4DCCB',
     gap: 10,
   },
   meetupRespondRow: { flexDirection: 'row', gap: 8 },
@@ -1402,12 +1404,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 9,
     borderRadius: 12,
-    backgroundColor: colors.bgCard,
+    backgroundColor: '#FFFDF8',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E4DCCB',
   },
-  meetupRespondBtnText: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
-  meetupRespondYes: { backgroundColor: colors.accent, borderColor: colors.accent },
+  meetupRespondBtnText: { fontSize: 13, fontWeight: '600', color: obColors.textPrimary },
+  meetupRespondYes: { backgroundColor: obColors.cta, borderColor: obColors.cta },
   meetupRespondYesText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
   proposeBackdrop: {
     flex: 1,
@@ -1415,30 +1417,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   proposeSheet: {
-    backgroundColor: colors.bgCard,
+    backgroundColor: '#FFFDF8',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
     paddingBottom: 32,
     gap: 14,
   },
-  proposeTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
+  proposeTitle: { fontSize: 17, fontWeight: '700', color: obColors.textPrimary },
   slotChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   slotChip: {
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
-    backgroundColor: colors.bgSubtle,
+    backgroundColor: '#F1ECE1',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E4DCCB',
   },
-  slotChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-  slotChipText: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+  slotChipSelected: { backgroundColor: obColors.cta, borderColor: obColors.cta },
+  slotChipText: { fontSize: 13, fontWeight: '600', color: obColors.textPrimary },
   slotChipTextSelected: { color: '#FFF' },
   proposeCustomLink: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.accent,
+    color: obColors.cta,
     textDecorationLine: 'underline',
   },
   proposeTimePickerColumn: { alignItems: 'stretch', gap: 8 },
@@ -1447,17 +1449,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
   },
   proposeAddSlotBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
-  proposePlaceLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+  proposePlaceLabel: { fontSize: 13, fontWeight: '600', color: obColors.textSecondary },
   proposePlaceInput: {
-    backgroundColor: colors.bgSubtle,
+    backgroundColor: '#F1ECE1',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: obColors.textPrimary,
   },
   proposeBtnRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   proposeCancelBtn: {
@@ -1465,17 +1467,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 13,
     borderRadius: 14,
-    backgroundColor: colors.bgSubtle,
+    backgroundColor: '#F1ECE1',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E4DCCB',
   },
-  proposeCancelBtnText: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+  proposeCancelBtnText: { fontSize: 14, fontWeight: '600', color: obColors.textPrimary },
   proposeConfirmBtn: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 13,
     borderRadius: 14,
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
   },
   proposeConfirmBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
   msgWrap: { flexDirection: 'row', marginBottom: 6, alignItems: 'flex-end' },
@@ -1488,7 +1490,7 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     marginRight: 8,
-    backgroundColor: '#E8E8E8',
+    backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1497,11 +1499,11 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     marginLeft: 8,
-    backgroundColor: '#E8E8E8',
+    backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  msgAvatarInitial: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
+  msgAvatarInitial: { fontSize: 12, fontWeight: '700', color: obColors.textPrimary },
   bubble: {
     maxWidth: '75%',
     borderRadius: 16,
@@ -1509,14 +1511,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   bubbleMine: {
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
     borderBottomRightRadius: 4,
   },
   bubbleTheirs: {
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#FFFDF8',
     borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E4DCCB',
   },
-  bubbleText: { fontSize: 15, color: colors.textPrimary, lineHeight: 21 },
+  bubbleText: { fontFamily: obFonts.body, fontSize: 15.5, color: obColors.textPrimary, lineHeight: 22 },
   bubbleTextMine: { color: '#FFF' },
   inputRow: {
     flexDirection: 'row',
@@ -1524,34 +1528,34 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.bgCard,
+    borderTopColor: '#E4DCCB',
+    backgroundColor: '#FFFDF8',
   },
   inputRowLocked: { opacity: 0.85 },
   attachBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.bgSubtle,
+    backgroundColor: '#F1ECE1',
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
-    backgroundColor: colors.bgSubtle,
+    backgroundColor: '#F1ECE1',
     borderRadius: radius.pill,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
-    color: colors.textPrimary,
+    color: obColors.textPrimary,
     maxHeight: 100,
   },
-  inputDisabled: { backgroundColor: colors.bgSubtle, color: colors.textMuted },
+  inputDisabled: { backgroundColor: '#F1ECE1', color: obColors.textSecondary },
   sendBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
     alignItems: 'center',
     justifyContent: 'center',
   },

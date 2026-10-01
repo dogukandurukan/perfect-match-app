@@ -116,35 +116,35 @@ function typeIcon(type: NotificationType): IconSpec {
   switch (type) {
     case 'new_message':
     case 'message':
-      return { name: 'chatbubble-ellipses', color: '#3B7DD8', bg: '#E6EEFB' };
+      return { name: 'chatbubble-ellipses', color: obColors.cta, bg: obColors.selectedFill };
     case 'checkin':
     case 'check_in':
     case 'post_date':
-      return { name: 'location', color: '#0FA3A3', bg: '#E0F5F5' };
+      return { name: 'location', color: obColors.cta, bg: obColors.selectedFill };
     case 'match_expiring':
     case 'match_expiry':
     case 'expires_soon':
-      return { name: 'hourglass', color: '#E08A00', bg: '#FCEFD6' };
+      return { name: 'hourglass', color: obColors.cta, bg: obColors.selectedFill };
     // "Your activity" rows (demoted invites, likes sent) — one warm
     // accent-gold tone shared across both, distinguished by icon shape only,
     // instead of a mismatched green/red pair.
     case 'new_invite':
     case 'meeting_invite':
-      return { name: 'checkmark-circle-outline', color: colors.accent, bg: '#FBF3DF' };
+      return { name: 'checkmark-circle-outline', color: obColors.cta, bg: obColors.selectedFill };
     case 'mutual_match':
-      return { name: 'heart-circle', color: '#FF3B5C', bg: '#FFE7EC' };
+      return { name: 'heart-circle', color: obColors.cta, bg: obColors.selectedFill };
     case 'like_sent':
-      return { name: 'heart-outline', color: colors.accent, bg: '#FBF3DF' };
+      return { name: 'heart-outline', color: obColors.cta, bg: obColors.selectedFill };
     case 'date_proposed':
       return { name: 'calendar-outline', color: obColors.cta, bg: obColors.selectedFill };
     case 'date_accepted':
       return { name: 'calendar', color: obColors.cta, bg: obColors.selectedFill };
     case 'meetup_reminder':
-      return { name: 'cafe-outline', color: colors.accent, bg: '#FBF3DF' };
+      return { name: 'cafe-outline', color: obColors.cta, bg: obColors.selectedFill };
     case 'meetup_reminder_morning':
-      return { name: 'sunny-outline', color: colors.accent, bg: '#FBF3DF' };
+      return { name: 'sunny-outline', color: obColors.cta, bg: obColors.selectedFill };
     default:
-      return { name: 'notifications', color: colors.textMuted, bg: '#F0F0F0' };
+      return { name: 'notifications', color: colors.textMuted, bg: '#E4DCCB' };
   }
 }
 
@@ -554,14 +554,14 @@ function FeaturedCard({
           ? 'Say hi 👋'
           : 'Coffee invite';
   const badge: IconSpec = isMorning
-    ? { name: 'sunny', color: colors.accent, bg: '#FBF3DF' }
+    ? { name: 'sunny', color: obColors.cta, bg: obColors.selectedFill }
     : isMutualMatch
-      ? { name: 'heart-circle', color: '#FF3B5C', bg: '#FFE7EC' }
+      ? { name: 'heart-circle', color: obColors.cta, bg: obColors.selectedFill }
       : isReminder
-      ? { name: 'cafe', color: colors.accent, bg: '#FBF3DF' }
+      ? { name: 'cafe', color: obColors.cta, bg: obColors.selectedFill }
       : accepted
-        ? { name: 'checkmark-circle', color: '#2E9E5B', bg: '#E4F5EA' }
-        : { name: 'cafe', color: colors.accent, bg: '#FBF3DF' };
+        ? { name: 'checkmark-circle', color: obColors.cta, bg: obColors.selectedFill }
+        : { name: 'cafe', color: obColors.cta, bg: obColors.selectedFill };
 
   const place = introLines?.[0];
   const times = slotOptions ?? [];
@@ -628,7 +628,7 @@ function FeaturedCard({
 
         {isMorning ? (
           responding ? (
-            <ActivityIndicator size="small" color={colors.accent} />
+            <ActivityIndicator size="small" color={obColors.cta} />
           ) : (
             <View style={styles.respondRow}>
               <TouchableOpacity
@@ -653,7 +653,7 @@ function FeaturedCard({
           )
         ) : isReminder ? (
           responding ? (
-            <ActivityIndicator size="small" color={colors.accent} />
+            <ActivityIndicator size="small" color={obColors.cta} />
           ) : (
             <View style={styles.respondRow}>
               <TouchableOpacity
@@ -678,7 +678,7 @@ function FeaturedCard({
           )
         ) : accepted && pendingReview ? (
           responding ? (
-            <ActivityIndicator size="small" color={colors.accent} />
+            <ActivityIndicator size="small" color={obColors.cta} />
           ) : (
             <View style={styles.respondRow}>
               <TouchableOpacity
@@ -712,7 +712,7 @@ function FeaturedCard({
             <ThemedText style={styles.featuredCtaText}>Open chat</ThemedText>
           </View>
         ) : responding ? (
-          <ActivityIndicator size="small" color={colors.accent} />
+          <ActivityIndicator size="small" color={obColors.cta} />
         ) : (
           <View style={styles.respondRow}>
             <TouchableOpacity
@@ -744,7 +744,7 @@ function FeaturedCard({
       {!isMorning && !isReminder && !accepted && place ? (
         <View style={styles.featuredInfoBlock}>
           <View style={styles.featuredInfoRow}>
-            <Ionicons name="location-outline" size={13} color={colors.accent} />
+            <Ionicons name="location-outline" size={13} color={obColors.cta} />
             <ThemedText style={styles.featuredInfoText} numberOfLines={1}>
               {showCustomPlace && customPlace.trim() ? customPlace.trim() : place}
             </ThemedText>
@@ -855,7 +855,7 @@ function FeaturedCard({
         <View style={styles.featuredInfoBlock}>
           {confirmedPlace || place ? (
             <View style={styles.featuredInfoRow}>
-              <Ionicons name="location-outline" size={13} color={colors.accent} />
+              <Ionicons name="location-outline" size={13} color={obColors.cta} />
               <ThemedText style={styles.featuredInfoText} numberOfLines={1}>
                 {confirmedPlace || place}
               </ThemedText>
@@ -866,7 +866,7 @@ function FeaturedCard({
               <Ionicons
                 name={pendingReview ? 'time-outline' : 'checkmark-circle-outline'}
                 size={13}
-                color={pendingReview ? colors.accent : '#2E9E5B'}
+                color={pendingReview ? obColors.cta : obColors.cta}
               />
               <ThemedText style={styles.featuredInfoText} numberOfLines={1}>
                 {confirmedSlot}
@@ -1720,7 +1720,8 @@ export default function NotificationsScreen() {
   return (
     <ScreenContainer style={styles.container}>
       <View style={styles.headerRow}>
-        <ThemedText style={styles.pageTitle}>Activity</ThemedText>
+        {/* The tab header already says "Activity" (shared header layout). */}
+        <View style={{ flex: 1 }} />
         {hasUnread ? (
           <TouchableOpacity
             onPress={() => void handleMarkAllRead()}
@@ -1734,7 +1735,7 @@ export default function NotificationsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={styles.loader} />
+        <ActivityIndicator color={obColors.cta} style={styles.loader} />
       ) : error ? (
         <ErrorState onRetry={() => void fetchNotifications()} />
       ) : items.filter((r) => !isRetiredType(r.type)).length === 0 && likeCount === 0 && (v2Enabled || waitingOnThem.length === 0) ? (
@@ -1776,7 +1777,7 @@ const styles = StyleSheet.create({
   markAllBtn: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.accent,
+    color: obColors.cta,
   },
   loader: { marginTop: 40 },
   list: { paddingBottom: 32 },
@@ -1797,7 +1798,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderColor: obColors.selectedFill,
     padding: 16,
     marginTop: 14,
   },
@@ -1822,7 +1823,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderColor: obColors.selectedFill,
     padding: 16,
     marginTop: 6,
   },
@@ -1851,7 +1852,7 @@ const styles = StyleSheet.create({
     aspectRatio: 0.72,
     borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: '#EDE2C2',
+    backgroundColor: '#E4DCCB',
   },
   likeGridImg: { width: '100%', height: '100%' },
   likeGridScrim: {
@@ -1878,7 +1879,7 @@ const styles = StyleSheet.create({
     aspectRatio: 0.72,
     borderRadius: 22,
     overflow: 'hidden',
-    backgroundColor: '#EDE2C2',
+    backgroundColor: '#E4DCCB',
   },
   likeCarouselImg: { width: '100%', height: '100%' },
   likeCarouselScrim: {
@@ -1906,7 +1907,7 @@ const styles = StyleSheet.create({
   likeTileFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E6D6A8',
+    backgroundColor: '#E4DCCB',
   },
   // Locked "who likes you" placeholder tile — distinct from likeTileFallback
   // (that one's for a real, unlocked person who just has no photo; reusing
@@ -1937,12 +1938,12 @@ const styles = StyleSheet.create({
   likeTileInitial: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#1A1A1A',
+    color: obColors.cta,
   },
   likeTileMore: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
   },
   likeTileMoreText: {
     fontSize: 22,
@@ -1956,7 +1957,7 @@ const styles = StyleSheet.create({
     gap: 9,
     paddingVertical: 16,
     borderRadius: radius.pill,
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
     shadowColor: '#000000',
@@ -1977,9 +1978,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#EFE4C4',
+    borderColor: '#E4DCCB',
     marginBottom: 10,
-    shadowColor: '#8A6D1A',
+    shadowColor: obColors.cta,
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
@@ -1991,8 +1992,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   featuredUnread: {
-    backgroundColor: '#FFFDF6',
-    borderColor: '#EBD9A6',
+    backgroundColor: '#FFFDF8',
+    borderColor: '#E4DCCB',
   },
   featuredAvatarWrap: { width: 52, height: 52 },
   featuredAvatar: {
@@ -2004,12 +2005,12 @@ const styles = StyleSheet.create({
   featuredAvatarFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1E6C6',
+    backgroundColor: '#E4DCCB',
   },
   featuredInitial: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1A1A1A',
+    color: obColors.cta,
   },
   featuredBadge: {
     position: 'absolute',
@@ -2037,7 +2038,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EFE4C4',
+    borderTopColor: '#E4DCCB',
     gap: 4,
   },
   featuredInfoRow: {
@@ -2072,7 +2073,7 @@ const styles = StyleSheet.create({
   // the <DateTimePicker> itself, not fixable from a style prop alone.
   timePickerSpinner: { alignSelf: 'stretch', width: '100%', height: 180, backgroundColor: '#FFFFFF' },
   addSlotBtnWide: {
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
     borderRadius: radius.md,
     paddingVertical: 12,
     alignItems: 'center',
@@ -2083,12 +2084,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: '#EFE4C4',
+    borderColor: '#E4DCCB',
     backgroundColor: '#FFFFFF',
   },
   slotChipSelected: {
-    borderColor: colors.accent,
-    backgroundColor: '#FFF8E1',
+    borderColor: obColors.cta,
+    backgroundColor: obColors.selectedFill,
   },
   slotChipText: {
     fontSize: 12.5,
@@ -2096,7 +2097,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   slotChipTextSelected: {
-    color: colors.accent,
+    color: obColors.cta,
   },
   slotCustomInput: {
     marginTop: 8,
@@ -2104,25 +2105,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.accent,
-    backgroundColor: '#FFFBF0',
+    borderColor: obColors.cta,
+    backgroundColor: '#FFFDF8',
     fontSize: 13,
     color: colors.textPrimary,
   },
   placeSuggestLink: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: colors.accent,
+    color: obColors.cta,
     marginTop: 2,
   },
   featuredCta: {
     paddingVertical: 9,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
   },
   featuredCtaAccepted: {
-    backgroundColor: '#2E9E5B',
+    backgroundColor: obColors.cta,
   },
   featuredCtaText: {
     fontSize: 13,
@@ -2136,7 +2137,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#E4DCCB',
   },
   respondAccept: {
     width: 32,
@@ -2144,10 +2145,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2E9E5B',
+    backgroundColor: obColors.cta,
   },
   respondAcceptDisabled: {
-    backgroundColor: '#C9C9C9',
+    backgroundColor: obColors.border,
   },
 
   // --- Compact feed row ---
@@ -2161,11 +2162,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: '#E4DCCB',
   },
   rowUnread: {
-    backgroundColor: '#FFF8E1',
-    borderColor: '#FFE082',
+    backgroundColor: obColors.selectedFill,
+    borderColor: obColors.selectedFill,
   },
   rowIconWrap: {
     width: 38,
@@ -2189,7 +2190,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.accent,
+    backgroundColor: obColors.cta,
     marginLeft: 4,
   },
   empty: {

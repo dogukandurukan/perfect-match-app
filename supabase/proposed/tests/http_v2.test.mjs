@@ -165,7 +165,7 @@ async function main() {
   await db.exec(buildReplicaSql());
   for (const f of ['20260928130000_p0a_privacy_additive.sql', '20260930090000_p1_private_photos.sql',
     '20260930120000_v2_onboarding_persistence.sql', '20260930140000_v2_review_discovery_media.sql',
-    '20261001090000_v2_public_profile.sql', '20261001120000_v2_match_chat_date.sql']) {
+    '20261001090000_v2_public_profile.sql', '20261001120000_v2_match_chat_date.sql', '20261001140000_v2_discovery_skip_liked.sql']) {
     await db.exec(fs.readFileSync(path.join(proposed, f), 'utf8'));
   }
   // seed: auth users; legacy V1 members L and W; V2 member M activated by a reviewer
@@ -536,6 +536,10 @@ async function run() {
   check((await as(X, `insert into likes(liker_id, likee_id, target_type, status) values ('${X}','${Y}','profile','sent')`)).ok, 'X likes Y');
   check((await pairRows()).every((r) => r.status !== 'accepted' && r.chat_opened !== true), 'a one-sided like opens no match and no chat');
   check((await as(X, `select * from public.get_my_matches_v2()`)).rows?.length === 0, 'one-sided like: Matches stays empty');
+  check(!(await as(X, `select user_id from public.get_discovery_candidates_v2(50)`)).rows.some((r) => r.user_id === Y),
+    'someone you liked is not shown again in Discover');
+  check((await as(Y, `select user_id from public.get_discovery_candidates_v2(50)`)).rows.some((r) => r.user_id === X),
+    'the liked person still sees the liker (nothing else changes)');
   check((await as(Y, `insert into likes(liker_id, likee_id, target_type, status) values ('${Y}','${X}','profile','sent')`)).ok, 'Y likes X back');
   const pairNow = await pairRows();
   check(pairNow.length === 1 && pairNow[0].status === 'accepted' && pairNow[0].chat_opened === true && pairNow[0].source === 'mutual_like',

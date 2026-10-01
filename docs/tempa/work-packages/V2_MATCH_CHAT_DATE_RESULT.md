@@ -258,3 +258,115 @@ Reload (Metro `r`), signed in as the DEV test account. Run the commands from `~/
 3. Tap **Suggest another time** → pick a time → Send. Then `… date-partner.mjs accept` → the card shows **Accepted**. Plans → **Confirmed**.
 4. Receiver side from scratch: `… date-partner.mjs propose` → on the phone, **Not now** → the card shows "Not now". A new `propose` works again.
 5. Activity: "Test suggested a date / another time" and "Test accepted your date" rows, each opening the chat. "Likes you" tiles stay locked (not premium).
+
+---
+
+# Round 3 (2026-10-01): DEV profile pool, "Suggest a date" redesign, theme fixes
+
+Branch `tempa/v2-persist-r2`, from `c0902cb` (clean, same as origin). Perfect-match-dev only; AI HQ not touched.
+
+The phone account was checked after the round and is unchanged:
+- its match with "Test" is still accepted with the chat open;
+- your one message is still there — you picked and sent the icebreaker yourself; that user-chosen feature is kept;
+- no suggestions;
+- likes and the like quota are unchanged.
+
+## A. Why Discover ran out — and the DEV pool
+
+**Diagnosis:** this was a **shortage of candidates, not a filter bug**.
+- Running `get_discovery_candidates_v2` with the phone account's identity on the server, only three synthetic women matched its filters (a 30-year-old man looking for women, İstanbul, 18–60):
+    - one was already your match;
+    - you liked the other two, so the session list ran out.
+- Separate real flaw: someone you liked but who hasn't answered **came back after a reload** (discovery didn't exclude your own likes).
+    - Fixed in `20261001140000_v2_discovery_skip_liked.sql`, applied to dev via `apply-dev.mjs skipliked`. It only adds that exclusion; nothing is loosened.
+    - The replica checks both sides: you no longer see them; they still see you.
+
+**Pool:** `scripts/dev-backend/seed-dev-pool.mjs` created **18 synthetic V2 members**:
+- women interested in men (every 5th "everyone"), İstanbul, ages 24–38;
+- varied names, jobs, prompts, interests, values, lifestyles and first-date preferences;
+- **5 are sparse** (no job / school / hometown / tastes / spot) so the hiding of empty fields shows.
+
+Each one went through the **normal path**:
+1. real email-code sign-in;
+2. `save_onboarding_v2` per section;
+3. photo upload to the private bucket + `add_profile_photo_v2`;
+4. prompts, selfie, consent;
+5. `submit_application_v2`;
+6. reviewer accept via `review_application_v2`.
+
+Nothing is embedded in the app. The e-mails are `tempa-pool-NN@tempa-test.example.com`, and the private surname is "Synthetic".
+
+**Re-run** (`seed-dev-pool.mjs`): "0 created, 0 completed, 18 already there" — **no duplicates**. No likes, matches, messages or date answers are created.
+
+**Photos:** generated flat-illustration adult portraits (`scripts/dev-backend/portraits.mjs`):
+- three per person: close-up, scene and interest still life;
+- each tagged **"DEV · SYNTHETIC"**;
+- no real people and no external images; we made them, so the usage right is ours;
+- rendered with macOS Quick Look, no new dependency.
+
+**Checks** (`seed-dev-pool.mjs --verify`, as another synthetic İstanbul man through the normal viewer path):
+- 18 / 18 pool members appear in Discover;
+- 18 profiles open with only the allowed fields, 3 photos and ≥ 2 prompts;
+- the first photo signs and loads (> 10 KB);
+- 5 sparse profiles return their empty fields as null / [].
+
+**Phone account:** 19 Discover candidates (the 18 pool members plus the older smoke-test woman `dab90d03-…`).
+
+**Note:** older smoke-test accounts named "Test" with solid-colour photos still exist. They were not deleted (only on request). This round I did not run `smoke_v2.mjs`, because it creates two more such accounts each time.
+
+## B. "Suggest a date" (V2 chat) — new sheet
+
+`components/chat/SuggestDateSheet.tsx` uses the approved theme:
+- ivory sheet, Playfair title "Suggest a date" / "Suggest another time", and the other person's small photo + "with {name}".
+
+Fields:
+- **Day:** short horizontal day cards (today + 13 days), plus **Another date** (date picker, up to the server's 120-day window).
+- **Time:** chosen **explicitly** from time chips; nothing is preselected and nothing is inferred from the general V2 preferences (D57). Today's past or too-near times are disabled. **Other time** opens a time picker.
+- **Place (optional):** placeholder **"Decide together"**.
+
+The footer, which stays above the keyboard, holds:
+- the live summary (e.g. "Sun 4 Oct · 19:30 · Decide together");
+- **Send suggestion**, enabled only for a time at least 5 minutes ahead.
+
+The server logic is unchanged (`propose_date_v2` / `respond_date_v2`, idempotent request id). The previous round's preference-based "ideas" were removed per this request. Helpers are in `lib/onboardingV2/dateSuggestions.ts`; the checks pass 10 / 10 in four time zones.
+
+**In-chat card** uses the same language:
+- a pending suggestion is a **dashed** card "DATE SUGGESTION · You / {name} suggested · time · place or Decide together", with "Awaiting reply", or Accept / Suggest another time / Not now;
+- only an accepted one becomes a solid sage card **"PLAN CONFIRMED"**;
+- answered / cancelled ones are muted.
+
+## C. Theme fixes seen on the phone
+
+- **Chat:** ivory background; my bubbles forest green; theirs cream with a thin border; DM Sans text; Playfair name; sage accents. The grey / white and black are gone. The icebreaker stays user-chosen.
+- **Activity and Chats:** the duplicated in-body titles are removed; the shared tab header keeps the title. In Activity, "Mark all as read" stays on the right.
+- **Activity buttons / icons:** moved to the shared palette (forest green on pale sage; the old blue / teal / orange / pink / gold tints are replaced).
+- **Matches:** the subtitle is now **"Start with a hello."** On match cards the text gets the full width (up to 2 lines) with the action below, so nothing is cut off.
+
+## D. Tests
+
+| Run this round | Where | Result |
+|---|---|---|
+| `seed-dev-pool.mjs` + re-run (idempotency) | **real services** | 18 created → 0 created / 18 kept |
+| `seed-dev-pool.mjs --verify` | real services | 18 / 18 in Discover, 18 profiles OK, 5 sparse |
+| `smoke_match_chat_v2.mjs` | real services | 51 / 51 |
+| `smoke.mjs --stage p0b` | real services | 38 / 38 |
+| `http_v2.test.mjs` (replica, + skip-liked checks) | local | 210 / 210 |
+| `tsc --noEmit` | local | clean |
+| Onboarding logic, incl. new **suggest-a-date 10 / 10** | local | 45 · 69 · 56 · 6 · 10 |
+
+Earlier runs (not repeated): `smoke_v2` 83 / 83.
+
+**Waiting for the phone** (none of it verified on a device):
+- the new sheet's look, the keyboard behaviour and the iOS pickers;
+- the themed chat, cards, Activity and Matches;
+- the portraits as displayed.
+
+## E. Phone check (≤ 5)
+
+Reload (Metro `r`).
+
+1. **Discover:** illustrated "DEV · SYNTHETIC" portraits with names (Elif, Zeynep, …). Some profiles show no job / school / tastes, with no empty headings. After liking someone and reloading, they don't come back.
+2. Chat with Test → **+ → Suggest a date:** the sheet shows the photo + "with Test" and Day / Time / Place. **Send suggestion** stays disabled until a day and a time are picked. With the keyboard open on Place, the summary and the button stay visible. Send → a dashed "Date suggestion · Awaiting reply" card.
+3. `node scripts/dev-backend/date-partner.mjs counter`, then `… accept` after your own counter: the accepted card turns solid sage "Plan confirmed"; the others look muted.
+4. **Chat look:** ivory background, green / cream bubbles, no black. **Activity / Chats:** one title each; Activity buttons and icons green.
+5. **Matches:** subtitle "Start with a hello."; the card text isn't cut off and the button sits under it.

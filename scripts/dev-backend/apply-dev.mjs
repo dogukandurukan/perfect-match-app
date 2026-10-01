@@ -22,8 +22,9 @@ const files = {
   p0b: ['20260928130100_p0b_privacy_restrict.sql'],
   profile: ['20261001090000_v2_public_profile.sql'],
   matchchat: ['20261001120000_v2_match_chat_date.sql'],
+  skipliked: ['20261001140000_v2_discovery_skip_liked.sql'],
 }[stage];
-if (!files) fail('usage: apply-dev.mjs p0a|v2|p0b|profile|matchchat');
+if (!files) fail('usage: apply-dev.mjs p0a|v2|p0b|profile|matchchat|skipliked');
 
 const linkedDir = path.join(os.homedir(), 'dating-app-recovered');
 const linked = fs.readFileSync(path.join(linkedDir, 'supabase', '.temp', 'project-ref'), 'utf8').trim();

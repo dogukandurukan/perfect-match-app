@@ -193,7 +193,6 @@ export default function MessagesScreen() {
 
   return (
     <ScreenContainer style={styles.container}>
-      <ThemedText style={styles.title}>Chats</ThemedText>
 
       {loading ? (
         <View style={styles.emptyWrap}>
