@@ -2,9 +2,12 @@
 // section's in-memory draft (buildProfilePreview) as one scrolling page. Never
 // shows surname, exact DOB, email, phone or the private selfie. No note/send
 // controls here: contextual notes belong to the future visitor profile (D45).
+// Opt-in `onLike` (DEV Matches design preview only, 2026-10-02): shows a
+// heart on each photo and prompt. Without it the profile renders exactly as
+// before (own preview, other members' profiles).
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewBlock, PreviewFact } from '@/lib/onboardingV2/yourProfile';
@@ -109,10 +112,37 @@ function BottomFade() {
   );
 }
 
-export function ProfilePreview({ blocks }: { blocks: PreviewBlock[] }) {
+/** What a heart on the profile points at. Photo index 0 is the main photo. */
+export type ProfileLikeTarget =
+  | { kind: 'photo'; photoIndex: number; uri: string }
+  | { kind: 'prompt'; label: string; answer: string };
+
+function LikeHeart({ label, onPress, onPhoto }: { label: string; onPress: () => void; onPhoto?: boolean }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.heart, onPhoto ? styles.heartOnPhoto : styles.heartOnCard]}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={label}>
+      <Ionicons name="heart-outline" size={22} color={obColors.cta} importantForAccessibility="no" />
+    </TouchableOpacity>
+  );
+}
+
+export function ProfilePreview({
+  blocks,
+  onLike,
+}: {
+  blocks: PreviewBlock[];
+  onLike?: (target: ProfileLikeTarget) => void;
+}) {
+  let photoIndex = -1;
   return (
     <View style={styles.wrap}>
       {blocks.map((b, i) => {
+        if (b.type === 'hero' || b.type === 'photo') photoIndex += 1;
+        const idx = photoIndex;
         switch (b.type) {
           case 'header':
             return (
@@ -127,12 +157,15 @@ export function ProfilePreview({ blocks }: { blocks: PreviewBlock[] }) {
               <View key={i} style={styles.card} accessible accessibilityLabel={`Main photo. ${label}`}>
                 <Image source={{ uri: b.photo.uri }} style={styles.photo} contentFit="cover" accessible={false} />
                 <BottomFade />
-                <View style={styles.heroText} pointerEvents="none">
+                <View style={[styles.heroText, onLike && styles.heroTextWithHeart]} pointerEvents="none">
                   <Text style={styles.heroName} numberOfLines={2} maxFontSizeMultiplier={1.3}>
                     {b.name || 'Your first name'}
                     {b.age !== null ? <Text style={styles.heroAge}>, {b.age}</Text> : null}
                   </Text>
                 </View>
+                {onLike ? (
+                  <LikeHeart onPhoto label="Like main photo" onPress={() => onLike({ kind: 'photo', photoIndex: idx, uri: b.photo.uri })} />
+                ) : null}
               </View>
             );
           }
@@ -140,6 +173,9 @@ export function ProfilePreview({ blocks }: { blocks: PreviewBlock[] }) {
             return (
               <View key={i} style={styles.card}>
                 <Image source={{ uri: b.photo.uri }} style={styles.photo} contentFit="cover" accessibilityLabel="Profile photo" />
+                {onLike ? (
+                  <LikeHeart onPhoto label={`Like photo ${idx + 1}`} onPress={() => onLike({ kind: 'photo', photoIndex: idx, uri: b.photo.uri })} />
+                ) : null}
               </View>
             );
           case 'facts':
@@ -172,9 +208,12 @@ export function ProfilePreview({ blocks }: { blocks: PreviewBlock[] }) {
                 <Text style={styles.promptLabel} maxFontSizeMultiplier={1.6}>
                   {b.label}
                 </Text>
-                <Text style={styles.promptAnswer} maxFontSizeMultiplier={1.6}>
+                <Text style={[styles.promptAnswer, onLike && styles.promptAnswerWithHeart]} maxFontSizeMultiplier={1.6}>
                   {b.answer}
                 </Text>
+                {onLike ? (
+                  <LikeHeart label={`Like answer: ${b.label}`} onPress={() => onLike({ kind: 'prompt', label: b.label, answer: b.answer })} />
+                ) : null}
               </View>
             );
           case 'taste':
@@ -232,6 +271,9 @@ const styles = StyleSheet.create({
     left: obSpacing.lg,
     right: obSpacing.lg,
     bottom: obSpacing.lg,
+  },
+  heroTextWithHeart: {
+    right: 72,
   },
   heroName: {
     fontFamily: obFonts.heading,
@@ -312,6 +354,25 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 29,
     color: obColors.textPrimary,
+  },
+  promptAnswerWithHeart: {
+    paddingRight: 52,
+  },
+  heart: {
+    position: 'absolute',
+    right: obSpacing.md,
+    bottom: obSpacing.md,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heartOnPhoto: {
+    backgroundColor: 'rgba(255,253,248,0.94)',
+  },
+  heartOnCard: {
+    backgroundColor: obColors.selectedFill,
   },
   tasteRow: {
     flexDirection: 'row',

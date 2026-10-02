@@ -121,6 +121,18 @@ export function V2ProfileHome() {
         </Text>
       </View>
 
+      {__DEV__ ? (
+        // DEV-only entry to the local Matches design preview (no real data).
+        <TouchableOpacity
+          onPress={() => router.push('/dev/matches-preview' as never)}
+          accessibilityRole="button"
+          hitSlop={10}
+          style={styles.devEntry}>
+          <Ionicons name="construct-outline" size={18} color={obColors.textSecondary} importantForAccessibility="no" />
+          <Text style={styles.devEntryText}>Matches design preview (DEV)</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <TouchableOpacity onPress={signOut} accessibilityRole="button" hitSlop={10} style={styles.signOut}>
         <Text style={styles.link}>Sign out</Text>
       </TouchableOpacity>
@@ -147,4 +159,17 @@ const styles = StyleSheet.create({
   body: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary, textAlign: 'center' },
   link: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.cta, textDecorationLine: 'underline' },
   signOut: { alignSelf: 'center', minHeight: 44, justifyContent: 'center' },
+  devEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: obSpacing.sm,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: obColors.border,
+    backgroundColor: obColors.notice,
+  },
+  devEntryText: { fontFamily: obFonts.bodyMedium, fontSize: 15, lineHeight: 20, color: obColors.textSecondary },
 });
