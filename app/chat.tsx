@@ -32,7 +32,7 @@ import {
 import { logEvent } from '@/lib/analytics';
 import { radius } from '@/lib/designTokens';
 import { formatMeetingTime, orderedPair, suggestMeetingTimes } from '@/lib/matchInvite';
-import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
+import { forgetProfilePhotoUrls, resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase, v2Enabled } from '@/lib/supabaseClient';
 import { isSendableTime } from '@/lib/onboardingV2/dateSuggestions';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
@@ -96,6 +96,7 @@ export default function ChatScreen() {
   // in-chat cards. The suggestion is opened by the user from the + menu —
   // no persistent bar, no pop-up.
   const [chatState, setChatState] = useState<ChatState | null>(null);
+  const [chatStateLoaded, setChatStateLoaded] = useState(false);
   const [counterTarget, setCounterTarget] = useState<Proposal | null>(null);
   const [answering, setAnswering] = useState<string | null>(null);
   const proposeRequestRef = useRef<string | null>(null);
@@ -241,10 +242,25 @@ export default function ChatScreen() {
     }, [resolveMatchAndGate]),
   );
 
+  // When the server says the chat ended (unmatch / block / deletion), drop
+  // what this screen holds: messages, the header photo, cached signed URLs,
+  // and refresh the unread badge.
+  useEffect(() => {
+    if (!v2Enabled || !chatStateLoaded) return;
+    if (chatState && chatState.active) return;
+    setMessages([]);
+    setHeaderPhotoUrl(null);
+    if (otherUserId) forgetProfilePhotoUrls(otherUserId);
+    void emitUnreadMessageCount();
+  }, [chatState, chatStateLoaded, otherUserId]);
+
   const refreshChatState = useCallback(async () => {
     if (!v2Enabled || !matchId) return;
     const r = await loadChatState(matchId);
-    if (r.ok) setChatState(r.value);
+    if (r.ok) {
+      setChatState(r.value);
+      setChatStateLoaded(true);
+    }
   }, [matchId]);
 
   // On focus, and every 20 s while the chat is open (suggestions are not on
@@ -663,9 +679,8 @@ export default function ChatScreen() {
   }
 
   function openChatMenu() {
-    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
-      { text: 'View profile', onPress: openUserProfile },
-    ];
+    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] =
+      chatEnded ? [] : [{ text: 'View profile', onPress: openUserProfile }];
     if (matchId && chatState?.active) {
       buttons.push({
         text: 'Unmatch',
@@ -801,10 +816,12 @@ export default function ChatScreen() {
     );
   }
 
-  const chatLoading = chatOpened === null;
+  // V2: wait for the server's chat state before showing any history, so an
+  // ended / blocked chat never flashes its messages.
+  const chatLoading = chatOpened === null || (v2Enabled && !!matchId && !chatStateLoaded);
   // V2: the server decides whether this chat is still active (unmatched or
   // blocked chats end; their history stays readable).
-  const chatEnded = v2Enabled && chatState !== null && chatState.active === false;
+  const chatEnded = v2Enabled && chatStateLoaded && (chatState === null || chatState.active === false);
   const inputLocked = chatOpened === false || chatEnded;
   const inputDisabled = chatLoading || inputLocked;
   const showIcebreakers =
@@ -848,6 +865,7 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={openUserProfile}
+          disabled={chatEnded}
           style={styles.headerCenter}
           activeOpacity={0.7}>
           {headerPhotoUrl ? (
@@ -883,7 +901,7 @@ export default function ChatScreen() {
           <View style={styles.lockedWrap}>
             <ThemedText style={styles.lockedTitle}>{chatEnded ? 'This conversation has ended' : 'Chat is locked'}</ThemedText>
             <ThemedText style={styles.lockedText}>
-              {chatEnded ? 'You can no longer send messages or suggest a date here.' : `Chat opens once ${userName} accepts.`}
+              {chatEnded ? 'This chat is no longer available.' : `Chat opens once ${userName} accepts.`}
             </ThemedText>
             {matchId ? (
               <ThemedText style={styles.lockedHint}>You can go back to Matches to wait.</ThemedText>

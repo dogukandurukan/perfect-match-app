@@ -12,7 +12,8 @@ import { colors } from '@/lib/designTokens';
 import { formatRelativeTime } from '@/lib/labels';
 import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, v2Enabled } from '@/lib/supabaseClient';
+import { loadMyMatches } from '@/lib/matchChatV2';
 import { emitUnreadMessageCount } from '@/lib/unreadMessageCount';
 
 const EMPTY_CHAT_PREVIEW = 'You matched — say hi 👋';
@@ -45,6 +46,33 @@ export default function MessagesScreen() {
     if (!currentUserId) return;
     setLoading(true);
     setError(false);
+
+    // V2 backends: the list comes from the server's authorised, current
+    // relationships only (get_my_matches_v2 — accepted, chat open, no block
+    // either way, neither account deleted). Ended (unmatched) and blocked
+    // pairs are not listed; their messages stay in the database.
+    if (v2Enabled) {
+      const r = await loadMyMatches();
+      if (!r.ok) {
+        setError(true);
+        setLoading(false);
+        return;
+      }
+      await preloadProfilePhotoUrls(r.value.map((m) => m.photo_path));
+      setConversations(
+        r.value.map((m) => ({
+          userId: m.other_id,
+          userName: m.first_name?.trim() || 'Your match',
+          lastMessage: m.last_message ?? '',
+          lastAt: m.last_message_at ?? m.matched_at,
+          matchId: m.match_id,
+          photoUrl: cachedProfilePhotoUrl(m.photo_path),
+        })),
+      );
+      setLoading(false);
+      void emitUnreadMessageCount();
+      return;
+    }
 
     const [{ data: msgs, error: msgsError }, { data: openMatches, error: matchesError }] =
       await Promise.all([

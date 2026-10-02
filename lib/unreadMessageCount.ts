@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, v2Enabled } from '@/lib/supabaseClient';
 
 type UnreadListener = (count: number) => void;
 const listeners = new Set<UnreadListener>();
@@ -28,6 +28,14 @@ export async function fetchUnreadMessageCount(): Promise<number> {
   } = await supabase.auth.getSession();
   const user = session?.user;
   if (!user) return 0;
+
+  // V2 backends: count only conversations that are still active on the
+  // server (ended / blocked chats no longer count, matching the Chats list).
+  if (v2Enabled) {
+    const { data, error: rpcError } = await supabase.rpc('get_my_matches_v2');
+    if (rpcError || !Array.isArray(data)) return 0;
+    return (data as { unread: number }[]).filter((m) => (m.unread ?? 0) > 0).length;
+  }
 
   const { data: msgs, error } = await supabase
     .from('messages')

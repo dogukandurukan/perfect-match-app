@@ -129,6 +129,16 @@ async function main() {
   check(nB.some((n) => n.type === 'date_proposed') && nB.some((n) => n.type === 'date_accepted') && nA.some((n) => n.type === 'date_proposed'),
     'real Activity events: date_proposed / date_accepted');
 
+  // ---- Chats list (same server source as Matches: get_my_matches_v2) ----------
+  const listB = (await B.rpc('get_my_matches_v2')).data ?? [];
+  check(listB.length === 1 && listB[0].last_message === 'Hello!' && listB[0].last_from_me === false && listB[0].unread === 1,
+    'Chats: B sees the conversation with the last message and 1 unread');
+  await admin.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', WOMAN);
+  check(((await A.rpc('get_my_matches_v2')).data ?? []).length === 0 && (await A.rpc('get_chat_v2', { p_match: mid })).data?.active === false,
+    'Chats: a deleted account leaves the list and the chat is inactive');
+  await admin.from('profiles').update({ deleted_at: null }).eq('id', WOMAN);
+  check(((await A.rpc('get_my_matches_v2')).data ?? []).length === 1, 'Chats: restored account is back (test reset)');
+
   // ---- outsider ---------------------------------------------------------------
   check((await O.rpc('get_chat_v2', { p_match: mid })).data === null, 'outsider: no chat state');
   check(((await O.from('date_proposals_v2').select('id').eq('match_id', mid)).data ?? []).length === 0, 'outsider: cannot read suggestions');
@@ -157,6 +167,9 @@ async function main() {
   check((await B.rpc('get_profile_v2', { p_user: MAN })).data === null && (await A.rpc('get_profile_v2', { p_user: WOMAN })).data === null,
     'after unmatch: profiles closed both ways (old card / direct link)');
   check(((await B.rpc('get_my_matches_v2')).data ?? []).length === 0, 'after unmatch: gone from Matches');
+  check((await B.rpc('get_chat_v2', { p_match: mid })).data?.active === false, 'after unmatch: direct chat link shows an inactive chat');
+  const kept = ((await admin.from('messages').select('id').or(`and(sender_id.eq.${MAN},receiver_id.eq.${WOMAN}),and(sender_id.eq.${WOMAN},receiver_id.eq.${MAN})`)).data ?? []).length;
+  check(kept >= 1, 'after unmatch: messages are kept in the database (not deleted)');
   check(!((await B.rpc('get_discovery_candidates_v2', { p_limit: 50 })).data ?? []).some((r) => r.user_id === MAN), 'after unmatch: not back in Discover');
 
   fs.writeFileSync(path.join(outDir, `evidence-match-chat-${Date.now()}.json`), JSON.stringify({ mid, results,
