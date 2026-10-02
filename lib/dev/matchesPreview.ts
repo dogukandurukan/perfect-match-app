@@ -175,6 +175,29 @@ export const PREVIEW_PEOPLE: Record<PreviewPersonKey, PreviewPerson> = {
   },
 };
 
+/** A heart tap on the shared profile (same shape as ProfilePreview's
+ * ProfileLikeTarget): photo index 0 is the main photo. */
+export type TappedLikeTarget =
+  | { kind: 'photo'; photoIndex: number; uri: string }
+  | { kind: 'prompt'; label: string; answer: string };
+
+export type SelectedLikeContent =
+  | { kind: 'photo'; title: string; uri: string; a11y: string }
+  | { kind: 'prompt'; title: string; label: string; answer: string; a11y: string };
+
+/** What the like sheet shows: exactly the tapped photo or prompt answer. */
+export function selectedLikeContent(t: TappedLikeTarget, name: string): SelectedLikeContent {
+  if (t.kind === 'photo') {
+    return {
+      kind: 'photo',
+      title: `Like ${name}’s photo`,
+      uri: t.uri,
+      a11y: t.photoIndex === 0 ? 'Selected: main photo' : `Selected: photo ${t.photoIndex + 1}`,
+    };
+  }
+  return { kind: 'prompt', title: `Like ${name}’s answer`, label: t.label, answer: t.answer, a11y: `Selected: ${t.label} ${t.answer}` };
+}
+
 /** "Defne, 29" — for accessibility labels and the like sheet. */
 export function personLabel(p: PreviewPerson): string {
   return p.age !== null ? `${p.name}, ${p.age}` : p.name;

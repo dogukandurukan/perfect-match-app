@@ -10,6 +10,7 @@ import { useEffect, useMemo, useReducer, useState } from 'react';
 import {
   BackHandler,
   Image as RNImage,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -33,6 +34,7 @@ import {
   PREVIEW_COPY as C,
   PREVIEW_PEOPLE,
   previewReducer,
+  selectedLikeContent,
   type PreviewPersonKey,
   type PreviewScenario,
 } from '@/lib/dev/matchesPreview';
@@ -51,6 +53,14 @@ const PHOTOS: Record<PreviewPersonKey, number[]> = {
     require('../../assets/dev/matches-preview/ipek-3.png'),
   ],
 };
+
+// Smooth dark fade under the name: a bundled 4×256 alpha-ramp PNG stretched
+// over the photo (no gradient native module → no dev-client rebuild).
+const FADE = require('../../assets/dev/matches-preview/fade.png');
+
+/** Keeps buttons clear of the home indicator and the DEV backend badge,
+ * which sits inside the bottom inset (or 2 pt from the edge without one). */
+const bottomGap = (inset: number) => Math.max(inset, 20);
 
 const SURFACE = '#FFFDF8';
 const CARD_BORDER = '#E4DCCB';
@@ -172,16 +182,18 @@ function MatchesHome({
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[styles.homeContent, { paddingTop: insets.top + obSpacing.sm, paddingBottom: insets.bottom + obSpacing.xxl }]}>
+      contentContainerStyle={[styles.homeContent, { paddingTop: insets.top + obSpacing.xs, paddingBottom: bottomGap(insets.bottom) + obSpacing.xl }]}>
       <View style={styles.topRow}>
-        <Text style={styles.devPill} accessibilityLabel="Developer preview">DEV PREVIEW</Text>
-        {onExit ? (
-          <TouchableOpacity onPress={onExit} hitSlop={12} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close preview">
-            <Ionicons name="close" size={24} color={obColors.textPrimary} />
-          </TouchableOpacity>
-        ) : null}
+        <Text style={styles.screenTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>{C.title}</Text>
+        <View style={styles.topRight}>
+          <Text style={styles.devPill} accessibilityLabel="Developer preview">DEV PREVIEW</Text>
+          {onExit ? (
+            <TouchableOpacity onPress={onExit} hitSlop={8} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close preview">
+              <Ionicons name="close" size={24} color={obColors.textPrimary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
-      <Text style={styles.screenTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>{C.title}</Text>
 
       <Text style={styles.sectionTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>{C.pickedTitle}</Text>
       {pick === 'none' ? (
@@ -192,7 +204,7 @@ function MatchesHome({
           onPhotoPress={() => onOpenProfile('pick')}
           status={pick === 'like_sent' ? { icon: 'heart', text: C.likeSent } : null}
           note={pick === 'like_sent' ? (comment ? C.commentSentNote : C.likeSentNote) : null}
-          action={{ label: C.viewProfile, onPress: () => onOpenProfile('pick'), variant: pick === 'like_sent' ? 'outline' : 'fill' }}
+          action={{ label: C.viewProfile, onPress: () => onOpenProfile('pick'), variant: 'outline' }}
         />
       )}
 
@@ -279,16 +291,8 @@ function EmptyCard({ icon, title, text }: { icon: keyof typeof Ionicons.glyphMap
   );
 }
 
-// Same stacked-band fade as the profile hero (no gradient native module).
 function Fade() {
-  return (
-    <View pointerEvents="none" style={styles.fade}>
-      {Array.from({ length: 14 }).map((_, i) => {
-        const t = (i + 1) / 14;
-        return <View key={i} style={{ flex: 1, backgroundColor: `rgba(0,0,0,${(0.6 * t * t).toFixed(3)})` }} />;
-      })}
-    </View>
-  );
+  return <Image source={FADE} style={styles.fade} contentFit="fill" pointerEvents="none" accessible={false} />;
 }
 
 function DevControls({ state, onScenario }: { state: typeof INITIAL_PREVIEW_STATE; onScenario: (s: PreviewScenario | 'reset') => void }) {
@@ -341,7 +345,7 @@ function ProfileScreen({
         <Text style={styles.headerTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>Profile</Text>
         <View style={styles.iconBtn} />
       </View>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: obSpacing.gutter, paddingTop: obSpacing.sm, paddingBottom: insets.bottom + 96, gap: obSpacing.md }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: obSpacing.gutter, paddingTop: obSpacing.sm, paddingBottom: bottomGap(insets.bottom) + 96, gap: obSpacing.md }}>
         {likeSent ? (
           <View style={styles.statusChip}>
             <Ionicons name="heart" size={16} color={obColors.cta} importantForAccessibility="no" />
@@ -354,7 +358,7 @@ function ProfileScreen({
         <ProfilePreview blocks={blocks} onLike={onLike} />
       </ScrollView>
       {onSayHello ? (
-        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + obSpacing.md }]}>
+        <View style={[styles.stickyFooter, { paddingBottom: bottomGap(insets.bottom) + obSpacing.sm }]}>
           <TouchableOpacity onPress={onSayHello} style={styles.button} accessibilityRole="button" accessibilityLabel={`${C.sayHello}, ${PREVIEW_PEOPLE[who].name}`}>
             <Text style={styles.buttonText}>{C.sayHello}</Text>
           </TouchableOpacity>
@@ -377,41 +381,61 @@ function LikeSheet({
 }) {
   const insets = useSafeAreaInsets();
   const [comment, setComment] = useState('');
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   useEffect(() => {
     if (target) setComment('');
   }, [target]);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  const content = target ? selectedLikeContent(target, name) : null;
+  // Above the keyboard only a small gap is needed; otherwise clear the
+  // home indicator / DEV badge.
+  const padBottom = keyboardOpen ? obSpacing.md : bottomGap(insets.bottom) + obSpacing.sm;
   return (
     <Modal visible={!!target} transparent animationType="slide" onRequestClose={onCancel}>
       <KeyboardAvoidingView style={styles.sheetRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={styles.backdrop} onPress={onCancel} accessibilityRole="button" accessibilityLabel="Close" />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + obSpacing.lg }]}>
-          <Text style={styles.sheetTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
-            {target?.kind === 'prompt' ? `Like ${name}’s answer` : `Like ${name}’s photo`}
-          </Text>
-          {target?.kind === 'photo' ? (
-            <Image source={{ uri: target.uri }} style={styles.sheetPhoto} contentFit="cover" accessibilityLabel={`Selected photo ${target.photoIndex + 1}`} />
-          ) : target?.kind === 'prompt' ? (
-            <View style={styles.sheetPrompt}>
-              <Text style={styles.sheetPromptLabel}>{target.label}</Text>
-              <Text style={styles.sheetPromptAnswer}>{target.answer}</Text>
-            </View>
-          ) : null}
-          <TextInput
-            value={comment}
-            onChangeText={setComment}
-            placeholder={C.addComment}
-            placeholderTextColor={obColors.textSecondary}
-            style={styles.commentInput}
-            multiline
-            maxLength={COMMENT_MAX}
-            accessibilityLabel={C.addComment}
-          />
-          <Text style={styles.counter}>{`${comment.length}/${COMMENT_MAX}`}</Text>
+        <Pressable style={styles.backdrop} onPress={onCancel} accessibilityRole="button" accessibilityLabel="Close without sending" />
+        <View style={[styles.sheet, { paddingBottom: padBottom, maxHeight: '88%' }]}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle} accessibilityRole="header" numberOfLines={2} maxFontSizeMultiplier={1.4}>
+              {content?.title}
+            </Text>
+            <TouchableOpacity onPress={onCancel} hitSlop={6} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close without sending">
+              <Ionicons name="close" size={24} color={obColors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          {/* Selected content + comment scroll on small screens / long text;
+              Send like stays pinned below, above the keyboard. */}
+          <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollContent} keyboardShouldPersistTaps="handled">
+            {content?.kind === 'photo' ? (
+              <Image source={{ uri: content.uri }} style={styles.sheetPhoto} contentFit="cover" accessibilityLabel={content.a11y} />
+            ) : content?.kind === 'prompt' ? (
+              <View style={styles.sheetPrompt} accessible accessibilityLabel={content.a11y}>
+                <Text style={styles.sheetPromptLabel} maxFontSizeMultiplier={1.6}>{content.label}</Text>
+                <Text style={styles.sheetPromptAnswer} maxFontSizeMultiplier={1.6}>{content.answer}</Text>
+              </View>
+            ) : null}
+            <TextInput
+              value={comment}
+              onChangeText={setComment}
+              placeholder={C.addComment}
+              placeholderTextColor={obColors.textSecondary}
+              style={styles.commentInput}
+              multiline
+              scrollEnabled
+              maxLength={COMMENT_MAX}
+              accessibilityLabel={C.addComment}
+            />
+            <Text style={styles.counter}>{`${comment.length}/${COMMENT_MAX}`}</Text>
+          </ScrollView>
           <TouchableOpacity onPress={() => onSend(comment)} style={styles.button} accessibilityRole="button" accessibilityLabel={C.sendLike}>
             <Text style={styles.buttonText}>{C.sendLike}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onCancel} style={styles.cancel} accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.link}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -465,7 +489,7 @@ function ChatPreview({
         )}
       </ScrollView>
       {!started ? (
-        <View style={[styles.inputRow, { paddingBottom: insets.bottom + obSpacing.sm }]}>
+        <View style={[styles.inputRow, { paddingBottom: bottomGap(insets.bottom) + obSpacing.xs }]}>
           <TextInput
             value={text}
             onChangeText={setText}
@@ -496,7 +520,8 @@ function ChatPreview({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: obColors.background },
   homeContent: { paddingHorizontal: obSpacing.gutter },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, marginBottom: obSpacing.sm },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.xs },
   devPill: {
     fontFamily: obFonts.bodySemiBold,
     fontSize: 11,
@@ -510,25 +535,27 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  screenTitle: { fontFamily: obFonts.heading, fontSize: 34, lineHeight: 42, color: obColors.textPrimary, marginBottom: obSpacing.lg },
-  sectionTitle: { fontFamily: obFonts.heading, fontSize: 22, lineHeight: 29, color: obColors.textPrimary, marginBottom: obSpacing.md },
-  sectionGap: { marginTop: obSpacing.xxl },
+  screenTitle: { flexShrink: 1, fontFamily: obFonts.heading, fontSize: 26, lineHeight: 33, color: obColors.textPrimary },
+  sectionTitle: { fontFamily: obFonts.heading, fontSize: 18, lineHeight: 24, color: obColors.textPrimary, marginBottom: obSpacing.sm },
+  sectionGap: { marginTop: obSpacing.xl },
   card: { backgroundColor: SURFACE, borderRadius: 20, borderWidth: 1, borderColor: CARD_BORDER, overflow: 'hidden' },
-  cardPhoto: { width: '100%', aspectRatio: 4 / 5, backgroundColor: obColors.selectedFill },
-  fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '40%' },
-  cardNameWrap: { position: 'absolute', left: obSpacing.lg, right: obSpacing.lg, bottom: obSpacing.lg, gap: 2 },
+  // Matches cards only: wide 3:2 photo so the second section shows on first
+  // open. The full profile keeps its own 4:5 photos.
+  cardPhoto: { width: '100%', aspectRatio: 3 / 2, backgroundColor: obColors.selectedFill },
+  fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
+  cardNameWrap: { position: 'absolute', left: obSpacing.lg, right: obSpacing.lg, bottom: obSpacing.md },
   cardName: {
     fontFamily: obFonts.heading,
-    fontSize: 30,
-    lineHeight: 37,
+    fontSize: 25,
+    lineHeight: 31,
     color: '#FFFFFF',
     textShadowColor: 'rgba(0,0,0,0.35)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   cardAge: { fontFamily: obFonts.body, color: '#FFFFFF' },
-  cardCity: { fontFamily: obFonts.bodyMedium, fontSize: 15, lineHeight: 20, color: '#FFFFFF' },
-  cardBody: { padding: obSpacing.lg, gap: obSpacing.md },
+  cardCity: { fontFamily: obFonts.bodyMedium, fontSize: 14, lineHeight: 19, color: '#FFFFFF' },
+  cardBody: { padding: obSpacing.md, gap: obSpacing.sm },
   statusChip: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -540,8 +567,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   statusText: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.cta },
-  note: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 21, color: obColors.textSecondary },
-  button: { minHeight: 50, borderRadius: 14, backgroundColor: obColors.cta, alignItems: 'center', justifyContent: 'center', paddingHorizontal: obSpacing.lg },
+  note: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 20, color: obColors.textSecondary },
+  button: { minHeight: 48, borderRadius: 14, backgroundColor: obColors.cta, alignItems: 'center', justifyContent: 'center', paddingHorizontal: obSpacing.lg },
   buttonOutline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: obColors.cta },
   buttonText: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.onCta },
   buttonTextOutline: { color: obColors.cta },
@@ -588,15 +615,26 @@ const styles = StyleSheet.create({
   },
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,27,24,0.4)' },
-  sheet: { backgroundColor: obColors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: obSpacing.gutter, gap: obSpacing.md },
-  sheetTitle: { fontFamily: obFonts.heading, fontSize: 22, lineHeight: 29, color: obColors.textPrimary },
-  sheetPhoto: { width: 112, height: 140, borderRadius: 14, backgroundColor: obColors.selectedFill },
-  sheetPrompt: { backgroundColor: SURFACE, borderRadius: 14, borderWidth: 1, borderColor: CARD_BORDER, padding: obSpacing.lg, gap: obSpacing.xs },
-  sheetPromptLabel: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
-  sheetPromptAnswer: { fontFamily: obFonts.heading, fontSize: 19, lineHeight: 26, color: obColors.textPrimary },
+  sheet: {
+    backgroundColor: obColors.background,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: obSpacing.lg + 4,
+    paddingTop: obSpacing.sm,
+    gap: obSpacing.sm,
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.sm, marginRight: -obSpacing.sm },
+  sheetTitle: { flex: 1, fontFamily: obFonts.heading, fontSize: 19, lineHeight: 25, color: obColors.textPrimary },
+  sheetScroll: { flexGrow: 0, flexShrink: 1 },
+  sheetScrollContent: { gap: obSpacing.sm },
+  sheetPhoto: { width: 88, height: 110, borderRadius: 12, backgroundColor: obColors.selectedFill },
+  sheetPrompt: { backgroundColor: SURFACE, borderRadius: 12, borderWidth: 1, borderColor: CARD_BORDER, paddingHorizontal: obSpacing.md, paddingVertical: obSpacing.sm + 2, gap: 2 },
+  sheetPromptLabel: { fontFamily: obFonts.bodySemiBold, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
+  sheetPromptAnswer: { fontFamily: obFonts.heading, fontSize: 17, lineHeight: 23, color: obColors.textPrimary },
+  // ~2.5 lines to start (22 pt lines + padding); grows to ~4.5, then scrolls.
   commentInput: {
-    minHeight: 88,
-    maxHeight: 160,
+    minHeight: 78,
+    maxHeight: 124,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: obColors.border,
@@ -608,8 +646,7 @@ const styles = StyleSheet.create({
     color: obColors.textPrimary,
     textAlignVertical: 'top',
   },
-  counter: { alignSelf: 'flex-end', marginTop: -obSpacing.sm, fontFamily: obFonts.body, fontSize: 12, lineHeight: 16, color: obColors.textSecondary },
-  cancel: { alignSelf: 'center', minHeight: 44, justifyContent: 'center' },
+  counter: { alignSelf: 'flex-end', marginTop: -4, fontFamily: obFonts.body, fontSize: 12, lineHeight: 16, color: obColors.textSecondary },
   link: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.cta },
   chatWho: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.sm, flexShrink: 1 },
   chatAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: obColors.selectedFill },

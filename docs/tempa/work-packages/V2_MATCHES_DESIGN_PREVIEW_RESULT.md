@@ -90,3 +90,67 @@ The new check covers:
 - Compare with the five- / six-screen mockups on the phone; adjust spacing / type to them.
 - Replace the illustrated placeholders with realistic, licence-clear portraits.
 - Real implementation (separate work): the server would need a "picked for you" source (refresh rule not decided), targeted likes with a stable target key and server validation (see `V2_BACKEND_SCORING_AUDIT.md` §3), and a "mutual like, no message yet" query.
+
+---
+
+# Round 2 — visual refinement (2026-10-02)
+
+From `f362944` (clean). Preview-only. Unchanged: the real Matches tab, Supabase, real accounts, scoring and production configuration. The shared `ProfilePreview` was **not** touched this round, so the approved onboarding preview and real profiles are unchanged; the full profile keeps its 4:5 photos.
+
+## 1. Matches cards
+
+- **Photo ratio:** Matches cards only, 4:5 → **3:2**. Name (Playfair 25), age and city sit on the photo.
+- **Header:**
+    - "Matches" is 26 pt and shares one row with the DEV pill and the close button (it used to be a 34 pt title on its own row);
+    - section titles are 18 pt;
+    - top and section gaps are smaller; the card body padding is 12 pt.
+- **Estimated first view** (from layout values; not measured on the device):
+    - iPhone 14/15 (393 × 852): the first card ends at about 451 pt; "You both liked" sits at about 475–499; the second photo spans about 507–737. So the whole second photo is visible.
+    - iPhone SE (375 × 667): about 211 of the second photo's 218 pt is visible.
+    - The page still scrolls.
+- **Buttons:** **View profile** is always outlined; **Say hello** is filled dark green.
+- **Shading under the name:** now a smooth gradient. A bundled 4 × 256 alpha-ramp PNG (`fade.png`, black, 0 → 66 % opacity) is stretched over the lower 62 % of the photo. The stepped bands are gone. No gradient native module was added, so no dev-client rebuild is needed.
+- **"DEV · SYNTHETIC" tag:** re-baked into the placeholder images inside the area every crop keeps (3:2 card: y 167–833; 4:5 profile: x 100–900 of 1000). Checked visually on both crops.
+    - The repository generator `scripts/dev-backend/portraits.mjs` (dev pool) is unchanged; the re-render used a scratch copy.
+- **DEV badges:**
+    - the DEV PREVIEW pill sits in the header row, so it covers nothing;
+    - every bottom button / input (profile "Say hello", chat input, like sheet) keeps at least 20 pt + spacing from the bottom edge, so the global DEV backend badge (inside the bottom inset) never covers a control.
+
+## 2. Like / comment sheet
+
+- **Header:** title 19 pt, with an accessible **close (✕) button at the top right** ("Close without sending"). The large Cancel row is removed.
+- **Selected content:** the photo thumbnail is now 88 × 110, the quote card 13 / 17 pt, and the gaps are tighter. The content comes from `selectedLikeContent()`, so it is exactly the tapped photo or the tapped answer (checked).
+- **Comment field:** starts at about 2.5 lines (78 pt), grows to about 124 pt, then scrolls. It is optional, with a 240 limit and counter.
+- **Layout:**
+    - the selected content and the comment are in a `ScrollView` (the sheet is capped at 88 % of the height);
+    - **Send like** is pinned below it;
+    - when the keyboard opens, the bottom inset padding switches to a small gap, so the keyboard and the safe area don't cover the button.
+- **Closing:** the ✕, a tap on the backdrop and Android back only close the sheet; nothing is sent. Sending with no comment still works.
+
+## 3. Flows kept
+
+Unchanged: Picked for you → profile → photo/prompt like → **Like sent**; You both liked → Say hello → empty local chat, message only on send; **Conversation started** after the first message. No Continue chatting, auto message, invite, % or timer.
+
+## 4. Checks (local only)
+
+| Run | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `node scripts/onboarding-v2-checks/run.js` | `v2_matches_preview` **45 / 45** (+11); others 45 · 69 · 56 · 6 · 10 unchanged |
+| `expo export --platform ios --dev` | bundles; all 7 preview PNGs (incl. `fade.png`) present |
+
+New checks:
+- the sheet shows the tapped photo / prompt (and no photo for a prompt);
+- the card ratio is 3:2 while the full profile stays 4:5;
+- View profile is outlined and Say hello is filled;
+- the gradient is image-based (no bands);
+- there is a close button and no Cancel row;
+- only Send like calls send;
+- the limit is 240.
+
+**Not tried on a device:**
+- the first-view proportions;
+- the gradient's look;
+- the tag visibility on the phone;
+- the keyboard behaviour of the sheet (iOS and Android);
+- the sheet scrolling on a small screen.

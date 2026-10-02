@@ -67,4 +67,24 @@ for (const f of files) {
 ok(/if \(!__DEV__\) return <Redirect/.test(fs.readFileSync(path.join(ROOT, 'app/dev/matches-preview.tsx'), 'utf8')), 'route redirects in production');
 ok(/__DEV__ \?[\s\S]{0,200}dev\/matches-preview/.test(fs.readFileSync(path.join(ROOT, 'components/main/V2ProfileHome.tsx'), 'utf8')), 'Profile entry is DEV-only');
 
+// Round 2: like sheet shows exactly the tapped content.
+const sp = M.selectedLikeContent({ kind: 'photo', photoIndex: 2, uri: 'file:///pick3.png' }, 'Defne');
+ok(sp.kind === 'photo' && sp.uri === 'file:///pick3.png' && sp.title === 'Like Defne’s photo' && sp.a11y === 'Selected: photo 3', 'sheet: tapped photo shown');
+ok(M.selectedLikeContent({ kind: 'photo', photoIndex: 0, uri: 'u' }, 'Defne').a11y === 'Selected: main photo', 'sheet: main photo label');
+const pr = M.PREVIEW_PEOPLE.pick.prompts[1];
+const spr = M.selectedLikeContent({ kind: 'prompt', label: 'Together, we could…', answer: pr.answer }, 'Defne');
+ok(spr.kind === 'prompt' && spr.answer === pr.answer && spr.label === 'Together, we could…' && spr.title === 'Like Defne’s answer', 'sheet: tapped prompt shown');
+ok(!('uri' in spr), 'sheet: prompt shows no photo');
+
+// Round 2: visual rules (static).
+const screen = fs.readFileSync(path.join(ROOT, 'components/dev/MatchesDesignPreview.tsx'), 'utf8');
+ok(/cardPhoto: \{[^}]*aspectRatio: 3 \/ 2/.test(screen), 'Matches cards use a 3:2 photo');
+ok(/photo: \{\s*width: '100%',\s*aspectRatio: 4 \/ 5/.test(fs.readFileSync(path.join(ROOT, 'components/onboarding-v2/yourProfile/ProfilePreview.tsx'), 'utf8')), 'full profile keeps 4:5 photos');
+ok(/label: C\.viewProfile[^}]*variant: 'outline'/.test(screen) && /label: C\.sayHello, onPress: onSayHello, variant: 'fill'/.test(screen), 'View profile outlined, Say hello filled');
+ok(/source=\{FADE\}/.test(screen) && !/Array\.from\(\{ length: 14 \}\)/.test(screen), 'smooth image gradient, no stepped bands');
+ok(!/>Cancel</.test(screen) && /onPress=\{onCancel\}[^>]*accessibilityLabel="Close without sending"/.test(screen), 'sheet: top-right close, no Cancel row');
+const sheetSrc = screen.slice(screen.indexOf('function LikeSheet('), screen.indexOf('// ─── Local chat preview'));
+ok(/onPress=\{\(\) => onSend\(comment\)\}/.test(sheetSrc) && (sheetSrc.match(/onSend\(/g) || []).length === 1, 'sheet: only Send like sends (close / backdrop cancel)');
+ok(/maxLength=\{COMMENT_MAX\}/.test(screen) && M.COMMENT_MAX === 240, 'comment limit 240');
+
 module.exports = done('v2_matches_preview');
