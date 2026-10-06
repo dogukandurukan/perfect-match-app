@@ -60,8 +60,19 @@ ok(cancelled.editor === null && cancelled.decisions.length === 0 && D.currentPer
 ok(R(R(open, { type: 'edit_comment', text: '   ' }), { type: 'send_comment', personId: 'defne' }).decisions.length === 0, 'blank comment cannot be sent');
 const sent = R(typed, { type: 'send_comment', personId: 'defne' });
 ok(eq(sent.decisions, [{ kind: 'like', personId: 'defne', target: 'prompt:small_thing_i_love', comment: 'Which ferry route is your favourite?' }]), 'Send = one like with the comment');
-ok(sent.likesLeft === 2 && D.currentPersonId(sent) === 'mert' && sent.editor === null, 'Send moves on, no extra heart needed');
+// Round 2: Send keeps the profile; the note replaces the editor in place.
+ok(sent.likesLeft === 2 && sent.editor === null, 'Send counts one like, no extra heart needed');
+ok(D.currentPersonId(sent) === 'defne' && D.likedCurrent(sent), 'Send keeps the same profile on screen');
+ok(eq(sent.sent, { personId: 'defne', target: 'prompt:small_thing_i_love', comment: 'Which ferry route is your favourite?' }), 'sent note kept for that content');
 ok(R(sent, { type: 'send_comment', personId: 'defne' }) === sent, 'double tap on Send: one like');
+ok(R(sent, { type: 'like', personId: 'defne', target: 'photo:0' }) === sent, 'no second heart on a liked profile');
+ok(R(sent, { type: 'open_comment', personId: 'defne', target: 'photo:1' }) === sent, 'no second comment on a liked profile');
+ok(R(sent, { type: 'pass', personId: 'defne' }) === sent, '× (pass) not available on a liked profile');
+const nexted = R(sent, { type: 'next', personId: 'defne' });
+ok(D.currentPersonId(nexted) === 'mert' && nexted.likesLeft === 2 && nexted.sent === null, 'Next profile: next person, no like used');
+ok(nexted.decisions.length === 1 && !nexted.decisions.some((d) => d.kind === 'pass'), 'Next profile records no pass / dislike');
+ok(R(nexted, { type: 'next', personId: 'defne' }) === nexted, 'double tap on Next profile: one step');
+ok(R(I, { type: 'next', personId: 'defne' }) === I, 'Next profile only after a like was sent');
 ok(R(I, { type: 'open_comment', personId: 'mert', target: 'photo:0' }) === I, 'no editor for a profile that is not shown');
 
 let s = I;
@@ -73,6 +84,10 @@ ok(eq(R(sent, { type: 'reset' }), I), 'reset → start');
 ok(D.currentPersonId(R(I, { type: 'reset', shortFirst: true })) === 'mert', 'reset short profile first');
 ok(D.likesLeftLabel(3) === '3 likes left' && D.likesLeftLabel(1) === '1 like left', 'likes-left text');
 ok(D.describeDecision(sent.decisions[0]) === 'Liked Defne’s prompt with a comment', 'DEV panel decision text');
+const screenSrc = fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverDesignPreview.tsx'), 'utf8');
+ok(/type: 'next', personId: person\.id/.test(screenSrc) && /accessibilityLabel="Next profile"/.test(screenSrc), 'liked profile shows Next profile instead of ×');
+ok(!/scrollTo\(\{ y: 0/.test(screenSrc), 'Send never scrolls to the top');
+ok(/Comment sent/.test(fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverProfileItems.tsx'), 'utf8')), 'Comment sent line in place of the editor');
 
 // Static: English copy, no backend, no swipe/animation/toast, DEV-only.
 const files = ['lib/dev/discoverPreview.ts', 'components/dev/discover/DiscoverDesignPreview.tsx', 'components/dev/discover/DiscoverProfileItems.tsx', 'components/dev/discover/PreviewTabBar.tsx', 'app/dev/discover-preview.tsx'];

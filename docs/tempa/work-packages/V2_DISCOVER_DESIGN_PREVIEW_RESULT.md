@@ -210,3 +210,41 @@ Checks (≤ 5):
     - × and the heart each move exactly one profile, even with a fast double tap;
     - "3 likes left" counts down;
     - "Reset (short profile first)" in the DEV panel restarts with the short profile.
+
+---
+
+# Round 2 — Send keeps the profile (2026-10-06)
+
+From `ed4ea7b` (clean). Local DEV preview only; no backend connection, no real data touched.
+
+**Changed (comment Send only):**
+- **Send:**
+    - the keyboard closes (`Keyboard.dismiss`) and the **same profile stays** at the same scroll position;
+    - the old scroll-to-top on every decision is gone: a new person still starts at the top because the scroll view is keyed by person.
+- **In place of the editor:** the sent note plus a small "✓ Comment sent" line, in the same spot (inside the prompt card / under the photo). No toast, modal or animation.
+- **Counted once:**
+    - the like with a comment uses one like;
+    - on that profile every heart is disabled and "Add a comment" is hidden;
+    - the reducer also refuses a second heart, comment or Send for the same person.
+- **"Next profile" replaces ×** on a profile that got a like with a comment:
+    - it is a dark-green pill in the same bottom-left spot;
+    - it only shows the next person;
+    - **no pass / dislike is recorded and no like is used**;
+    - a double tap moves one step.
+- **Unchanged:** a heart without a comment (still moves straight on) and × on a profile not yet liked (still passes).
+
+New reducer state `sent` (person, target, comment) and actions:
+- `next` — only valid after a sent comment;
+- `pass` — refused on a liked profile.
+
+Checks (local): `tsc` clean; `v2_discover_preview` **55 / 55** (+12: profile stays, note kept, no second heart / comment / Send / pass, Next uses no like and records no pass, double-tap, no scroll-to-top, "Comment sent" line); other checks unchanged; iOS dev bundle builds.
+
+**Not tried on the phone:**
+- that the page doesn't jump when the keyboard closes after Send (iOS / Android);
+- how the note looks;
+- the Next profile button.
+
+Phone check:
+1. Comment on the first prompt and press Send. The keyboard closes, Defne stays in place, the note and "Comment sent" sit inside the card, and the hearts and "Add a comment" are off.
+2. "Next profile" (bottom-left) opens Mert; "likes left" dropped by one only.
+3. On Mert, a heart without a comment still moves straight on, and × still passes.

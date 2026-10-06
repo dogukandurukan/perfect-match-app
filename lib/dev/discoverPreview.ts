@@ -260,11 +260,16 @@ export type Decision =
 
 export type Editor = { personId: string; target: string; draft: string };
 
+/** A like with a comment sent on the current profile (round 2): the profile
+ * stays on screen with the note in place until "Next profile". */
+export type SentComment = { personId: string; target: string; comment: string };
+
 export type DiscoverState = {
   order: string[];
   index: number;
   likesLeft: number;
   editor: Editor | null;
+  sent: SentComment | null;
   decisions: Decision[];
 };
 
@@ -273,6 +278,7 @@ export const INITIAL_DISCOVER_STATE: DiscoverState = {
   index: 0,
   likesLeft: PREVIEW_LIKES,
   editor: null,
+  sent: null,
   decisions: [],
 };
 
@@ -283,7 +289,10 @@ export type DiscoverAction =
   | { type: 'cancel_comment' }
   | { type: 'like'; personId: string; target: string }
   | { type: 'send_comment'; personId: string }
-  | { type: 'pass'; personId: string };
+  | { type: 'pass'; personId: string }
+  /** Only after a like was sent on this profile: shows the next person.
+   * Records no pass and uses no like. */
+  | { type: 'next'; personId: string };
 
 export function currentPersonId(s: DiscoverState): string | null {
   return s.order[s.index] ?? null;
@@ -299,8 +308,14 @@ function decide(s: DiscoverState, d: Decision): DiscoverState {
     index: s.index + 1,
     likesLeft: d.kind === 'like' ? s.likesLeft - 1 : s.likesLeft,
     editor: null,
+    sent: null,
     decisions: [...s.decisions, d],
   };
+}
+
+/** True once a like (with a comment) was sent to the profile on screen. */
+export function likedCurrent(s: DiscoverState): boolean {
+  return !!s.sent && s.sent.personId === currentPersonId(s);
 }
 
 /** Every decision names the profile it was made on: a repeated tap (or a
@@ -315,7 +330,7 @@ export function discoverReducer(s: DiscoverState, a: DiscoverAction): DiscoverSt
       return { ...INITIAL_DISCOVER_STATE, order };
     }
     case 'open_comment':
-      if (a.personId !== cur) return s;
+      if (a.personId !== cur || likedCurrent(s)) return s;
       if (s.editor && s.editor.personId === a.personId && s.editor.target === a.target) return s;
       // Only one editor at a time; opening another replaces it.
       return { ...s, editor: { personId: a.personId, target: a.target, draft: '' } };
@@ -325,17 +340,31 @@ export function discoverReducer(s: DiscoverState, a: DiscoverAction): DiscoverSt
     case 'cancel_comment':
       return s.editor ? { ...s, editor: null } : s;
     case 'like':
-      if (a.personId !== cur || s.likesLeft <= 0) return s;
+      // One like per person: no further heart once a comment was sent.
+      if (a.personId !== cur || s.likesLeft <= 0 || likedCurrent(s)) return s;
       return decide(s, { kind: 'like', personId: a.personId, target: a.target, comment: '' });
     case 'send_comment': {
-      if (a.personId !== cur || s.likesLeft <= 0 || !s.editor || s.editor.personId !== a.personId) return s;
+      if (a.personId !== cur || s.likesLeft <= 0 || likedCurrent(s) || !s.editor || s.editor.personId !== a.personId) return s;
       const comment = s.editor.draft.trim();
       if (!comment) return s;
-      return decide(s, { kind: 'like', personId: a.personId, target: s.editor.target, comment });
+      // Counted once, and the profile STAYS: the editor turns into the sent
+      // note in the same place; "Next profile" moves on.
+      const d: Decision = { kind: 'like', personId: a.personId, target: s.editor.target, comment };
+      return {
+        ...s,
+        likesLeft: s.likesLeft - 1,
+        editor: null,
+        sent: { personId: a.personId, target: d.target, comment },
+        decisions: [...s.decisions, d],
+      };
     }
     case 'pass':
-      if (a.personId !== cur) return s;
+      // On a liked profile × is replaced by "Next profile" (no dislike).
+      if (a.personId !== cur || likedCurrent(s)) return s;
       return decide(s, { kind: 'pass', personId: a.personId });
+    case 'next':
+      if (a.personId !== cur || !likedCurrent(s)) return s;
+      return { ...s, index: s.index + 1, editor: null, sent: null };
     default:
       return s;
   }

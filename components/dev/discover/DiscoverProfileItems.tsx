@@ -13,6 +13,7 @@ import {
   type DiscoverPerson,
   type Editor,
   type LabelledFact,
+  type SentComment,
 } from '@/lib/dev/discoverPreview';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewFact, PreviewGroup, PreviewTaste } from '@/lib/onboardingV2/yourProfile';
@@ -52,6 +53,9 @@ export type ItemHandlers = {
   heroHeight: number;
   editor: Editor | null;
   canLike: boolean;
+  /** A like with a comment was sent to this profile: no more hearts or comments. */
+  liked: boolean;
+  sent: SentComment | null;
   onLike: (target: string) => void;
   onOpenComment: (target: string) => void;
   onEditComment: (text: string) => void;
@@ -95,6 +99,7 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
   const isHero = item.type === 'hero';
   const what = isHero ? 'main photo' : `photo ${i + 1}`;
   const editing = h.editor?.target === target;
+  const sentHere = h.sent?.target === target ? h.sent : null;
   const source = DISCOVER_PHOTOS[h.person.id]?.[i];
   return (
     <View>
@@ -120,7 +125,7 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
           </>
         ) : null}
         <View style={styles.photoActions} pointerEvents="box-none">
-          {!editing ? (
+          {!editing && !h.liked ? (
             <TouchableOpacity
               onPress={() => h.onOpenComment(target)}
               style={styles.commentChip}
@@ -136,6 +141,10 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
       {editing ? (
         <View style={styles.photoEditorWrap}>
           <InlineEditor h={h} title={`Comment on ${h.person.name}’s ${what}`} />
+        </View>
+      ) : sentHere ? (
+        <View style={styles.photoEditorWrap}>
+          <SentNote comment={sentHere.comment} />
         </View>
       ) : null}
     </View>
@@ -160,6 +169,7 @@ function HeartButton({ label, onPress, disabled, onPhoto }: { label: string; onP
 
 function PromptItem({ item, h }: { item: Extract<DiscoverItem, { type: 'prompt' }>; h: ItemHandlers }) {
   const editing = h.editor?.target === item.key;
+  const sentHere = h.sent?.target === item.key ? h.sent : null;
   return (
     <View style={styles.promptCard}>
       <View style={styles.promptTop}>
@@ -171,7 +181,9 @@ function PromptItem({ item, h }: { item: Extract<DiscoverItem, { type: 'prompt' 
       </View>
       {editing ? (
         <InlineEditor h={h} />
-      ) : (
+      ) : sentHere ? (
+        <SentNote comment={sentHere.comment} />
+      ) : h.liked ? null : (
         <TouchableOpacity
           onPress={() => h.onOpenComment(item.key)}
           style={styles.commentLink}
@@ -224,6 +236,20 @@ function InlineEditor({ h, title }: { h: ItemHandlers; title?: string }) {
           accessibilityState={{ disabled: !canSend }}>
           <Text style={styles.sendText}>Send</Text>
         </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+/** Shown where the editor was, after Send: the note + a small status line.
+ * No toast, modal or animation. */
+function SentNote({ comment }: { comment: string }) {
+  return (
+    <View style={styles.sent} accessible accessibilityLabel={`Comment sent: ${comment}`} accessibilityLiveRegion="polite">
+      <Text style={styles.sentComment} maxFontSizeMultiplier={1.6}>{comment}</Text>
+      <View style={styles.sentStatus}>
+        <Ionicons name="checkmark" size={15} color={obColors.textSecondary} importantForAccessibility="no" />
+        <Text style={styles.sentStatusText} maxFontSizeMultiplier={1.6}>Comment sent</Text>
       </View>
     </View>
   );
@@ -401,6 +427,10 @@ const styles = StyleSheet.create({
   send: { minHeight: 48, minWidth: 112, paddingHorizontal: obSpacing.xl, borderRadius: 12, backgroundColor: obColors.cta, alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { backgroundColor: obColors.ctaDisabled },
   sendText: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 21, color: obColors.onCta },
+  sent: { gap: obSpacing.xs, borderRadius: 12, backgroundColor: obColors.selectedFill, paddingHorizontal: obSpacing.md, paddingVertical: obSpacing.sm + 2 },
+  sentComment: { fontFamily: obFonts.body, fontSize: 17, lineHeight: 23, color: obColors.textPrimary },
+  sentStatus: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sentStatusText: { fontFamily: obFonts.bodyMedium, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
   section: { paddingHorizontal: obSpacing.lg + 4, paddingVertical: obSpacing.lg, gap: obSpacing.md },
   sectionStack: { paddingVertical: obSpacing.xs },
   sectionTitle: { fontFamily: obFonts.bodySemiBold, fontSize: 13, lineHeight: 18, letterSpacing: 0.5, textTransform: 'uppercase', color: obColors.textSecondary },

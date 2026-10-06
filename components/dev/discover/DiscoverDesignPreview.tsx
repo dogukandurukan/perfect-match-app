@@ -32,6 +32,7 @@ import {
   describeDecision,
   discoverReducer,
   INITIAL_DISCOVER_STATE,
+  likedCurrent,
   likesLeftLabel,
   personById,
 } from '@/lib/dev/discoverPreview';
@@ -113,19 +114,22 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
     if (!freeze) setFrameHeight(e.nativeEvent.layout.height);
   };
 
-  // A decision shows the next profile from its top.
-  const decisions = state.decisions.length;
+  // A new person starts from the top (the ScrollView is keyed by person).
+  // Sending a comment keeps the same person and the same scroll position.
+  const personId = person?.id;
   useEffect(() => {
     Keyboard.dismiss();
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [decisions]);
+  }, [personId]);
+  const liked = likedCurrent(state);
 
   const handlers: ItemHandlers | null = person
     ? {
         person,
         heroHeight: Math.max(frameHeight, 360),
         editor: state.editor,
-        canLike: state.likesLeft > 0,
+        canLike: state.likesLeft > 0 && !liked,
+        liked,
+        sent: liked ? state.sent : null,
         onLike: (target) => dispatch({ type: 'like', personId: person.id, target }),
         onOpenComment: (target) => dispatch({ type: 'open_comment', personId: person.id, target }),
         onEditComment: (text) => dispatch({ type: 'edit_comment', text }),
@@ -133,7 +137,10 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
           Keyboard.dismiss();
           dispatch({ type: 'cancel_comment' });
         },
-        onSendComment: () => dispatch({ type: 'send_comment', personId: person.id }),
+        onSendComment: () => {
+          Keyboard.dismiss();
+          dispatch({ type: 'send_comment', personId: person.id });
+        },
         onEditorResize: () => {
           if (keyboardTop.current !== null) keepEditorVisible();
         },
@@ -180,7 +187,18 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
                 onExit={onExit}
               />
             </ScrollView>
-            {!keyboardOpen ? (
+            {!keyboardOpen && liked ? (
+              // After a like with a comment: move on only — no pass recorded,
+              // no like used.
+              <TouchableOpacity
+                onPress={() => dispatch({ type: 'next', personId: person.id })}
+                style={styles.next}
+                accessibilityRole="button"
+                accessibilityLabel="Next profile">
+                <Text style={styles.nextText}>Next profile</Text>
+                <Ionicons name="chevron-forward" size={18} color={obColors.onCta} importantForAccessibility="no" />
+              </TouchableOpacity>
+            ) : !keyboardOpen ? (
               <TouchableOpacity
                 onPress={() => dispatch({ type: 'pass', personId: person.id })}
                 style={styles.pass}
@@ -267,6 +285,24 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
   },
+  next: {
+    position: 'absolute',
+    left: obSpacing.lg,
+    bottom: obSpacing.lg,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: obSpacing.lg + 2,
+    borderRadius: 26,
+    backgroundColor: obColors.cta,
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  nextText: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 21, color: obColors.onCta },
   end: { flex: 1, justifyContent: 'center', padding: obSpacing.gutter, gap: obSpacing.md },
   endTitle: { fontFamily: obFonts.heading, fontSize: 24, lineHeight: 31, color: obColors.textPrimary, textAlign: 'center' },
   endText: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 21, color: obColors.textSecondary, textAlign: 'center' },
