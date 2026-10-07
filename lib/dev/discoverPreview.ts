@@ -271,6 +271,9 @@ export type DiscoverState = {
   editor: Editor | null;
   sent: SentComment | null;
   decisions: Decision[];
+  /** Simulated candidate load result (DEV): a failed load is never shown
+   * as "no one left". */
+  load: 'ok' | 'error';
 };
 
 export const INITIAL_DISCOVER_STATE: DiscoverState = {
@@ -280,6 +283,7 @@ export const INITIAL_DISCOVER_STATE: DiscoverState = {
   editor: null,
   sent: null,
   decisions: [],
+  load: 'ok',
 };
 
 export type DiscoverAction =
@@ -292,7 +296,31 @@ export type DiscoverAction =
   | { type: 'pass'; personId: string }
   /** Only after a like was sent on this profile: shows the next person.
    * Records no pass and uses no like. */
-  | { type: 'next'; personId: string };
+  | { type: 'next'; personId: string }
+  // DEV controls for the three states under review.
+  | { type: 'dev_use_up_likes' }
+  | { type: 'dev_empty' }
+  | { type: 'dev_load_error' }
+  | { type: 'retry' };
+
+export type ScreenKind = 'error' | 'empty' | 'profile';
+
+/** Error wins over empty: if loading failed we don't know whether anyone is
+ * left, so the screen must never say so. */
+export function screenKind(s: DiscoverState): ScreenKind {
+  if (s.load === 'error') return 'error';
+  return currentPersonId(s) ? 'profile' : 'empty';
+}
+
+export const STATE_COPY = {
+  emptyTitle: 'No new profiles right now',
+  emptyText: 'You’ve seen everyone who matches your preferences for now. Check back later.',
+  errorTitle: 'Couldn’t load profiles',
+  errorText: 'Check your connection and try again.',
+  retry: 'Try again',
+  // No refresh time: only shown once the server provides one.
+  outOfLikes: 'You’re out of likes. You can still look through profiles.',
+} as const;
 
 export function currentPersonId(s: DiscoverState): string | null {
   return s.order[s.index] ?? null;
@@ -330,7 +358,7 @@ export function discoverReducer(s: DiscoverState, a: DiscoverAction): DiscoverSt
       return { ...INITIAL_DISCOVER_STATE, order };
     }
     case 'open_comment':
-      if (a.personId !== cur || likedCurrent(s)) return s;
+      if (a.personId !== cur || likedCurrent(s) || s.likesLeft <= 0) return s;
       if (s.editor && s.editor.personId === a.personId && s.editor.target === a.target) return s;
       // Only one editor at a time; opening another replaces it.
       return { ...s, editor: { personId: a.personId, target: a.target, draft: '' } };
@@ -365,6 +393,16 @@ export function discoverReducer(s: DiscoverState, a: DiscoverAction): DiscoverSt
     case 'next':
       if (a.personId !== cur || !likedCurrent(s)) return s;
       return { ...s, index: s.index + 1, editor: null, sent: null };
+    case 'dev_use_up_likes':
+      // Out of likes: browsing stays possible; any open editor closes since
+      // a comment is a like.
+      return { ...s, likesLeft: 0, editor: null };
+    case 'dev_empty':
+      return { ...s, index: s.order.length, editor: null, sent: null, load: 'ok' };
+    case 'dev_load_error':
+      return { ...s, editor: null, load: 'error' };
+    case 'retry':
+      return s.load === 'error' ? { ...s, load: 'ok' } : s;
     default:
       return s;
   }

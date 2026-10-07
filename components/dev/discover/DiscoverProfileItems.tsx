@@ -125,7 +125,7 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
           </>
         ) : null}
         <View style={styles.photoActions} pointerEvents="box-none">
-          {!editing && !h.liked ? (
+          {!editing && h.canLike ? (
             <TouchableOpacity
               onPress={() => h.onOpenComment(target)}
               style={styles.commentChip}
@@ -183,7 +183,7 @@ function PromptItem({ item, h }: { item: Extract<DiscoverItem, { type: 'prompt' 
         <InlineEditor h={h} />
       ) : sentHere ? (
         <SentNote comment={sentHere.comment} />
-      ) : h.liked ? null : (
+      ) : !h.canLike ? null : (
         <TouchableOpacity
           onPress={() => h.onOpenComment(item.key)}
           style={styles.commentLink}
@@ -246,7 +246,7 @@ function InlineEditor({ h, title }: { h: ItemHandlers; title?: string }) {
 function SentNote({ comment }: { comment: string }) {
   return (
     <View style={styles.sent} accessible accessibilityLabel={`Comment sent: ${comment}`} accessibilityLiveRegion="polite">
-      <Text style={styles.sentComment} maxFontSizeMultiplier={1.6}>{comment}</Text>
+      <Text style={styles.sentComment} numberOfLines={3} maxFontSizeMultiplier={1.6}>{comment}</Text>
       <View style={styles.sentStatus}>
         <Ionicons name="checkmark" size={15} color={obColors.textSecondary} importantForAccessibility="no" />
         <Text style={styles.sentStatusText} maxFontSizeMultiplier={1.6}>Comment sent</Text>
@@ -427,10 +427,11 @@ const styles = StyleSheet.create({
   send: { minHeight: 48, minWidth: 112, paddingHorizontal: obSpacing.xl, borderRadius: 12, backgroundColor: obColors.cta, alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { backgroundColor: obColors.ctaDisabled },
   sendText: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 21, color: obColors.onCta },
-  sent: { gap: obSpacing.xs, borderRadius: 12, backgroundColor: obColors.selectedFill, paddingHorizontal: obSpacing.md, paddingVertical: obSpacing.sm + 2 },
-  sentComment: { fontFamily: obFonts.body, fontSize: 17, lineHeight: 23, color: obColors.textPrimary },
-  sentStatus: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  sentStatusText: { fontFamily: obFonts.bodyMedium, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
+  // Compact: small padding, 15 pt note (max 3 lines), status on one line.
+  sent: { gap: 2, borderRadius: 10, backgroundColor: obColors.selectedFill, paddingHorizontal: obSpacing.md, paddingVertical: obSpacing.sm },
+  sentComment: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 20, color: obColors.textPrimary },
+  sentStatus: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  sentStatusText: { fontFamily: obFonts.bodyMedium, fontSize: 12, lineHeight: 16, color: obColors.textSecondary },
   section: { paddingHorizontal: obSpacing.lg + 4, paddingVertical: obSpacing.lg, gap: obSpacing.md },
   sectionStack: { paddingVertical: obSpacing.xs },
   sectionTitle: { fontFamily: obFonts.bodySemiBold, fontSize: 13, lineHeight: 18, letterSpacing: 0.5, textTransform: 'uppercase', color: obColors.textSecondary },

@@ -104,4 +104,26 @@ ok(/!keyboardOpen \? <PreviewTabBar/.test(src), 'tab bar hidden while the keyboa
 ok(/if \(!__DEV__\) return <Redirect/.test(fs.readFileSync(path.join(ROOT, 'app/dev/discover-preview.tsx'), 'utf8')), 'route redirects in production');
 ok(/__DEV__ \?[\s\S]{0,200}dev\/discover-preview/.test(fs.readFileSync(path.join(ROOT, 'components/main/V2ProfileHome.tsx'), 'utf8')), 'Profile entry is DEV-only');
 
+// Round 3: out of likes, no one left, load error.
+const out0 = R(I, { type: 'dev_use_up_likes' });
+ok(out0.likesLeft === 0 && D.screenKind(out0) === 'profile', 'out of likes: profile still shown');
+ok(R(out0, { type: 'like', personId: 'defne', target: 'photo:0' }) === out0, 'out of likes: heart refused');
+ok(R(out0, { type: 'open_comment', personId: 'defne', target: 'photo:0' }) === out0, 'out of likes: no comment editor (a comment is a like)');
+const out0p = R(out0, { type: 'pass', personId: 'defne' });
+ok(D.currentPersonId(out0p) === 'mert' && out0p.likesLeft === 0, 'out of likes: can keep browsing (pass)');
+ok(R(typed, { type: 'dev_use_up_likes' }).editor === null, 'out of likes closes an open editor');
+ok(!/\d|tomorrow|renew|reset|premium|upgrade|buy/i.test(D.STATE_COPY.outOfLikes), 'out-of-likes text: no refresh time, no purchase');
+const empty = R(I, { type: 'dev_empty' });
+ok(D.screenKind(empty) === 'empty', 'no one left → empty screen');
+const err = R(empty, { type: 'dev_load_error' });
+ok(D.screenKind(err) === 'error', 'load error wins over empty');
+ok(D.screenKind(R(I, { type: 'dev_load_error' })) === 'error', 'load error with people queued → error, not empty');
+ok(!/everyone|no new|no one|left/i.test(D.STATE_COPY.errorTitle + D.STATE_COPY.errorText), 'error copy never says nobody is left');
+ok(D.screenKind(R(R(I, { type: 'dev_load_error' }), { type: 'retry' })) === 'profile', 'retry → profiles again');
+ok(!/\d|tomorrow/i.test(D.STATE_COPY.emptyTitle + D.STATE_COPY.emptyText), 'empty copy: no invented refresh time');
+const scr = fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverDesignPreview.tsx'), 'utf8');
+const nextStyle = (scr.match(/ {2}next: \{[\s\S]*?\n {2}\},/) || [''])[0];
+ok(!/position: 'absolute'/.test(nextStyle) && /<View style=\{styles\.actionBar\}>/.test(scr), 'Next profile sits in its own bar, not over the photo');
+ok(/numberOfLines=\{3\}/.test(fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverProfileItems.tsx'), 'utf8')), 'sent note compact (max 3 lines)');
+
 module.exports = done('v2_discover_preview');

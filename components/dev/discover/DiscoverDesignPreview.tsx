@@ -33,12 +33,17 @@ import {
   discoverReducer,
   INITIAL_DISCOVER_STATE,
   likedCurrent,
+  type DiscoverAction,
   likesLeftLabel,
   personById,
+  screenKind,
+  STATE_COPY,
 } from '@/lib/dev/discoverPreview';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 
 const HEADER_HEIGHT = 48;
+/** Slim slot above the tab bar for "Next profile" / the out-of-likes note. */
+const ACTION_BAR_HEIGHT = 60;
 
 export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
   const insets = useSafeAreaInsets();
@@ -121,11 +126,16 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
     Keyboard.dismiss();
   }, [personId]);
   const liked = likedCurrent(state);
+  const outOfLikes = state.likesLeft <= 0;
+  const kind = screenKind(state);
+  const showActionBar = kind === 'profile' && !keyboardOpen && (liked || outOfLikes);
 
   const handlers: ItemHandlers | null = person
     ? {
         person,
-        heroHeight: Math.max(frameHeight, 360),
+        // After Send the action bar appears under the same profile: add its
+        // height back so the hero (and everything below it) doesn't move.
+        heroHeight: Math.max(frameHeight + (liked && showActionBar ? ACTION_BAR_HEIGHT : 0), 360),
         editor: state.editor,
         canLike: state.likesLeft > 0 && !liked,
         liked,
@@ -167,7 +177,7 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
       </View>
 
       <View ref={frameRef} style={styles.frame} onLayout={onFrameLayout} collapsable={false}>
-        {person && handlers ? (
+        {kind === 'profile' && person && handlers ? (
           <>
             <ScrollView
               ref={scrollRef}
@@ -179,26 +189,15 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="none"
               automaticallyAdjustKeyboardInsets
-              contentContainerStyle={{ paddingBottom: 96 }}>
+              contentContainerStyle={{ paddingBottom: liked ? obSpacing.xl : 96 }}>
               <DiscoverProfileItems items={items} h={handlers} />
               <DevPanel
                 last={describeDecision(state.decisions[state.decisions.length - 1])}
-                onReset={(shortFirst) => dispatch({ type: 'reset', shortFirst })}
+                onAction={(a) => dispatch(a)}
                 onExit={onExit}
               />
             </ScrollView>
-            {!keyboardOpen && liked ? (
-              // After a like with a comment: move on only — no pass recorded,
-              // no like used.
-              <TouchableOpacity
-                onPress={() => dispatch({ type: 'next', personId: person.id })}
-                style={styles.next}
-                accessibilityRole="button"
-                accessibilityLabel="Next profile">
-                <Text style={styles.nextText}>Next profile</Text>
-                <Ionicons name="chevron-forward" size={18} color={obColors.onCta} importantForAccessibility="no" />
-              </TouchableOpacity>
-            ) : !keyboardOpen ? (
+            {!keyboardOpen && !liked ? (
               <TouchableOpacity
                 onPress={() => dispatch({ type: 'pass', personId: person.id })}
                 style={styles.pass}
@@ -209,20 +208,68 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
             ) : null}
           </>
         ) : (
-          <View style={styles.end}>
-            <Text style={styles.endTitle}>That’s everyone in this preview</Text>
-            <Text style={styles.endText}>{describeDecision(state.decisions[state.decisions.length - 1])}. The real end-of-list and out-of-likes screens are a later work package.</Text>
-            <DevPanel last={null} onReset={(shortFirst) => dispatch({ type: 'reset', shortFirst })} onExit={onExit} />
-          </View>
+          <ScrollView contentContainerStyle={styles.stateScreen}>
+            {kind === 'error' ? (
+              <View style={styles.stateBody} accessibilityLiveRegion="polite">
+                <Ionicons name="cloud-offline-outline" size={36} color={obColors.cta} importantForAccessibility="no" />
+                <Text style={styles.endTitle} accessibilityRole="header">{STATE_COPY.errorTitle}</Text>
+                <Text style={styles.endText}>{STATE_COPY.errorText}</Text>
+                <TouchableOpacity onPress={() => dispatch({ type: 'retry' })} style={styles.retry} accessibilityRole="button">
+                  <Text style={styles.retryText}>{STATE_COPY.retry}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.stateBody}>
+                <Ionicons name="compass-outline" size={36} color={obColors.cta} importantForAccessibility="no" />
+                <Text style={styles.endTitle} accessibilityRole="header">{STATE_COPY.emptyTitle}</Text>
+                <Text style={styles.endText}>{STATE_COPY.emptyText}</Text>
+              </View>
+            )}
+            <DevPanel
+                last={describeDecision(state.decisions[state.decisions.length - 1])}
+                onAction={(a) => dispatch(a)}
+                onExit={onExit}
+              />
+          </ScrollView>
         )}
       </View>
+
+      {showActionBar && person ? (
+        <View style={styles.actionBar}>
+          {liked ? (
+            // After a like with a comment: move on only — no pass recorded,
+            // no like used. In its own slot, never over the photo.
+            <TouchableOpacity
+              onPress={() => dispatch({ type: 'next', personId: person.id })}
+              style={styles.next}
+              accessibilityRole="button"
+              accessibilityLabel="Next profile">
+              <Text style={styles.nextText}>Next profile</Text>
+              <Ionicons name="chevron-forward" size={18} color={obColors.onCta} importantForAccessibility="no" />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.outOfLikes} accessible accessibilityLabel={STATE_COPY.outOfLikes}>
+              <Ionicons name="heart-dislike-outline" size={18} color={obColors.textSecondary} importantForAccessibility="no" />
+              <Text style={styles.outOfLikesText} maxFontSizeMultiplier={1.4}>{STATE_COPY.outOfLikes}</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
 
       {!keyboardOpen ? <PreviewTabBar bottomInset={insets.bottom} /> : null}
     </View>
   );
 }
 
-function DevPanel({ last, onReset, onExit }: { last: string | null; onReset: (shortFirst: boolean) => void; onExit: () => void }) {
+function DevPanel({
+  last,
+  onAction,
+  onExit,
+}: {
+  last: string | null;
+  onAction: (a: DiscoverAction) => void;
+  onExit: () => void;
+}) {
   const btn = (label: string, onPress: () => void) => (
     <TouchableOpacity key={label} onPress={onPress} style={styles.devBtn} accessibilityRole="button">
       <Text style={styles.devBtnText} maxFontSizeMultiplier={1.4}>{label}</Text>
@@ -236,8 +283,11 @@ function DevPanel({ last, onReset, onExit }: { last: string | null; onReset: (sh
         Local sample data only. Nothing is liked, sent, passed or saved. Photos are illustrated placeholders, not final images.
       </Text>
       <View style={styles.devRow}>
-        {btn('Reset (full profile first)', () => onReset(false))}
-        {btn('Reset (short profile first)', () => onReset(true))}
+        {btn('Reset (full profile first)', () => onAction({ type: 'reset' }))}
+        {btn('Reset (short profile first)', () => onAction({ type: 'reset', shortFirst: true }))}
+        {btn('Use up likes', () => onAction({ type: 'dev_use_up_likes' }))}
+        {btn('No one left', () => onAction({ type: 'dev_empty' }))}
+        {btn('Load error', () => onAction({ type: 'dev_load_error' }))}
         {btn('Exit preview', onExit)}
       </View>
     </View>
@@ -285,25 +335,31 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
   },
+  actionBar: {
+    height: ACTION_BAR_HEIGHT,
+    justifyContent: 'center',
+    paddingHorizontal: obSpacing.lg,
+    backgroundColor: obColors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E4DCCB',
+  },
   next: {
-    position: 'absolute',
-    left: obSpacing.lg,
-    bottom: obSpacing.lg,
-    minHeight: 52,
+    alignSelf: 'stretch',
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
-    paddingHorizontal: obSpacing.lg + 2,
-    borderRadius: 26,
+    borderRadius: 12,
     backgroundColor: obColors.cta,
-    shadowColor: '#000000',
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
   },
+  outOfLikes: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.sm },
+  outOfLikesText: { flex: 1, fontFamily: obFonts.bodyMedium, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
+  stateScreen: { flexGrow: 1, justifyContent: 'center', paddingVertical: obSpacing.xl },
+  stateBody: { alignItems: 'center', gap: obSpacing.md, paddingHorizontal: obSpacing.gutter },
+  retry: { minHeight: 48, paddingHorizontal: obSpacing.xl, borderRadius: 12, backgroundColor: obColors.cta, alignItems: 'center', justifyContent: 'center', marginTop: obSpacing.xs },
+  retryText: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 21, color: obColors.onCta },
   nextText: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 21, color: obColors.onCta },
-  end: { flex: 1, justifyContent: 'center', padding: obSpacing.gutter, gap: obSpacing.md },
   endTitle: { fontFamily: obFonts.heading, fontSize: 24, lineHeight: 31, color: obColors.textPrimary, textAlign: 'center' },
   endText: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 21, color: obColors.textSecondary, textAlign: 'center' },
   dev: {

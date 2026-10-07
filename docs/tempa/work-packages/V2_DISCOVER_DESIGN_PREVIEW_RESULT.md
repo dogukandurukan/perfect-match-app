@@ -248,3 +248,73 @@ Phone check:
 1. Comment on the first prompt and press Send. The keyboard closes, Defne stays in place, the note and "Comment sent" sit inside the card, and the hearts and "Add a comment" are off.
 2. "Next profile" (bottom-left) opens Mert; "likes left" dropped by one only.
 3. On Mert, a heart without a comment still moves straight on, and × still passes.
+
+---
+
+# Round 3 — after-comment layout, out of likes, no one left vs load error (2026-10-07)
+
+From `260740e` (clean). Local DEV preview only; no backend, no real data, no animation, no purchase flow.
+
+## 1. After a comment
+
+- **"Next profile"** now sits in its **own slim bar (60 pt) above the tab bar**, outside the photo, as a full-width dark-green button. It no longer floats over the photo.
+- **Same profile stays:**
+    - the bar appears under the same profile and the hero gets the bar's height added back, so nothing above moves;
+    - no scroll-to-top.
+- **Compact sent note:**
+    - 15 pt text (max 3 lines; the full text is in the accessibility label);
+    - a 12 pt "✓ Comment sent" line;
+    - tighter padding.
+
+## 2. Out of likes
+
+- **The profile can still be browsed:**
+    - × still passes (it uses no like);
+    - the hearts are disabled and every "Add a comment" link / chip is hidden (a comment is a like);
+    - the reducer also refuses a like, a comment editor and Send at 0;
+    - an open editor closes.
+- **The same slim bar** shows "You're out of likes. You can still look through profiles."
+    - **No refresh time** — none is shown until the server provides one.
+    - **No premium or purchase prompt.**
+- The header reads "0 likes left".
+
+## 3. No one left vs. load error
+
+| State | Screen |
+|---|---|
+| No candidates | "No new profiles right now" / "You've seen everyone who matches your preferences for now. Check back later." No invented refresh time |
+| Load failed | "Couldn't load profiles" / "Check your connection and try again." + **Try again**. Never says nobody is left |
+
+`screenKind()`: an error **wins over** empty — after a failed load we don't know whether anyone is left.
+
+## DEV controls (panel at the end of each profile and under the state screens)
+
+*Reset (full / short first)*, **Use up likes**, **No one left**, **Load error**, *Exit preview*.
+
+## Checks (local only)
+
+- `tsc` clean;
+- `v2_discover_preview` **69 / 69** (+14 for the three states, the bar placement, the compact note and the copy rules: no time, no purchase, error ≠ empty);
+- other checks unchanged;
+- iOS dev bundle builds.
+
+**Not tried on a phone:**
+- the bar placement and the no-jump after Send;
+- the compact note;
+- the out-of-likes bar;
+- the empty and error screens.
+
+## Phone check
+
+1. Comment on a prompt and press Send. Defne stays in place, the compact note shows in the card, and "Next profile" is in the slim bar above the tab bar (not over the photo).
+2. DEV panel → **Use up likes**. The profile still scrolls, the hearts are off, there is no "Add a comment", the bar shows the out-of-likes line with no time, and × still moves on.
+3. **No one left** shows the plain empty screen. **Load error** shows "Couldn't load profiles" with Try again (not "no one left"), and **Try again** brings the profile back.
+
+## Next, separate work package (not started — waiting for the go-ahead)
+
+Real backend integration, on perfect-match-dev only:
+1. Photo / prompt likes saved to the right content, with a stable target id and a server check that the target belongs to, and is visible on, the likee.
+2. Comment + like saved as **one** server operation; on failure the draft stays on screen.
+3. Quota and repeat-send checks enforced on the server.
+4. District shown only when the member chose to share it (`get_profile_v2` returns it only then).
+5. Verification with two synthetic accounts that a sent comment appears on the receiver's side.
