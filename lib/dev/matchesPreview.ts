@@ -1,32 +1,27 @@
-// DEV-only Matches design preview: local fixtures + a pure state reducer.
-// Nothing here reads or writes Supabase — no likes, messages or matches are
-// created, and "Reset" only resets this in-memory state. The real Matches
-// screen (components/main/V2MatchesScreen.tsx) is untouched.
+// DEV-only Matches design preview (approved 3-screen direction, 2026-10-08):
+// local fixtures + a pure state reducer. Nothing here reads or writes
+// Supabase — no likes, messages or matches are created, and Reset only
+// resets this in-memory state. The real Matches tab
+// (components/main/V2MatchesScreen.tsx) is untouched.
 //
-// Product rules mirrored from the brief (V2_MATCHES_DESIGN_PREVIEW_RESULT.md):
-//   • "Picked for you" = one person you haven't matched with yet.
-//   • "You both liked" = a mutual like with no message yet.
-//   • A photo/prompt like may carry an optional comment; the comment alone
-//     never opens a chat.
-//   • No message exists until the user sends one. After the first message
-//     the card says "Conversation started"; the chat continues in Chats.
-//   • No compatibility %, no "Continue chatting", no last-message preview,
-//     no timer, no meeting invite.
-import { EMPTY_LIFE_DRAFT } from '@/lib/onboardingV2/yourLife';
-import type { PublicProfileInput } from '@/lib/onboardingV2/yourProfile';
-import type { TasteItem } from '@/lib/onboardingV2/yourWorld';
+// Rules mirrored from the brief:
+//   • "Picked for you" = one person you haven't matched with (fixed
+//     synthetic example — NOT chosen by any algorithm).
+//   • "You both liked" = one mutual like, no message yet (fixed example).
+//   • Targeted likes happen inside the profile (photo / prompt heart, or an
+//     inline comment); one like per person; a like alone opens no chat.
+//   • A message exists only after the user sends one; then the card says
+//     "Conversation started" and the chat continues in Chats.
+//   • No %, score, countdown, Plan a date, Ready to meet, Continue chatting
+//     or last-message preview.
+import { COMMENT_MAX, type DiscoverPerson } from '@/lib/discover/profileLayout';
+import { DISCOVER_PEOPLE } from '@/lib/dev/discoverPreview';
 
-/** Same limit as likes.note on the server (char_length <= 240). */
-export const COMMENT_MAX = 240;
+export { COMMENT_MAX };
 
 export type PreviewPersonKey = 'pick' | 'mutual';
 
-/** What a like points at. Photo index 0 is the main photo. */
-export type LikeTarget =
-  | { kind: 'photo'; photoIndex: number }
-  | { kind: 'prompt'; label: string; answer: string };
-
-export type SentLike = { target: LikeTarget; comment: string };
+export type SentLike = { target: string; comment: string };
 export type PreviewMessage = { id: string; text: string };
 
 export type PreviewState = {
@@ -39,26 +34,39 @@ export const INITIAL_PREVIEW_STATE: PreviewState = {
   mutual: { present: true, messages: [] },
 };
 
-export type PreviewScenario = 'both' | 'no_mutual' | 'no_pick';
+export type PreviewScenario = 'both' | 'no_mutual' | 'no_pick' | 'like_sent' | 'conversation_started';
 
 export type PreviewAction =
   | { type: 'reset' }
   | { type: 'scenario'; scenario: PreviewScenario }
-  | { type: 'send_like'; target: LikeTarget; comment: string }
+  | { type: 'send_like'; target: string; comment: string }
   | { type: 'send_message'; text: string };
+
+/** Demo text used only by the DEV "Conversation started" shortcut. */
+export const DEMO_FIRST_MESSAGE = 'Hi Ece! (demo message — not sent anywhere)';
 
 export function previewReducer(s: PreviewState, a: PreviewAction): PreviewState {
   switch (a.type) {
     case 'reset':
       return INITIAL_PREVIEW_STATE;
     case 'scenario':
-      return {
-        pick: { present: a.scenario !== 'no_pick', like: null },
-        mutual: { present: a.scenario !== 'no_mutual', messages: [] },
-      };
+      switch (a.scenario) {
+        case 'both':
+          return INITIAL_PREVIEW_STATE;
+        case 'no_mutual':
+          return { pick: { present: true, like: null }, mutual: { present: false, messages: [] } };
+        case 'no_pick':
+          return { pick: { present: false, like: null }, mutual: { present: true, messages: [] } };
+        case 'like_sent':
+          return { ...s, pick: { present: true, like: { target: 'photo:0', comment: '' } } };
+        case 'conversation_started':
+          return { ...s, mutual: { present: true, messages: [{ id: 'local-1', text: DEMO_FIRST_MESSAGE }] } };
+        default:
+          return s;
+      }
     case 'send_like': {
-      // One like per person (likes is unique per liker → likee). The
-      // comment never touches the mutual card or creates a message.
+      // One like per person; a like (with or without a comment) never
+      // touches the mutual card or creates a message.
       if (!s.pick.present || s.pick.like) return s;
       const comment = a.comment.trim().slice(0, COMMENT_MAX);
       return { ...s, pick: { ...s.pick, like: { target: a.target, comment } } };
@@ -96,109 +104,32 @@ export const PREVIEW_COPY = {
   viewProfile: 'View profile',
   sayHello: 'Say hello',
   likeSent: 'Like sent',
-  likeSentNote: 'If they like you back, you can start a chat.',
-  commentSentNote: 'Your comment was sent with your like. A chat opens only if you both like each other.',
   conversationStarted: 'Conversation started',
   conversationNote: 'Your conversation continues in Chats.',
-  noPickTitle: 'No new picks right now',
-  noPickText: 'New people picked for you will appear here.',
+  noPickTitle: 'No new pick right now',
+  noPickText: 'Someone new picked for you will appear here.',
   noMutualTitle: 'No mutual likes yet',
   noMutualText: 'When you and someone both like each other, they’ll appear here.',
-  addComment: 'Add a comment (optional)',
-  sendLike: 'Send like',
   chatEmptyTitle: (name: string) => `You and ${name} liked each other`,
   chatEmptyText: 'Say hello when you’re ready.',
   chatAfterFirst: 'Conversation started. It continues in Chats.',
   chatPlaceholder: 'Write a message…',
 } as const;
 
-const item = (kind: TasteItem['kind'], id: string, title: string, subtitle?: string): TasteItem => ({
-  kind,
-  source: 'sample',
-  id: `preview:${id}`,
-  title,
-  subtitle,
-});
-
-/** Fixture people (fictional; names chosen not to clash with the dev pool).
- * Photos are attached by the screen (bundled placeholder images). */
-export type PreviewPerson = Omit<PublicProfileInput, 'photos'> & { key: PreviewPersonKey };
-
-export const PREVIEW_PEOPLE: Record<PreviewPersonKey, PreviewPerson> = {
-  pick: {
-    key: 'pick',
-    name: 'Defne',
-    age: 29,
-    zodiac: 'Aries',
-    city: 'İstanbul',
-    heightCm: 166,
-    workStatus: 'full_time',
-    jobTitle: 'Product designer',
-    school: item('school', 'school-1', 'Boğaziçi University'),
-    hometown: item('hometown', 'home-1', 'İzmir'),
-    intent: 'long_term',
-    values: ['trust', 'growth'],
-    interests: ['art', 'travel', 'food'],
-    life: { ...EMPTY_LIFE_DRAFT, smoking: 'no', drinking: 'sometimes', pets: 'have_pets', petKind: 'cat', activity: 'somewhat' },
-    dates: { dateTypes: ['coffee', 'walk'], spotText: '', days: 'weekends', time: 'daytime' },
-    artists: [],
-    books: [item('book', 'book-1', 'Tutunamayanlar', 'Oğuz Atay')],
-    screen: [],
-    prompts: [
-      { promptId: 'small_thing_i_love', answer: 'Fresh simit and the first ferry of the day.' },
-      { promptId: 'together_we_could', answer: 'Find the best kumpir on the Asian side.' },
-    ],
-  },
-  mutual: {
-    key: 'mutual',
-    name: 'İpek',
-    age: 31,
-    zodiac: 'Cancer',
-    city: 'İstanbul',
-    heightCm: 170,
-    workStatus: 'self_employed',
-    jobTitle: 'Ceramic artist',
-    school: null,
-    hometown: item('hometown', 'home-2', 'Eskişehir'),
-    intent: 'long_term',
-    values: ['stability', 'trust'],
-    interests: ['art', 'wellness'],
-    life: { ...EMPTY_LIFE_DRAFT, smoking: 'no', drinking: 'sometimes', pets: 'have_pets', petKind: 'dog', activity: 'not_very' },
-    dates: { dateTypes: ['coffee'], spotText: '', days: 'weekends', time: 'either' },
-    artists: [],
-    books: [],
-    screen: [],
-    prompts: [
-      { promptId: 'oddly_good_at', answer: 'Fixing chipped mugs so you can’t tell.' },
-      { promptId: 'sunday_starts_with', answer: 'Clay, coffee, and a long playlist.' },
-    ],
-  },
+/** Fixed synthetic people (the approved Discover preview fixtures). The
+ * location follows the current server rule: no explicit "show my district"
+ * choice exists, so the city is shown even though a district is filled. */
+const fromDiscover = (id: string): DiscoverPerson => {
+  const p = DISCOVER_PEOPLE.find((x) => x.id === id);
+  if (!p) throw new Error(`missing preview person ${id}`);
+  return { ...p, district: null };
 };
 
-/** A heart tap on the shared profile (same shape as ProfilePreview's
- * ProfileLikeTarget): photo index 0 is the main photo. */
-export type TappedLikeTarget =
-  | { kind: 'photo'; photoIndex: number; uri: string }
-  | { kind: 'prompt'; label: string; answer: string };
+export const PREVIEW_PEOPLE: Record<PreviewPersonKey, DiscoverPerson> = {
+  pick: fromDiscover('defne'),
+  mutual: fromDiscover('ece'),
+};
 
-export type SelectedLikeContent =
-  | { kind: 'photo'; title: string; uri: string; a11y: string }
-  | { kind: 'prompt'; title: string; label: string; answer: string; a11y: string };
-
-/** What the like sheet shows: exactly the tapped photo or prompt answer. */
-export function selectedLikeContent(t: TappedLikeTarget, name: string): SelectedLikeContent {
-  if (t.kind === 'photo') {
-    return {
-      kind: 'photo',
-      title: `Like ${name}’s photo`,
-      uri: t.uri,
-      a11y: t.photoIndex === 0 ? 'Selected: main photo' : `Selected: photo ${t.photoIndex + 1}`,
-    };
-  }
-  return { kind: 'prompt', title: `Like ${name}’s answer`, label: t.label, answer: t.answer, a11y: `Selected: ${t.label} ${t.answer}` };
-}
-
-/** "Defne, 29" — for accessibility labels and the like sheet. */
-export function personLabel(p: PreviewPerson): string {
+export function personLabel(p: DiscoverPerson): string {
   return p.age !== null ? `${p.name}, ${p.age}` : p.name;
 }

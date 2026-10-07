@@ -154,3 +154,104 @@ New checks:
 - the tag visibility on the phone;
 - the keyboard behaviour of the sheet (iOS and Android);
 - the sheet scrolling on a small screen.
+
+---
+
+# Round 3 — approved 3-screen design on the DEV preview (2026-10-08)
+
+From `92b476f` (clean, same as origin). The **existing** DEV Matches preview was improved (same route `app/dev/matches-preview.tsx`, same entry); no second screen. Local fixtures only.
+
+**Unchanged:**
+- the real Matches tab (`V2MatchesScreen`), Supabase, quota, premium, keys, account deletion, Storage, production configuration;
+- the phone account, real likes, matches and messages;
+- the approved Discover and onboarding.
+
+The three-screen mockup (Matches · View profile · Conversation started) **was opened and used** as the reference.
+
+## Done
+
+- **Matches home** (scrolls; both cards keep full size, so on first open only the start of the second card shows):
+    - **Picked for you:**
+        - one person on a **large, near-square photo**;
+        - name + age (serif) and location on a soft gradient;
+        - the photo opens the profile;
+        - **View profile** below it (outlined).
+    - **You both liked:**
+        - the same card language;
+        - **Say hello** below it (filled dark green);
+        - the photo opens the profile.
+- **Theme:** ivory, dark forest green, Playfair titles / names, DM Sans text.
+- **Tab bar:** a non-interactive picture of the real five-tab bar with **Matches** active (same component as the Discover preview).
+- **No:** %, score, countdown, Plan a date, Ready to meet, Continue chatting, last-message preview, card-level heart.
+- **Location:** follows the current server rule. **City shown** (İstanbul): a filled district is not consent.
+- **View profile** = the approved Discover layout through the **shared components** (`buildDiscoverLayout` + `DiscoverProfileItems`):
+    - full-screen main photo with name / age;
+    - photos in order, compact prompts, neutral outlined hearts;
+    - inline comment editor under the content (no modal, no sheet);
+    - About (Height + Zodiac side by side; Hometown / Job / School full width; DM Sans Medium values);
+    - the other filled V2 sections; empty ones hidden.
+  The header is ‹ back + name: **back returns to Matches**. It's the one selected person — no "next candidate" behaviour.
+- **Likes (Picked for you only):**
+    - photo / prompt heart, or comment + Send; **one like per person**;
+    - a heart returns to Matches;
+    - a comment keeps the profile open with the sent note in place, then back to Matches;
+    - the card shows **Like sent**, and in the profile hearts are off and "Add a comment" is hidden (no resend);
+    - the mutual card is not affected;
+    - a like opens no chat.
+    - No animation, no green heart, no toast.
+- **The mutual person's profile:** read-only (hearts disabled; already a match).
+- **Say hello** → the existing local chat, now labelled "**DEV demo chat · nothing is sent to Chats**".
+    - No message until you type and send; going back without sending keeps Say hello.
+    - After the first message the card shows a small **Conversation started** + "Your conversation continues in Chats." in place of Say hello.
+    - The card keeps its full size, and its photo still opens the profile.
+- **Keyboard:** the comment editor uses the approved Discover behaviour, through a new shared hook `components/discover/useInlineEditorKeyboard.ts`. The tab bar picture hides while typing. The Discover screens keep their own copies; they were not touched.
+- **People:** fixed synthetic examples (Defne = Picked for you, Ece = You both liked), reusing the approved Discover-preview fixtures and their "DEV · SYNTHETIC" illustrated photos. **Not chosen by any algorithm.**
+    - The old İpek / Defne placeholder images of round 1–2 were removed (no longer referenced).
+- **DEV controls:**
+    - *Both cards*, *No mutual like* ("No mutual likes yet"), *No new pick* ("No new pick right now"), *Like sent*, *Conversation started*, *Reset*;
+    - an empty section never blocks the other one;
+    - the DEV text says the people are fixed examples and the likes / chat are a local demo;
+    - Reset touches only this in-memory state;
+    - "Conversation started" from the panel uses a message labelled as a demo.
+- **Production:** the route still redirects when `__DEV__` is false, and the Profile entry is DEV-only.
+
+## Local checks
+
+- `tsc` clean;
+- `v2_matches_preview` rewritten for this design: **37 / 37** (flows, one like per person, unaffected other card, DEV states, layout via shared components, About order, city rule, copy rules, no modal / sheet / animation / filled heart, no backend import, DEV-only access);
+- other checks unchanged (Discover preview 85, Discover real 30, …);
+- iOS dev bundle builds.
+
+**Not tried on a phone.** Nothing in this round has been seen on a device.
+
+## Differences from the mockup
+
+- **Photos:** illustrated placeholders, not realistic portraits.
+- **Ece's age** is the fixture's 27 (the mockup says 31).
+- **Header:** a tiny "DEV ✕" pill to exit the preview.
+- **Profile header:** has no "⋯" menu (no fake actions).
+- **The mockup's small heart icons on the Matches cards** were not added (not a new like action, as instructed).
+- **"Like sent":** a small text line on the card (the mockup has no Like-sent state).
+- **The mutual person's profile** shows disabled hearts rather than none.
+
+## Open decisions for the real integration (not decided here)
+
+- **Picked for you source:** which server path, which selection rule and how often it refreshes. There is no scoring on V2; nothing was added.
+- **Which mutual like to show** when there are several (newest? oldest without a message?).
+- **The same person in both sections** (e.g. a pick who likes you back becomes mutual): dedupe rule and which section wins.
+- **"Conversation started" card:** when it refreshes or disappears (after the first message? on the next pick? when the match ends?).
+- **Exclusions:** blocked, hidden, deleted or unmatched people. On V2 today, `get_my_matches_v2` and `v2_can_view_public_profile` already exclude them for real matches and profiles; the pick source would need the same rule.
+- **Real targeted likes here:** would use `send_like_v2` (Discover integration).
+
+## Phone
+
+**Command:** `~/tempa-p0/scripts/dev-backend/start-app.sh` (press `r` in Metro if the app is open).
+
+**Button:** Profile tab → **Matches design preview (DEV)**.
+
+Checks (≤ 5):
+1. Matches: large Picked for you card (Defne, İstanbul) with View profile below; scroll to see You both liked (Ece) with Say hello. The tab bar picture shows Matches active.
+2. View profile: full-screen photo, compact prompts, About order. Back returns to Matches.
+3. Comment on a prompt and press Send. The note stays in place; back on Matches the card shows "Like sent", and the hearts in the profile are off. (Repeat with *Reset* and a plain heart.)
+4. Say hello and go back without sending: Say hello is still there. Send a message, go back: "Conversation started / Your conversation continues in Chats." The card keeps its size.
+5. DEV: *No mutual like*, *No new pick*, *Reset* — the other card keeps working.
