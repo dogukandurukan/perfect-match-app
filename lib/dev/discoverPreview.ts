@@ -130,8 +130,9 @@ export const DISCOVER_PEOPLE: DiscoverPerson[] = [
 
 // ─── Profile order ─────────────────────────────────────────────────────────
 
-/** A labelled personal detail ("Hometown" / "İzmir"). */
-export type LabelledFact = { icon: string; label: string; value: string };
+/** A labelled personal detail ("Hometown" / "İzmir"). `wide` = its own
+ * full-width row (Job, School: long values would wrap badly in a column). */
+export type LabelledFact = { icon: string; label: string; value: string; wide?: boolean };
 
 export type DiscoverItem =
   | { type: 'hero'; photoIndex: 0; name: string; age: number | null; location: string | null }
@@ -155,8 +156,8 @@ export function personalDetails(p: DiscoverPerson): LabelledFact[] {
     p.hometown ? { icon: 'home-outline', label: 'Hometown', value: p.hometown.title } : null,
     p.heightCm ? { icon: 'resize-outline', label: 'Height', value: `${p.heightCm} cm` } : null,
     p.zodiac ? { icon: 'planet-outline', label: 'Zodiac', value: p.zodiac } : null,
-    job ? { icon: 'briefcase-outline', label: 'Job', value: job } : null,
-    p.school ? { icon: 'school-outline', label: 'School', value: p.school.title } : null,
+    job ? { icon: 'briefcase-outline', label: 'Job', value: job, wide: true } : null,
+    p.school ? { icon: 'school-outline', label: 'School', value: p.school.title, wide: true } : null,
   ];
   return out.filter((x): x is LabelledFact => !!x);
 }

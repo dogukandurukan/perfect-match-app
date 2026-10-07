@@ -318,3 +318,21 @@ Real backend integration, on perfect-match-dev only:
 3. Quota and repeat-send checks enforced on the server.
 4. District shown only when the member chose to share it (`get_profile_v2` returns it only then).
 5. Verification with two synthetic accounts that a sent comment appears on the receiver's side.
+
+---
+
+# Round 4 — personal details layout (2026-10-07)
+
+From `c35b823`. Local DEV preview only.
+
+**Problem:** in the two-column grid, long Job / School values wrapped over many lines in a narrow column and left empty space beside them.
+
+**Change:**
+- Hometown, Height and Zodiac stay in the compact two-column grid.
+- **Job** and then **School** each get their **own full-width row** below it (icon + label + value). Long values wrap naturally, with no truncation.
+- Type size and weight unchanged (value: DM Sans Medium 17, dark; label 13).
+- `personalDetails()` now marks Job / School as `wide`; empty fields stay hidden.
+
+**Checks (local):** `tsc` clean; `v2_discover_preview` **72 / 72** (+3: grid vs full-width split, full-width rows, same 17 pt medium value with no truncation).
+
+**Not tried on a phone.** Check: Defne and the long-text profile (Ece — "Senior user experience researcher and workshop facilitator", "Mimar Sinan Fine Arts University, Faculty of Architecture") show Hometown / Height / Zodiac in two columns, then Job and School as full-width rows with no gap beside them.

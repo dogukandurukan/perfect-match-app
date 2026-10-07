@@ -34,6 +34,10 @@ ok(D.heroLocation({ district: '  ', city: 'İzmir' }) === 'İzmir' && D.heroLoca
 const det = D.personalDetails(person('defne'));
 ok(eq(det.map((f) => `${f.label}=${f.value}`), ['Hometown=İzmir', 'Height=166 cm', 'Zodiac=Aries', 'Job=Product designer', 'School=Boğaziçi University']), 'details: English labels, mockup values');
 ok(!det.some((f) => /Kadıköy|İstanbul/.test(f.value)), 'details: location not repeated');
+ok(eq(det.filter((f) => f.wide).map((f) => f.label), ['Job', 'School']) && eq(det.filter((f) => !f.wide).map((f) => f.label), ['Hometown', 'Height', 'Zodiac']), 'details: Hometown/Height/Zodiac grid, Job + School full-width rows');
+const itemsSrc = fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverProfileItems.tsx'), 'utf8');
+ok(/detailWide: \{ flexDirection: 'row'/.test(itemsSrc) && !/detailWide:[^}]*width/.test(itemsSrc), 'details: wide rows use the full width');
+ok(/detailValue: \{ fontFamily: obFonts\.bodyMedium, fontSize: 17/.test(itemsSrc) && !/detailValue[^\n]*numberOfLines/.test(itemsSrc), 'details: same 17 pt medium value, no truncation');
 ok(eq(D.personalDetails(person('mert')).map((f) => f.label), ['Height', 'Zodiac']), 'details: empty fields hidden');
 
 // Reducer: likes, pass, comments.

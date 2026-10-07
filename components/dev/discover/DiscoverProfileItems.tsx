@@ -275,21 +275,37 @@ function Section({ title, children }: { title?: string; children: ReactNode }) {
   );
 }
 
+/** Hometown / Height / Zodiac in a compact two-column grid; Job and School
+ * each get a full-width row below, so long values wrap naturally instead of
+ * stacking in a narrow column. Same type size and weight everywhere. */
 function Details({ facts }: { facts: LabelledFact[] }) {
+  const short = facts.filter((f) => !f.wide);
+  const wide = facts.filter((f) => f.wide);
   return (
     <Section>
-      <View style={styles.detailsGrid}>
-        {facts.map((f) => (
-          <View key={f.label} style={styles.detailCell} accessible accessibilityLabel={`${f.label}: ${f.value}`}>
-            <FactIcon icon={f.icon} />
-            <View style={styles.detailText}>
-              <Text style={styles.detailLabel} maxFontSizeMultiplier={1.6}>{f.label}</Text>
-              <Text style={styles.detailValue} maxFontSizeMultiplier={1.6}>{f.value}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
+      {short.length ? (
+        <View style={styles.detailsGrid}>
+          {short.map((f) => (
+            <DetailCell key={f.label} fact={f} style={styles.detailCell} />
+          ))}
+        </View>
+      ) : null}
+      {wide.map((f) => (
+        <DetailCell key={f.label} fact={f} style={styles.detailWide} />
+      ))}
     </Section>
+  );
+}
+
+function DetailCell({ fact, style }: { fact: LabelledFact; style: object }) {
+  return (
+    <View style={style} accessible accessibilityLabel={`${fact.label}: ${fact.value}`}>
+      <FactIcon icon={fact.icon} />
+      <View style={styles.detailText}>
+        <Text style={styles.detailLabel} maxFontSizeMultiplier={1.6}>{fact.label}</Text>
+        <Text style={styles.detailValue} maxFontSizeMultiplier={1.6}>{fact.value}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -437,6 +453,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: obFonts.bodySemiBold, fontSize: 13, lineHeight: 18, letterSpacing: 0.5, textTransform: 'uppercase', color: obColors.textSecondary },
   detailsGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: obSpacing.lg },
   detailCell: { width: '50%', flexDirection: 'row', alignItems: 'flex-start', gap: obSpacing.sm, paddingRight: obSpacing.md },
+  detailWide: { flexDirection: 'row', alignItems: 'flex-start', gap: obSpacing.sm },
   detailText: { flex: 1, gap: 1 },
   detailLabel: { fontFamily: obFonts.bodyMedium, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
   detailValue: { fontFamily: obFonts.bodyMedium, fontSize: 17, lineHeight: 23, color: obColors.textPrimary },
