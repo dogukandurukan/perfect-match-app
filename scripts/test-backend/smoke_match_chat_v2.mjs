@@ -59,7 +59,10 @@ async function main() {
   const fut = (h) => new Date(Date.now() + h * 3600e3).toISOString();
 
   // ---- likes → match ---------------------------------------------------------
-  check(!(await A.from('likes').insert({ liker_id: MAN, likee_id: WOMAN, target_type: 'profile', status: 'sent' })).error, 'A likes B');
+  // Since 2026-10-08 V2 members like only through send_like_v2 (targeted, server quota).
+  const firstPhoto = async (c, id) => (await c.rpc('get_profile_v2', { p_user: id })).data?.photos?.[0]?.id;
+  await admin.from('profiles').update({ daily_views_count: 0, daily_views_reset_at: new Date().toISOString() }).in('id', [MAN, WOMAN]);
+  check((await A.rpc('send_like_v2', { p_likee: WOMAN, p_target_type: 'photo', p_target_id: await firstPhoto(A, WOMAN), p_note: null, p_request_id: crypto.randomUUID() })).data?.ok === true, 'A likes B');
   check((await pair()).every((m) => m.status !== 'accepted' && m.chat_opened !== true), 'one-sided like: no match, no chat');
   check(((await A.rpc('get_my_matches_v2')).data ?? []).length === 0, 'one-sided like: Matches empty');
   check(!!(await A.from('messages').insert({ sender_id: MAN, receiver_id: WOMAN, content: 'early' })).error, 'one-sided like: no messages');
@@ -72,12 +75,12 @@ async function main() {
   const lp = (await B.rpc('get_profile_v2', { p_user: MAN })).data;
   const ALLOWED = ['activity', 'age', 'artists', 'books', 'city', 'core_values', 'date_types', 'days_pref', 'drinking',
     'favorite_spot', 'first_name', 'height_cm', 'hometown', 'intent', 'interests', 'job_title', 'pet_kind', 'pets',
-    'photo_paths', 'prompts', 'school', 'screen', 'smoking', 'time_pref', 'user_id', 'work_status', 'zodiac'];
+    'photo_paths', 'photos', 'prompts', 'school', 'screen', 'smoking', 'time_pref', 'user_id', 'work_status', 'zodiac'];
   check(lp && JSON.stringify(Object.keys(lp).sort()) === JSON.stringify(ALLOWED), 'Likes you → full V2 profile with only the allowed fields');
   check(((await B.from('onboarding_v2').select('first_name').eq('user_id', MAN)).data ?? []).length === 0, 'Likes you: raw draft not readable');
   check(errIs(await O.rpc('propose_date_v2', { p_match: crypto.randomUUID(), p_meeting_at: new Date(Date.now() + 3600e3).toISOString(), p_place: null, p_request_id: crypto.randomUUID() }), 'chat_not_active'),
     'no suggestion without a match');
-  check(!(await B.from('likes').insert({ liker_id: WOMAN, likee_id: MAN, target_type: 'profile', status: 'sent' })).error, 'B likes A back');
+  check((await B.rpc('send_like_v2', { p_likee: MAN, p_target_type: 'photo', p_target_id: await firstPhoto(B, MAN), p_note: null, p_request_id: crypto.randomUUID() })).data?.ok === true, 'B likes A back');
   const p0 = await pair();
   check(p0.length === 1 && p0[0].status === 'accepted' && p0[0].chat_opened === true && p0[0].source === 'mutual_like',
     'mutual like: exactly one match, chat open');

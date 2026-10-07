@@ -35,7 +35,7 @@ const det = D.personalDetails(person('defne'));
 ok(eq(det.map((f) => `${f.label}=${f.value}`), ['Height=166 cm', 'Zodiac=Aries', 'Hometown=İzmir', 'Job=Product designer', 'School=Boğaziçi University']), 'details: English labels, mockup values');
 ok(!det.some((f) => /Kadıköy|İstanbul/.test(f.value)), 'details: location not repeated');
 ok(eq(det.filter((f) => f.wide).map((f) => f.label), ['Hometown', 'Job', 'School']) && eq(det.filter((f) => !f.wide).map((f) => f.label), ['Height', 'Zodiac']), 'About: Height + Zodiac side by side, Hometown / Job / School full-width rows');
-const itemsSrc = fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverProfileItems.tsx'), 'utf8');
+const itemsSrc = fs.readFileSync(path.join(ROOT, 'components/discover/DiscoverProfileItems.tsx'), 'utf8');
 ok(/detailWide: \{ flexDirection: 'row'/.test(itemsSrc) && !/detailWide:[^}]*width/.test(itemsSrc), 'details: wide rows use the full width');
 ok(/detailValue: \{ fontFamily: obFonts\.bodyMedium, fontSize: 17/.test(itemsSrc) && !/detailValue[^\n]*numberOfLines/.test(itemsSrc), 'details: same 17 pt medium value, no truncation');
 ok(eq(D.personalDetails(person('mert')).map((f) => f.label), ['Height', 'Zodiac']), 'details: empty fields hidden');
@@ -91,10 +91,10 @@ ok(D.describeDecision(sent.decisions[0]) === 'Liked Defne’s prompt with a comm
 const screenSrc = fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverDesignPreview.tsx'), 'utf8');
 ok(/type: 'next', personId: person\.id/.test(screenSrc) && /accessibilityLabel="Next profile"/.test(screenSrc), 'liked profile shows Next profile instead of ×');
 ok(!/scrollTo\(\{ y: 0/.test(screenSrc), 'Send never scrolls to the top');
-ok(/Comment sent/.test(fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverProfileItems.tsx'), 'utf8')), 'Comment sent line in place of the editor');
+ok(/Comment sent/.test(fs.readFileSync(path.join(ROOT, 'components/discover/DiscoverProfileItems.tsx'), 'utf8')), 'Comment sent line in place of the editor');
 
 // Static: English copy, no backend, no swipe/animation/toast, DEV-only.
-const files = ['lib/dev/discoverPreview.ts', 'components/dev/discover/DiscoverDesignPreview.tsx', 'components/dev/discover/DiscoverProfileItems.tsx', 'components/dev/discover/PreviewTabBar.tsx', 'app/dev/discover-preview.tsx'];
+const files = ['lib/dev/discoverPreview.ts', 'lib/discover/profileLayout.ts', 'components/dev/discover/DiscoverDesignPreview.tsx', 'components/discover/DiscoverProfileItems.tsx', 'components/dev/discover/PreviewTabBar.tsx', 'components/dev/discover/previewPhotos.ts', 'app/dev/discover-preview.tsx'];
 const src = files.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
 ok(!/supabase|onboardingV2\/remote|matchChatV2|@\/lib\/(likes|dailyViews|matchInvite)/.test(src), 'no backend import');
 ok(!/Memleket|Koç|Ürün tasarımcısı|Yorum|Vazgeç|Gönder/.test(src), 'no Turkish UI copy (place names only)');
@@ -128,7 +128,7 @@ ok(!/\d|tomorrow/i.test(D.STATE_COPY.emptyTitle + D.STATE_COPY.emptyText), 'empt
 const scr = fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverDesignPreview.tsx'), 'utf8');
 const nextStyle = (scr.match(/ {2}next: \{[\s\S]*?\n {2}\},/) || [''])[0];
 ok(!/position: 'absolute'/.test(nextStyle) && /<View style=\{styles\.actionBar\}>/.test(scr), 'Next profile sits in its own bar, not over the photo');
-ok(/numberOfLines=\{3\}/.test(fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverProfileItems.tsx'), 'utf8')), 'sent note compact (max 3 lines)');
+ok(/numberOfLines=\{3\}/.test(fs.readFileSync(path.join(ROOT, 'components/discover/DiscoverProfileItems.tsx'), 'utf8')), 'sent note compact (max 3 lines)');
 
 // Round 5: compact prompt / neutral heart / secondary links, About order, Next profile stall.
 const V = D.chromeVisibility;
@@ -144,7 +144,7 @@ ok(!V({ ...base, kind: 'empty' }).pass && !V({ ...base, kind: 'error' }).nextPro
 const scr5 = fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverDesignPreview.tsx'), 'utf8');
 const sendHandler = (scr5.match(/onSendComment: \(\) => \{[\s\S]*?\n {8}\},/) || [''])[0];
 ok(/setKeyboardOpen\(false\)/.test(sendHandler) && /Keyboard\.dismiss\(\)/.test(sendHandler), 'Send resets the keyboard state itself');
-const it5 = fs.readFileSync(path.join(ROOT, 'components/dev/discover/DiscoverProfileItems.tsx'), 'utf8');
+const it5 = fs.readFileSync(path.join(ROOT, 'components/discover/DiscoverProfileItems.tsx'), 'utf8');
 const style5 = (name) => (it5.match(new RegExp(`\\n  ${name}: \\{[^}]*\\}`)) || [''])[0];
 ok(/fontFamily: obFonts\.heading, fontSize: 21/.test(style5('promptAnswer')), 'prompt answer: serif, compact 21 pt');
 ok(!/backgroundColor: obColors\.cta/.test(style5('heartOnCard')) && /borderWidth/.test(style5('heartOnCard')), 'card heart: neutral outline, no dark-green disc');

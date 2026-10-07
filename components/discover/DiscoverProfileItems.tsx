@@ -1,61 +1,41 @@
-// DEV Discover preview — one profile, rendered top to bottom from
-// buildDiscoverLayout(). Local only: hearts, "Add a comment" and Send call
-// back into the preview reducer; nothing touches the backend.
+// Discover full profile (approved design), rendered top to bottom from
+// buildDiscoverLayout(). Shared by the real V2 Discover and the DEV preview:
+// hearts, "Add a comment" and Send only call back into the owner screen,
+// which decides what they do (server RPC or local reducer). Photo sources
+// are injected, so no fixture image ever reaches the real screen.
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
+import { Image, type ImageSource } from 'expo-image';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-import {
-  COMMENT_MAX,
-  photoKey,
-  type DiscoverItem,
-  type DiscoverPerson,
-  type Editor,
-  type LabelledFact,
-  type SentComment,
-} from '@/lib/dev/discoverPreview';
+import { COMMENT_MAX, type DiscoverItem, type DiscoverPerson, type LabelledFact } from '@/lib/discover/profileLayout';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewFact, PreviewGroup, PreviewTaste } from '@/lib/onboardingV2/yourProfile';
 
-/** Bundled placeholder photos ("DEV · SYNTHETIC" illustrations, not final). */
-export const DISCOVER_PHOTOS: Record<string, number[]> = {
-  defne: [
-    require('../../../assets/dev/discover-preview/defne-1.png'),
-    require('../../../assets/dev/discover-preview/defne-2.png'),
-    require('../../../assets/dev/discover-preview/defne-3.png'),
-    require('../../../assets/dev/discover-preview/defne-4.png'),
-    require('../../../assets/dev/discover-preview/defne-5.png'),
-    require('../../../assets/dev/discover-preview/defne-6.png'),
-  ],
-  mert: [
-    require('../../../assets/dev/discover-preview/mert-1.png'),
-    require('../../../assets/dev/discover-preview/mert-2.png'),
-    require('../../../assets/dev/discover-preview/mert-3.png'),
-  ],
-  ece: [
-    require('../../../assets/dev/discover-preview/ece-1.png'),
-    require('../../../assets/dev/discover-preview/ece-2.png'),
-    require('../../../assets/dev/discover-preview/ece-3.png'),
-    require('../../../assets/dev/discover-preview/ece-4.png'),
-  ],
-};
-
 // Smooth fade under the name: a bundled 4×256 alpha-ramp PNG (no gradient
-// native module → no dev-client rebuild). Shared with the Matches preview.
-const FADE = require('../../../assets/dev/matches-preview/fade.png');
+// native module → no dev-client rebuild). Not a DEV asset: the real screen uses it.
+const FADE = require('../../assets/images/discover-fade.png');
 
 const SURFACE = '#FFFDF8';
 const CARD_BORDER = '#E4DCCB';
 
+export type EditorState = { target: string; draft: string };
+export type SentNoteState = { target: string; comment: string };
+
 export type ItemHandlers = {
   person: DiscoverPerson;
+  /** Image for photo i (bundled module in the preview, signed URL for real). */
+  photoSource: (i: number) => ImageSource | number | null;
   heroHeight: number;
-  editor: Editor | null;
+  editor: EditorState | null;
+  /** A send is in flight: hearts and Send are disabled (no double sends). */
+  busy?: boolean;
+  /** Inline error under the open editor (draft is kept). */
+  editorError?: string | null;
   canLike: boolean;
   /** A like with a comment was sent to this profile: no more hearts or comments. */
   liked: boolean;
-  sent: SentComment | null;
+  sent: SentNoteState | null;
   onLike: (target: string) => void;
   onOpenComment: (target: string) => void;
   onEditComment: (text: string) => void;
@@ -95,12 +75,12 @@ export function DiscoverProfileItems({ items, h }: { items: DiscoverItem[]; h: I
 
 function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | 'photo' }>; h: ItemHandlers }) {
   const i = item.photoIndex;
-  const target = photoKey(i);
+  const target = item.target;
   const isHero = item.type === 'hero';
   const what = isHero ? 'main photo' : `photo ${i + 1}`;
   const editing = h.editor?.target === target;
   const sentHere = h.sent?.target === target ? h.sent : null;
-  const source = DISCOVER_PHOTOS[h.person.id]?.[i];
+  const source = h.photoSource(i);
   return (
     <View>
       <View style={isHero ? { height: h.heroHeight } : styles.photo4x5}>
@@ -136,7 +116,7 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
               <Text style={styles.commentChipText} maxFontSizeMultiplier={1.3}>Add a comment</Text>
             </TouchableOpacity>
           ) : null}
-          <HeartButton onPhoto disabled={!h.canLike} label={`Like ${h.person.name}’s ${what}`} onPress={() => h.onLike(target)} />
+          <HeartButton onPhoto disabled={!h.canLike || !!h.busy} label={`Like ${h.person.name}’s ${what}`} onPress={() => h.onLike(target)} />
         </View>
       </View>
       {editing ? (
@@ -181,7 +161,7 @@ function PromptItem({ item, h }: { item: Extract<DiscoverItem, { type: 'prompt' 
           <Text style={styles.promptLabel} maxFontSizeMultiplier={1.6}>{item.label}</Text>
           <Text style={styles.promptAnswer} maxFontSizeMultiplier={1.6}>{item.answer}</Text>
         </View>
-        <HeartButton disabled={!h.canLike} label={`Like ${h.person.name}’s answer: ${item.label}`} onPress={() => h.onLike(item.key)} />
+        <HeartButton disabled={!h.canLike || !!h.busy} label={`Like ${h.person.name}’s answer: ${item.label}`} onPress={() => h.onLike(item.key)} />
       </View>
       {editing ? (
         <InlineEditor h={h} />
@@ -206,7 +186,7 @@ function PromptItem({ item, h }: { item: Extract<DiscoverItem, { type: 'prompt' 
 
 function InlineEditor({ h, title }: { h: ItemHandlers; title?: string }) {
   const draft = h.editor?.draft ?? '';
-  const canSend = h.canLike && draft.trim().length > 0;
+  const canSend = h.canLike && !h.busy && draft.trim().length > 0;
   return (
     <View ref={h.editorRef} style={styles.editor} collapsable={false}>
       <Text style={styles.editorLabel} maxFontSizeMultiplier={1.6}>{title ?? 'Your comment'}</Text>
@@ -227,6 +207,11 @@ function InlineEditor({ h, title }: { h: ItemHandlers; title?: string }) {
         accessibilityHint="Done closes the keyboard and keeps your comment"
       />
       <Text style={styles.counter}>{`${draft.length}/${COMMENT_MAX}`}</Text>
+      {h.editorError ? (
+        <Text style={styles.editorError} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
+          {h.editorError}
+        </Text>
+      ) : null}
       <View style={styles.editorRow}>
         <TouchableOpacity onPress={h.onCancelComment} hitSlop={10} style={styles.cancel} accessibilityRole="button" accessibilityLabel="Cancel comment">
           <Text style={styles.cancelText}>Cancel</Text>
@@ -238,7 +223,7 @@ function InlineEditor({ h, title }: { h: ItemHandlers; title?: string }) {
           accessibilityRole="button"
           accessibilityLabel="Send like with comment"
           accessibilityState={{ disabled: !canSend }}>
-          <Text style={styles.sendText}>Send</Text>
+          <Text style={styles.sendText}>{h.busy ? 'Sending…' : 'Send'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -444,6 +429,7 @@ const styles = StyleSheet.create({
     color: obColors.textPrimary,
     textAlignVertical: 'top',
   },
+  editorError: { fontFamily: obFonts.bodyMedium, fontSize: 14, lineHeight: 19, color: obColors.error },
   counter: { alignSelf: 'flex-end', marginTop: -4, fontFamily: obFonts.body, fontSize: 12, lineHeight: 16, color: obColors.textSecondary },
   editorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cancel: { minHeight: 44, justifyContent: 'center' },

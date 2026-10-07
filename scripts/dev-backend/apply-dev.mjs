@@ -8,6 +8,7 @@
 //   node scripts/dev-backend/apply-dev.mjs p0b   # P0-B (after the R-P0 client is the one in use)
 //   node scripts/dev-backend/apply-dev.mjs profile # V2 public profile read (get_profile_v2)
 //   node scripts/dev-backend/apply-dev.mjs matchchat # match → chat → date suggestions
+//   node scripts/dev-backend/apply-dev.mjs discover  # targeted likes + comment (send_like_v2)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,8 +24,9 @@ const files = {
   profile: ['20261001090000_v2_public_profile.sql'],
   matchchat: ['20261001120000_v2_match_chat_date.sql'],
   skipliked: ['20261001140000_v2_discovery_skip_liked.sql'],
+  discover: ['20261008090000_v2_discover_targeted_likes.sql'],
 }[stage];
-if (!files) fail('usage: apply-dev.mjs p0a|v2|p0b|profile|matchchat|skipliked');
+if (!files) fail('usage: apply-dev.mjs p0a|v2|p0b|profile|matchchat|skipliked|discover');
 
 const linkedDir = path.join(os.homedir(), 'dating-app-recovered');
 const linked = fs.readFileSync(path.join(linkedDir, 'supabase', '.temp', 'project-ref'), 'utf8').trim();

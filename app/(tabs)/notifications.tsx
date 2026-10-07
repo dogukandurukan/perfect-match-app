@@ -3,6 +3,7 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
+import { likedTargetText } from '@/lib/discover/likeFlow';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -72,6 +73,10 @@ type UnlockedLiker = {
   age: number;
   photoUrl: string | null;
   hasNote: boolean;
+  /** V2 targeted likes: what the like / comment was on (null = whole profile). */
+  targetText?: string | null;
+  targetPhotoUrl?: string | null;
+  note?: string | null;
 };
 
 // "Waiting on them" (2026-09-16) — outgoing "Let's meet" invites you sent,
@@ -364,6 +369,21 @@ function LikeCarouselCard({
           {liker.firstName ?? 'Someone'}
           {liker.age > 0 ? `, ${liker.age}` : ''}
         </ThemedText>
+        {liker.targetText ? (
+          <View style={styles.likeTargetRow}>
+            {liker.targetPhotoUrl ? (
+              <Image source={{ uri: liker.targetPhotoUrl }} style={styles.likeTargetThumb} contentFit="cover" accessibilityLabel="The photo they liked" />
+            ) : null}
+            <ThemedText style={styles.likeTargetText} numberOfLines={2}>
+              {liker.targetText}
+            </ThemedText>
+          </View>
+        ) : null}
+        {liker.note?.trim() ? (
+          <ThemedText style={styles.likeTargetNote} numberOfLines={2}>
+            {`“${liker.note.trim()}”`}
+          </ThemedText>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -965,6 +985,10 @@ export default function NotificationsScreen() {
       photo_path: string | null;
       note: string | null;
       created_at: string;
+      target_type: string | null;
+      target_available: boolean | null;
+      target_photo_path: string | null;
+      target_prompt_id: string | null;
     }[];
     const unlocked = rows.some((r) => r.liker_id != null);
     setLikeCount(Number(rows[0]?.total_count ?? 0));
@@ -995,6 +1019,10 @@ export default function NotificationsScreen() {
             age: typeof r.age === 'number' ? r.age : 0,
             photoUrl,
             hasNote: !!r.note?.trim(),
+            targetText: likedTargetText(r),
+            // The receiver's OWN liked photo (private bucket, signed here).
+            targetPhotoUrl: r.target_photo_path ? await resolveProfilePhotoUrl(r.target_photo_path, 3600).catch(() => null) : null,
+            note: r.note,
           };
         }),
     );
@@ -1882,6 +1910,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#E4DCCB',
   },
   likeCarouselImg: { width: '100%', height: '100%' },
+  likeTargetRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  likeTargetThumb: { width: 26, height: 32, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
+  likeTargetText: { flex: 1, fontSize: 12, lineHeight: 16, color: '#FFFFFF' },
+  likeTargetNote: { marginTop: 2, fontSize: 12, lineHeight: 16, color: '#FFFFFF', fontStyle: 'italic' },
   likeCarouselScrim: {
     position: 'absolute',
     left: 0,

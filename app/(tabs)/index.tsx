@@ -35,6 +35,8 @@ import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { devBackendLabel, devBuildLabel } from '@/lib/devBuildInfo';
 import { getAccessGate } from '@/lib/onboardingV2/remote';
 import { PublicProfileView } from '@/components/onboarding-v2/PublicProfileView';
+import { V2DiscoverScreen } from '@/components/main/V2DiscoverScreen';
+import { useV2Member } from '@/lib/onboardingV2/useV2Member';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -163,7 +165,23 @@ type FeedUser = HingeProfilePerson & {
   languages: string[] | null;
 };
 
+// V2 backends: an active V2 member gets the approved V2 Discover (targeted
+// likes + inline comments through send_like_v2). Everyone else — signed out,
+// onboarding, V1 accounts, the live build — keeps the existing screen below.
 export default function HomeScreen() {
+  const v2 = useV2Member();
+  if (v2 === 'yes') return <V2DiscoverScreen />;
+  if (v2 === 'checking') {
+    return (
+      <View style={styles.loadingFeed}>
+        <ActivityIndicator color={ACCENT} size="large" />
+      </View>
+    );
+  }
+  return <LegacyHomeScreen />;
+}
+
+function LegacyHomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();

@@ -23,7 +23,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DiscoverProfileItems, type ItemHandlers } from '@/components/dev/discover/DiscoverProfileItems';
+import { DISCOVER_PHOTOS } from '@/components/dev/discover/previewPhotos';
+import { DiscoverProfileItems, type ItemHandlers } from '@/components/discover/DiscoverProfileItems';
 import { PreviewTabBar } from '@/components/dev/discover/PreviewTabBar';
 import { TempaWordmark } from '@/components/onboarding-v2/TempaWordmark';
 import {
@@ -141,6 +142,7 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
   const handlers: ItemHandlers | null = person
     ? {
         person,
+        photoSource: (i) => DISCOVER_PHOTOS[person.id]?.[i] ?? null,
         // After Send the action bar appears under the same profile: add its
         // height back so the hero (and everything below it) doesn't move.
         heroHeight: Math.max(frameHeight + (liked && showActionBar ? ACTION_BAR_HEIGHT : 0), 360),
