@@ -148,14 +148,15 @@ export function heroLocation(p: Pick<DiscoverPerson, 'district' | 'city'>): stri
   return p.district?.trim() || p.city?.trim() || null;
 }
 
-/** Hometown / height / zodiac / job / school — the location is on the hero,
- * so it is not repeated here. Empty fields are left out. */
+/** About: Height + Zodiac (short, side by side), then Hometown, Job and
+ * School as full-width rows. The location is on the hero, so it is not
+ * repeated here. Empty fields are left out. */
 export function personalDetails(p: DiscoverPerson): LabelledFact[] {
   const job = p.jobTitle.trim() || WORK_OPTIONS.find((w) => w.key === p.workStatus)?.title || '';
   const out: (LabelledFact | null)[] = [
-    p.hometown ? { icon: 'home-outline', label: 'Hometown', value: p.hometown.title } : null,
     p.heightCm ? { icon: 'resize-outline', label: 'Height', value: `${p.heightCm} cm` } : null,
     p.zodiac ? { icon: 'planet-outline', label: 'Zodiac', value: p.zodiac } : null,
+    p.hometown ? { icon: 'home-outline', label: 'Hometown', value: p.hometown.title, wide: true } : null,
     job ? { icon: 'briefcase-outline', label: 'Job', value: job, wide: true } : null,
     p.school ? { icon: 'school-outline', label: 'School', value: p.school.title, wide: true } : null,
   ];
@@ -311,6 +312,28 @@ export type ScreenKind = 'error' | 'empty' | 'profile';
 export function screenKind(s: DiscoverState): ScreenKind {
   if (s.load === 'error') return 'error';
   return currentPersonId(s) ? 'profile' : 'empty';
+}
+
+/** What the screen shows around the profile. "Typing" needs both the
+ * keyboard and an open editor: the comment field is the only input, so a
+ * stale keyboard flag (a missed hide event when Send unmounts the field)
+ * can never hide the only way forward on a liked profile. */
+export function chromeVisibility(o: {
+  kind: ScreenKind;
+  keyboardOpen: boolean;
+  editorOpen: boolean;
+  liked: boolean;
+  outOfLikes: boolean;
+}) {
+  const typing = o.keyboardOpen && o.editorOpen;
+  const profile = o.kind === 'profile';
+  return {
+    typing,
+    tabBar: !typing,
+    pass: profile && !typing && !o.liked,
+    nextProfile: profile && !typing && o.liked,
+    outOfLikesNote: profile && !typing && !o.liked && o.outOfLikes,
+  };
 }
 
 export const STATE_COPY = {

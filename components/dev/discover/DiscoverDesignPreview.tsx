@@ -32,6 +32,7 @@ import {
   describeDecision,
   discoverReducer,
   INITIAL_DISCOVER_STATE,
+  chromeVisibility,
   likedCurrent,
   type DiscoverAction,
   likesLeftLabel,
@@ -114,6 +115,12 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
   // editor / keyboard is open so the tab bar hiding (or an Android resize)
   // never changes the hero and makes the profile jump. ──────────────────────
   const [frameHeight, setFrameHeight] = useState(0);
+  // "Typing" = the keyboard is up AND an editor exists. The comment field is
+  // the only input in the preview, so with no editor nothing can be typing,
+  // even if a keyboard hide event was missed (e.g. when Send unmounts the
+  // focused field). Everything that hides while typing (tab bar, ×, the
+  // Next profile / out-of-likes bar) keys off this, so a stale keyboard flag
+  // can never leave a liked profile with no way forward.
   const freeze = keyboardOpen || !!state.editor;
   const onFrameLayout = (e: LayoutChangeEvent) => {
     if (!freeze) setFrameHeight(e.nativeEvent.layout.height);
@@ -128,7 +135,8 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
   const liked = likedCurrent(state);
   const outOfLikes = state.likesLeft <= 0;
   const kind = screenKind(state);
-  const showActionBar = kind === 'profile' && !keyboardOpen && (liked || outOfLikes);
+  const chrome = chromeVisibility({ kind, keyboardOpen, editorOpen: !!state.editor, liked, outOfLikes });
+  const showActionBar = chrome.nextProfile || chrome.outOfLikesNote;
 
   const handlers: ItemHandlers | null = person
     ? {
@@ -145,10 +153,15 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
         onEditComment: (text) => dispatch({ type: 'edit_comment', text }),
         onCancelComment: () => {
           Keyboard.dismiss();
+          keyboardTop.current = null;
+          setKeyboardOpen(false);
           dispatch({ type: 'cancel_comment' });
         },
         onSendComment: () => {
           Keyboard.dismiss();
+          // Don't wait for the hide event: the editor is about to unmount.
+          keyboardTop.current = null;
+          setKeyboardOpen(false);
           dispatch({ type: 'send_comment', personId: person.id });
         },
         onEditorResize: () => {
@@ -197,7 +210,7 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
                 onExit={onExit}
               />
             </ScrollView>
-            {!keyboardOpen && !liked ? (
+            {chrome.pass ? (
               <TouchableOpacity
                 onPress={() => dispatch({ type: 'pass', personId: person.id })}
                 style={styles.pass}
@@ -256,7 +269,7 @@ export function DiscoverDesignPreview({ onExit }: { onExit: () => void }) {
         </View>
       ) : null}
 
-      {!keyboardOpen ? <PreviewTabBar bottomInset={insets.bottom} /> : null}
+      {chrome.tabBar ? <PreviewTabBar bottomInset={insets.bottom} /> : null}
     </View>
   );
 }

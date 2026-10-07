@@ -336,3 +336,64 @@ From `c35b823`. Local DEV preview only.
 **Checks (local):** `tsc` clean; `v2_discover_preview` **72 / 72** (+3: grid vs full-width split, full-width rows, same 17 pt medium value with no truncation).
 
 **Not tried on a phone.** Check: Defne and the long-text profile (Ece — "Senior user experience researcher and workshop facilitator", "Mimar Sinan Fine Arts University, Faculty of Architecture") show Hometown / Height / Zodiac in two columns, then Job and School as full-width rows with no gap beside them.
+
+---
+
+# Round 5 — compact prompts, neutral hearts, About order, Next profile stall (2026-10-07)
+
+From `9f1798b` (clean). Local DEV preview only; no backend work started.
+
+**Mockup:** the brief mentions an attached mockup, but **no image reached this session**. The changes follow the written brief only; compare on the phone.
+
+## Changes
+
+- **Prompt card** (more compact; the answer keeps the serif):
+    - answer Playfair 25 → **21 pt** (line 28), label 15 → 14;
+    - card padding about 18 → 14–16, vertical margin 12 → 8, radius 16, tighter gaps.
+- **Hearts:** neutral and outlined; the dark-green disc is gone.
+    - Card: 40 pt circle with a 1.5 pt neutral border and a dark outline icon.
+    - Photo: 56 → 44 pt circle with a thin white ring and white icon.
+    - **The touch area is kept** with `hitSlop` (card ≈ 56 pt, photo ≈ 56 pt).
+- **"Add a comment"** is a small secondary link:
+    - on the card: 14 pt in the secondary colour, 16 pt icon;
+    - on the photo: the dark capsule is removed — plain white 14 pt text + icon with a soft text shadow;
+    - `hitSlop` keeps both easy to tap;
+    - the editor still opens in the same place.
+- **About** (section title "About"):
+    - **Height + Zodiac** side by side;
+    - then **Hometown**, **Job** and **School** as full-width rows;
+    - empty fields hidden, long text wraps;
+    - values keep **DM Sans Medium 17**, dark (not the mockup's serif).
+- **Unchanged:** the full-screen main photo on first open; comment Send, keyboard, Next profile, counter, empty / error behaviour.
+
+## "Next profile" stall — checked separately, not assumed fixed
+
+**Found:** a structural way to get stuck.
+- On a liked profile × is hidden, and "Next profile" (and the tab bar) appeared only while the screen's keyboard flag read "closed".
+- That flag came only from keyboard events. If the hide event was missed — Send closes the keyboard *and* removes the focused field in the same moment — the flag could stay "open".
+- The profile then had **no ×, no Next profile and no tab bar**: no way forward.
+
+**Fix:**
+- New `chromeVisibility()`: "typing" now needs **the keyboard and an open editor**. The comment field is the only input, so with no editor nothing can hide Next profile, × or the tab bar.
+- Send and Cancel also reset the keyboard state themselves instead of waiting for the event.
+- New checks:
+    - a stale keyboard flag on a liked profile still shows Next profile and the tab bar;
+    - Send resets the state;
+    - the visibility rules for typing, out of likes, liked + last like, and empty / error.
+
+**Not verified on the phone.**
+- If the stall you saw had another cause, this change may not cover it. Please tell me the exact steps (which content you commented on, whether you pressed Done before Send, iOS or Android).
+- No stall report from the phone was available in this session.
+
+## Checks (local)
+
+- `tsc` clean;
+- `v2_discover_preview` **85 / 85** (+13);
+- other checks unchanged;
+- iOS dev bundle builds.
+
+## Phone check
+
+1. Scroll to the first prompt. The card is more compact (serif answer, smaller), the heart is a neutral outlined circle, and "Add a comment" is a small grey link. On photos, a plain white "Add a comment" with no dark capsule.
+2. About: Height and Zodiac side by side, then Hometown, Job and School on full-width rows (try Ece for long text).
+3. Comment → Send (once with Done first, once without). "Next profile" must appear in the bar every time and open the next person. If it ever stalls, note the steps.

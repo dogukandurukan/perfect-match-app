@@ -129,9 +129,10 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
             <TouchableOpacity
               onPress={() => h.onOpenComment(target)}
               style={styles.commentChip}
+              hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={`Add a comment on ${h.person.name}’s ${what}`}>
-              <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" importantForAccessibility="no" />
+              <Ionicons name="chatbubble-outline" size={15} color="#FFFFFF" importantForAccessibility="no" />
               <Text style={styles.commentChipText} maxFontSizeMultiplier={1.3}>Add a comment</Text>
             </TouchableOpacity>
           ) : null}
@@ -151,16 +152,19 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
   );
 }
 
+/** Neutral outlined heart. The visible circle is smaller than before
+ * (44 on photos, 40 on cards); hitSlop keeps the touch area ≥ 56 pt. */
 function HeartButton({ label, onPress, disabled, onPhoto }: { label: string; onPress: () => void; disabled: boolean; onPhoto?: boolean }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
+      hitSlop={onPhoto ? 6 : 8}
       style={[styles.heart, onPhoto ? styles.heartOnPhoto : styles.heartOnCard, disabled && styles.disabled]}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}>
-      <Ionicons name="heart-outline" size={onPhoto ? 28 : 24} color="#FFFFFF" importantForAccessibility="no" />
+      <Ionicons name="heart-outline" size={onPhoto ? 24 : 21} color={onPhoto ? '#FFFFFF' : obColors.textPrimary} importantForAccessibility="no" />
     </TouchableOpacity>
   );
 }
@@ -187,10 +191,10 @@ function PromptItem({ item, h }: { item: Extract<DiscoverItem, { type: 'prompt' 
         <TouchableOpacity
           onPress={() => h.onOpenComment(item.key)}
           style={styles.commentLink}
-          hitSlop={{ top: 6, bottom: 6, left: 4, right: 12 }}
+          hitSlop={{ top: 8, bottom: 8, left: 6, right: 16 }}
           accessibilityRole="button"
           accessibilityLabel={`Add a comment on ${h.person.name}’s answer: ${item.label}`}>
-          <Ionicons name="chatbubble-outline" size={20} color={obColors.cta} importantForAccessibility="no" />
+          <Ionicons name="chatbubble-outline" size={16} color={obColors.textSecondary} importantForAccessibility="no" />
           <Text style={styles.commentLinkText} maxFontSizeMultiplier={1.4}>Add a comment</Text>
         </TouchableOpacity>
       )}
@@ -275,14 +279,14 @@ function Section({ title, children }: { title?: string; children: ReactNode }) {
   );
 }
 
-/** Hometown / Height / Zodiac in a compact two-column grid; Job and School
- * each get a full-width row below, so long values wrap naturally instead of
+/** Height + Zodiac side by side; Hometown, Job and School each get a
+ * full-width row below, so long values wrap naturally instead of
  * stacking in a narrow column. Same type size and weight everywhere. */
 function Details({ facts }: { facts: LabelledFact[] }) {
   const short = facts.filter((f) => !f.wide);
   const wide = facts.filter((f) => f.wide);
   return (
-    <Section>
+    <Section title="About">
       {short.length ? (
         <View style={styles.detailsGrid}>
           {short.map((f) => (
@@ -386,37 +390,41 @@ const styles = StyleSheet.create({
   heroLocText: { flexShrink: 1, fontFamily: obFonts.bodyMedium, fontSize: 17, lineHeight: 22, color: '#FFFFFF' },
   // Heart + comment chip, bottom-right (× floats bottom-left).
   photoActions: { position: 'absolute', right: obSpacing.lg, bottom: obSpacing.lg, flexDirection: 'row', alignItems: 'center', gap: obSpacing.sm },
-  commentChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 44,
-    paddingHorizontal: 14,
-    borderRadius: 22,
-    backgroundColor: 'rgba(28,27,24,0.55)',
+  // Secondary: plain white text + small icon on the photo (no dark capsule),
+  // readable through a soft shadow; hitSlop keeps it easy to tap.
+  commentChip: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 36, paddingHorizontal: 4 },
+  commentChipText: {
+    fontFamily: obFonts.bodyMedium,
+    fontSize: 14,
+    lineHeight: 19,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  commentChipText: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: '#FFFFFF' },
   heart: { alignItems: 'center', justifyContent: 'center' },
-  heartOnPhoto: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: 'rgba(28,27,24,0.18)' },
-  heartOnCard: { width: 48, height: 48, borderRadius: 24, backgroundColor: obColors.cta },
+  heartOnPhoto: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: '#FFFFFF', backgroundColor: 'rgba(28,27,24,0.12)' },
+  heartOnCard: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: obColors.border, backgroundColor: 'transparent' },
   disabled: { opacity: 0.4 },
   photoEditorWrap: { paddingHorizontal: obSpacing.md, paddingTop: obSpacing.md },
   promptCard: {
     marginHorizontal: obSpacing.md,
-    marginVertical: obSpacing.md,
+    marginVertical: obSpacing.sm,
     backgroundColor: SURFACE,
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: CARD_BORDER,
-    padding: obSpacing.lg + 2,
-    gap: obSpacing.md,
+    paddingHorizontal: obSpacing.lg,
+    paddingTop: obSpacing.md + 2,
+    paddingBottom: obSpacing.sm,
+    gap: obSpacing.xs,
   },
   promptTop: { flexDirection: 'row', alignItems: 'flex-start', gap: obSpacing.md },
-  promptText: { flex: 1, gap: obSpacing.sm },
-  promptLabel: { fontFamily: obFonts.bodyMedium, fontSize: 15, lineHeight: 20, color: obColors.textSecondary },
-  promptAnswer: { fontFamily: obFonts.heading, fontSize: 25, lineHeight: 32, color: obColors.textPrimary },
-  commentLink: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
-  commentLinkText: { fontFamily: obFonts.bodyMedium, fontSize: 16, lineHeight: 21, color: obColors.textPrimary },
+  promptText: { flex: 1, gap: obSpacing.xs },
+  promptLabel: { fontFamily: obFonts.bodyMedium, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
+  promptAnswer: { fontFamily: obFonts.heading, fontSize: 21, lineHeight: 28, color: obColors.textPrimary },
+  commentLink: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36 },
+  commentLinkText: { fontFamily: obFonts.bodyMedium, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
   editor: { gap: obSpacing.sm },
   editorLabel: { fontFamily: obFonts.bodyMedium, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
   // ~2 lines to start; grows to ~5 lines, then scrolls inside.
