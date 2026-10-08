@@ -1,7 +1,7 @@
 // Prepares a SEPARATE synthetic phone account for the real V2 Matches test:
 //   TEMPA_TARGET=dev node scripts/dev-backend/prepare-matches-phone.mjs
 //
-// NOT RUN in the 2026-10-09 round: the daily-picks package
+// NOT RUN in the 2026-10-08 round: the daily-picks package
 // (supabase/proposed/20261009090000_v2_matches_daily_picks.sql) is not
 // applied to the shared project (DEV = live). The script refuses to do
 // anything until `get_daily_picks_v2` exists on the target.

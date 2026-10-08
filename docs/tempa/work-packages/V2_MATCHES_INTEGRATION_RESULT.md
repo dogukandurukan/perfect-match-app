@@ -1,6 +1,6 @@
 # V2 Matches — real integration (daily picks) — result
 
-Date 2026-10-09 · Folder `~/tempa-p0` · Branch `tempa/v2-persist-r2`, from `a301654` (clean, same as origin) · Author: Claude Code.
+Date 2026-10-08 · Folder `~/tempa-p0` · Branch `tempa/v2-persist-r2`, from `a301654` (clean, same as origin) · Author: Claude Code.
 
 **Not done:**
 - **No migration applied to the shared remote project**: DEV and live are the same Supabase project, `fyqwjduzpnjuxqsloxih`.
@@ -154,17 +154,3 @@ Checks (≤ 5):
 3. Open the pick → comment on a photo → Send. The note stays in place; back on Matches the card says Like sent. Heart on another profile isn't possible (one like).
 4. **Say hello** opens the chat with the like context on top and **no message**. Send one → back on Matches: Conversation started.
 5. Chat list: no automatic message appears for the new match.
-EOF
-cd ~/tempa-p0 && git add -A supabase/proposed scripts components app lib docs/tempa/DECISIONS.md docs/tempa/work-packages/V2_MATCHES_INTEGRATION_RESULT.md && git status --short && git commit -q -m "feat(v2): real Matches on server daily picks (client), D67–D74, result report
-
-Real V2 Matches screen on get_daily_picks_v2 with the approved shared cards
-(preview now uses them too), falling back to the previous V2 list when the
-server lacks the package; match profile on the shared Discover components
-with daily_pick likes and stale-pick handling; like context in chat (no
-automatic messages); suspended chats read-only as Account unavailable;
-Discover sends p_source only for daily_pick. Decisions D67–D74. Prepared
-(not run) a separate synthetic phone tester script. Fixed seed-dev-pool
---verify keys (photos). Local: v2_matches_real 23/23, replica 74/74.
-Migration NOT applied to the shared project.
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" && git push -q && git log --oneline -1 && git status --short

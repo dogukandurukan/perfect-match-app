@@ -5,7 +5,7 @@
 // clock for this. Other matches stay in Chats; date suggestions (former
 // Plans) live inside each chat.
 //
-// If the server doesn't have daily picks yet (the 2026-10-09 package is not
+// If the server doesn't have daily picks yet (the daily-picks package 20261009090000 is not
 // applied there), the previous V2 Matches list is shown unchanged.
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';

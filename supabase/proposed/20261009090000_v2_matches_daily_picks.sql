@@ -332,7 +332,7 @@ begin
                       and greatest(m.user_a_id::text, m.user_b_id::text) = greatest(me.user_id::text, c.user_id::text)
                       and m.status in ('accepted', 'passed'))
     and not exists (select 1 from likes l where l.liker_id = me.user_id and l.likee_id = c.user_id)
-    -- NEW (2026-10-09): today's daily pick is shown only in Matches.
+    -- NEW (2026-10-08): today's daily pick is shown only in Matches.
     and c.user_id is distinct from r.pick_user_id
     and public.v2_wants(me.interested_in, c.gender)
     and public.v2_wants(c.interested_in, me.gender)

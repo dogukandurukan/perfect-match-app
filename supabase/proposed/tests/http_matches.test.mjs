@@ -294,6 +294,14 @@ async function run() {
   const rep = await send('A', P, 'photo', await photoOf(P), 'Which ferry?', r1, 'daily_pick');
   check(rep?.ok === true && rep.replayed === true && (await used('A')) === q0 + 1 && (await likeRows('A', P)).length === 1, 'retry with the same request → original result, no second unit');
   check((await picks('A')).pick.state === 'like_sent' && (await picks('A')).pick.like?.note === 'Which ferry?', 'card shows Like sent with the note');
+  // D74: an earlier day's pick (not liked) is a normal Discover person today —
+  // liking from Discover is fine; only daily_pick is refused for it.
+  check((await discovery('A')).includes(U[Y]), 'yesterday’s pick (not liked) appears in today’s Discover');
+  const qy = await used('A');
+  r = await send('A', Y, 'prompt', await promptOf(Y), null, null, 'discover');
+  const ly = await likeRows('A', Y);
+  check(r?.ok === true && ly.length === 1 && ly[0].source === 'discover' && ly[0].pick_period === null && (await used('A')) === qy + 1,
+    'yesterday’s pick liked from Discover → accepted as source discover (one unit)');
   r = await send('A', X, 'prompt', await promptOf(X), null, null, 'discover');
   check(r?.ok === true && (await likeRows('A', X))[0].source === 'discover' && (await likeRows('A', X))[0].pick_period === null, 'Discover like stored with source discover');
   const Z = others[1];
