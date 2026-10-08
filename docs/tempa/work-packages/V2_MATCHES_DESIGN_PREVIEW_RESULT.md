@@ -255,3 +255,69 @@ Checks (≤ 5):
 3. Comment on a prompt and press Send. The note stays in place; back on Matches the card shows "Like sent", and the hearts in the profile are off. (Repeat with *Reset* and a plain heart.)
 4. Say hello and go back without sending: Say hello is still there. Send a message, go back: "Conversation started / Your conversation continues in Chats." The card keeps its size.
 5. DEV: *No mutual like*, *No new pick*, *Reset* — the other card keeps working.
+
+---
+
+# Round 4 — daily picks decisions (D61–D66) on the DEV preview (2026-10-08)
+
+From `2448490` (clean). Only the local preview and the decision documents changed.
+
+**Unchanged:** approved Discover, real accounts, backend, scoring.
+
+**Decisions recorded:** `docs/tempa/DECISIONS.md` D61–D66 (Matches — daily picks).
+
+## Changes in the preview
+
+- **D61:** "Daily picks · Refresh at 12:00" (Istanbul) under the Matches title. It's a static line: no countdown, no clock read.
+- **D62:** small secondary captions — Picked for you: "Someone new to get to know."; You both liked: "A mutual match to get to know." Large photos and buttons unchanged.
+- **Daily period model (simulated).** The preview now has a *period*:
+    - one featured pick and one featured mutual match per period;
+    - likes, matches and first messages are kept across periods;
+    - **a period changes only when "Simulate 12:00 refresh" is pressed** in the DEV panel — no timer, no device clock, no selection algorithm;
+    - the people and their order are a fixed synthetic list: Defne, then Mert as picks; Ece as the starting match. **Not scoring.**
+- **On refresh (D63, D64, D66):**
+    - the new pick is someone never featured before, and not liked or matched;
+    - the featured mutual match is the earliest one with no conversation that isn't the new pick;
+    - a person you already talk to is not featured again;
+    - nothing else changes.
+    - No candidate left → "No new pick right now".
+    - Matches exist but none is left to feature → "No new mutual match to feature today" / "Your matches stay in Chats." (proposed copy).
+    - No matches at all → "No mutual likes yet".
+- **D64:** after the first message the card shows Conversation started for the rest of the period.
+- **D65:** DEV "They like you back" (only after your like) turns the **same Picked-for-you card** into the match state ("You both liked each other" + **Say hello**). The other section keeps its own person; nobody appears twice. Say hello there opens the demo chat with that person; after the first message that card shows Conversation started.
+- **Other DEV controls:** Both cards, No mutual like, No new pick, Like sent, Conversation started, Reset (unchanged). The panel shows `Period N · pick … · mutual …`.
+- **The DEV text** says the daily refresh is simulated and no timer, clock or algorithm runs.
+
+## Real integration (not done; for the next package)
+
+- **Server-provided pick period and refresh time.** App restarts or device-clock changes must never create a new pick.
+- **Server-side selection rule** for the pick and for which mutual match to feature (weights undecided — not invented here).
+- **Same exclusions as `get_my_matches_v2` / profile visibility:** blocked, hidden, deleted, unmatched.
+
+## Checks (local)
+
+- `tsc` clean;
+- `v2_matches_preview` **45 / 45**, covering:
+    - one like per person, no chat from a like;
+    - liked back → same card, never in both sections;
+    - Conversation started for the period;
+    - refresh keeps likes / matches / messages, never re-offers a pick, doesn't re-feature a started conversation, moves a pick-turned-match to You both liked once;
+    - all three empty states;
+    - daily line + captions, no countdown text;
+    - no timer / clock code in the screen, DEV text says "simulated";
+    - no backend import, DEV-only access;
+- other checks unchanged;
+- iOS dev bundle builds.
+
+**Not tried on a phone.**
+
+## Phone check
+
+**Command:** `~/tempa-p0/scripts/dev-backend/start-app.sh` (press `r` if the app is open).
+
+**Button:** Profile → **Matches design preview (DEV)**.
+
+1. Under "Matches": "Daily picks · Refresh at 12:00". The captions sit under both section titles; photos and buttons are unchanged.
+2. Like Defne in her profile, then DEV **They like you back**. The same Defne card shows "You both liked each other" + Say hello, and Ece is still alone in You both liked.
+3. Say hello to Ece and send a message → Conversation started. Press **Simulate 12:00 refresh**: Mert is the new pick, Defne moves to You both liked, and Ece is not featured again.
+4. Refresh again: "No new pick right now". Then **Reset** brings back the start.

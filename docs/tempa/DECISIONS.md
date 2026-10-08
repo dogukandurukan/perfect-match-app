@@ -157,3 +157,14 @@ UI preview work; no merge, deployment, backend, auth or database work authorized
 P02 visual refinements are authorized within the isolated development preview.
 Implementation limits and catalog coverage must be reported in the P02 result;
 no claim of worldwide autocomplete or real persistence without implementation.
+
+## Matches — daily picks (decided 2026-10-08)
+
+| # | Decision | Status | Source / notes |
+|---|---|---|---|
+| D61 | Under the **Matches** title, a small line **"Daily picks · Refresh at 12:00"** (Istanbul time). No seconds countdown. | ✅ APPROVED (product) | Doğukan, 2026-10-08. Shown in the DEV Matches preview only; real refresh time comes from the server. |
+| D62 | Small secondary captions: **Picked for you** → "Someone new to get to know."; **You both liked** → "A mutual match to get to know." Large photos and the existing buttons (View profile outlined, Say hello filled) stay. | ✅ APPROVED (copy) | Doğukan, 2026-10-08. |
+| D63 | Daily picks refresh at **12:00 Istanbul time**. A refresh only changes **which cards are featured** — likes, matches and conversations never end or expire because of it. | ✅ APPROVED (product) | Doğukan, 2026-10-08. In the real app the pick period and refresh time come from the server; opening/closing the app or changing the device clock never produces a new pick. **Selection weights / scoring are NOT decided.** |
+| D64 | **You both liked** features a mutual match with **no conversation yet**. After the first message the card shows the existing **Conversation started** state for the rest of that pick period; at the next daily pick that person is **not featured again**. The conversation continues in Chats. | ✅ APPROVED (product) | Doğukan, 2026-10-08. Which mutual match to feature when there are several is not decided (the preview uses a fixed example order). |
+| D65 | **One person never appears in both sections.** If the Picked-for-you person becomes a mutual match during the period, that **same card** shows the current relationship state and **Say hello** works — no second copy. | ✅ APPROVED (product) | Doğukan, 2026-10-08. |
+| D66 | No suitable new candidate → the section's **empty state**; a person is **never re-offered as a new pick**. Access to other matches does **not** depend on being featured (they stay in Chats). | ✅ APPROVED (product) | Doğukan, 2026-10-08. Preview copy for "matches exist but none left to feature": "No new mutual match to feature today" / "Your matches stay in Chats." (proposed, not separately approved). |

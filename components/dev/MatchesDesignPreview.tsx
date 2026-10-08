@@ -2,7 +2,8 @@
 // mockup, 2026-10-08): "Picked for you" and "You both liked" as large photo
 // cards, the full profile from the approved Discover layout (shared
 // components), targeted likes + inline comments inside the profile, a local
-// demo chat, and the "Conversation started" state.
+// demo chat, and the "Conversation started" state. Daily picks (D61–D66)
+// are SIMULATED: a period changes only with the DEV refresh button.
 // Local fixtures only: no Supabase import — nothing is liked, sent, matched
 // or reset on a real account. The real Matches tab is untouched.
 // Opened from app/dev/matches-preview.tsx (redirects in production).
@@ -33,13 +34,13 @@ import { buildDiscoverLayout, heroLocation } from '@/lib/discover/profileLayout'
 import {
   COMMENT_MAX,
   INITIAL_PREVIEW_STATE,
+  isMatched,
   mutualStatus,
   personLabel,
   pickStatus,
   PREVIEW_COPY as C,
-  PREVIEW_PEOPLE,
+  previewPerson,
   previewReducer,
-  type PreviewPersonKey,
   type PreviewScenario,
   type PreviewState,
 } from '@/lib/dev/matchesPreview';
@@ -48,9 +49,11 @@ import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 const FADE = require('../../assets/images/discover-fade.png');
 const SURFACE = '#FFFDF8';
 const CARD_BORDER = '#E4DCCB';
-const photosOf = (who: PreviewPersonKey) => DISCOVER_PHOTOS[PREVIEW_PEOPLE[who].id] ?? [];
+const photosOf = (id: string) => DISCOVER_PHOTOS[id] ?? [];
 
-type ViewState = { name: 'matches' } | { name: 'profile'; who: PreviewPersonKey } | { name: 'chat' };
+type ViewState = { name: 'matches' } | { name: 'profile'; id: string } | { name: 'chat'; id: string };
+
+type DevAction = PreviewScenario | 'reset' | 'refresh' | 'they_like_back';
 
 export function MatchesDesignPreview({ onExit }: { onExit?: () => void }) {
   const [state, dispatch] = useReducer(previewReducer, INITIAL_PREVIEW_STATE);
@@ -73,11 +76,11 @@ export function MatchesDesignPreview({ onExit }: { onExit?: () => void }) {
   if (view.name === 'profile') {
     return (
       <ProfileView
-        who={view.who}
+        id={view.id}
         state={state}
         onBack={toMatches}
         onLike={(target, comment) => {
-          dispatch({ type: 'send_like', target, comment });
+          dispatch({ type: 'send_like', personId: view.id, target, comment });
           // A heart (no comment) returns to Matches, where the card shows
           // "Like sent". A comment keeps the profile open with the note in
           // place; Back returns to Matches.
@@ -87,15 +90,18 @@ export function MatchesDesignPreview({ onExit }: { onExit?: () => void }) {
     );
   }
   if (view.name === 'chat') {
-    return <ChatPreview messages={state.mutual.messages} onBack={toMatches} onSend={(text) => dispatch({ type: 'send_message', text })} />;
+    const id = view.id;
+    return <ChatPreview id={id} messages={state.messages[id] ?? []} onBack={toMatches} onSend={(text) => dispatch({ type: 'send_message', personId: id, text })} />;
   }
   return (
     <MatchesHome
       state={state}
       onExit={onExit}
-      onOpenProfile={(who) => setView({ name: 'profile', who })}
-      onSayHello={() => setView({ name: 'chat' })}
-      onScenario={(s) => dispatch(s === 'reset' ? { type: 'reset' } : { type: 'scenario', scenario: s })}
+      onOpenProfile={(id) => setView({ name: 'profile', id })}
+      onSayHello={(id) => setView({ name: 'chat', id })}
+      onDev={(a) =>
+        dispatch(a === 'reset' || a === 'refresh' || a === 'they_like_back' ? { type: a } : { type: 'scenario', scenario: a })
+      }
     />
   );
 }
@@ -107,13 +113,13 @@ function MatchesHome({
   onExit,
   onOpenProfile,
   onSayHello,
-  onScenario,
+  onDev,
 }: {
   state: PreviewState;
   onExit?: () => void;
-  onOpenProfile: (who: PreviewPersonKey) => void;
-  onSayHello: () => void;
-  onScenario: (s: PreviewScenario | 'reset') => void;
+  onOpenProfile: (id: string) => void;
+  onSayHello: (id: string) => void;
+  onDev: (a: DevAction) => void;
 }) {
   const insets = useSafeAreaInsets();
   const pick = pickStatus(state);
@@ -123,7 +129,11 @@ function MatchesHome({
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.homeContent}>
         <View style={styles.topRow}>
-          <Text style={styles.screenTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>{C.title}</Text>
+          <View style={styles.titleCol}>
+            <Text style={styles.screenTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>{C.title}</Text>
+            {/* Istanbul time; a static line — no countdown. */}
+            <Text style={styles.dailyLine} maxFontSizeMultiplier={1.4}>{C.dailyLine}</Text>
+          </View>
           {onExit ? (
             <TouchableOpacity onPress={onExit} hitSlop={10} accessibilityRole="button" accessibilityLabel="Exit Matches design preview">
               <Text style={styles.devPill}>DEV ✕</Text>
@@ -131,62 +141,105 @@ function MatchesHome({
           ) : null}
         </View>
 
-        <Text style={styles.sectionTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>{C.pickedTitle}</Text>
-        {pick === 'none' ? (
+        <SectionHead title={C.pickedTitle} caption={C.pickedCaption} />
+        {pick === 'none' || !state.pickId ? (
           <EmptyCard icon="sparkles-outline" title={C.noPickTitle} text={C.noPickText} />
         ) : (
-          <PersonCard who="pick" onOpenProfile={() => onOpenProfile('pick')}>
-            {pick === 'like_sent' ? (
-              <View style={styles.likeSentRow} accessible accessibilityLabel={C.likeSent}>
-                <Ionicons name="heart-outline" size={16} color={obColors.textSecondary} importantForAccessibility="no" />
-                <Text style={styles.likeSentText}>{C.likeSent}</Text>
-              </View>
-            ) : null}
-            <TouchableOpacity onPress={() => onOpenProfile('pick')} style={styles.outlineBtn} accessibilityRole="button" accessibilityLabel={`${C.viewProfile}, ${PREVIEW_PEOPLE.pick.name}`}>
-              <Text style={styles.outlineBtnText}>{C.viewProfile}</Text>
-            </TouchableOpacity>
-          </PersonCard>
-        )}
-
-        <Text style={[styles.sectionTitle, styles.sectionGap]} accessibilityRole="header" maxFontSizeMultiplier={1.4}>{C.mutualTitle}</Text>
-        {mutual === 'none' ? (
-          <EmptyCard icon="heart-outline" title={C.noMutualTitle} text={C.noMutualText} />
-        ) : (
-          <PersonCard who="mutual" onOpenProfile={() => onOpenProfile('mutual')}>
-            {mutual === 'conversation_started' ? (
-              <View style={styles.started} accessible accessibilityLabel={`${C.conversationStarted}. ${C.conversationNote}`}>
-                <View style={styles.startedIcon}>
-                  <Ionicons name="checkmark" size={16} color={obColors.onCta} importantForAccessibility="no" />
-                </View>
-                <View style={styles.startedText}>
-                  <Text style={styles.startedTitle}>{C.conversationStarted}</Text>
-                  <Text style={styles.startedNote}>{C.conversationNote}</Text>
-                </View>
-              </View>
+          <PersonCard id={state.pickId} onOpenProfile={() => onOpenProfile(state.pickId as string)}>
+            {pick === 'conversation_started' ? (
+              <StartedBox />
+            ) : pick === 'matched' ? (
+              // Liked back during the period: the same card shows the new
+              // state — no second copy in "You both liked".
+              <>
+                <StatusLine icon="heart-outline" text={C.likedBack} />
+                <SayHelloButton name={previewPerson(state.pickId).name} onPress={() => onSayHello(state.pickId as string)} />
+              </>
             ) : (
-              <TouchableOpacity onPress={onSayHello} style={styles.fillBtn} accessibilityRole="button" accessibilityLabel={`${C.sayHello}, ${PREVIEW_PEOPLE.mutual.name}`}>
-                <Text style={styles.fillBtnText}>{C.sayHello}</Text>
-              </TouchableOpacity>
+              <>
+                {pick === 'like_sent' ? <StatusLine icon="heart-outline" text={C.likeSent} /> : null}
+                <TouchableOpacity onPress={() => onOpenProfile(state.pickId as string)} style={styles.outlineBtn} accessibilityRole="button" accessibilityLabel={`${C.viewProfile}, ${previewPerson(state.pickId).name}`}>
+                  <Text style={styles.outlineBtnText}>{C.viewProfile}</Text>
+                </TouchableOpacity>
+              </>
             )}
           </PersonCard>
         )}
 
-        <DevControls state={state} onScenario={onScenario} />
+        <View style={styles.sectionGap} />
+        <SectionHead title={C.mutualTitle} caption={C.mutualCaption} />
+        {mutual === 'none' || mutual === 'none_today' || !state.mutualId ? (
+          mutual === 'none_today' ? (
+            <EmptyCard icon="chatbubbles-outline" title={C.noMutualTodayTitle} text={C.noMutualTodayText} />
+          ) : (
+            <EmptyCard icon="heart-outline" title={C.noMutualTitle} text={C.noMutualText} />
+          )
+        ) : (
+          <PersonCard id={state.mutualId} onOpenProfile={() => onOpenProfile(state.mutualId as string)}>
+            {mutual === 'conversation_started' ? (
+              <StartedBox />
+            ) : (
+              <SayHelloButton name={previewPerson(state.mutualId).name} onPress={() => onSayHello(state.mutualId as string)} />
+            )}
+          </PersonCard>
+        )}
+
+        <DevControls state={state} onDev={onDev} />
       </ScrollView>
       <PreviewTabBar bottomInset={insets.bottom} active="Matches" />
     </View>
   );
 }
 
+function SectionHead({ title, caption }: { title: string; caption: string }) {
+  return (
+    <View style={styles.sectionHead}>
+      <Text style={styles.sectionTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>{title}</Text>
+      <Text style={styles.sectionCaption} maxFontSizeMultiplier={1.6}>{caption}</Text>
+    </View>
+  );
+}
+
+function StatusLine({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  return (
+    <View style={styles.likeSentRow} accessible accessibilityLabel={text}>
+      <Ionicons name={icon} size={16} color={obColors.textSecondary} importantForAccessibility="no" />
+      <Text style={styles.likeSentText}>{text}</Text>
+    </View>
+  );
+}
+
+function SayHelloButton({ name, onPress }: { name: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.fillBtn} accessibilityRole="button" accessibilityLabel={`${C.sayHello}, ${name}`}>
+      <Text style={styles.fillBtnText}>{C.sayHello}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function StartedBox() {
+  return (
+    <View style={styles.started} accessible accessibilityLabel={`${C.conversationStarted}. ${C.conversationNote}`}>
+      <View style={styles.startedIcon}>
+        <Ionicons name="checkmark" size={16} color={obColors.onCta} importantForAccessibility="no" />
+      </View>
+      <View style={styles.startedText}>
+        <Text style={styles.startedTitle}>{C.conversationStarted}</Text>
+        <Text style={styles.startedNote}>{C.conversationNote}</Text>
+      </View>
+    </View>
+  );
+}
+
 /** Large photo card: the photo opens the profile; actions sit below it.
  * Same size in every state (a started conversation doesn't shrink it). */
-function PersonCard({ who, onOpenProfile, children }: { who: PreviewPersonKey; onOpenProfile: () => void; children: ReactNode }) {
-  const p = PREVIEW_PEOPLE[who];
+function PersonCard({ id, onOpenProfile, children }: { id: string; onOpenProfile: () => void; children: ReactNode }) {
+  const p = previewPerson(id);
   const loc = heroLocation(p);
   return (
     <View style={styles.card}>
       <Pressable onPress={onOpenProfile} accessibilityRole="button" accessibilityLabel={`${personLabel(p)}. Open profile`}>
-        <Image source={photosOf(who)[0]} style={styles.cardPhoto} contentFit="cover" contentPosition="top" accessible={false} />
+        <Image source={photosOf(id)[0]} style={styles.cardPhoto} contentFit="cover" contentPosition="top" accessible={false} />
         <Image source={FADE} style={styles.fade} contentFit="fill" accessible={false} />
         <View style={styles.cardNameWrap} pointerEvents="none">
           <Text style={styles.cardName} numberOfLines={1} maxFontSizeMultiplier={1.3}>
@@ -216,9 +269,9 @@ function EmptyCard({ icon, title, text }: { icon: keyof typeof Ionicons.glyphMap
   );
 }
 
-function DevControls({ state, onScenario }: { state: PreviewState; onScenario: (s: PreviewScenario | 'reset') => void }) {
-  const btn = (label: string, s: PreviewScenario | 'reset') => (
-    <TouchableOpacity key={s} onPress={() => onScenario(s)} style={styles.devBtn} accessibilityRole="button" accessibilityLabel={`Preview state: ${label}`}>
+function DevControls({ state, onDev }: { state: PreviewState; onDev: (a: DevAction) => void }) {
+  const btn = (label: string, a: DevAction) => (
+    <TouchableOpacity key={a} onPress={() => onDev(a)} style={styles.devBtn} accessibilityRole="button" accessibilityLabel={`Preview: ${label}`}>
       <Text style={styles.devBtnText} maxFontSizeMultiplier={1.4}>{label}</Text>
     </TouchableOpacity>
   );
@@ -226,10 +279,12 @@ function DevControls({ state, onScenario }: { state: PreviewState; onScenario: (
     <View style={styles.dev}>
       <Text style={styles.devTitle}>Preview controls · DEV</Text>
       <Text style={styles.devText}>
-        Local sample data only. The two people are fixed synthetic examples, not picked by any algorithm. Likes and the chat are a local demo: nothing is liked, sent or saved, and Reset doesn’t touch your account or Chats. Photos are illustrated placeholders.
+        Local sample data only. Daily picks are SIMULATED: a new period starts only when you press “Simulate 12:00 refresh” — no timer, no clock and no selection algorithm runs. The people are fixed synthetic examples, not chosen by scoring. Likes and the chat are a local demo: nothing is liked, sent or saved, and Reset doesn’t touch your account or Chats. Photos are illustrated placeholders.
       </Text>
-      <Text style={styles.devText}>{`Now: pick ${pickStatus(state)} · mutual ${mutualStatus(state)}`}</Text>
+      <Text style={styles.devText}>{`Period ${state.period} · pick ${pickStatus(state)} · mutual ${mutualStatus(state)}`}</Text>
       <View style={styles.devRow}>
+        {btn('Simulate 12:00 refresh', 'refresh')}
+        {btn('They like you back', 'they_like_back')}
         {btn('Both cards', 'both')}
         {btn('No mutual like', 'no_mutual')}
         {btn('No new pick', 'no_pick')}
@@ -244,18 +299,18 @@ function DevControls({ state, onScenario }: { state: PreviewState; onScenario: (
 // ─── Profile (approved Discover layout, shared components) ────────────────
 
 function ProfileView({
-  who,
+  id,
   state,
   onBack,
   onLike,
 }: {
-  who: PreviewPersonKey;
+  id: string;
   state: PreviewState;
   onBack: () => void;
   onLike: (target: string, comment: string) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const person = PREVIEW_PEOPLE[who];
+  const person = useMemo(() => previewPerson(id), [id]);
   const items = useMemo(() => buildDiscoverLayout(person), [person]);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const kb = useInlineEditorKeyboard(editor?.target);
@@ -264,15 +319,15 @@ function ProfileView({
     if (!kb.keyboardOpen && !editor) setFrameHeight(e.nativeEvent.layout.height);
   };
 
-  // Only the "Picked for you" person can be liked here (one like per
-  // person); the mutual person is already a match.
-  const like = who === 'pick' ? state.pick.like : null;
-  const canLike = who === 'pick' && !like;
+  // Only the featured pick can be liked here (one like per person); a match
+  // is already mutual.
+  const like = state.likes[id] ?? null;
+  const canLike = id === state.pickId && !like && !isMatched(state, id);
   const typing = kb.keyboardOpen && !!editor;
 
   const h: ItemHandlers = {
     person,
-    photoSource: (i) => photosOf(who)[i] ?? null,
+    photoSource: (i) => photosOf(id)[i] ?? null,
     heroHeight: Math.max(frameHeight, 360),
     editor,
     canLike,
@@ -326,10 +381,10 @@ function ProfileView({
 
 // ─── Local demo chat (nothing is sent) ─────────────────────────────────────
 
-function ChatPreview({ messages, onBack, onSend }: { messages: { id: string; text: string }[]; onBack: () => void; onSend: (text: string) => void }) {
+function ChatPreview({ id, messages, onBack, onSend }: { id: string; messages: { id: string; text: string }[]; onBack: () => void; onSend: (text: string) => void }) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
-  const p = PREVIEW_PEOPLE.mutual;
+  const p = previewPerson(id);
   const started = messages.length > 0;
   return (
     <KeyboardAvoidingView style={[styles.root, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -338,7 +393,7 @@ function ChatPreview({ messages, onBack, onSend }: { messages: { id: string; tex
           <Ionicons name="chevron-back" size={24} color={obColors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.chatWho}>
-          <Image source={photosOf('mutual')[0]} style={styles.chatAvatar} contentFit="cover" accessible={false} />
+          <Image source={photosOf(id)[0]} style={styles.chatAvatar} contentFit="cover" accessible={false} />
           <Text style={styles.headerTitle} numberOfLines={1}>{p.name}</Text>
         </View>
         <View style={styles.iconBtn} />
@@ -393,8 +448,10 @@ function ChatPreview({ messages, onBack, onSend }: { messages: { id: string; tex
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: obColors.background },
   homeContent: { paddingHorizontal: obSpacing.lg + 4, paddingBottom: obSpacing.xl },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, marginBottom: obSpacing.sm },
-  screenTitle: { flexShrink: 1, fontFamily: obFonts.heading, fontSize: 32, lineHeight: 40, color: obColors.textPrimary },
+  topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', minHeight: 52, marginBottom: obSpacing.md, paddingTop: obSpacing.xs },
+  titleCol: { flexShrink: 1, gap: 2 },
+  screenTitle: { fontFamily: obFonts.heading, fontSize: 32, lineHeight: 40, color: obColors.textPrimary },
+  dailyLine: { fontFamily: obFonts.bodyMedium, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
   devPill: {
     fontFamily: obFonts.bodySemiBold,
     fontSize: 10,
@@ -407,8 +464,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: 'hidden',
   },
-  sectionTitle: { fontFamily: obFonts.heading, fontSize: 20, lineHeight: 26, color: obColors.textPrimary, marginBottom: obSpacing.sm },
-  sectionGap: { marginTop: obSpacing.xl },
+  sectionHead: { marginBottom: obSpacing.sm, gap: 1 },
+  sectionTitle: { fontFamily: obFonts.heading, fontSize: 20, lineHeight: 26, color: obColors.textPrimary },
+  sectionCaption: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
+  sectionGap: { height: obSpacing.xl },
   card: { backgroundColor: SURFACE, borderRadius: 18, borderWidth: 1, borderColor: CARD_BORDER, overflow: 'hidden' },
   // Large, nearly square photo (mockup); not shrunk to fit both cards.
   cardPhoto: { width: '100%', aspectRatio: 1, backgroundColor: obColors.selectedFill },
