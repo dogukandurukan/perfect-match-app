@@ -37,6 +37,7 @@ import { supabase, v2Enabled } from '@/lib/supabaseClient';
 import { isSendableTime } from '@/lib/onboardingV2/dateSuggestions';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { SuggestDateSheet } from '@/components/chat/SuggestDateSheet';
+import { LikeContextHeader } from '@/components/chat/LikeContext';
 import {
   loadChatState,
   newRequestId,
@@ -248,6 +249,13 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!v2Enabled || !chatStateLoaded) return;
     if (chatState && chatState.active) return;
+    // Suspended account: the history stays readable; only the photo and the
+    // profile link go away (messaging is closed by the server).
+    if (chatState?.state === 'unavailable') {
+      setHeaderPhotoUrl(null);
+      if (otherUserId) forgetProfilePhotoUrls(otherUserId);
+      return;
+    }
     setMessages([]);
     setHeaderPhotoUrl(null);
     if (otherUserId) forgetProfilePhotoUrls(otherUserId);
@@ -821,9 +829,10 @@ export default function ChatScreen() {
   const chatLoading = chatOpened === null || (v2Enabled && !!matchId && !chatStateLoaded);
   // V2: the server decides whether this chat is still active (unmatched or
   // blocked chats end; their history stays readable).
-  const chatEnded = v2Enabled && chatStateLoaded && (chatState === null || chatState.active === false);
+  const accountUnavailable = v2Enabled && chatStateLoaded && chatState?.state === 'unavailable';
+  const chatEnded = v2Enabled && chatStateLoaded && !accountUnavailable && (chatState === null || chatState.active === false);
   const inputLocked = chatOpened === false || chatEnded;
-  const inputDisabled = chatLoading || inputLocked;
+  const inputDisabled = chatLoading || inputLocked || accountUnavailable;
   const showIcebreakers =
     !inputDisabled && messages.length === 0 && !iceDone && icebreakerChecked;
   const currentIceQuestion = iceQuestions[iceStep];
@@ -865,7 +874,7 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={openUserProfile}
-          disabled={chatEnded}
+          disabled={chatEnded || accountUnavailable}
           style={styles.headerCenter}
           activeOpacity={0.7}>
           {headerPhotoUrl ? (
@@ -921,6 +930,8 @@ export default function ChatScreen() {
             }}
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
+            // V2: likes (which photo / answer + note) as context, never messages.
+            ListHeaderComponent={v2Enabled ? <LikeContextHeader likes={chatState?.likes} otherName={userName} /> : null}
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
                 <ThemedText style={styles.emptyText}>You matched — say hi 👋</ThemedText>
@@ -1052,6 +1063,16 @@ export default function ChatScreen() {
           </View>
         ) : null}
 
+        {accountUnavailable ? (
+          <View style={styles.unavailableBar} accessible accessibilityLiveRegion="polite"
+            accessibilityLabel="Account unavailable. You can still read this conversation.">
+            <Ionicons name="lock-closed-outline" size={18} color={obColors.textSecondary} importantForAccessibility="no" />
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.unavailableTitle}>Account unavailable</ThemedText>
+              <ThemedText style={styles.unavailableText}>You can still read this conversation.</ThemedText>
+            </View>
+          </View>
+        ) : null}
         {sendError ? (
           <ThemedText style={styles.sendErrorText}>
             Message didn’t send. Tap ↑ to try again.
@@ -1074,7 +1095,7 @@ export default function ChatScreen() {
           <TextInput
             ref={inputRef}
             style={[styles.input, inputDisabled && styles.inputDisabled]}
-            placeholder={inputLocked ? 'Chat locked' : `Message ${userName}…`}
+            placeholder={accountUnavailable ? 'Account unavailable' : inputLocked ? 'Chat locked' : `Message ${userName}…`}
             placeholderTextColor={obColors.textSecondary}
             value={text}
             onChangeText={(v) => {
@@ -1550,6 +1571,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFDF8',
   },
   inputRowLocked: { opacity: 0.85 },
+  unavailableBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 12, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: obColors.notice },
+  unavailableTitle: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
+  unavailableText: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
   attachBtn: {
     width: 44,
     height: 44,

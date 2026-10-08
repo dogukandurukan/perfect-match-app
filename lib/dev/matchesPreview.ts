@@ -23,6 +23,7 @@
 //     selection rule (weights are undecided).
 import { COMMENT_MAX, type DiscoverPerson } from '@/lib/discover/profileLayout';
 import { DISCOVER_PEOPLE } from '@/lib/dev/discoverPreview';
+import { MATCHES_COPY } from '@/lib/matches/copy';
 
 export { COMMENT_MAX };
 
@@ -157,26 +158,9 @@ export function mutualStatus(s: PreviewState): MutualStatus {
   return hasConversation(s, id) ? 'conversation_started' : 'new';
 }
 
-/** User-facing copy, kept in one place (and checked: no %, no countdown). */
+/** User-facing copy: the shared approved Matches copy + preview chat lines. */
 export const PREVIEW_COPY = {
-  title: 'Matches',
-  dailyLine: 'Daily picks · Refresh at 12:00',
-  pickedTitle: 'Picked for you',
-  pickedCaption: 'Someone new to get to know.',
-  mutualTitle: 'You both liked',
-  mutualCaption: 'A mutual match to get to know.',
-  viewProfile: 'View profile',
-  sayHello: 'Say hello',
-  likeSent: 'Like sent',
-  likedBack: 'You both liked each other',
-  conversationStarted: 'Conversation started',
-  conversationNote: 'Your conversation continues in Chats.',
-  noPickTitle: 'No new pick right now',
-  noPickText: 'Someone new picked for you will appear here.',
-  noMutualTitle: 'No mutual likes yet',
-  noMutualText: 'When you and someone both like each other, they’ll appear here.',
-  noMutualTodayTitle: 'No new mutual match to feature today',
-  noMutualTodayText: 'Your matches stay in Chats.',
+  ...MATCHES_COPY,
   chatEmptyTitle: (name: string) => `You and ${name} liked each other`,
   chatEmptyText: 'Say hello when you’re ready.',
   chatAfterFirst: 'Conversation started. It continues in Chats.',

@@ -235,6 +235,14 @@ export function V2DiscoverScreen() {
       }
       if (!out.keepEditor && !out.showSent) setEditor(null);
       if (out.done) setDone(true);
+      // This person became today's daily pick: nothing was spent; they're in
+      // Matches today, so Discover moves on (Next profile).
+      if (out.refreshPicks) {
+        setEditor(null);
+        setDone(true);
+        setNotice(`${person.name || 'This person'} is in your Matches today.`);
+        return;
+      }
       if (out.reloadProfile) setReloadProfileKey((k) => k + 1);
       if (out.message) {
         if (out.keepEditor) setEditorError(out.message);

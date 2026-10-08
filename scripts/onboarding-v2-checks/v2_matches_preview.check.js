@@ -78,13 +78,14 @@ ok(!/%|continue chatting|ready to meet|plan a date|tomorrow|countdown|invite|las
 // Static: screen.
 const scr = fs.readFileSync(path.join(ROOT, 'components/dev/MatchesDesignPreview.tsx'), 'utf8');
 const code = scr.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-ok(/C\.dailyLine/.test(code) && /C\.pickedCaption/.test(code) && /C\.mutualCaption/.test(code), 'daily line and captions rendered');
+const cards = fs.readFileSync(path.join(ROOT, 'components/matches/v2/DailyMatchCards.tsx'), 'utf8');
+ok(/<MatchesTitle/.test(code) && /C\.pickedCaption/.test(code) && /C\.mutualCaption/.test(code) && /C\.dailyLine/.test(cards), 'daily line and captions rendered (shared approved cards)');
 ok(!/setInterval|setTimeout|Date\.now|new Date/.test(code), 'no timer or clock in the preview (refresh is a DEV button)');
 ok(/SIMULATED/.test(code) && /no timer, no clock and no selection algorithm/.test(code), 'DEV text says the daily refresh is simulated');
 ok(/DiscoverProfileItems/.test(code) && /buildDiscoverLayout/.test(code), 'View profile uses the shared Discover profile components');
-ok(/cardPhoto: \{[^}]*aspectRatio: 1\b/.test(code), 'large card photo kept');
+ok(/cardPhoto: \{[^}]*aspectRatio: 1\b/.test(cards) && /SharedPersonCard/.test(code), 'large card photo kept (preview uses the shared card)');
 ok(!/Modal|BottomSheet|Animated\.|Gesture|LikeSheet/.test(code) && !/name="heart"/.test(code), 'no modal / sheet / animation / filled heart / card-level like');
-ok(/styles\.outlineBtn/.test(code) && /styles\.fillBtn/.test(code), 'View profile outlined, Say hello filled');
+ok(/ViewProfileButton/.test(code) && /SayHelloButton/.test(code) && /outlineBtn: \{[^}]*borderWidth/.test(cards) && /fillBtn: \{[^}]*backgroundColor: obColors\.cta/.test(cards), 'View profile outlined, Say hello filled');
 ok(/accessibilityLabel="Back to Matches"/.test(code) && /active="Matches"/.test(code), 'profile back → Matches; tab bar picture with Matches active');
 const files = ['lib/dev/matchesPreview.ts', 'components/dev/MatchesDesignPreview.tsx', 'app/dev/matches-preview.tsx', 'components/discover/useInlineEditorKeyboard.ts'];
 for (const f of files) {

@@ -72,11 +72,14 @@ export type LikeOutcome = {
   keepPending: boolean;
   /** Re-read the profile (content changed). */
   reloadProfile: boolean;
+  /** Today's pick changed (or this person is today's pick): nothing was
+   * spent; ask for a refresh. */
+  refreshPicks: boolean;
   message: string | null;
 };
 
 export function likeOutcome(r: SendResult, withComment: boolean, name: string): LikeOutcome {
-  const base: LikeOutcome = { advance: false, showSent: false, done: false, keepEditor: withComment, keepPending: false, reloadProfile: false, message: null };
+  const base: LikeOutcome = { advance: false, showSent: false, done: false, keepEditor: withComment, keepPending: false, reloadProfile: false, refreshPicks: false, message: null };
   if (r.kind === 'ok') {
     return withComment ? { ...base, showSent: true, done: true, keepEditor: false } : { ...base, advance: true, keepEditor: false };
   }
@@ -92,6 +95,8 @@ export function likeOutcome(r: SendResult, withComment: boolean, name: string): 
       return { ...base, done: true, keepEditor: false, message: 'This profile isn’t available anymore.' };
     case 'invalid_target':
       return { ...base, reloadProfile: true, message: 'This photo or answer has changed. Please try again.' };
+    case 'stale_pick':
+      return { ...base, refreshPicks: true, message: 'Today’s pick has changed. Refresh Matches to see it — nothing was sent.' };
     case 'note_too_long':
       return { ...base, message: 'Your comment is too long.' };
     default:

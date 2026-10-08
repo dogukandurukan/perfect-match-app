@@ -22,7 +22,7 @@ import {
 import { getDailyInvitesState, type DailyInvitesState } from '@/lib/dailyInvites';
 import { computeFallbackReason, strongestReason, type ReasonCompareProfile } from '@/lib/matchReason';
 import { parseFavoriteSpots, personAge } from '@/lib/hingeProfile';
-import { V2MatchesScreen } from '@/components/main/V2MatchesScreen';
+import { V2DailyMatchesScreen } from '@/components/main/V2DailyMatchesScreen';
 import { supabase, v2Enabled } from '@/lib/supabaseClient';
 import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
 
@@ -299,7 +299,9 @@ function splitVenueText(raw: string | null): { venue: string | null; district: s
 // algorithmic candidates, no %, no pre-match "Plan a date" (2026-10-01).
 // The legacy screen below stays for the live (V1) build only.
 export default function MatchesTab() {
-  if (v2Enabled) return <V2MatchesScreen />;
+  // Daily picks (server-owned); falls back to the previous V2 list when the
+  // server doesn't have them yet.
+  if (v2Enabled) return <V2DailyMatchesScreen />;
   return <LegacyMatchesTab />;
 }
 

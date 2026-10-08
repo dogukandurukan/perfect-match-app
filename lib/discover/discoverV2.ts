@@ -41,17 +41,28 @@ export async function loadQuota(): Promise<Quota | null> {
   return { remaining: Number(data.remaining ?? 0), limit: Number(data.limit ?? 0) };
 }
 
-export async function sendLikeV2(likeeId: string, target: string, note: string | null, requestId: string): Promise<SendResult> {
+/** source 'discover' uses the 5-argument call (the server records it as a
+ * Discover like); 'daily_pick' adds p_source, which the server validates
+ * against the caller's CURRENT daily pick. */
+export async function sendLikeV2(
+  likeeId: string,
+  target: string,
+  note: string | null,
+  requestId: string,
+  source: 'discover' | 'daily_pick' = 'discover',
+): Promise<SendResult> {
   const t = parseTarget(target);
   if (!t) return { kind: 'refused', error: 'invalid_target', quota: null };
   try {
-    const { data, error } = await supabase.rpc('send_like_v2', {
+    const args: Record<string, unknown> = {
       p_likee: likeeId,
       p_target_type: t.type,
       p_target_id: t.id,
       p_note: note,
       p_request_id: requestId,
-    });
+    };
+    if (source === 'daily_pick') args.p_source = 'daily_pick';
+    const { data, error } = await supabase.rpc('send_like_v2', args);
     if (error || !data) return { kind: 'unknown' };
     const quota = data.quota ? { remaining: Number(data.quota.remaining ?? 0), limit: Number(data.quota.limit ?? 0) } : null;
     if (data.ok === true) return { kind: 'ok', matched: data.matched === true, quota };

@@ -230,7 +230,7 @@ if (process.argv.includes('--verify')) {
   const inPool = cand.filter((r) => ids.has(r.user_id));
   const ALLOWED = ['activity', 'age', 'artists', 'books', 'city', 'core_values', 'date_types', 'days_pref', 'drinking',
     'favorite_spot', 'first_name', 'height_cm', 'hometown', 'intent', 'interests', 'job_title', 'pet_kind', 'pets',
-    'photo_paths', 'prompts', 'school', 'screen', 'smoking', 'time_pref', 'user_id', 'work_status', 'zodiac'];
+    'photo_paths', 'photos', 'prompts', 'school', 'screen', 'smoking', 'time_pref', 'user_id', 'work_status', 'zodiac'];
   let ok = 0; let bad = 0; let sparse = 0;
   for (const r of inPool) {
     const prof = (await c.rpc('get_profile_v2', { p_user: r.user_id })).data;

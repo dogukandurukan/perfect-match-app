@@ -26,6 +26,8 @@ type Conversation = {
   lastAt: string;
   matchId: string | null;
   photoUrl: string | null;
+  /** V2: the other account is suspended — history readable, no new messages. */
+  unavailable?: boolean;
 };
 
 export default function MessagesScreen() {
@@ -66,7 +68,8 @@ export default function MessagesScreen() {
           lastMessage: m.last_message ?? '',
           lastAt: m.last_message_at ?? m.matched_at,
           matchId: m.match_id,
-          photoUrl: cachedProfilePhotoUrl(m.photo_path),
+          photoUrl: m.unavailable ? null : cachedProfilePhotoUrl(m.photo_path),
+          unavailable: m.unavailable === true,
         })),
       );
       setLoading(false);
@@ -182,8 +185,11 @@ export default function MessagesScreen() {
   );
 
   function renderItem({ item }: { item: Conversation }) {
-    const preview =
-      item.lastMessage.trim().length > 0 ? item.lastMessage : EMPTY_CHAT_PREVIEW;
+    const preview = item.unavailable
+      ? 'Account unavailable'
+      : item.lastMessage.trim().length > 0
+        ? item.lastMessage
+        : EMPTY_CHAT_PREVIEW;
 
     return (
       <TouchableOpacity

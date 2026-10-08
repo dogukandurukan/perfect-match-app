@@ -15,6 +15,9 @@ export type MyMatch = {
   last_message_at: string | null;
   last_from_me: boolean | null;
   unread: number;
+  /** The other account is suspended: history readable, no new messages
+   * (servers without the 2026-10-09 package don't send it → false). */
+  unavailable?: boolean;
 };
 
 export type DatePlan = {
@@ -42,7 +45,26 @@ export type Proposal = {
   created_at: string;
 };
 
-export type ChatState = { match_id: string; active: boolean; proposals: Proposal[] };
+/** A like between the two, shown as chat context (never a message). */
+export type LikeContext = {
+  from_me: boolean;
+  target_type: 'photo' | 'prompt' | 'profile';
+  note: string | null;
+  created_at: string;
+  photo_path: string | null;
+  prompt_id: string | null;
+  answer: string | null;
+};
+
+export type ChatState = {
+  match_id: string;
+  active: boolean;
+  /** 'unavailable' = the other account is suspended (read-only history).
+   * Older servers only send `active`. */
+  state?: 'active' | 'ended' | 'unavailable';
+  proposals: Proposal[];
+  likes?: LikeContext[];
+};
 
 export type Result<T> = { ok: true; value: T } | { ok: false; message: string };
 
