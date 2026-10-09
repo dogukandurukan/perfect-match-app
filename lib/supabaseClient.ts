@@ -17,7 +17,7 @@ export const backend = { env: resolved.env, projectRef: resolved.projectRef } as
 /** V2 live onboarding + V2 Home are enabled only on the explicitly chosen
  * development backends (dev = perfect-match-dev per the 2026-09-30 decision,
  * or a separate test project) — never with TEMPA_BACKEND=live. */
-export const v2Enabled = resolved.env === 'dev' || resolved.env === 'test';
+export const v2Enabled = resolved.env === 'dev' || resolved.env === 'test' || resolved.env === 'local';
 
 /** DEV-only test sign-in target (set by scripts/dev-backend/start-app.sh):
  * only in development builds, only on a dev/test backend, only a
@@ -35,7 +35,9 @@ export const supabase = createClient(resolved.url, resolved.anonKey, {
     // default, and AsyncStorage then reads/writes the session under an
     // undefined key — on the phone the sign-in/sign-up hung right after the
     // server returned 200 (2026-09-30).
-    ...(resolved.env === 'test' ? { storageKey: `tempa-test-${resolved.projectRef}-auth` } : {}),
+    ...(resolved.env === 'test' || resolved.env === 'local'
+      ? { storageKey: `tempa-${resolved.env}-${resolved.projectRef}-auth` }
+      : {}),
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

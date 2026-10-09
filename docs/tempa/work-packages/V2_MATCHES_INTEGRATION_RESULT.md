@@ -154,3 +154,83 @@ Checks (≤ 5):
 3. Open the pick → comment on a photo → Send. The note stays in place; back on Matches the card says Like sent. Heart on another profile isn't possible (one like).
 4. **Say hello** opens the chat with the like context on top and **no message**. Send one → back on Matches: Conversation started.
 5. Chat list: no automatic message appears for the new match.
+
+---
+
+# Round 2 — stale_pick distinction, report fixes, LOCAL full Supabase (2026-10-09)
+
+From `c10b18f`. The owner chose **no paid cloud project**: a local Supabase replaces it.
+
+**Not done:** no merge, no deploy, no change to the shared DEV/live database. AI HQ, `~/tempa-p06` and the other local project (`terapi-yerel`) were not touched.
+
+## 1. stale_pick vs Discover — verified, code unchanged
+
+`send_like_v2` already behaved as decided. A new replica check (`http_matches` **76 / 76**) proves the three cases:
+- an earlier day's `daily_pick` → `stale_pick`, no like / quota;
+- a past pick that wasn't liked is in today's Discover and can be liked with source `discover` (one unit);
+- liking today's pick from Discover → `stale_pick`.
+
+D74's text was clarified accordingly (`beace81`).
+
+## 2. Report and dates
+
+The stray `EOF` + shell lines at the end of this file were removed. This report's date and D67–D74 were set to 2026-10-08. The migration file name is unchanged.
+
+## 3. Local full Supabase
+
+- **Setup:** `local-backend/` (project id `tempa-local`, ports 554xx; Studio / analytics / edge runtime / vector off) via `scripts/local-backend/setup.mjs`.
+    - All 11 migrations applied cleanly on **real Postgres 17**: the live-schema snapshot plus every package, including the Matches package.
+    - Separate containers and volumes; `terapi-yerel` kept running untouched on 543xx.
+- **Seed:** `scripts/local-backend/seed.mjs`, synthetic only, the normal V2 path — real Auth codes, Storage uploads, onboarding RPCs, reviewer accept.
+    - 6 İstanbul women, 1 Ankara woman, the phone tester and a second man;
+    - the tester ↔ Asya mutual match was made via `send_like_v2` from both sessions (source checks applied).
+- **App:** new `TEMPA_BACKEND=local` (`lib/backendConfig.ts`).
+    - It accepts only `http://` loopback / private-LAN URLs and a non-live anon key; anything missing refuses to start, with no fallback.
+    - `v2Enabled` is on; separate session storage key; badge "LOCAL · local:55421".
+    - `app.config.js` passes `TEMPA_LOCAL_SUPABASE_URL` / `_ANON_KEY`. Production stays pinned to live.
+- **Phone launcher:** `scripts/local-backend/start-app.sh`.
+    - It needs the Mac's private Wi-Fi address, checks that the local API answers on 127.0.0.1 **and** on that LAN address (verified: `192.168.1.100:55421` → 200), prints a sign-in code, and starts Metro with `TEMPA_BACKEND=local` (and unsets the test-project variables).
+
+## 4. Tests
+
+| Run | Where | Result |
+|---|---|---|
+| `smoke_matches_local.mjs` | **local Supabase, real services, real parallel HTTP connections** | **18 / 18** in 8 of 9 runs; one run had 17 / 18 (the failing check wasn't captured — most likely the Realtime delivery wait; not reproduced in 8 further runs) |
+| `http_matches.test.mjs` | local PGlite replica | 76 / 76 |
+| `backend_config.check.mjs` | local | 28 / 28 (+9 local-target cases) |
+| `local_launcher.check.mjs` (new) | local | 8 / 8 |
+| `tsc`, onboarding / Discover / Matches checks | local | clean; unchanged counts; iOS dev bundle builds with the local env |
+
+What the local smoke run covers:
+- **12 parallel first `get_daily_picks_v2` calls** → all 200, the same pick, **exactly one** stored row;
+- `refresh_at` = 09:00 UTC;
+- today's pick not in Discover;
+- **photo access:** the viewer signs the pick's private photo and downloads real bytes; a signed-out caller is refused;
+- daily_pick like + comment;
+- **3 parallel retries → one like**;
+- like back → match immediately, **no automatic message**, card `matched`, chat context with both likes;
+- the receiver **subscribes to Realtime** and **receives the first real message**, then the card shows `conversation_started`;
+- **last like unit, two parallel sends → exactly one like**.
+
+**Finding (pre-existing, not from this package; same on the shared project):**
+- The private-photo read policy (`profile-photos-private read visible owners` → `can_view_profile_as_me`) uses the **V1** visibility rule, not V2 eligibility.
+- So **an active member who is not eligible to see someone (e.g. another city) can still sign that person's photo if they know its path.**
+- Paths are random and only handed out by visibility-checked RPCs, so the risk is low. But the rule is wider than the profile rule.
+- **Decision needed:** tighten it to `v2_can_view_public_profile` for V2 owners. Check first that Likes you and chat photos keep working. Not changed in this round.
+
+**Not tried on the phone.** In particular, whether the iOS dev client allows plain `http://` to the Mac's LAN address is unconfirmed (Metro itself uses LAN http, so it is expected to work).
+
+## 5. Phone (local)
+
+**Command:** `scripts/local-backend/start-app.sh`.
+- Mac and phone must be on the same Wi-Fi.
+- The first time, run `node scripts/local-backend/setup.mjs && node scripts/local-backend/seed.mjs` before it.
+
+**On the phone:** if you're signed in, sign out. On the signed-out screen use **DEV · Test account sign-in** with the printed code; the badge must read **LOCAL · local:55421**.
+
+Checks (≤ 5):
+1. The badge reads LOCAL. Matches shows the daily line, a Picked for you card and Asya under You both liked. Reopen: same people.
+2. Discover doesn't show today's pick; photos load.
+3. In the pick's profile, comment on a photo → Send. The note stays; Matches shows Like sent.
+4. Asya → **Say hello**: the chat opens with no message. Send one → Matches shows Conversation started.
+5. If anything fails to load, note whether it's the first screen (network / http) or a specific step.

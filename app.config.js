@@ -31,6 +31,9 @@ module.exports = ({ config }) => {
         testUrl: process.env.TEMPA_TEST_SUPABASE_URL ?? null,
         // anon / publishable key only (public by design); never a secret key
         testAnonKey: process.env.TEMPA_TEST_SUPABASE_ANON_KEY ?? null,
+        // Local Supabase (scripts/local-backend/start-app.sh): URL + its anon key.
+        localUrl: process.env.TEMPA_LOCAL_SUPABASE_URL ?? null,
+        localAnonKey: process.env.TEMPA_LOCAL_SUPABASE_ANON_KEY ?? null,
         // DEV test sign-in: the one synthetic account the start script
         // allows (an address only — no password, key or code).
         devTestEmail: process.env.TEMPA_DEV_TEST_EMAIL ?? null,

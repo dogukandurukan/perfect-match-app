@@ -33,6 +33,19 @@ check(ok.ok && ok.env === 'test' && ok.projectRef === TEST_REF && ok.url === tes
 const pub = resolveBackend({ env: 'test', testUrl, testAnonKey: 'sb_publishable_xyz' });
 check(pub.ok && pub.projectRef === TEST_REF, 'publishable key accepted');
 
+// Local Supabase (TEMPA_BACKEND=local): loopback / private LAN only, never a fallback.
+const localKey = `${b64({ alg: 'HS256' })}.${b64({ iss: 'supabase-demo', role: 'anon' })}.sig`;
+check(!resolveBackend({ env: 'local' }).ok, 'local without URL/key → error, not live');
+check(!resolveBackend({ env: 'local', localUrl: 'http://192.168.1.20:55421' }).ok, 'local without key → error');
+check(!resolveBackend({ env: 'local', localUrl: `https://${LIVE_PROJECT_REF}.supabase.co`, localAnonKey: localKey }).ok, 'local pointing at the hosted live project → error');
+check(!resolveBackend({ env: 'local', localUrl: 'http://example.com:55421', localAnonKey: localKey }).ok, 'local with a public host → error');
+check(!resolveBackend({ env: 'local', localUrl: 'http://8.8.8.8:55421', localAnonKey: localKey }).ok, 'local with a public IP → error');
+check(!resolveBackend({ env: 'local', localUrl: 'http://192.168.1.20:55421', localAnonKey: LIVE_SUPABASE_ANON_KEY }).ok, 'local with the live key → error');
+check(!resolveBackend({ env: 'local', localUrl: 'http://192.168.1.20:55421', localAnonKey: fakeAnon('x', 'service_role') }).ok, 'local with a service_role key → error');
+const loc = resolveBackend({ env: 'local', localUrl: 'http://192.168.1.20:55421', localAnonKey: localKey });
+check(loc.ok && loc.env === 'local' && loc.url === 'http://192.168.1.20:55421' && loc.projectRef === 'local:55421', 'valid local LAN config → local');
+check(resolveBackend({ env: 'local', localUrl: 'http://127.0.0.1:55421', localAnonKey: localKey }).ok, 'loopback accepted (simulator)');
+
 check(allowedDevTestEmail({ devTestEmail: 'tempa-dev-tester@tempa-test.example.com' }) === 'tempa-dev-tester@tempa-test.example.com', 'DEV test email accepted');
 check(allowedDevTestEmail({ devTestEmail: 'someone@gmail.com' }) === null, 'a real address is never a DEV test target');
 check(allowedDevTestEmail({}) === null, 'no DEV test target unless the start script sets one');

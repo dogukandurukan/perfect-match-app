@@ -26,6 +26,9 @@ export type BackendExtra = {
   env?: string | null;
   testUrl?: string | null;
   testAnonKey?: string | null;
+  /** Local Supabase (scripts/local-backend): http://<LAN IP or 127.0.0.1>:<port>. */
+  localUrl?: string | null;
+  localAnonKey?: string | null;
   devTestEmail?: string | null;
 };
 
@@ -36,10 +39,33 @@ export function allowedDevTestEmail(extra: BackendExtra | null | undefined): str
 }
 
 export type BackendConfig =
-  | { ok: true; env: 'live' | 'dev' | 'test'; url: string; anonKey: string; projectRef: string }
+  | { ok: true; env: 'live' | 'dev' | 'test' | 'local'; url: string; anonKey: string; projectRef: string }
   | { ok: false; reason: string };
 
 const URL_RE = /^https:\/\/([a-z0-9]{20})\.supabase\.co\/?$/;
+// Local Supabase only: loopback or a private (RFC 1918) LAN address with a
+// port. Never a hosted domain.
+const LOCAL_URL_RE =
+  /^http:\/\/(127\.0\.0\.1|localhost|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):(\d{2,5})\/?$/;
+
+/** TEMPA_BACKEND=local: a Supabase running on this computer (separate from the
+ * shared DEV/live project). Any missing or non-local value refuses to start —
+ * there is no fallback to another backend. */
+function resolveLocal(extra: BackendExtra | null | undefined): BackendConfig {
+  const url = extra?.localUrl?.trim() ?? '';
+  const key = extra?.localAnonKey?.trim() ?? '';
+  if (/supabase\.co/i.test(url)) return { ok: false, reason: 'TEMPA_LOCAL_SUPABASE_URL is a hosted project, not the local one.' };
+  const m = LOCAL_URL_RE.exec(url);
+  if (!m) return { ok: false, reason: 'TEMPA_LOCAL_SUPABASE_URL is missing or not http://<local or LAN IP>:<port>.' };
+  if (!key) return { ok: false, reason: 'TEMPA_LOCAL_SUPABASE_ANON_KEY is missing.' };
+  if (key === LIVE_SUPABASE_ANON_KEY) return { ok: false, reason: 'TEMPA_LOCAL_SUPABASE_ANON_KEY is the LIVE key.' };
+  if (key.startsWith('sb_secret_')) return { ok: false, reason: 'TEMPA_LOCAL_SUPABASE_ANON_KEY is a SECRET key.' };
+  if (!key.startsWith('sb_publishable_')) {
+    if (jwtClaim(key, 'role') !== 'anon') return { ok: false, reason: 'TEMPA_LOCAL_SUPABASE_ANON_KEY is not an anon key.' };
+    if (jwtClaim(key, 'ref') === LIVE_PROJECT_REF) return { ok: false, reason: 'TEMPA_LOCAL_SUPABASE_ANON_KEY belongs to the LIVE project.' };
+  }
+  return { ok: true, env: 'local', url: url.replace(/\/$/, ''), anonKey: key, projectRef: `local:${m[m.length - 1]}` };
+}
 
 function jwtClaim(key: string, claim: string): string | null {
   const parts = key.split('.');
@@ -67,11 +93,12 @@ export function resolveBackend(extra: BackendExtra | null | undefined): BackendC
   if (!env) {
     return { ok: false, reason: 'TEMPA_BACKEND is not set. Start Metro with TEMPA_BACKEND=live or TEMPA_BACKEND=test.' };
   }
+  if (env === 'local') return resolveLocal(extra);
   if (env === 'live' || env === 'dev') {
     return { ok: true, env, url: LIVE_SUPABASE_URL, anonKey: LIVE_SUPABASE_ANON_KEY, projectRef: LIVE_PROJECT_REF };
   }
   if (env !== 'test') {
-    return { ok: false, reason: `TEMPA_BACKEND="${env}" is not "dev", "test" or "live".` };
+    return { ok: false, reason: `TEMPA_BACKEND="${env}" is not "dev", "test", "local" or "live".` };
   }
   const url = extra?.testUrl?.trim() ?? '';
   const key = extra?.testAnonKey?.trim() ?? '';

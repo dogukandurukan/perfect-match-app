@@ -26,3 +26,6 @@ expo-env.d.ts
 
 # Tempa dev project keys (never commit)
 .env.dev.local
+
+# Local Supabase (scripts/local-backend): generated keys/URLs for this machine only
+.env.local-backend.local

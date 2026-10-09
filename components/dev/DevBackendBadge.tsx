@@ -14,7 +14,7 @@ export function DevBackendBadge() {
   return (
     <View pointerEvents="none" style={[styles.wrap, { bottom: Math.max(insets.bottom - 16, 2) }]}>
       <Text
-        style={[styles.text, isLive ? styles.live : isDev ? styles.dev : styles.test]}
+        style={[styles.text, isLive ? styles.live : isDev ? styles.dev : backend.env === 'local' ? styles.local : styles.test]}
         accessibilityLabel={`Backend ${backend.env}, project ${backend.projectRef}`}
       >
         {`${backend.env.toUpperCase()} · ${backend.projectRef}`}
@@ -31,4 +31,5 @@ const styles = StyleSheet.create({
   live: { backgroundColor: '#B3261E', color: '#FFFFFF' },
   test: { backgroundColor: '#1F6F43', color: '#FFFFFF' },
   dev: { backgroundColor: '#8A5A00', color: '#FFFFFF' },
+  local: { backgroundColor: '#1F4E8A', color: '#FFFFFF' },
 });

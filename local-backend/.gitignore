@@ -1,0 +1,4 @@
+# Generated at setup time from the live-schema snapshot + proposed packages.
+supabase/migrations/
+supabase/.temp/
+supabase/.branches/

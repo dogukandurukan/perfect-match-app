@@ -1,10 +1,35 @@
-# Separate Supabase test project — setup, order, phone test
+# Test environments
+
+## A. Local full Supabase (current choice, free — 2026-10-09)
+
+The owner chose **not** to create a paid cloud test project. Tempa's tests run on a **local** Supabase started by the Supabase CLI in Docker:
+- Postgres 17, Auth, Storage, Realtime;
+- folder `local-backend/`, project id **`tempa-local`**, ports **554xx** (API 55421, DB 55422, mail 55424);
+- Studio, analytics, edge runtime and vector are off.
+- It doesn't touch other local projects (e.g. `terapi-yerel` on 543xx) and never the shared DEV/live project.
+
+| Step | Command | What it does |
+|---|---|---|
+| 1 | `node scripts/local-backend/setup.mjs` | generates migrations (sanitized live-schema snapshot + every package in the live order + the Matches package; **no data**), `supabase start`, `db reset`; writes `.env.local-backend.local` (git-ignored, mode 600, local URL / keys only) |
+| 2 | `node scripts/local-backend/seed.mjs` | synthetic accounts only, through the normal V2 path (real Auth email code, Storage uploads, onboarding RPCs, reviewer accept); one mutual match for the tester |
+| 3 | `node scripts/local-backend/smoke_matches_local.mjs` | Matches on real services: parallel first pick, Discover, photo access, like → match → first message over Realtime, last-unit race |
+| 4 | `scripts/local-backend/start-app.sh` | Metro for the dev client with `TEMPA_BACKEND=local` and the Mac's **Wi-Fi address** (the phone must be on the same Wi-Fi); prints a one-time code for `tempa-matches-tester@tempa-test.example.com` |
+| — | `node scripts/local-backend/setup.mjs --stop` | stops only `tempa-local` |
+
+**Guards:**
+- The scripts accept only `http://127.0.0.1:55421`.
+- The app's `TEMPA_BACKEND=local` accepts only loopback / private LAN addresses and a non-live anon key, otherwise it refuses to start.
+- A production build stays pinned to live.
+- Checks: `scripts/p0-checks/backend_config.check.mjs`, `scripts/p0-checks/local_launcher.check.mjs`.
+
+## B. Separate Supabase cloud test project (not used — kept for reference)
+
 
 Branch `tempa/v2-persist-r2` (working folder `~/tempa-p0`). Everything here
 targets a **separate** test project. The scripts refuse the live project's
 URL, keys and DB string, and never print secret values.
 
-## 0. Status (2026-09-30)
+### 0. Status (2026-09-30)
 
 The Supabase account has only two projects:
 - `perfect-match-dev` = **live**;
@@ -14,7 +39,7 @@ Both are refused by the scripts and the app. **A new project for Tempa's tests h
 - Dashboard → New project → name it e.g. `tempa-test`. `setup.mjs` checks that the name contains "tempa".
 - If the plan's project limit blocks a new free project, that is an account/billing choice for you. Do not repoint any existing project.
 
-## 1. What you fill in (once)
+### 1. What you fill in (once)
 
 File: **`~/tempa-p0/.env.test.local`**. It is already created, empty, git-ignored and mode 600.
 
@@ -29,7 +54,7 @@ Two Dashboard settings in the test project:
 1. **Auth → Email Templates → "Magic Link"**: include `{{ .Token }}` in the body. Otherwise the email carries only a link, and the app's 6-digit code screen can't be used on the phone.
 2. **Auth → Providers → Email**: enabled (the default). The built-in mailer sends very few emails per hour. For more phone attempts, set a custom SMTP; the scripts don't need email at all.
 
-## 2. Order (why this order)
+### 2. Order (why this order)
 
 | # | Step | Command | Depends on |
 |---|---|---|---|
@@ -52,7 +77,7 @@ The local replica (no project needed) runs the same packages in the same order:
 - `http_p0.test.mjs`
 - `http_v2.test.mjs`, which ends by applying P0-B and re-checking V2.
 
-## 3. One command for the phone
+### 3. One command for the phone
 
 From a terminal:
 
@@ -62,7 +87,7 @@ From a terminal:
 
 It starts Metro for the dev client against the test project. The app shows a green `TEST · <ref>` badge on every screen. If the settings are missing or point at live, the app refuses to start.
 
-## 4. Short phone checklist
+### 4. Short phone checklist
 
 The test logins are in `~/tempa-p0/.test-backend/accounts.local.json`. The full P0 list is in `P0_PHONE_TEST.md`.
 
