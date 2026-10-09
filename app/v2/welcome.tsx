@@ -87,7 +87,16 @@ export default function V2Welcome() {
       );
       console.log(`[v2 welcome] verify: done (error: ${e ? e.name : 'none'})`);
       if (e) {
-        setError(/expired/i.test(e.message) ? 'That code has expired. Send a new one.' : "That code isn't right. Try again.");
+        // Supabase Auth answers "otp_expired" (Token has expired or is invalid)
+        // for BOTH a wrong code and an expired one, so never claim "expired".
+        const ambiguous = (e as { code?: string }).code === 'otp_expired' || /expired|invalid/i.test(e.message);
+        setError(
+          ambiguous
+            ? testMode
+              ? 'That code isn’t valid or has expired. Use the newest code from your Mac terminal.'
+              : 'That code isn’t valid or has expired. Use the newest code or send a new one.'
+            : "That code isn't right. Try again.",
+        );
         return;
       }
       const loaded = await withTimeout(loadMyOnboarding(), 20000, 'loadDraft');
