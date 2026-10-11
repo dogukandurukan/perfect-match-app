@@ -234,3 +234,34 @@ Checks (≤ 5):
 3. In the pick's profile, comment on a photo → Send. The note stays; Matches shows Like sent.
 4. Asya → **Say hello**: the chat opens with no message. Send one → Matches shows Conversation started.
 5. If anything fails to load, note whether it's the first screen (network / http) or a specific step.
+
+---
+
+# Round 3 — owner's phone test on LOCAL (recorded 2026-10-11)
+
+**Tested by the owner on the phone** against the local Supabase (`TEMPA_BACKEND=local`) with the synthetic tester. Not run by Claude Code; recorded as reported.
+
+| Verified on the phone (owner) |
+|---|
+| Matches cards and profile photos load |
+| Asya's chat opened before the first message with the like context and **no automatic message** |
+| After sending "Hi", the Matches card showed **Conversation started** |
+| A comment like on the daily pick showed **Like sent** |
+| After closing and reopening the app, the tested message and states were kept |
+
+**Not confirmed on the phone (no claim made):**
+- the daily refresh at 12:00;
+- the pick never appearing in Discover;
+- the stale-pick refresh message;
+- hidden / suspended / blocked / unmatched behaviour;
+- the "No new pick" / "No mutual likes" states.
+
+These are covered by the replica and local service tests only.
+
+**Status:** the core Matches flow works locally and **waits for the live release**.
+
+**Open items:**
+1. **Photo access policy is wider than V2 eligibility:** the private-photo read policy uses the V1 `can_view_profile_as_me` rule; a decision is needed.
+2. **Unexplained service-test failure:** one run of `smoke_matches_local.mjs` reported 17 / 18 and the failing check was not captured; not reproduced in 8 further runs.
+3. **V1 → V2 live switch:** production builds still select V1, DEV and live share one project, and the package is not applied to the shared project.
+4. **Compatibility ranking:** the pick is a temporary random draw (D67); scoring is undecided.
