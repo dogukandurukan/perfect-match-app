@@ -143,6 +143,17 @@ export function V2ProfileHome() {
           <Text style={styles.devEntryText}>Discover design preview (DEV)</Text>
         </TouchableOpacity>
       ) : null}
+      {__DEV__ ? (
+        // DEV-only entry to the local Activity design preview (no real data).
+        <TouchableOpacity
+          onPress={() => router.push('/dev/activity-preview' as never)}
+          accessibilityRole="button"
+          hitSlop={10}
+          style={styles.devEntry}>
+          <Ionicons name="construct-outline" size={18} color={obColors.textSecondary} importantForAccessibility="no" />
+          <Text style={styles.devEntryText}>Activity design preview (DEV)</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <TouchableOpacity onPress={signOut} accessibilityRole="button" hitSlop={10} style={styles.signOut}>
         <Text style={styles.link}>Sign out</Text>
