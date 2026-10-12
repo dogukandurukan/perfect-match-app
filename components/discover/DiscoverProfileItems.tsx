@@ -43,6 +43,9 @@ export type ItemHandlers = {
   onSendComment: () => void;
   onEditorResize: () => void;
   editorRef: (v: View | null) => void;
+  /** Viewing only (e.g. from Activity): no hearts or comment controls.
+   * Optional and off by default — Discover never sets it. */
+  readOnly?: boolean;
 };
 
 export function DiscoverProfileItems({ items, h }: { items: DiscoverItem[]; h: ItemHandlers }) {
@@ -105,7 +108,7 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
           </>
         ) : null}
         <View style={styles.photoActions} pointerEvents="box-none">
-          {!editing && h.canLike ? (
+          {!editing && h.canLike && !h.readOnly ? (
             <TouchableOpacity
               onPress={() => h.onOpenComment(target)}
               style={styles.commentChip}
@@ -116,7 +119,9 @@ function PhotoItem({ item, h }: { item: Extract<DiscoverItem, { type: 'hero' | '
               <Text style={styles.commentChipText} maxFontSizeMultiplier={1.3}>Add a comment</Text>
             </TouchableOpacity>
           ) : null}
-          <HeartButton onPhoto disabled={!h.canLike || !!h.busy} label={`Like ${h.person.name}’s ${what}`} onPress={() => h.onLike(target)} />
+          {h.readOnly ? null : (
+            <HeartButton onPhoto disabled={!h.canLike || !!h.busy} label={`Like ${h.person.name}’s ${what}`} onPress={() => h.onLike(target)} />
+          )}
         </View>
       </View>
       {editing ? (
@@ -161,13 +166,15 @@ function PromptItem({ item, h }: { item: Extract<DiscoverItem, { type: 'prompt' 
           <Text style={styles.promptLabel} maxFontSizeMultiplier={1.6}>{item.label}</Text>
           <Text style={styles.promptAnswer} maxFontSizeMultiplier={1.6}>{item.answer}</Text>
         </View>
-        <HeartButton disabled={!h.canLike || !!h.busy} label={`Like ${h.person.name}’s answer: ${item.label}`} onPress={() => h.onLike(item.key)} />
+        {h.readOnly ? null : (
+          <HeartButton disabled={!h.canLike || !!h.busy} label={`Like ${h.person.name}’s answer: ${item.label}`} onPress={() => h.onLike(item.key)} />
+        )}
       </View>
       {editing ? (
         <InlineEditor h={h} />
       ) : sentHere ? (
         <SentNote comment={sentHere.comment} />
-      ) : !h.canLike ? null : (
+      ) : !h.canLike || h.readOnly ? null : (
         <TouchableOpacity
           onPress={() => h.onOpenComment(item.key)}
           style={styles.commentLink}

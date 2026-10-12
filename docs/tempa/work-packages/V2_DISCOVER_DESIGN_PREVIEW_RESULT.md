@@ -79,7 +79,7 @@ Other rules:
 
 ### Like, pass, inline comment
 
-- No swipe; × passes.
+- No swipe; × passes. *(Superseded 2026-10-12 by D81: heart / swipe right = whole-profile like, × / swipe left = pass — later work, not built.)*
 - **Heart** on any photo / prompt = a like on that item, with no comment.
 - **"Add a comment"** opens the editor **directly under that item**: inside the prompt card, or right under the photo.
     - There is no page, modal or sheet, and only one editor is open at a time.

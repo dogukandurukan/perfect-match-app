@@ -1,7 +1,8 @@
-// DEV Activity design preview (lib/dev/activityPreview.ts + its screen):
-// pending vs unread, view ≠ accept, like back → New matches, no auto
-// message, mark-all-read visibility, states, and that the preview can't reach
-// the backend. Local logic check only — not a real-service or phone test.
+// DEV Activity design preview (mockup 2026-10-12, D75–D81): one feed,
+// merged like+comment cards, view ≠ accept, ONE "Match & chat" that is
+// idempotent and fails visibly, chat context never a message, and that the
+// preview can't reach the backend. Local logic check only — not a
+// real-service or phone test.
 const fs = require('fs');
 const path = require('path');
 const { ok, eq, done, ROOT } = require('./_setup');
@@ -9,59 +10,90 @@ const A = require(path.join(ROOT, 'lib/dev/activityPreview.ts'));
 
 const s0 = A.INITIAL_ACTIVITY;
 const R = A.activityReducer;
+const run = (s, ...acts) => acts.reduce(R, s);
+const feedSig = (s) => A.buildFeed(s).map((f) => `${f.kind}:${f.kind === 'interest' ? f.interest.personId : f.match.personId}`);
 
-// Fixture coverage: photo+comment, photo without comment, prompt like, new match, started conversation.
-const defne = s0.likes.find((l) => l.personId === 'defne');
-ok(defne.target.kind === 'photo' && defne.comment && defne.comment.length > 120, 'photo like with a long comment');
-ok(s0.likes.some((l) => l.target.kind === 'photo' && !l.comment), 'photo like without comment');
-ok(s0.likes.some((l) => l.target.kind === 'prompt' && A.promptQuestion(l.target)), 'prompt like with a real prompt label');
-ok(s0.matches.some((m) => !A.conversationStarted(m)) && s0.matches.some((m) => A.conversationStarted(m)), 'new match + started conversation');
-ok(s0.likes.every((l) => !l.comment || l.comment.length <= 240), 'comments within the server note limit');
+// Fixture coverage.
+const it = (id) => A.interestFor(s0, id);
+ok(it('zeynep').target.kind === 'profile' && !it('zeynep').comment && A.interestLabel(it('zeynep').target) === 'Liked you', 'profile like, no comment → "Liked you"');
+ok(it('defne').target.kind === 'photo' && it('defne').comment === 'Where was this taken?' && A.interestLabel(it('defne').target) === 'Liked your photo', 'photo like with comment');
+ok(it('ece').target.kind === 'prompt' && A.interestLabel(it('ece').target) === 'Liked your answer' && A.promptQuestion(it('ece').target), 'prompt like');
+ok(A.matchFor(s0, 'selin') && !A.conversationStarted(A.matchFor(s0, 'selin')) && A.conversationStarted(A.matchFor(s0, 'melis')), 'existing match + started conversation');
 
-// Count = pending, not unread.
-ok(A.pendingCount(s0) === 3 && A.unreadCount(s0) === 3, 'initial: 3 pending; unread counts likes + matches separately');
-const viewed = R(s0, { type: 'open_profile', likeId: 'l-defne' });
-ok(viewed.likes.length === 3 && viewed.matches.length === s0.matches.length, 'opening a profile does not accept the like');
-ok(viewed.likes.find((l) => l.id === 'l-defne').read === true && A.pendingCount(viewed) === 3, 'read like stays pending, count unchanged');
+// Merging: a like and its comment → one card; unread if any part unread.
+ok(A.RAW_EVENTS.filter((e) => e.personId === 'defne').length === 2 && s0.interests.filter((i) => i.personId === 'defne').length === 1, 'like + comment merged into one card');
+const merged = A.mergeIncoming([
+  { kind: 'comment', personId: 'x', minutesAgo: 5, read: true, text: '  hi  ' },
+  { kind: 'like', personId: 'x', minutesAgo: 9, read: false, target: { kind: 'photo', myPhotoIndex: 0 } },
+]);
+ok(merged.length === 1 && merged[0].comment === 'hi' && merged[0].target.kind === 'photo' && merged[0].minutesAgo === 5 && merged[0].read === false, 'merge: order-independent, newest time, unread wins, trimmed');
+ok(A.mergeIncoming([{ kind: 'comment', personId: 'y', minutesAgo: 1, read: false, text: '   ' }])[0].comment === null, 'blank comment → no comment');
 
-// Like back → match, moved out of likes, no message.
-const back = R(viewed, { type: 'like_back', likeId: 'l-defne' });
-ok(!back.likes.some((l) => l.personId === 'defne') && A.pendingCount(back) === 2, 'like back removes from Likes you');
-const m = back.matches[0];
-ok(m.personId === 'defne' && !m.read && m.messages.length === 0, 'like back → unread New match, no automatic message');
-ok(m.context[0].comment === defne.comment && !m.messages.some((x) => x.text === defne.comment), 'comment kept as context, never a message');
-ok(R(back, { type: 'like_back', likeId: 'l-defne' }) === back, 'second like back is a no-op');
+// Feed: one vertical list, newest first, one entry per person.
+ok(eq(feedSig(s0), ['interest:defne', 'interest:zeynep', 'match:selin', 'interest:ece', 'match:melis']), 'feed: mixed, newest first');
+const both = { ...s0, matches: [...s0.matches, { id: 'm-ece', personId: 'ece', minutesAgo: 1, read: true, started: null, messages: [] }] };
+ok(!feedSig(both).includes('interest:ece') && feedSig(both).includes('match:ece'), 'a matched person is never also shown as pending');
 
-// Chat: opening sends nothing; only an explicit send adds a (local) message.
-const opened = R(back, { type: 'open_chat', matchId: m.id });
-ok(opened.matches[0].messages.length === 0 && opened.matches[0].read, 'Open chat marks read, sends nothing');
-ok(R(opened, { type: 'send_message', matchId: m.id, text: '   ' }) === opened, 'blank message ignored');
-const sent = R(opened, { type: 'send_message', matchId: m.id, text: 'Hi Defne' });
-ok(A.conversationStarted(sent.matches[0]) && A.matchSubtitle(sent.matches[0]) === 'Conversation started', 'after a message: Conversation started');
-ok(!/say hi/i.test(A.matchSubtitle(sent.matches[0])) && A.matchSubtitle(s0.matches.find((x) => x.personId === 'melis')) === 'Conversation started', 'no "Say hi" once a conversation started');
+// View ≠ accept.
+const viewed = R(s0, { type: 'open_profile', personId: 'defne' });
+ok(A.interestFor(viewed, 'defne').read && !A.matchFor(viewed, 'defne') && viewed.matches.length === s0.matches.length, 'opening the profile marks read, creates no match');
+ok(eq(feedSig(viewed), feedSig(s0)), 'going back: feed unchanged (still pending)');
 
-// Mark all as read: whole preview, button only when something is unread.
-ok(A.showMarkAllRead(s0), 'Mark all as read shown when unread exists');
-const all = R(s0, { type: 'mark_all_read' });
-ok(A.unreadCount(all) === 0 && !A.showMarkAllRead(all) && A.pendingCount(all) === 3, 'mark all read: nothing unread, likes still pending');
+// Match & chat: one match, interest → match row, no message, context kept.
+const m1 = run(viewed, { type: 'match_start', personId: 'defne' }, { type: 'match_done', personId: 'defne' });
+const dm = A.matchFor(m1, 'defne');
+ok(dm && m1.matches.filter((m) => m.personId === 'defne').length === 1 && !A.interestFor(m1, 'defne'), 'Match & chat → exactly one match, card leaves pending');
+ok(feedSig(m1)[0] === 'match:defne' && !feedSig(m1).includes('interest:defne'), 'card turns into the match row');
+ok(dm.messages.length === 0 && dm.started.comment === 'Where was this taken?' && dm.started.target.kind === 'photo', 'no message sent; comment kept as How-it-started context');
+// Repeats / double taps.
+const twice = run(viewed, { type: 'match_start', personId: 'defne' }, { type: 'match_start', personId: 'defne' }, { type: 'match_done', personId: 'defne' }, { type: 'match_done', personId: 'defne' });
+ok(twice.matches.filter((m) => m.personId === 'defne').length === 1, 'double tap → still one match');
+ok(R(m1, { type: 'match_start', personId: 'defne' }) === m1, 'already matched → no new request (Open chat)');
+ok(R(s0, { type: 'match_done', personId: 'defne' }) === s0, 'a stray completion without a request does nothing');
+ok(run(s0, { type: 'match_start', personId: 'defne' }, { type: 'match_start', personId: 'zeynep' }).matching === 'defne', 'one request in flight at a time');
+// Leave the chat without a message, reopen: same match.
+const left = run(m1, { type: 'open_chat', matchId: dm.id });
+ok(A.matchFor(left, 'defne').id === dm.id && left.matches.length === m1.matches.length, 'leaving without a message keeps the match; reopening uses the same chat');
+const sent = R(left, { type: 'send_message', matchId: dm.id, text: 'Hi Defne' });
+ok(A.conversationStarted(A.matchFor(sent, 'defne')) && R(sent, { type: 'send_message', matchId: dm.id, text: '  ' }) === sent, 'first real message → conversation started; blank ignored');
 
-// States.
-ok(eq(R(s0, { type: 'scenario', scenario: 'empty' }), { load: 'ready', likes: [], matches: [] }), 'empty scenario');
+// Failure: never looks matched; retry works.
+const failed = run(viewed, { type: 'dev_fail_next', on: true }, { type: 'match_start', personId: 'defne' }, { type: 'match_done', personId: 'defne' });
+ok(!A.matchFor(failed, 'defne') && A.interestFor(failed, 'defne') && failed.matchError === 'defne' && failed.matching === null, 'failure: no match, card stays, error shown');
+const retried = run(failed, { type: 'match_start', personId: 'defne' }, { type: 'match_done', personId: 'defne' });
+ok(A.matchFor(retried, 'defne') && retried.matchError === null, 'retry after failure → matched');
+
+// States + copy.
+ok(A.buildFeed(R(s0, { type: 'scenario', scenario: 'empty' })).length === 0, 'empty Activity');
 const err = R(s0, { type: 'scenario', scenario: 'error' });
-ok(err.load === 'error' && !A.showMarkAllRead(err) && R(err, { type: 'retry' }).load === 'ready', 'error → retry');
-ok(R(s0, { type: 'scenario', scenario: 'loading' }).load === 'loading', 'loading scenario');
+ok(err.load === 'error' && R(err, { type: 'retry' }).load === 'ready' && R(s0, { type: 'scenario', scenario: 'loading' }).load === 'loading', 'loading / error → retry');
 ok(R(sent, { type: 'reset' }) === s0, 'reset');
-ok(A.timeAgo(12) === '12m' && A.timeAgo(95) === '1h' && A.timeAgo(60 * 26) === 'Yesterday' && A.timeAgo(60 * 50) === '2d', 'relative times');
+ok(A.MATCH_COPY.cta === 'Match & chat' && A.MATCH_COPY.open === 'Open chat' && A.matchedLine('Selin') === 'You and Selin matched', 'copy: Match & chat / Open chat / You and X matched');
+ok(A.personPlace('defne') === 'Kadıköy' && A.personPlace('zeynep') === 'Şişli' && A.personPlace('melis') === 'İstanbul', 'card place: shared district, else city');
 
-// Isolation: no backend import; DEV-only route; real Activity untouched by the preview.
+// Screen source: no superseded actions, no "No comment", no View profile button,
+// whole card tappable, read-only profile, chat context via the shared component.
+const scr = fs.readFileSync(path.join(ROOT, 'components/dev/activity/ActivityDesignPreview.tsx'), 'utf8');
+const lib = fs.readFileSync(path.join(ROOT, 'lib/dev/activityPreview.ts'), 'utf8');
+const code = (scr + lib).replace(/\/\/[^\n]*/g, '');
+ok(!/Like back|Just match|Match & reply|Match & send|It’s a match|It's a match|No comment|View profile|Likes you|Updates/.test(code), 'no superseded buttons, celebration, "No comment", View profile or tabs');
+ok(/<Pressable[\s\S]{0,120}onPress=\{onPress\}[\s\S]{0,400}accessibilityHint="Opens the full profile"/.test(scr), 'whole card opens the profile');
+ok(/readOnly: true/.test(scr) && /buildDiscoverLayout\(person\)/.test(scr), 'full V2 profile layout, read-only');
+ok(/<LikeContextHeader[^>]*title=\{MATCH_COPY\.howItStarted\}/.test(scr), 'chat context = shared LikeContextHeader ("How it started")');
+ok(/Math\.max\(170, feedHeight \/ 2 - CARD_INFO - CARD_GAP\)/.test(scr), 'card photo sized so about two cards fit; photo shrinks, text does not');
+ok((scr.match(/onPress=\{onMatch\}/g) || []).length === 1, 'exactly one accept button');
+
+// Isolation.
 const files = ['lib/dev/activityPreview.ts', 'components/dev/activity/ActivityDesignPreview.tsx', 'components/dev/activity/previewPhotos.ts', 'app/dev/activity-preview.tsx'];
-const src = files.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
-ok(!/supabase|matchChatV2|resolveProfilePhotoUrl|fetch\(/.test(src.replace(/\/\/[^\n]*/g, '')), 'preview never imports Supabase or network helpers');
+const src = files.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n').replace(/\/\/[^\n]*/g, '');
+ok(!/supabase|matchInvite|send_like|rpc\(|fetch\(|matchChatV2/.test(src.replace(/import type \{[^}]*\} from '@\/lib\/matchChatV2';/, '')), 'preview never imports Supabase or network helpers (type-only chat import)');
 ok(/if \(!__DEV__\) return <Redirect href="\/" \/>/.test(fs.readFileSync(path.join(ROOT, 'app/dev/activity-preview.tsx'), 'utf8')), 'route redirects outside DEV');
 const home = fs.readFileSync(path.join(ROOT, 'components/main/V2ProfileHome.tsx'), 'utf8');
-ok(/__DEV__ \?[\s\S]{0,300}\/dev\/activity-preview[\s\S]{0,400}Activity design preview \(DEV\)/.test(home), 'DEV entry is __DEV__-gated and clearly named');
-ok(!/activity-preview|activityPreview/.test(fs.readFileSync(path.join(ROOT, 'app/(tabs)/notifications.tsx'), 'utf8')), 'real Activity tab does not use preview code');
-const scr = fs.readFileSync(path.join(ROOT, 'components/dev/activity/ActivityDesignPreview.tsx'), 'utf8');
-ok(/numberOfLines=\{compact \? 3 : undefined\}/.test(scr) && /minWidth: 0/.test(scr), 'long comments clamp on cards and text can shrink on small screens');
+ok(/__DEV__ \?[\s\S]{0,300}\/dev\/activity-preview[\s\S]{0,400}Activity design preview \(DEV\)/.test(home), 'DEV entry is __DEV__-gated');
+ok(!/activity-preview|activityPreview/.test(fs.readFileSync(path.join(ROOT, 'app/(tabs)/notifications.tsx'), 'utf8')), 'real Activity tab untouched by preview code');
+const items = fs.readFileSync(path.join(ROOT, 'components/discover/DiscoverProfileItems.tsx'), 'utf8');
+ok(/readOnly\?: boolean/.test(items) && !/readOnly/.test(fs.readFileSync(path.join(ROOT, 'components/main/V2DiscoverScreen.tsx'), 'utf8')), 'shared profile: readOnly is opt-in; real Discover does not set it');
+const chat = fs.readFileSync(path.join(ROOT, 'app/chat.tsx'), 'utf8');
+ok(/<LikeContextHeader likes=\{chatState\?\.likes\} otherName=\{userName\} \/>/.test(chat), 'real chat call unchanged');
 
 module.exports = done('v2_activity_preview');

@@ -1,8 +1,10 @@
 // V2 chat: the likes between the two people, shown as CONTEXT above the
 // conversation (never as messages): which photo or answer was liked, by whom,
 // and the optional note. Comes from get_chat_v2 (`likes`); older servers
-// don't send it and nothing is shown.
-import { Image } from 'expo-image';
+// don't send it and nothing is shown. `title` and `photoSource` are optional
+// (the DEV Activity preview injects local photos and the "How it started"
+// heading); the real chat passes neither and is unchanged.
+import { Image, type ImageSource } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -18,19 +20,22 @@ export function likeContextLine(l: Pick<LikeItem, 'from_me' | 'target_type'>, ot
   return l.from_me ? `You liked ${name}’s ${what}` : `${name} liked your ${what}`;
 }
 
-function Row({ item, otherName }: { item: LikeItem; otherName: string }) {
+type PhotoSource = (item: LikeItem) => ImageSource | number | null;
+
+function Row({ item, otherName, photoSource }: { item: LikeItem; otherName: string; photoSource?: PhotoSource }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    if (item.photo_path) void resolveProfilePhotoUrl(item.photo_path).then((u) => live && setUrl(u));
+    if (!photoSource && item.photo_path) void resolveProfilePhotoUrl(item.photo_path).then((u) => live && setUrl(u));
     return () => {
       live = false;
     };
-  }, [item.photo_path]);
+  }, [item.photo_path, photoSource]);
+  const src = photoSource ? photoSource(item) : url ? { uri: url } : null;
   const label = item.prompt_id ? promptLabel(item.prompt_id) : '';
   return (
     <View style={styles.row} accessible accessibilityLabel={`${likeContextLine(item, otherName)}${item.note ? `: ${item.note}` : ''}`}>
-      {url ? <Image source={{ uri: url }} style={styles.thumb} contentFit="cover" accessible={false} /> : null}
+      {src ? <Image source={src} style={styles.thumb} contentFit="cover" accessible={false} /> : null}
       <View style={styles.text}>
         <Text style={styles.line}>{likeContextLine(item, otherName)}</Text>
         {item.answer ? (
@@ -45,13 +50,28 @@ function Row({ item, otherName }: { item: LikeItem; otherName: string }) {
   );
 }
 
-export function LikeContextHeader({ likes, otherName }: { likes: LikeItem[] | undefined; otherName: string }) {
+export function LikeContextHeader({
+  likes,
+  otherName,
+  title,
+  photoSource,
+}: {
+  likes: LikeItem[] | undefined;
+  otherName: string;
+  title?: string;
+  photoSource?: PhotoSource;
+}) {
   const shown = (likes ?? []).filter((l) => l.target_type !== 'profile' || !!l.note);
   if (shown.length === 0) return null;
   return (
     <View style={styles.wrap}>
+      {title ? (
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
+      ) : null}
       {shown.map((l, i) => (
-        <Row key={`${l.created_at}-${i}`} item={l} otherName={otherName} />
+        <Row key={`${l.created_at}-${i}`} item={l} otherName={otherName} photoSource={photoSource} />
       ))}
     </View>
   );
@@ -59,6 +79,7 @@ export function LikeContextHeader({ likes, otherName }: { likes: LikeItem[] | un
 
 const styles = StyleSheet.create({
   wrap: { gap: obSpacing.sm, marginBottom: obSpacing.md },
+  title: { fontFamily: obFonts.heading, fontSize: 17, lineHeight: 23, color: obColors.textPrimary },
   row: {
     flexDirection: 'row',
     gap: obSpacing.md,
