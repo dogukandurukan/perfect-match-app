@@ -1,5 +1,43 @@
 # V2 Activity — design preview (DEV only) — result
 
+# Round 3 (2026-10-12): visual polish after the owner's phone look
+
+DEV preview only, code in `b146d67`. The large-photo single feed and Match & chat behaviour are unchanged (D75–D80):
+- opening a profile creates no match;
+- Match & chat matches and opens the chat directly;
+- sending a message is optional;
+- reopening uses the same chat.
+
+**Not tried on a phone** after these changes.
+
+- **Card comment:**
+  - DM Sans regular, 15 pt (was Playfair 18), at most 2 lines with an ellipsis;
+  - the full comment shows in the profile context (16 pt, no line limit);
+  - hierarchy: photo → name on photo (Playfair 26) → comment (15, primary) → meta (14, secondary);
+  - the meta line may wrap to 2 lines with large text instead of cutting off the time.
+- **"How it started":**
+  - **one compact sage card**, with no nested two-colour boxes;
+  - a small heading (DM Sans semibold 13, secondary);
+  - flat rows: thumbnail, "Defne liked your photo", the answer if any, and the comment, which wraps (`minWidth: 0`) so long comments never overflow;
+  - stays first in the conversation and scrolls with the messages.
+- **Empty state:**
+  - "Say hello to {name}" is one step smaller (24 → 20) and disappears once the first message is added.
+  - **Send failure:** a DEV switch, "Next message fails", shows "Message not sent…". The draft is kept, nothing is added and the conversation does not count as started; retrying works. The draft is cleared only after a successful send.
+- **Keyboard:**
+  - the input sits above the keyboard (KeyboardAvoidingView), without the extra home-indicator gap while the keyboard is up;
+  - interactive dismiss;
+  - auto-scroll to the newest message once the conversation has started.
+
+  Text scaling is not disabled anywhere.
+- **Shared component:** `LikeContextHeader` uses the one-card layout **only when `title` is passed** (the preview only). Its only other user, the real chat (`app/chat.tsx:934`), passes no title and keeps its original rows and styles; a check enforces this. `DiscoverProfileItems` was not changed this round.
+
+**Checks:**
+- `npx tsc --noEmit`: clean.
+- `node scripts/onboarding-v2-checks/run.js`: all suites pass, with Activity at 51/51 (12 new checks).
+- `scripts/p0-checks/*`: all pass.
+
+**Not checked on a device** (logic and source checks only): a narrow screen (SE size), large system text / accessibility sizes, the keyboard open over the input, and VoiceOver.
+
 # Round 2 (2026-10-12): Activity → Profile → Match & chat
 
 Branch: `tempa/v2-persist-r2`. Reference: the owner's three-screen mockup *Activity → Profile → Match & chat*. Decisions recorded as **D75–D80** (Activity) and **D81** (Discover, not built) in `docs/tempa/DECISIONS.md`.
