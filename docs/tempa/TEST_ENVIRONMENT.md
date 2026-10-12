@@ -14,6 +14,9 @@ The owner chose **not** to create a paid cloud test project. Tempa's tests run o
 | 2 | `node scripts/local-backend/seed.mjs` | synthetic accounts only, through the normal V2 path (real Auth email code, Storage uploads, onboarding RPCs, reviewer accept); one mutual match for the tester |
 | 3 | `node scripts/local-backend/smoke_matches_local.mjs` | Matches on real services: parallel first pick, Discover, photo access, like → match → first message over Realtime, last-unit race |
 | 4 | `scripts/local-backend/start-app.sh` | Metro for the dev client with `TEMPA_BACKEND=local` and the Mac's **Wi-Fi address** (the phone must be on the same Wi-Fi); prints a one-time code for `tempa-matches-tester@tempa-test.example.com` |
+| 5 | `node scripts/local-backend/smoke_activity_local.mjs` | Activity → profile → Match & chat on real services (fresh synthetic accounts per run): read state, recipient-only accept, 5 parallel accepts → one match, no quota, no message, third account refused, Realtime first message, fresh sessions read everything back, block / unmatch |
+| 6 | `node scripts/local-backend/prepare-activity.mjs [--set p2]` | phone accounts for Activity (receiver + 3 likers, receiver premium in local data); re-runnable, never touches other accounts |
+| — | `scripts/local-backend/start-app.sh [synthetic email]` | as step 4, signed-in account selectable (only `@tempa-test.example.com`) |
 | — | `node scripts/local-backend/setup.mjs --stop` | stops only `tempa-local` |
 
 **Guards:**
@@ -21,6 +24,7 @@ The owner chose **not** to create a paid cloud test project. Tempa's tests run o
 - The app's `TEMPA_BACKEND=local` accepts only loopback / private LAN addresses and a non-live anon key, otherwise it refuses to start.
 - A production build stays pinned to live.
 - Checks: `scripts/p0-checks/backend_config.check.mjs`, `scripts/p0-checks/local_launcher.check.mjs`.
+- **New packages are applied to the running local DB directly** (one transaction, `docker exec supabase_db_tempa-local psql`), never with `setup.mjs` (which resets). 2026-10-12: `20261012090000_v2_activity_accept.sql` applied this way; existing local data kept. A later `setup.mjs` includes it automatically.
 
 ## B. Separate Supabase cloud test project (not used — kept for reference)
 

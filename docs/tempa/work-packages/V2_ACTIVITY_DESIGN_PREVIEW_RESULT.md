@@ -1,5 +1,7 @@
 # V2 Activity — design preview (DEV only) — result
 
+> **2026-10-12:** the real Activity tab is now wired to the LOCAL Supabase — see `V2_ACTIVITY_INTEGRATION_RESULT.md` (D82–D86). This DEV preview stays a separate, in-memory design reference.
+
 # Round 3 (2026-10-12): visual polish after the owner's phone look
 
 DEV preview only, code in `b146d67`. The large-photo single feed and Match & chat behaviour are unchanged (D75–D80):

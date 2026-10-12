@@ -34,6 +34,7 @@ import { emitUnreadNotificationCount } from '@/lib/unreadNotificationCount';
 import { resolveProfilePhotoUrl } from '@/lib/userPhotosStorage';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { supabase, v2Enabled } from '@/lib/supabaseClient';
+import { V2ActivityScreen } from '@/components/activity/V2ActivityScreen';
 
 type NotificationType = string;
 
@@ -926,7 +927,16 @@ function FeaturedCard({
   );
 }
 
+// V2 backends: the approved one-feed Activity (incoming likes → full profile
+// → Match & chat), from the server snapshot get_my_activity_v2. If the server
+// doesn't have that package yet (e.g. the shared DEV/live project), the
+// screen below is shown unchanged. Production (V1) never reaches this path.
 export default function NotificationsScreen() {
+  if (v2Enabled) return <V2ActivityScreen fallback={<LegacyNotificationsScreen />} />;
+  return <LegacyNotificationsScreen />;
+}
+
+function LegacyNotificationsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [photoById, setPhotoById] = useState<Record<string, string>>({});

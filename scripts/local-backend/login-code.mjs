@@ -2,12 +2,19 @@
 // replaces the previous one. Shown in the terminal AND written to
 // .test-backend/local-phone-code.txt (git-ignored, overwritten each time), so
 // it can't be lost when Metro clears the screen.
-//   node scripts/local-backend/login-code.mjs
+//   node scripts/local-backend/login-code.mjs [synthetic email]
+// Default account: the Matches tester. Any other account must be a synthetic
+// @tempa-test.example.com address (e.g. the Activity phone accounts made by
+// prepare-activity.mjs).
 import fs from 'node:fs';
 import path from 'node:path';
 import { repo, signInCode } from './_local.mjs';
 
-const EMAIL = 'tempa-matches-tester@tempa-test.example.com';
+const EMAIL = (process.argv[2] ?? 'tempa-matches-tester@tempa-test.example.com').trim().toLowerCase();
+if (!/^[a-z0-9._+-]+@tempa-test\.example\.com$/.test(EMAIL)) {
+  console.error('[local-backend] not a synthetic @tempa-test.example.com address — refusing');
+  process.exit(2);
+}
 const code = await signInCode(EMAIL);
 const dir = path.join(repo, '.test-backend');
 fs.mkdirSync(dir, { recursive: true, mode: 0o700 });

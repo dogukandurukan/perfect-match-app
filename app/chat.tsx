@@ -38,6 +38,7 @@ import { isSendableTime } from '@/lib/onboardingV2/dateSuggestions';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { SuggestDateSheet } from '@/components/chat/SuggestDateSheet';
 import { LikeContextHeader } from '@/components/chat/LikeContext';
+import { MATCH_COPY } from '@/lib/activity/copy';
 import {
   loadChatState,
   newRequestId,
@@ -930,12 +931,20 @@ export default function ChatScreen() {
             }}
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
-            // V2: likes (which photo / answer + note) as context, never messages.
-            ListHeaderComponent={v2Enabled ? <LikeContextHeader likes={chatState?.likes} otherName={userName} /> : null}
+            // V2: likes (which photo / answer + note) as "How it started"
+            // context, never messages (D79). Empty V2 chat: the approved hello.
+            ListHeaderComponent={v2Enabled ? <LikeContextHeader likes={chatState?.likes} otherName={userName} title={MATCH_COPY.howItStarted} /> : null}
             ListEmptyComponent={
-              <View style={styles.emptyWrap}>
-                <ThemedText style={styles.emptyText}>You matched — say hi 👋</ThemedText>
-              </View>
+              v2Enabled ? (
+                <View style={styles.emptyWrap}>
+                  <ThemedText style={styles.helloTitle}>{MATCH_COPY.hello(userName)}</ThemedText>
+                  <ThemedText style={styles.emptyText}>{MATCH_COPY.helloText}</ThemedText>
+                </View>
+              ) : (
+                <View style={styles.emptyWrap}>
+                  <ThemedText style={styles.emptyText}>You matched — say hi 👋</ThemedText>
+                </View>
+              )
             }
           />
         )}
@@ -1344,6 +1353,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   emptyText: { color: obColors.textSecondary, fontSize: 14, textAlign: 'center' },
+  helloTitle: { fontFamily: obFonts.heading, fontSize: 20, lineHeight: 27, color: obColors.textPrimary, textAlign: 'center', marginBottom: 4 },
   lockedWrap: {
     flex: 1,
     alignItems: 'center',

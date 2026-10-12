@@ -16,6 +16,7 @@
 //     Repeats never create a second match; a failure never looks matched.
 //   • The like / comment is chat CONTEXT ("How it started"), never a
 //     message. Nothing is sent on the user's behalf.
+import { interestLabelFor, MATCH_COPY, matchedLine, matchedWhen, timeAgo, timeAgoLong } from '@/lib/activity/copy';
 import { heroLocation, type DiscoverPerson } from '@/lib/discover/profileLayout';
 import { DISCOVER_PEOPLE } from '@/lib/dev/discoverPreview';
 import { promptLabel } from '@/lib/onboardingV2/yourProfile';
@@ -230,35 +231,13 @@ export const conversationStarted = (m: Match) => m.messages.length > 0;
 
 /** "Liked you" (profile) / "Liked your photo" / "Liked your answer". */
 export function interestLabel(t: LikeTarget): string {
-  return t.kind === 'profile' ? 'Liked you' : t.kind === 'photo' ? 'Liked your photo' : 'Liked your answer';
+  return interestLabelFor(t.kind);
 }
 /** Context line inside the profile / chat ("Defne liked your photo"). */
 export const interestLine = (name: string, t: LikeTarget) => `${name} ${interestLabel(t).replace('Liked', 'liked')}`;
 export const promptQuestion = (t: LikeTarget) => (t.kind === 'prompt' ? promptLabel(t.promptId) : '');
-export const matchedLine = (name: string) => `You and ${name} matched`;
 
-export function timeAgo(minutes: number): string {
-  if (minutes < 1) return 'now';
-  if (minutes < 60) return `${minutes}m`;
-  if (minutes < 60 * 24) return `${Math.floor(minutes / 60)}h`;
-  if (minutes < 60 * 48) return 'Yesterday';
-  return `${Math.floor(minutes / (60 * 24))}d`;
-}
-export const timeAgoLong = (minutes: number) => (minutes < 1 ? 'Just now' : /^\d/.test(timeAgo(minutes)) ? `${timeAgo(minutes)} ago` : timeAgo(minutes));
-export const matchedWhen = (minutes: number) => (minutes < 60 * 24 ? 'You matched today' : `You matched ${timeAgoLong(minutes).toLowerCase()}`);
-
-export const MATCH_COPY = {
-  cta: 'Match & chat',
-  caption: (name: string) => `Match with ${name} and open your chat.`,
-  open: 'Open chat',
-  error: 'Couldn’t match right now. Check your connection and try again.',
-  sendError: 'Message not sent. Check your connection and try again.',
-  emptyTitle: 'Nothing new yet',
-  emptyText: 'When someone likes you, you’ll see them here.',
-  hello: (name: string) => `Say hello to ${name}`,
-  helloText: 'Send a message whenever you like.',
-  howItStarted: 'How it started',
-} as const;
+export { MATCH_COPY, matchedLine, matchedWhen, timeAgo, timeAgoLong };
 
 // ── People (fictional; one identity from card to profile to chat) ──────────
 

@@ -4,9 +4,16 @@
 # project: TEMPA_BACKEND=local only, and the app refuses to start if the
 # local URL / key are missing or not a private LAN / loopback address.
 #   1. node scripts/local-backend/setup.mjs && node scripts/local-backend/seed.mjs   (once)
-#   2. scripts/local-backend/start-app.sh
+#   2. scripts/local-backend/start-app.sh [synthetic email]
+#      (default: the Matches tester; e.g. an Activity phone account from
+#       node scripts/local-backend/prepare-activity.mjs)
 set -e
 cd "$(dirname "$0")/../.."
+ACCOUNT=$(printf '%s' "${1:-tempa-matches-tester@tempa-test.example.com}" | tr 'A-Z' 'a-z')
+case "$ACCOUNT" in
+  *@tempa-test.example.com) ;;
+  *) echo "only synthetic @tempa-test.example.com accounts — refusing"; exit 2 ;;
+esac
 ENVF=.env.local-backend.local
 [ -f "$ENVF" ] || { echo "missing $ENVF — run node scripts/local-backend/setup.mjs"; exit 2; }
 IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
@@ -19,11 +26,11 @@ ANON=$(grep '^LOCAL_SUPABASE_ANON_KEY=' "$ENVF" | cut -d= -f2-)
 # The local API must answer on this Mac and on the LAN address the phone uses.
 curl -fsS -o /dev/null -H "apikey: $ANON" "http://127.0.0.1:55421/auth/v1/health" || { echo "local Supabase is not running — run node scripts/local-backend/setup.mjs"; exit 2; }
 curl -fsS -o /dev/null -H "apikey: $ANON" "http://$IP:55421/auth/v1/health" || { echo "local Supabase not reachable on $IP:55421 (firewall?)"; exit 2; }
-node scripts/local-backend/login-code.mjs
+node scripts/local-backend/login-code.mjs "$ACCOUNT"
 unset TEMPA_TEST_SUPABASE_URL TEMPA_TEST_SUPABASE_ANON_KEY
 export TEMPA_BACKEND=local
 export TEMPA_LOCAL_SUPABASE_URL="http://$IP:55421"
 export TEMPA_LOCAL_SUPABASE_ANON_KEY="$ANON"
-export TEMPA_DEV_TEST_EMAIL=tempa-matches-tester@tempa-test.example.com
+export TEMPA_DEV_TEST_EMAIL="$ACCOUNT"
 echo "App backend: LOCAL · $TEMPA_LOCAL_SUPABASE_URL (badge shows LOCAL · local:55421)"
 exec npx expo start --dev-client -c

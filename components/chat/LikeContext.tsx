@@ -2,8 +2,8 @@
 // conversation (never as messages): which photo or answer was liked, by whom,
 // and the optional note. Comes from get_chat_v2 (`likes`); older servers
 // don't send it and nothing is shown. `title` and `photoSource` are optional
-// (the DEV Activity preview injects local photos and the "How it started"
-// heading); the real chat passes neither and is unchanged.
+// (the DEV Activity preview injects local photos); the real V2 chat passes the
+// "How it started" title since the Activity integration (2026-10-12).
 import { Image, type ImageSource } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -61,7 +61,9 @@ export function LikeContextHeader({
   title?: string;
   photoSource?: PhotoSource;
 }) {
-  const shown = (likes ?? []).filter((l) => l.target_type !== 'profile' || !!l.note);
+  // Titled ("How it started"): a whole-profile like is context too ("Zeynep
+  // liked your profile"). Untitled (older callers): unchanged.
+  const shown = (likes ?? []).filter((l) => !!title || l.target_type !== 'profile' || !!l.note);
   if (shown.length === 0) return null;
   // With a title: ONE compact card (small heading + flat rows). Without a
   // title (the real chat today): the original separate tinted rows.
