@@ -83,6 +83,24 @@ ok(/<LikeContextHeader[^>]*title=\{MATCH_COPY\.howItStarted\}/.test(scr), 'chat 
 ok(/Math\.max\(170, feedHeight \/ 2 - CARD_INFO - CARD_GAP\)/.test(scr), 'card photo sized so about two cards fit; photo shrinks, text does not');
 ok((scr.match(/onPress=\{onMatch\}/g) || []).length === 1, 'exactly one accept button');
 
+// Round 3 polish (2026-10-12): comment size, one compact How-it-started card,
+// smaller hello, send failure, keyboard / large text.
+const failSend = run(m1, { type: 'dev_fail_send_next', on: true }, { type: 'send_message', matchId: dm.id, text: 'Hi' });
+ok(!A.conversationStarted(A.matchFor(failSend, 'defne')) && failSend.sendError === dm.id && !failSend.failSendNext, 'failed send: no message, conversation not started, error shown');
+const okSend = R(failSend, { type: 'send_message', matchId: dm.id, text: 'Hi' });
+ok(A.conversationStarted(A.matchFor(okSend, 'defne')) && okSend.sendError === null, 'retry send → conversation started, error cleared');
+ok(/cardComment: \{ fontFamily: obFonts\.body, fontSize: 15/.test(scr) && /styles\.cardComment\} numberOfLines=\{2\} ellipsizeMode="tail"/.test(scr), 'card comment: smaller regular text, max 2 lines + ellipsis');
+ok(/<Text style=\{styles\.profileComment\}>/.test(scr), 'profile shows the full comment (no line limit)');
+ok(/helloTitle: \{ fontFamily: obFonts\.heading, fontSize: 20/.test(scr), 'Say hello title one step smaller (24 → 20)');
+ok(/\{started \? \(\s*match\.messages\.map/.test(scr), 'empty state only while no message was sent');
+ok(/<ScrollView[\s\S]{0,900}<LikeContextHeader[\s\S]{0,200}\{started \?/.test(scr) && !/howItStarted:/.test(scr), 'How it started: first in the scrolling conversation, no extra wrapper box');
+ok(/if \(count > prevCount\.current\) setDraft\(''\)/.test(scr) && !/onSend\(draft\);\s*setDraft\(''\)/.test(scr), 'draft cleared only after a successful send');
+ok(/keyboardUp \? obSpacing\.sm : Math\.max\(insetsBottom/.test(scr) && /KeyboardAvoidingView/.test(scr), 'keyboard: input stays above it without the extra home-indicator gap');
+ok(!/allowFontScaling=\{false\}|maxFontSizeMultiplier=\{1\}/.test(scr) && !/allowFontScaling=\{false\}/.test(fs.readFileSync(path.join(ROOT, 'components/chat/LikeContext.tsx'), 'utf8')), 'text scaling not disabled');
+const lc = fs.readFileSync(path.join(ROOT, 'components/chat/LikeContext.tsx'), 'utf8');
+ok(/if \(title\) \{[\s\S]{0,300}styles\.card[\s\S]{0,400}flat \/>/.test(lc), 'titled context = one compact card with flat rows');
+ok(/<View style=\{styles\.wrap\}>\s*\{shown\.map[\s\S]{0,200}photoSource=\{photoSource\} \/>/.test(lc) && /row: \{\s*flexDirection: 'row',\s*gap: obSpacing\.md,\s*padding: obSpacing\.md,\s*borderRadius: 14,\s*backgroundColor: obColors\.selectedFill,/.test(lc) && /text: \{ flex: 1, gap: 2 \}/.test(lc), 'untitled path (real chat) keeps its original rows and styles');
+
 // Isolation.
 const files = ['lib/dev/activityPreview.ts', 'components/dev/activity/ActivityDesignPreview.tsx', 'components/dev/activity/previewPhotos.ts', 'app/dev/activity-preview.tsx'];
 const src = files.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n').replace(/\/\/[^\n]*/g, '');

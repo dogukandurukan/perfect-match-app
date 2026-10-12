@@ -22,7 +22,7 @@ export function likeContextLine(l: Pick<LikeItem, 'from_me' | 'target_type'>, ot
 
 type PhotoSource = (item: LikeItem) => ImageSource | number | null;
 
-function Row({ item, otherName, photoSource }: { item: LikeItem; otherName: string; photoSource?: PhotoSource }) {
+function Row({ item, otherName, photoSource, flat }: { item: LikeItem; otherName: string; photoSource?: PhotoSource; flat?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -34,9 +34,9 @@ function Row({ item, otherName, photoSource }: { item: LikeItem; otherName: stri
   const src = photoSource ? photoSource(item) : url ? { uri: url } : null;
   const label = item.prompt_id ? promptLabel(item.prompt_id) : '';
   return (
-    <View style={styles.row} accessible accessibilityLabel={`${likeContextLine(item, otherName)}${item.note ? `: ${item.note}` : ''}`}>
+    <View style={flat ? styles.rowFlat : styles.row} accessible accessibilityLabel={`${likeContextLine(item, otherName)}${item.note ? `: ${item.note}` : ''}`}>
       {src ? <Image source={src} style={styles.thumb} contentFit="cover" accessible={false} /> : null}
-      <View style={styles.text}>
+      <View style={flat ? styles.textFlat : styles.text}>
         <Text style={styles.line}>{likeContextLine(item, otherName)}</Text>
         {item.answer ? (
           <Text style={styles.answer} numberOfLines={2}>
@@ -63,13 +63,22 @@ export function LikeContextHeader({
 }) {
   const shown = (likes ?? []).filter((l) => l.target_type !== 'profile' || !!l.note);
   if (shown.length === 0) return null;
-  return (
-    <View style={styles.wrap}>
-      {title ? (
+  // With a title: ONE compact card (small heading + flat rows). Without a
+  // title (the real chat today): the original separate tinted rows.
+  if (title) {
+    return (
+      <View style={styles.card}>
         <Text style={styles.title} accessibilityRole="header">
           {title}
         </Text>
-      ) : null}
+        {shown.map((l, i) => (
+          <Row key={`${l.created_at}-${i}`} item={l} otherName={otherName} photoSource={photoSource} flat />
+        ))}
+      </View>
+    );
+  }
+  return (
+    <View style={styles.wrap}>
       {shown.map((l, i) => (
         <Row key={`${l.created_at}-${i}`} item={l} otherName={otherName} photoSource={photoSource} />
       ))}
@@ -79,7 +88,10 @@ export function LikeContextHeader({
 
 const styles = StyleSheet.create({
   wrap: { gap: obSpacing.sm, marginBottom: obSpacing.md },
-  title: { fontFamily: obFonts.heading, fontSize: 17, lineHeight: 23, color: obColors.textPrimary },
+  card: { gap: obSpacing.sm, marginBottom: obSpacing.md, padding: obSpacing.md, borderRadius: 14, backgroundColor: obColors.selectedFill },
+  title: { fontFamily: obFonts.bodySemiBold, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
+  rowFlat: { flexDirection: 'row', gap: obSpacing.md },
+  textFlat: { flex: 1, minWidth: 0, gap: 2 },
   row: {
     flexDirection: 'row',
     gap: obSpacing.md,

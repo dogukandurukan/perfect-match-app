@@ -13,6 +13,7 @@ import { Image } from 'expo-image';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -139,6 +140,7 @@ export function ActivityDesignPreview({ onExit }: { onExit: () => void }) {
           insetsTop={insets.top}
           insetsBottom={insets.bottom}
           onBack={home}
+          sendFailed={state.sendError === m.id}
           onSend={(text) => dispatch({ type: 'send_message', matchId: m.id, text })}
         />
       );
@@ -269,14 +271,15 @@ function InterestCard({ interest, photoHeight, onPress }: { interest: Interest; 
       <View style={styles.cardInfo}>
         <View style={styles.cardInfoText}>
           <View style={styles.metaRow}>
-            <Text style={styles.meta} numberOfLines={1}>{`${label} · ${timeAgo(interest.minutesAgo)}`}</Text>
+            <Text style={styles.meta} numberOfLines={2}>{`${label} · ${timeAgo(interest.minutesAgo)}`}</Text>
             <UnreadDot show={!interest.read} />
           </View>
           {interest.target.kind === 'prompt' ? (
             <Text style={styles.yourAnswer} numberOfLines={1}>{`Your answer: ${interest.target.answer}`}</Text>
           ) : null}
           {interest.comment ? (
-            <Text style={styles.quote} numberOfLines={2}>{`“${interest.comment}”`}</Text>
+            // List: max two lines + ellipsis; the full comment is in the profile.
+            <Text style={styles.cardComment} numberOfLines={2} ellipsizeMode="tail">{`“${interest.comment}”`}</Text>
           ) : null}
         </View>
         <MyThumb target={interest.target} size={{ width: 76, height: 58 }} />
@@ -370,7 +373,7 @@ function ProfileView({
               {context.target.kind === 'prompt' ? (
                 <Text style={styles.yourAnswer}>{`Your answer: ${context.target.answer}`}</Text>
               ) : null}
-              {context.comment ? <Text style={styles.quote}>{`“${context.comment}”`}</Text> : null}
+              {context.comment ? <Text style={styles.profileComment}>{`“${context.comment}”`}</Text> : null}
             </View>
           </View>
         ) : null}
@@ -424,12 +427,14 @@ function ChatView({
   match,
   insetsTop,
   insetsBottom,
+  sendFailed,
   onBack,
   onSend,
 }: {
   match: Match;
   insetsTop: number;
   insetsBottom: number;
+  sendFailed: boolean;
   onBack: () => void;
   onSend: (text: string) => void;
 }) {
@@ -438,6 +443,28 @@ function ChatView({
   const [draft, setDraft] = useState('');
   const started = conversationStarted(match);
   const canSend = draft.trim().length > 0;
+  const scrollRef = useRef<ScrollView>(null);
+
+  // The draft is cleared only once the message really was added; a failed
+  // send keeps the text and the conversation doesn't start.
+  const count = match.messages.length;
+  const prevCount = useRef(count);
+  useEffect(() => {
+    if (count > prevCount.current) setDraft('');
+    prevCount.current = count;
+  }, [count]);
+
+  // With the keyboard up the home-indicator inset isn't needed under the
+  // input (the keyboard covers that area).
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  useEffect(() => {
+    const ios = Platform.OS === 'ios';
+    const subs = [
+      Keyboard.addListener(ios ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardUp(true)),
+      Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardUp(false)),
+    ];
+    return () => subs.forEach((x) => x.remove());
+  }, []);
   return (
     <KeyboardAvoidingView style={[styles.root, { paddingTop: insetsTop }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.chatHeader}>
@@ -448,12 +475,18 @@ function ChatView({
         <Text style={styles.chatName} numberOfLines={1} accessibilityRole="header">{p.name}</Text>
         <Text style={styles.devPill}>DEV</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.chatContent} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.chatContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        onContentSizeChange={() => {
+          if (started) scrollRef.current?.scrollToEnd({ animated: true });
+        }}>
         <Text style={styles.matchedWhen}>{matchedWhen(match.minutesAgo)}</Text>
-        {/* Context only — the like / comment is never a message. */}
-        <View style={styles.howItStarted}>
-          <LikeContextHeader likes={startedItems(match)} otherName={p.name} title={MATCH_COPY.howItStarted} photoSource={contextPhoto} />
-        </View>
+        {/* Context only — the like / comment is never a message. Stays at the
+            top of the conversation and scrolls with the messages. */}
+        <LikeContextHeader likes={startedItems(match)} otherName={p.name} title={MATCH_COPY.howItStarted} photoSource={contextPhoto} />
         {started ? (
           match.messages.map((m) => (
             <View key={m.id} style={[styles.bubble, m.fromMe ? styles.mine : styles.theirs]}>
@@ -468,7 +501,10 @@ function ChatView({
           </View>
         )}
       </ScrollView>
-      <View style={[styles.inputRow, { paddingBottom: Math.max(insetsBottom, obSpacing.sm) }]}>
+      {sendFailed ? (
+        <Text style={styles.sendError} accessibilityRole="alert" accessibilityLiveRegion="polite">{MATCH_COPY.sendError}</Text>
+      ) : null}
+      <View style={[styles.inputRow, { paddingBottom: keyboardUp ? obSpacing.sm : Math.max(insetsBottom, obSpacing.sm) }]}>
         <TextInput
           value={draft}
           onChangeText={setDraft}
@@ -480,10 +516,7 @@ function ChatView({
           accessibilityLabel={`Message to ${p.name}`}
         />
         <TouchableOpacity
-          onPress={() => {
-            onSend(draft);
-            setDraft('');
-          }}
+          onPress={() => onSend(draft)}
           disabled={!canSend}
           style={[styles.send, !canSend && { backgroundColor: obColors.ctaDisabled }]}
           accessibilityRole="button"
@@ -514,6 +547,7 @@ function DevPanel({ state, onAction, onExit }: { state: ActivityState; onAction:
         {btn('Loading', () => onAction({ type: 'scenario', scenario: 'loading' }))}
         {btn('Error', () => onAction({ type: 'scenario', scenario: 'error' }))}
         {btn(state.failNext ? 'Next Match & chat fails: ON' : 'Next Match & chat fails: off', () => onAction({ type: 'dev_fail_next', on: !state.failNext }))}
+        {btn(state.failSendNext ? 'Next message fails: ON' : 'Next message fails: off', () => onAction({ type: 'dev_fail_send_next', on: !state.failSendNext }))}
         {btn('Reset', () => onAction({ type: 'reset' }))}
         {btn('Exit preview', onExit)}
       </View>
@@ -556,7 +590,8 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.sm },
   meta: { flexShrink: 1, fontFamily: obFonts.body, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
   yourAnswer: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
-  quote: { fontFamily: obFonts.heading, fontSize: 18, lineHeight: 25, color: obColors.textPrimary },
+  cardComment: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 21, color: obColors.textPrimary },
+  profileComment: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary },
   thumb: { borderRadius: 8, backgroundColor: obColors.notice },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: obColors.cta },
   matchRow: {
@@ -609,9 +644,9 @@ const styles = StyleSheet.create({
   chatName: { flex: 1, fontFamily: obFonts.heading, fontSize: 20, lineHeight: 27, color: obColors.textPrimary },
   chatContent: { flexGrow: 1, padding: obSpacing.lg, gap: obSpacing.sm },
   matchedWhen: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary, textAlign: 'center', marginBottom: obSpacing.sm },
-  howItStarted: { padding: obSpacing.md, paddingBottom: 0, borderRadius: 16, backgroundColor: '#EFEDE3' },
   hello: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: obSpacing.sm, paddingVertical: obSpacing.xxl },
-  helloTitle: { fontFamily: obFonts.heading, fontSize: 24, lineHeight: 31, color: obColors.textPrimary, textAlign: 'center' },
+  helloTitle: { fontFamily: obFonts.heading, fontSize: 20, lineHeight: 27, color: obColors.textPrimary, textAlign: 'center' },
+  sendError: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 19, color: obColors.error, paddingHorizontal: obSpacing.lg, paddingTop: obSpacing.sm },
   bubble: { maxWidth: '80%', paddingHorizontal: obSpacing.md, paddingVertical: obSpacing.sm, borderRadius: 16 },
   mine: { alignSelf: 'flex-end', backgroundColor: obColors.cta },
   theirs: { alignSelf: 'flex-start', backgroundColor: SURFACE, borderWidth: 1, borderColor: CARD_BORDER },

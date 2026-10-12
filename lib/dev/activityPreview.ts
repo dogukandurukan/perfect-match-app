@@ -58,6 +58,10 @@ export type ActivityState = {
   matchError: string | null;
   /** DEV switch: the next Match & chat fails. */
   failNext: boolean;
+  /** Last send failed in this chat (draft kept, nothing counted). */
+  sendError: string | null;
+  /** DEV switch: the next message send fails. */
+  failSendNext: boolean;
 };
 
 /** "Me" = the viewer; liked photos / answers are mine. */
@@ -119,6 +123,8 @@ export const INITIAL_ACTIVITY: ActivityState = {
   matching: null,
   matchError: null,
   failNext: false,
+  sendError: null,
+  failSendNext: false,
 };
 
 export type ActivityScenario = 'normal' | 'empty' | 'loading' | 'error';
@@ -128,6 +134,7 @@ export type ActivityAction =
   | { type: 'scenario'; scenario: ActivityScenario }
   | { type: 'retry' }
   | { type: 'dev_fail_next'; on: boolean }
+  | { type: 'dev_fail_send_next'; on: boolean }
   | { type: 'open_profile'; personId: string }
   | { type: 'match_start'; personId: string }
   | { type: 'match_done'; personId: string }
@@ -149,6 +156,8 @@ export function activityReducer(s: ActivityState, a: ActivityAction): ActivitySt
       return s.load === 'error' ? { ...s, load: 'ready' } : s;
     case 'dev_fail_next':
       return { ...s, failNext: a.on };
+    case 'dev_fail_send_next':
+      return { ...s, failSendNext: a.on };
     case 'open_profile':
       // Viewing ≠ accepting: only marks it read.
       return { ...s, interests: s.interests.map((i) => (i.personId === a.personId ? { ...i, read: true } : i)) };
@@ -185,8 +194,11 @@ export function activityReducer(s: ActivityState, a: ActivityAction): ActivitySt
     case 'send_message': {
       const text = a.text.trim();
       if (!text) return s;
+      // A failed send is not a message: the conversation doesn't start.
+      if (s.failSendNext) return { ...s, failSendNext: false, sendError: a.matchId };
       return {
         ...s,
+        sendError: null,
         matches: s.matches.map((m) =>
           m.id === a.matchId ? { ...m, messages: [...m.messages, { id: `local-${m.messages.length + 1}`, fromMe: true, text }] } : m,
         ),
@@ -240,6 +252,7 @@ export const MATCH_COPY = {
   caption: (name: string) => `Match with ${name} and open your chat.`,
   open: 'Open chat',
   error: 'Couldn’t match right now. Check your connection and try again.',
+  sendError: 'Message not sent. Check your connection and try again.',
   emptyTitle: 'Nothing new yet',
   emptyText: 'When someone likes you, you’ll see them here.',
   hello: (name: string) => `Say hello to ${name}`,
