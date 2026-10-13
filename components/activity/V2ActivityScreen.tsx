@@ -154,7 +154,7 @@ export function V2ActivityScreen({ fallback }: { fallback: ReactNode }) {
             <MatchRow
               key={f.key}
               title={m.unavailable ? 'Account unavailable' : matchedLine(name)}
-              sub={started ? `Conversation started · ${timeAgo(mins)}` : timeAgoLong(mins)}
+              sub={started ? `Conversation started · ${timeAgoLong(mins)}` : timeAgoLong(mins)}
               photo={m.unavailable ? null : uri(m.photo_path)}
               unread={m.unread > 0}
               onPress={() => router.push({ pathname: '/chat', params: { userId: m.other_id, userName: name, matchId: m.match_id } })}

@@ -146,19 +146,22 @@ const styles = StyleSheet.create({
   profileComment: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary },
   thumb: { borderRadius: 8, backgroundColor: obColors.notice },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: obColors.cta },
+  // ~15% tighter than the first build (owner, 2026-10-13): avatar 52 → 44,
+  // vertical padding 10 → 8.5, min height 72 → 61. Text sizes unchanged; the
+  // whole row stays the tap target (≥ 44 pt).
   matchRow: {
-    minHeight: 72,
+    minHeight: 61,
     flexDirection: 'row',
     alignItems: 'center',
     gap: obSpacing.md,
     paddingHorizontal: obSpacing.md,
-    paddingVertical: obSpacing.sm + 2,
+    paddingVertical: 8.5,
     borderRadius: 16,
     backgroundColor: ACTIVITY_SURFACE,
     borderWidth: 1,
     borderColor: ACTIVITY_CARD_BORDER,
   },
-  matchAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: obColors.notice },
+  matchAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: obColors.notice },
   matchText: { flex: 1, minWidth: 0, gap: 2 },
   matchTitle: { fontFamily: obFonts.bodyMedium, fontSize: 16, lineHeight: 21, color: obColors.textPrimary },
   profileContext: {

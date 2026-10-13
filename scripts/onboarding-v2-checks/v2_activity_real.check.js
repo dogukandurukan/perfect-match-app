@@ -70,6 +70,13 @@ ok(/title=\{MATCH_COPY\.howItStarted\}/.test(chat) && /MATCH_COPY\.hello\(userNa
 ok(/You matched — say hi 👋/.test(chat), 'V1 chat empty text unchanged');
 ok(/!!title \|\| l\.target_type !== 'profile' \|\| !!l\.note/.test(read('components/chat/LikeContext.tsx')), 'titled context also shows a whole-profile like');
 
+// Match rows (2026-10-13): ~15% smaller avatar / padding, same text; one time format.
+const items = read('components/activity/ActivityFeedItems.tsx');
+ok(/matchAvatar: \{ width: 44, height: 44/.test(items) && /minHeight: 61/.test(items) && /paddingVertical: 8\.5/.test(items)
+  && /matchTitle: \{ fontFamily: obFonts\.bodyMedium, fontSize: 16/.test(items), 'match row ~15% tighter, title size unchanged, row ≥ 44 pt');
+ok(/`Conversation started · \$\{timeAgoLong\(mins\)\}` : timeAgoLong\(mins\)/.test(scr), 'time: "3m ago" and "Conversation started · 3m ago"');
+ok(C.timeAgoLong(3) === '3m ago' && `Conversation started · ${C.timeAgoLong(3)}` === 'Conversation started · 3m ago', 'time strings');
+
 // Package wiring.
 ok(!/20261012090000_v2_activity_accept/.test(read('scripts/dev-backend/apply-dev.mjs')), 'Activity package not wired into apply-dev (shared project)');
 ok(/20261012090000_v2_activity_accept\.sql/.test(read('scripts/local-backend/setup.mjs')), 'Activity package in the LOCAL setup');

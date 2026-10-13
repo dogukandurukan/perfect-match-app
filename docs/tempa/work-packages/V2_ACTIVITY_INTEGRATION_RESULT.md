@@ -1,5 +1,29 @@
 # V2 Activity — real integration (Activity → profile → Match & chat → chat) — result
 
+# Round 2 (2026-10-13): owner's phone test + small row polish
+
+**Owner's phone test on LOCAL (reported by the owner, not run by Claude Code):** with the correct synthetic receiver account (`tempa-activity-p1-receiver`), in the **normal Activity tab**, the match rows and the sent "Hi" were **kept after fully closing and reopening the app**. The earlier "reset" the owner saw was in the **Activity design preview** (in-memory by design), not a backend fault.
+
+**Not yet tried on the phone (the phone test is NOT complete):** the other account (Defne) seeing the message; the error / retry behaviour of Match & chat and of sending.
+
+**Changes (approved design kept; the large pending cards are unchanged):**
+- Match rows ~15% tighter: avatar 52 → 44 pt, vertical padding 10 → 8.5 pt, min height 72 → 61 pt. Text sizes unchanged; the whole row stays the tap target (≥ 44 pt).
+- One time format on match rows: **"3m ago"** and **"Conversation started · 3m ago"** (was "Conversation started · 3m").
+- Files: `components/activity/ActivityFeedItems.tsx`, `components/activity/V2ActivityScreen.tsx`, `scripts/onboarding-v2-checks/v2_activity_real.check.js` (+3 checks).
+- Checks run: `v2_activity_real` 36/36, `v2_activity_preview` 51/51, `tsc` clean. **Not seen on the phone yet.** No migration, no DB change.
+
+**Open items:**
+1. Other-account phone test (`start-app.sh tempa-activity-p1-defne@tempa-test.example.com`, §5 step 8).
+2. Error / retry behaviour on the phone (Match & chat without network; send failure in chat).
+3. Private-photo read policy still uses the V1 rule — decision needed.
+4. Unseen-likes badge on the Activity tab (not counted yet).
+
+**Next development — D81 (not started):** in Discover the heart / swipe right likes the **whole profile**, × / swipe left passes; the hero's "Add a comment" is removed; content likes (photo / answer + comment) stay inside the full profile.
+
+---
+
+# Round 1 (2026-10-12)
+
 Date 2026-10-12 · Folder `~/tempa-p0` · Branch `tempa/v2-persist-r2` · Author: Claude Code.
 
 Decisions: **D82–D86** in `docs/tempa/DECISIONS.md` (on top of D75–D80).
