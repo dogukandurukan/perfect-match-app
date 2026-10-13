@@ -18,6 +18,8 @@
 3. Private-photo read policy still uses the V1 rule — decision needed.
 4. Unseen-likes badge on the Activity tab (not counted yet).
 
+**Local backup (2026-10-13):** `~/tempa-backups/2026-10-13-tempa-local/` (mode 700, outside the repo, not in Git): full `pg_dump` of tempa-local (app schema + data, auth users / identities, storage metadata, migration history), roles, the Storage volume files (200 files), and the local settings. Row counts in the dump were checked equal to the live local counts; **restore not tried**. Same disk as the original — no protection against losing this Mac. Restore steps: the `README.md` in that folder.
+
 **Next development — D81 (not started):** in Discover the heart / swipe right likes the **whole profile**, × / swipe left passes; the hero's "Add a comment" is removed; content likes (photo / answer + comment) stay inside the full profile.
 
 ---
@@ -119,7 +121,10 @@ Steps (Mac and phone on the same Wi-Fi; Docker running):
 8. Other side: stop Metro (Ctrl-C), run `scripts/local-backend/start-app.sh tempa-activity-p1-defne@tempa-test.example.com`, sign out on the phone, then sign in with the new code via DEV · Test account sign-in. Defne's **Chats** (and Activity rows) show the match with Mert's "Hi".
 9. Optional: Zeynep → Match & chat (profile like without comment); Ece → leave pending.
 
-## 6. Verified vs not verified
+## 6. Verified vs not verified (as of 2026-10-12 — historical)
+
+> **Historical:** this section describes the state on 2026-10-12, before any phone test. The current phone result (persistence after a full app restart confirmed on the receiver account; other-account and error/retry tests still open) is in **Round 2** at the top of this file.
+
 - **Verified on real local services (automated):** everything in §4, including persistence through brand-new sessions. That simulates a restart at the server level.
 - **Not verified:** anything on a phone — layout, the Activity tab render, profile → chat navigation (`router.replace`), keyboard, the real chat's new empty / "How it started" look, Realtime on the device, and a **real app close-and-reopen**.
 - **Simulated only:** the whole-profile like ("Liked you") is written with the service role, because the whole-profile heart (D81) is not built.
