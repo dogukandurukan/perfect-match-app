@@ -34,6 +34,10 @@ import { CodeFields, EmailFields } from '@/components/onboarding-v2/yourProfile/
 import { PhotosFields } from '@/components/onboarding-v2/yourProfile/PhotosFields';
 import { ProfilePreview } from '@/components/onboarding-v2/yourProfile/ProfilePreview';
 import { PromptsFields } from '@/components/onboarding-v2/yourProfile/PromptsFields';
+import { ActivitiesField } from '@/components/interests/ActivitiesField';
+import { TakesEditor, shownTake } from '@/components/interests/TakesEditor';
+import { loadMyInterests, type MyInterests } from '@/lib/interests/interestsV2';
+import { subjectOptions, type Take } from '@/lib/interests/takes';
 import {
   SelfieFields,
   captureSelfie,
@@ -72,6 +76,7 @@ import {
 } from '@/lib/onboardingV2/previewFlow';
 import {
   saveSection,
+  saveWorldSection,
   savePrompts,
   submitApplication,
   syncPhotos,
@@ -190,6 +195,41 @@ export function PreviewFlow({ onExit, live }: Props) {
   const serverPhotoIdsRef = useRef<string[]>(live?.initial.serverPhotoIds ?? []);
   // One id for this application, reused by every retry (idempotent submit).
   const requestIdRef = useRef<string>(newRequestId());
+
+  // ─── D93: conversation starters in onboarding (live, supporting servers) ─
+  // The server copy of the SAVED selections + starters (get_my_interests_v2).
+  // null = not loaded / not supported (older servers: the flow is exactly as
+  // before — no activities, no starters, two standard answers).
+  const [starters, setStarters] = useState<MyInterests | null>(null);
+  const [startersNotice, setStartersNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const takesSupported = !!live && starters !== null;
+  const applyStarters = useCallback((m: MyInterests | null) => {
+    setStarters(m);
+    setProfile((d) => ({ ...d, takes: (m?.takes ?? []).map(shownTake) }));
+  }, []);
+  const refreshStarters = useCallback(async () => {
+    if (!live) return;
+    const r = await loadMyInterests();
+    if (r.kind === 'ok') applyStarters(r.value);
+    else if (r.kind === 'unsupported') applyStarters(null);
+  }, [live, applyStarters]);
+  useEffect(() => {
+    void refreshStarters();
+  }, [refreshStarters]);
+  const setStarterTakes = (takes: Take[]) => applyStarters(starters ? { ...starters, takes } : null);
+  /** Asks before removing the subject of saved starters (resolves true = remove). */
+  const confirmRemoveStarters = (titles: string) =>
+    new Promise<boolean>((resolve) =>
+      Alert.alert(
+        `Remove ${titles}?`,
+        `A conversation starter is about ${titles}. Removing it from your interests also removes that answer. Your other answers stay.`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Remove', style: 'destructive', onPress: () => resolve(true) },
+        ],
+        { cancelable: false },
+      ),
+    );
 
   // ─── Live photo auto-save ────────────────────────────────────────────────
   // Photos are saved as soon as they are picked (short debounce) and when the
@@ -325,7 +365,20 @@ export function PreviewFlow({ onExit, live }: Props) {
     } else if (from.section === 'yourLife') {
       r = await saveSection('yourLife', lifeToServer(life), resume);
     } else if (from.section === 'yourWorld') {
-      r = await saveSection('yourWorld', worldToServer(world), resume);
+      // Older servers get exactly the old payload (no activities).
+      const data = worldToServer(world, takesSupported);
+      let w = await saveWorldSection(data, resume, false);
+      if (!w.ok && 'confirm' in w) {
+        // Cancel keeps both the selection and the starter on the server.
+        if (!(await confirmRemoveStarters(w.confirm))) {
+          setSaveError('Not saved. Your interests and conversation starters are unchanged.');
+          return false;
+        }
+        w = await saveWorldSection(data, resume, true);
+      }
+      r = w.ok ? { ok: true } : { ok: false, message: 'message' in w ? w.message : 'Could not save. Try again.' };
+      // Saved selections changed: starters (and what's complete) follow the server.
+      if (r.ok && takesSupported) await refreshStarters();
     } else if (from.section === 'yourDates') {
       r = await saveSection('yourDates', datesToServer(dates), resume);
     } else if (from.step === PROFILE_STEP.photos) {
@@ -455,7 +508,7 @@ export function PreviewFlow({ onExit, live }: Props) {
 
   const MISSING_TEXT: Record<number, string> = {
     [PROFILE_STEP.photos]: 'Add at least 3 photos first.',
-    [PROFILE_STEP.prompts]: 'Answer 2 questions first.',
+    [PROFILE_STEP.prompts]: takesSupported ? 'Answer 2 questions, or 1 question and a conversation starter.' : 'Answer 2 questions first.',
     [PROFILE_STEP.selfie]: 'Take your selfie first.',
     [PROFILE_STEP.email]: 'Enter your email first.',
     [PROFILE_STEP.code]: 'Confirm your email first.',
@@ -680,6 +733,9 @@ export function PreviewFlow({ onExit, live }: Props) {
       {inWorld && step === 2 && <SchoolFields {...wProps} />}
       {inWorld && step === 3 && <HometownFields {...wProps} />}
       {inWorld && step === 4 && <InterestsFields {...wProps} />}
+      {inWorld && step === 4 && takesSupported && (
+        <ActivitiesField title="Activities (optional)" value={world.activities ?? []} onChange={(activities) => updateWorld({ activities })} />
+      )}
       {inWorld && step === 5 && <ArtistsFields {...wProps} />}
       {inWorld && step === 6 && <MediaFields {...wProps} />}
       {inDates && step === 1 && <DateTypesFields {...dProps} />}
@@ -692,7 +748,31 @@ export function PreviewFlow({ onExit, live }: Props) {
         />
       )}
       {inProfile && step === PROFILE_STEP.prompts && (
-        <PromptsFields prompts={profile.prompts} updatePrompts={updatePrompts} />
+        <PromptsFields prompts={profile.prompts} updatePrompts={updatePrompts} requiredCount={(profile.takes ?? []).length > 0 ? 1 : undefined} />
+      )}
+      {inProfile && step === PROFILE_STEP.prompts && takesSupported && starters && (
+        // D93: one standard answer + one conversation starter is also enough.
+        // Same editor and server operations as Profile → Your interests.
+        <View style={styles.starters}>
+          <Text style={styles.startersNote} maxFontSizeMultiplier={1.6}>
+            Prefer one prompt? Add a conversation starter about something you picked earlier instead of a second prompt.
+          </Text>
+          {startersNotice ? (
+            <Text
+              style={[styles.startersNote, startersNotice.kind === 'error' && { color: obColors.error }]}
+              accessibilityLiveRegion="polite"
+              maxFontSizeMultiplier={1.6}>
+              {startersNotice.text}
+            </Text>
+          ) : null}
+          <TakesEditor
+            takes={starters.takes}
+            options={subjectOptions(starters)}
+            onTakesChange={setStarterTakes}
+            onNotice={setStartersNotice}
+            noSubjectHint="Add an activity, book, film or artist in “Your world” to write one."
+          />
+        </View>
       )}
       {inProfile && step === PROFILE_STEP.preview && (
         <ProfilePreview blocks={buildProfilePreview(basics, compat, life, world, dates, profile)} />
@@ -749,6 +829,8 @@ export function PreviewFlow({ onExit, live }: Props) {
 }
 
 const styles = StyleSheet.create({
+  starters: { gap: obSpacing.md, marginTop: obSpacing.xl },
+  startersNote: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 20, color: obColors.textSecondary },
   noteCard: {
     backgroundColor: obColors.selectedFill, // pale sage
     borderRadius: 14,

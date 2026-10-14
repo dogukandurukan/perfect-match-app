@@ -56,6 +56,23 @@ export async function saveSection(
   return error ? { ok: false, message: friendly(error, 'Could not save. Try again.') } : { ok: true, value: undefined };
 }
 
+export type WorldSaveResult = { ok: true } | { ok: false; confirm: string } | { ok: false; message: string };
+
+/** Your World with the D93 rule: removing the subject of a conversation
+ * starter is refused by the server ('take_subject_removed', titles in the
+ * error detail) unless `confirmRemoveTakes`; then only those starters go. */
+export async function saveWorldSection(data: Record<string, unknown>, resume: FlowPos | null, confirmRemoveTakes: boolean): Promise<WorldSaveResult> {
+  const { error } = await supabase.rpc('save_onboarding_v2', {
+    p_section: 'yourWorld',
+    p_data: confirmRemoveTakes ? { ...data, confirm_remove_takes: true } : data,
+    p_resume_step: resume?.step ?? null,
+    p_resume_section: resume?.section ?? null,
+  });
+  if (!error) return { ok: true };
+  if (/take_subject_removed/.test(error.message ?? '')) return { ok: false, confirm: String((error as { details?: string }).details ?? '') };
+  return { ok: false, message: friendly(error, 'Could not save. Try again.') };
+}
+
 export async function savePrompts(list: PromptAnswer[]): Promise<Result> {
   const { error } = await supabase.rpc('save_prompts_v2', { p_prompts: promptsToServer(list) });
   return error ? { ok: false, message: friendly(error, 'Could not save your answers. Try again.') } : { ok: true, value: undefined };

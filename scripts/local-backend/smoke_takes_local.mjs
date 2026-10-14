@@ -150,8 +150,13 @@ async function main() {
   check(!!mDirect.error || (mDirect.data ?? []).length === 0, 'even the owner cannot bypass the server operations');
   const anon = await rpcHttp(null, 'delete_take_v2', { p_take_id: target.id });
   check(anon.status === 401, `signed out → refused (HTTP ${anon.status})`);
+  // Since D93 (2026-10-16) an applicant may write their OWN starters while
+  // the application is editable — but only about their own saved selection;
+  // the members-only "Your interests" screen stays closed to them.
   const dTake = await D.c.rpc('save_take_v2', { p_take_id: null, p_subject_kind: 'activity', p_subject_id: 'running', p_question_id: 'activity_favourite_part', p_answer: 'x' });
-  check(!!dTake.error && (await D.c.rpc('get_my_interests_v2')).data?.editable === false, 'draft applicant: refused');
+  const dSel = await D.c.rpc('save_interests_v2', { p_interests: ['travel'], p_activities: ['running'], p_artists: [], p_books: [], p_screen: [], p_remove_take: false });
+  check(dTake.data?.error === 'subject_not_selected' && !!dSel.error && (await D.c.rpc('get_my_interests_v2')).data?.editable === false,
+    'draft applicant: no starter without an own saved selection; members-only screen closed');
 
   // 10. Visibility: blocked viewer sees nothing; no starters → empty list.
   await M.c.from('blocks').insert({ blocker_id: M.uid, blocked_id: Y.uid });

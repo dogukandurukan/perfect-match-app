@@ -1,5 +1,85 @@
 # V2 Interests & conversation starter — first package — result
 
+# Round 4 (2026-10-16): D93 in onboarding — 2 standard answers OR 1 + a conversation starter
+
+Separate commit from round 3. Decisions **D98–D100**.
+
+**Not done:**
+- Nothing on the shared remote project; no merge or deploy.
+- No reset or bulk delete; the real-e-mail local auth user was not touched.
+- D81, matching, "You both" and likes on starters are out of scope.
+- **The new onboarding flow has not been tried on a phone.**
+
+## Server — `supabase/proposed/20261016090000_v2_onboarding_takes.sql`
+Applied to tempa-local in one transaction (local migration `…023`; in `setup.mjs`; not in `apply-dev.mjs`).
+
+**Before / after fingerprints identical** for standard prompts (ids included), likes, matches, messages, account states, onboarding answers and all starters.
+
+| Change | |
+|---|---|
+| `v2_missing_for` | `yourProfile.prompts` is missing unless there are ≥ 2 non-blank standard answers, or ≥ 1 + ≥ 1 valid starter (`v2_valid_take_count`: non-blank, subject still saved). The other items are byte-identical. |
+| `v2_assert_take_writer` | Active member, **or** `v2_assert_editable` (draft / changes_requested). Used only by `save_take_v2` / `delete_take_v2`. `save_interests_v2` stays members-only. |
+| `save_onboarding_v2` | Your World also accepts `activities` (same catalog, ≤ 5). Removing a subject that starters depend on raises `take_subject_removed` (titles in the error detail) and writes nothing. With `confirm_remove_takes` only those starters are deleted, in the same transaction. Nothing else in the function changed. |
+| Unchanged | `v2_assert_editable`, `submit_application_v2`, `save_prompts_v2`. |
+
+`save_prompts_v2` still deletes and re-inserts **applicants'** prompt rows. That is acceptable before acceptance: no one can like an applicant, and existing members are locked out of it. Replacing it with an id-preserving path is still needed **before** standard answers become editable for members.
+
+## App
+- **`components/interests/TakesEditor.tsx` (new, shared):** the starters editor, extracted from "Your interests". Both the Profile screen and onboarding use it, so there is one answer system.
+- **`components/interests/ActivitiesField.tsx` (new, shared):** the activity chips.
+- **`components/onboarding-v2/PreviewFlow.tsx`:**
+  - On load (live) it reads `get_my_interests_v2`. If the server lacks it, the flow is exactly as before.
+  - "What are you into?" gets Activities (optional).
+  - "A little more you" shows the prompt cards, plus "Prefer one prompt? Add a conversation starter…" and the shared editor. With a saved starter the second prompt card reads "Optional" and the counter is "1 of 1 required".
+  - Continuing from Your World: if a starter's subject is removed, the app asks first. Cancel shows "Not saved…"; Remove deletes only that starter; the starters then reload.
+  - The submit message reads "Answer 2 questions, or 1 question and a conversation starter."
+  - The onboarding profile preview shows the saved starters.
+- **`lib/onboardingV2/yourProfile.ts`:** `answersValid(prompts, takeCount)` is used for the prompts step, the preview step and the checklist. With no starters it is exactly `promptsValid`.
+- **`serverMapping.ts` / `remote.ts`:**
+  - `worldToServer(w, withActivities)` sends activities **only** to supporting servers, so the shared DEV project gets the old payload.
+  - `worldFromServer` keeps the old shape when no activities come back.
+  - `saveWorldSection` recognises the confirmation request.
+- **`app/v2/edit-interests.tsx`:** now uses the shared editor and activities field; behaviour unchanged.
+- **`PromptsFields`:** optional `requiredCount`. The default (2) is unchanged, and the "Remove" label is correct for the second card.
+- **`scripts/local-backend/_local.mjs`:** `fillApplication()` was split out of `ensureMember()` (same behaviour) to fill an application without submitting it.
+
+## Tests
+**`smoke_onboarding_takes_local.mjs` (real local services, fresh synthetic applicants): 18 / 18, 2 runs.**
+- 2 standard answers → submitted.
+- 1 standard answer alone → refused, with only `yourProfile.prompts` missing.
+- 1 standard answer + a starter:
+  - Your World saved with a book and an activity;
+  - the draft applicant writes their own starter;
+  - a new session reads the starter, the activities and the single prompt;
+  - submitted.
+- After submitting (pending review), starter writes and deletes are refused (`application_locked`).
+- 0 standard answers + 3 starters → refused.
+- Removing the starter's book:
+  - unconfirmed → refused, with the book and starter kept;
+  - confirmed → both removed, and the application is incomplete again.
+- Invalid activities (unknown, 6 of them) and a blank starter are refused.
+- **Changes requested:** the starter is editable again (same id) and the application is resubmitted.
+- Refused: rejected applicant, suspended member, another applicant on someone else's starter, signed out (401).
+- The general lock still refuses a submitted applicant's `save_onboarding_v2`.
+
+**Regression:**
+- `smoke_takes_local` 25/25. One check was updated on purpose: it asserted the pre-D93 rule "draft applicants can't write starters". It now asserts that a draft applicant can't write a starter on an unsaved subject and that the members-only screen stays closed to them.
+- `smoke_activity_local` 40/40.
+- `smoke_matches_local` 17/18, then 18/18. The failing check was the **known intermittent Realtime delivery**, this time in the Matches smoke. **Still not solved.**
+- `v2_interests_takes` **55/55** (+12 D93 checks); `run.js` all suites pass.
+- `p0-checks` all pass (`v2_mapping` 21/21 after keeping the old world shape for older servers).
+- `tsc` clean; the iOS bundle builds with the LOCAL config.
+
+## Phone (new onboarding) — not tried yet
+1. On the signed-out screen use **TEST · Join with new onboarding**, with a new synthetic e-mail. The badge must read LOCAL.
+2. "What are you into?": pick interests, plus e.g. **Running** under Activities. In "Books & movies" add one book.
+3. "A little more you": answer **one** prompt, then add a conversation starter about Running. The second prompt card reads "Optional" and Continue is enabled.
+4. Go back to Your World, remove Running → Continue: the question appears. Cancel keeps it; Remove deletes only that starter, and step 3 needs a second prompt or a new starter again.
+5. Close and reopen mid-flow: the prompt, the starter and the activities are back. Finish and submit → "You're on the list!".
+
+---
+
+
 # Round 3 (2026-10-15): owner's phone results + chat keyboard layout fix
 
 ## Verified on the phone by the owner — 14 October 2026 (LOCAL, synthetic accounts; recorded as reported)

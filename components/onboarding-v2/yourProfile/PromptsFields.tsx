@@ -52,7 +52,7 @@ type Sheet =
 
 type EditorDraft = { promptId: string; text: string; saved: string };
 
-export function PromptsFields({ prompts, updatePrompts }: Props) {
+export function PromptsFields({ prompts, updatePrompts, requiredCount = REQUIRED_PROMPTS }: Props & { requiredCount?: number }) {
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [draft, setDraft] = useState<EditorDraft | null>(null);
@@ -61,7 +61,8 @@ export function PromptsFields({ prompts, updatePrompts }: Props) {
   const [exIndex, setExIndex] = useState(0);
   const [showTr, setShowTr] = useState(false);
 
-  const answered = prompts.slice(0, REQUIRED_PROMPTS).filter(answerFilled).length;
+  // D93: with a saved conversation starter, one standard answer is enough.
+  const answered = prompts.slice(0, requiredCount).filter(answerFilled).length;
 
   const openSlot = (slot: number) => {
     const a = prompts[slot];
@@ -131,7 +132,7 @@ export function PromptsFields({ prompts, updatePrompts }: Props) {
     <View style={styles.wrap}>
       {prompts.map((a, i) => {
         const filled = answerFilled(a);
-        const optional = i >= REQUIRED_PROMPTS;
+        const optional = i >= requiredCount;
         if (!filled) {
           return (
             <TouchableOpacity
@@ -178,7 +179,7 @@ export function PromptsFields({ prompts, updatePrompts }: Props) {
                 onPress={() => updatePrompts((l) => clearSlot(l, i))}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="Remove third answer"
+                accessibilityLabel={i === 2 ? "Remove third answer" : "Remove second answer"}
                 style={styles.remove}>
                 <Text style={styles.link} maxFontSizeMultiplier={1.4}>
                   Remove
@@ -189,7 +190,7 @@ export function PromptsFields({ prompts, updatePrompts }: Props) {
         );
       })}
       <Text style={styles.meta} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
-        {answered} of {REQUIRED_PROMPTS} required answered
+        {answered} of {requiredCount} required answered
       </Text>
 
       <Modal visible={!!sheet} animationType="slide" onRequestClose={sheet?.mode === 'editor' ? cancelEditor : close}>

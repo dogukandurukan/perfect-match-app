@@ -77,6 +77,22 @@ export async function ensureMember(p) {
   if (st?.application_status === 'accepted') return { c, uid };
   const b = must(await c.rpc('get_my_onboarding_v2'), 'load');
   if (b.state.application_status === 'draft' || b.state.application_status === 'changes_requested') {
+    await fillApplication(c, uid, p, b);
+    const sub = must(await c.rpc('submit_application_v2', { p_request_id: crypto.randomUUID() }), 'submit');
+    if (sub.status !== 'submitted') fail(`${p.email} not submittable: ${JSON.stringify(sub.missing ?? sub)}`);
+  }
+  must(await admin.rpc('review_application_v2', { p_user: uid, p_decision: 'accept' }), 'accept');
+  return { c, uid };
+}
+
+/**
+ * Fills every application section through the normal V2 path WITHOUT
+ * submitting (applicants for the D93 tests). `p.prompts` = the standard
+ * answers to save (default two; may be one or none).
+ */
+export async function fillApplication(c, uid, p, bundle) {
+  const b = bundle ?? must(await c.rpc('get_my_onboarding_v2'), 'load');
+  {
     const save = async (section, data) => must(await c.rpc('save_onboarding_v2', { p_section: section, p_data: data }), `save ${section}`);
     const slug = p.district.toLowerCase().replace(/ı/g, 'i').normalize('NFD').replace(/[^a-z]/g, '');
     await save('basics', { first_name: p.first, last_name: 'Synthetic', date_of_birth: p.dob, gender: p.gender, interested_in: p.interested,
@@ -104,11 +120,7 @@ export async function ensureMember(p) {
       must(await c.rpc('set_verification_selfie_v2', { p_path: sp }), 'register selfie');
     }
     must(await c.from('profiles').update({ privacy_consent_at: new Date().toISOString() }).eq('id', uid), 'consent');
-    const sub = must(await c.rpc('submit_application_v2', { p_request_id: crypto.randomUUID() }), 'submit');
-    if (sub.status !== 'submitted') fail(`${p.email} not submittable: ${JSON.stringify(sub.missing ?? sub)}`);
   }
-  must(await admin.rpc('review_application_v2', { p_user: uid, p_decision: 'accept' }), 'accept');
-  return { c, uid };
 }
 
 export { LOOKS };

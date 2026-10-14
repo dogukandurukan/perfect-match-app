@@ -40,6 +40,7 @@ export type ServerDraft = {
   school: TasteItem | null;
   hometown: TasteItem | null;
   interests: string[] | null;
+  activities?: string[] | null;
   artists: TasteItem[] | null;
   books: TasteItem[] | null;
   screen: TasteItem[] | null;
@@ -129,6 +130,9 @@ export function worldFromServer(d: Partial<ServerDraft>): WorldDraft {
     artists: d.artists ?? [],
     books: d.books ?? [],
     screen: d.screen ?? [],
+    // Only servers with the D93 package send activities; older drafts keep
+    // exactly their old shape.
+    ...(Array.isArray(d.activities) ? { activities: d.activities } : {}),
   };
 }
 
@@ -220,8 +224,11 @@ const cleanItem = (i: TasteItem | null) =>
   i ? { kind: i.kind, source: i.source, id: i.id, title: i.title, ...(i.subtitle ? { subtitle: i.subtitle } : {}),
         ...(i.imageUrl ? { imageUrl: i.imageUrl } : {}) } : null;
 
-export function worldToServer(w: WorldDraft): Record<string, unknown> {
+/** `withActivities`: only for servers that store activities (D93 package);
+ * older servers refuse unknown fields, so they get exactly the old payload. */
+export function worldToServer(w: WorldDraft, withActivities = false): Record<string, unknown> {
   return {
+    ...(withActivities ? { activities: w.activities ?? [] } : {}),
     work_status: w.workStatus,
     job_title: w.jobTitle.trim() || null,
     school: cleanItem(w.school),

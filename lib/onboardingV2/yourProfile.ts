@@ -221,6 +221,17 @@ export function promptsValid(list: PromptAnswer[]): boolean {
   return list.every((a) => a.answer.length <= ANSWER_MAX_LENGTH);
 }
 
+/** D93: two standard answers, OR one standard answer + at least one saved
+ * conversation starter. Starters alone never count. With no starters this is
+ * exactly promptsValid. */
+export function answersValid(list: PromptAnswer[], takeCount: number): boolean {
+  if (promptsValid(list)) return true;
+  if (takeCount < 1) return false;
+  const filled = list.filter(answerFilled);
+  return filled.length >= 1 && new Set(filled.map((a) => a.promptId)).size === filled.length && list.every((a) => a.answer.length <= ANSWER_MAX_LENGTH);
+}
+const takeCount = (d: Pick<ProfileDraft, 'takes'>) => (d.takes ?? []).length;
+
 /** The answers that appear on the profile, in slot order. */
 export function publicAnswers(list: PromptAnswer[]): { promptId: PromptId; answer: string }[] {
   return list
@@ -291,6 +302,9 @@ export type ProfileDraft = {
   emailCheck: DemoEmailCheck | null;
   /** Local preview marker only — no server, not a real application status. */
   applicationPreview: { receivedAt: number } | null;
+  /** Saved conversation starters (server copy, D93). Optional; none → the
+   * old rule (two standard answers) applies unchanged. */
+  takes?: PublicTake[];
 };
 
 export const EMPTY_PROFILE_DRAFT: ProfileDraft = {
@@ -316,7 +330,7 @@ export type Checklist = { photos: boolean; answers: boolean; selfie: boolean; em
 export function checklist(d: ProfileDraft): Checklist {
   return {
     photos: photosValid(d.photos),
-    answers: promptsValid(d.prompts),
+    answers: answersValid(d.prompts, takeCount(d)),
     selfie: !!d.selfie?.uri || !!d.selfie?.uploaded,
     email: emailChecked(d.email, d.emailCheck),
   };
@@ -345,9 +359,9 @@ export function isProfileStepValid(step: number, d: ProfileDraft): boolean {
     case PROFILE_STEP.photos:
       return photosValid(d.photos);
     case PROFILE_STEP.prompts:
-      return promptsValid(d.prompts);
+      return answersValid(d.prompts, takeCount(d));
     case PROFILE_STEP.preview:
-      return photosValid(d.photos) && promptsValid(d.prompts);
+      return photosValid(d.photos) && answersValid(d.prompts, takeCount(d));
     case PROFILE_STEP.selfie:
       return !!d.selfie?.uri || !!d.selfie?.uploaded;
     case PROFILE_STEP.email:
@@ -474,6 +488,8 @@ export function buildProfilePreview(
     screen: world.screen,
     prompts: publicAnswers(profile.prompts).filter((a) => a.answer),
     photos: usablePhotos(profile.photos),
+    activities: world.activities ?? [],
+    takes: profile.takes ?? [],
   });
 }
 

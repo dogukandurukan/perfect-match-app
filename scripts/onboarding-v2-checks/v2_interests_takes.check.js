@@ -59,6 +59,7 @@ const base = { name: 'Defne', age: 30, zodiac: null, city: 'İstanbul', heightCm
   artists: [], books: [], screen: [], prompts: [], photos: [{ id: 'p', uri: 'x' }] };
 const pt = (subj, q) => ({ kind: 'activity', subjectId: subj, subjectTitle: subj, questionId: q, answer: `about ${subj}` });
 const three = [pt('running', 'activity_perfect_day'), pt('yoga', 'activity_favourite_part'), pt('cooking', 'activity_favourite_part')];
+const shownT = three[0];
 const bl = Y.buildPublicProfileBlocks({ ...base, takes: three, activities: ['running', 'yoga'] });
 ok(bl[0].type === 'hero' && bl[1].type === 'takes' && bl[1].takes.map((t) => t.subjectId).join() === 'running,yoga,cooking', 'one section with 0–3 starters, under the main photo, in order');
 ok(!Y.buildPublicProfileBlocks(base).some((b) => b.type === 'takes') && !Y.buildPublicProfileBlocks({ ...base, takes: [] }).some((b) => b.type === 'takes'), 'no starters → no section');
@@ -76,16 +77,44 @@ ok(/answer: \{ fontFamily: obFonts\.body, fontSize: 16/.test(card) && !/answer: 
 ok(/case 'takes':[\s\S]{0,120}<TakesSection/.test(read('components/discover/DiscoverProfileItems.tsx')) && /case 'takes':[\s\S]{0,120}<TakesSection/.test(read('components/onboarding-v2/yourProfile/ProfilePreview.tsx')), 'both profile renderers draw the read-only section');
 ok(/onAddTake && !state\.blocks\.some\(\(b\) => b\.type === 'takes'\)/.test(read('components/onboarding-v2/PublicProfileView.tsx')) && /&own=1/.test(read('components/main/V2ProfileHome.tsx')), '“Add a conversation starter” only on the own profile');
 
-// Edit screen.
+// Edit screen + the shared starters editor (also used in onboarding).
 const ed = code('app/v2/edit-interests.tsx');
-ok(/Your interests/.test(ed) && /Conversation starters/.test(ed) && /`\$\{takes\.length\} of \$\{MAX_TAKES\}`/.test(ed), 'titles “Your interests” / “Conversation starters” + “n of 3” counter');
-ok(/!draft && takes\.length < MAX_TAKES/.test(ed) && /canAddTake\(takes, options\)/.test(ed), 'no add offered at three');
-ok(/d\.choosing \|\| !d\.subject/.test(ed) && !/subjectOptions\(pick\(saved\)\)\.map/.test(ed), 'subject list only while adding / changing');
+const te = code('components/interests/TakesEditor.tsx');
+ok(/Your interests/.test(ed) && /<TakesEditor/.test(ed) && /<ActivitiesField/.test(ed) && /Conversation starters/.test(te) && /`\$\{takes\.length\} of \$\{MAX_TAKES\}`/.test(te), 'titles “Your interests” / “Conversation starters” + “n of 3” counter (shared editor)');
+ok(/!draft && takes\.length < MAX_TAKES/.test(te) && /canAddTake\(takes, options\)/.test(te), 'no add offered at three');
+ok(/d\.choosing \|\| !d\.subject/.test(te) && /freeSubjects\(options, takes, d\.takeId\)/.test(te), 'subject list only while adding / changing, one starter per subject');
 ok(/hideLabel/.test(ed) && !/MediaFields|ArtistsFields|LiveNote|public catalogs/.test(ed), 'no repeated section labels or catalog notes');
-ok(/saveTake\(draft\.takeId,/.test(ed) && /deleteTake\(t\.id\)/.test(ed) && /kind === 'confirm'/.test(ed) && /Your other answers stay/.test(ed), 'per-starter save / delete; removal confirm names only the affected starters');
-ok(/if \(r\.kind === 'error'\) return setBanner\(\{ kind: 'error', text: r\.message \}\)/.test(ed) && /beforeRemove/.test(ed) && /Discard this answer\?/.test(ed), 'failure keeps the draft; nothing dropped silently');
-ok(!/save_prompts_v2|savePrompts|save_onboarding_v2|photos|selfie|first_name/.test(ed), 'edit screen touches no prompts / photos / identity');
+ok(/saveTake\(draft\.takeId,/.test(te) && /deleteTake\(t\.id\)/.test(te) && /kind === 'confirm'/.test(ed) && /Your other answers stay/.test(ed), 'per-starter save / delete; removal confirm names only the affected starters');
+ok(/if \(r\.kind === 'error'\) \{[\s\S]{0,120}onNotice\(\{ kind: 'error', text: r\.message \}\)/.test(te) && /beforeRemove/.test(ed) && /Discard this answer\?/.test(te), 'failure keeps the draft; nothing dropped silently');
+ok(!/save_prompts_v2|savePrompts|save_onboarding_v2|photos|selfie|first_name/.test(ed + te), 'edit screen / editor touch no prompts / photos / identity');
 ok(/ctrl\.setQuery\(text\)/.test(read('components/onboarding-v2/yourWorld/Typeahead.tsx')) && /Try again/.test(read('components/onboarding-v2/yourWorld/Typeahead.tsx')), 'search failure: short error with Try again, in place');
+
+// D93 — onboarding: 2 standard answers OR 1 standard + 1 starter.
+const P = require(path.join(ROOT, 'lib/onboardingV2/yourProfile.ts'));
+const ans = (id, t) => ({ promptId: id, answer: t });
+const two = [ans('small_thing_i_love', 'x'), ans('together_we_could', 'y'), { promptId: null, answer: '' }];
+const one = [ans('small_thing_i_love', 'x'), { promptId: null, answer: '' }, { promptId: null, answer: '' }];
+const none = [{ promptId: null, answer: '' }, { promptId: null, answer: '' }, { promptId: null, answer: '' }];
+ok(P.answersValid(two, 0) && !P.answersValid(one, 0) && P.answersValid(one, 1) && !P.answersValid(none, 3), 'D93: 2 standard, or 1 standard + 1 starter; starters alone never');
+ok(P.answersValid(one, 0) === P.promptsValid(one) && P.answersValid(two, 0) === P.promptsValid(two), 'no starters → exactly the old rule');
+const prof = { ...P.EMPTY_PROFILE_DRAFT, prompts: one };
+ok(!P.isProfileStepValid(P.PROFILE_STEP.prompts, prof) && P.isProfileStepValid(P.PROFILE_STEP.prompts, { ...prof, takes: [shownT] }) && P.checklist({ ...prof, takes: [shownT] }).answers, 'prompts step + checklist use the D93 rule');
+ok(P.buildProfilePreview(require(path.join(ROOT, 'lib/onboardingV2/basics.ts')).EMPTY_BASICS_DRAFT, require(path.join(ROOT, 'lib/onboardingV2/compatibility.ts')).EMPTY_COMPAT_DRAFT, base.life, { ...require(path.join(ROOT, 'lib/onboardingV2/yourWorld.ts')).EMPTY_WORLD_DRAFT }, base.dates, { ...prof, takes: [shownT], photos: [{ id: 'p', uri: 'x' }] }).some((b) => b.type === 'takes'), 'onboarding preview shows saved starters');
+const M = require(path.join(ROOT, 'lib/onboardingV2/serverMapping.ts'));
+const w0 = { ...require(path.join(ROOT, 'lib/onboardingV2/yourWorld.ts')).EMPTY_WORLD_DRAFT, interests: ['travel'], activities: ['running'] };
+ok(!('activities' in M.worldToServer(w0)) && M.worldToServer(w0, true).activities.join() === 'running' && !('activities' in M.worldFromServer({ interests: ['travel'] })) && M.worldFromServer({ activities: ['yoga'] }).activities.join() === 'yoga',
+  'activities sent only to supporting servers (older servers get the old payload)');
+const pf = code('components/onboarding-v2/PreviewFlow.tsx');
+ok(/worldToServer\(world, takesSupported\)/.test(pf) && /saveWorldSection\(data, resume, false\)/.test(pf) && /confirmRemoveStarters\(w\.confirm\)/.test(pf) && /saveWorldSection\(data, resume, true\)/.test(pf) && /refreshStarters\(\)/.test(pf),
+  'onboarding Your World: removing a starter’s subject asks; Cancel keeps both; then starters reload');
+ok(/takesSupported && starters &&[\s\S]{0,1500}<TakesEditor/.test(pf) && /requiredCount=\{\(profile\.takes \?\? \[\]\)\.length > 0 \? 1 : undefined\}/.test(pf) && /takesSupported && \([\s\S]{0,40}<ActivitiesField/.test(pf), 'onboarding: starters editor + activities only when supported; one required prompt with a starter');
+ok(/confirm_remove_takes: true/.test(read('lib/onboardingV2/remote.ts')) && /take_subject_removed/.test(read('lib/onboardingV2/remote.ts')), 'remote: Your World save recognises the confirmation request');
+const d93 = read('supabase/proposed/20261016090000_v2_onboarding_takes.sql');
+const d93c = d93.replace(/--.*$/gm, '');
+ok(/>= 2\s*or \(\(select count\(\*\) from profile_prompts_v2 p where p\.user_id = p_uid and btrim\(p\.answer\) <> ''\) >= 1\s*and public\.v2_valid_take_count\(p_uid\) >= 1\)/.test(d93c), 'server: v2_missing_for uses the D93 rule');
+ok(/if public\.is_active_v2_member\(v_uid\) then return v_uid; end if;\s*perform public\.v2_assert_editable\(\);/.test(d93c) && (d93c.match(/v2_assert_take_writer\(\);/g) || []).length === 2, 'server: starters writable by active members or the editable applicant only');
+ok(!/create or replace function public\.v2_assert_editable|create or replace function public\.save_prompts_v2|create or replace function public\.submit_application_v2/.test(d93c), 'general lock, save_prompts_v2 and submit unchanged');
+ok(/raise exception 'take_subject_removed' using errcode = 'P0001', detail = v_orphans/.test(d93c) && /'activities','artists','books','screen','confirm_remove_takes'/.test(d93c), 'server: Your World stores activities; removing a starter’s subject needs confirmation');
 
 // Server package.
 ok(/drop constraint if exists profile_takes_v2_user_id_key/.test(sql) && /update public\.profile_takes_v2 set position = 1 where position is null/.test(sql) && !/delete from public\.profile_takes_v2;/.test(sqlCode),
@@ -94,6 +123,6 @@ ok(/profile_takes_v2_user_subject_uniq/.test(sql) && /profile_takes_v2_user_posi
 ok(/limit_reached/.test(sql) && /subject_taken/.test(sql) && /for update/.test(sql), 'limits checked under the per-user lock');
 ok(!/save_prompts_v2|delete from profile_prompts_v2|update account_state_v2|v2_assert_editable\(\)\s*returns/.test(sqlCode), 'no prompt / application-state writes; general lock not redefined');
 ok(/v2_can_view_public_profile\(auth\.uid\(\), p_user\)/.test(sql), 'starters shown only under the existing visibility rule');
-ok(!/2026101[45]09/.test(read('scripts/dev-backend/apply-dev.mjs')) && /20261015090000_v2_takes_multi\.sql/.test(read('scripts/local-backend/setup.mjs')), 'LOCAL setup only; not wired into apply-dev');
+ok(!/2026101[456]09/.test(read('scripts/dev-backend/apply-dev.mjs')) && /20261015090000_v2_takes_multi\.sql/.test(read('scripts/local-backend/setup.mjs')) && /20261016090000_v2_onboarding_takes\.sql/.test(read('scripts/local-backend/setup.mjs')), 'LOCAL setup only; not wired into apply-dev');
 
 module.exports = done('v2_interests_takes');

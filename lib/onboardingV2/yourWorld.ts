@@ -75,6 +75,9 @@ export type WorldDraft = {
   artists: TasteItem[];
   books: TasteItem[];
   screen: TasteItem[];
+  /** Concrete activities (lib/interests/takes ACTIVITIES keys, ≤ 5). Only
+   * sent to servers that support them (D93 package). Optional. */
+  activities?: string[];
 };
 
 export const EMPTY_WORLD_DRAFT: WorldDraft = {
