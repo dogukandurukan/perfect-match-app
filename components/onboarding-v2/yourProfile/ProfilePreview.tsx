@@ -9,7 +9,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { TakeCard } from '@/components/interests/TakeCard';
+import { TakesSection } from '@/components/interests/TakeCard';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewBlock, PreviewFact } from '@/lib/onboardingV2/yourProfile';
 import type { TasteItem } from '@/lib/onboardingV2/yourWorld';
@@ -217,9 +217,9 @@ export function ProfilePreview({
                 ) : null}
               </View>
             );
-          case 'take':
-            // Read-only conversation starter (no heart / comment yet).
-            return <TakeCard key={i} take={b.take} />;
+          case 'takes':
+            // Read-only conversation starters (no heart / comment yet).
+            return <TakesSection key={i} takes={b.takes} />;
           case 'taste':
             return (
               <View key={i} style={[styles.card, styles.pad, styles.chipCard]}>

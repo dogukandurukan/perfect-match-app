@@ -119,7 +119,7 @@ export function V2ProfileHome() {
         />
         {/* The only editing after approval (D87–D93): interests, activities,
             books / movies / artists and the conversation starter. */}
-        <OnboardingPrimaryButton label="Interests & conversation starter" variant="outline" onPress={() => router.push('/v2/edit-interests' as never)} />
+        <OnboardingPrimaryButton label="Your interests" variant="outline" onPress={() => router.push('/v2/edit-interests' as never)} />
         <OnboardingPrimaryButton label="Edit profile" variant="outline" disabled onPress={() => {}} />
         <Text style={styles.caption} maxFontSizeMultiplier={1.6}>
           Other profile details can&apos;t be edited after approval yet.

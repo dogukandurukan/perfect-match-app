@@ -78,7 +78,7 @@ export function PublicProfileView({ userId, onAddTake, refreshKey = 0 }: { userI
   }
   return (
     <View style={styles.wrap}>
-      {onAddTake && !state.blocks.some((b) => b.type === 'take') ? (
+      {onAddTake && !state.blocks.some((b) => b.type === 'takes') ? (
         <>
           <ProfilePreview blocks={state.blocks.slice(0, 1)} />
           <AddTakeCard onPress={onAddTake} style={styles.addTake} />

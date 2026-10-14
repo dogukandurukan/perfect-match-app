@@ -8,7 +8,7 @@ import { Image, type ImageSource } from 'expo-image';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-import { TakeCard } from '@/components/interests/TakeCard';
+import { TakesSection } from '@/components/interests/TakeCard';
 import { COMMENT_MAX, type DiscoverItem, type DiscoverPerson, type LabelledFact } from '@/lib/discover/profileLayout';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewFact, PreviewGroup, PreviewTaste } from '@/lib/onboardingV2/yourProfile';
@@ -67,9 +67,9 @@ export function DiscoverProfileItems({ items, h }: { items: DiscoverItem[]; h: I
             return <Taste key="taste" groups={it.groups} />;
           case 'firstDate':
             return <FirstDate key="firstDate" facts={it.facts} />;
-          case 'take':
-            // Read-only conversation starter (no heart / comment yet).
-            return <TakeCard key="take" take={it.take} style={styles.takeCard} />;
+          case 'takes':
+            // Read-only conversation starters (no heart / comment yet).
+            return <TakesSection key="takes" takes={it.takes} style={styles.takeCard} />;
           default:
             return null;
         }

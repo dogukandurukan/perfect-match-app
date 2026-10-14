@@ -378,11 +378,11 @@ export type PreviewBlock =
   | { type: 'groups'; groups: PreviewGroup[] }
   | { type: 'prompt'; label: string; answer: string }
   | { type: 'taste'; groups: PreviewTaste[] }
-  /** The member's conversation starter (D87–D93); no like / comment yet. */
-  | { type: 'take'; take: PublicTake };
+  /** The member's conversation starters, 0–3 (D87–D97); no like / comment yet. */
+  | { type: 'takes'; takes: PublicTake[] };
 
 /** A conversation starter as shown on a profile (from get_profile_v2). */
-export type PublicTake = { kind: TakeKind; subjectTitle: string; questionId: string; answer: string };
+export type PublicTake = { kind: TakeKind; subjectId: string; subjectTitle: string; questionId: string; answer: string };
 
 // Display phrasing for the preview (P07 R1). Keys stay the approved ones;
 // these strings are proposed profile copy, not new answers.
@@ -434,8 +434,8 @@ export type PublicProfileInput = {
   photos: LocalPhoto[];
   /** Concrete activities (keys of lib/interests/takes ACTIVITIES); optional. */
   activities?: string[];
-  /** Conversation starter; absent / null → nothing is shown to others. */
-  take?: PublicTake | null;
+  /** Conversation starters (0–3, in their saved order); none → nothing shown. */
+  takes?: PublicTake[];
 };
 
 /**
@@ -569,8 +569,9 @@ export function buildPublicProfileBlocks(p: PublicProfileInput): PreviewBlock[] 
   const blocks: PreviewBlock[] = photos[0]
     ? [{ type: 'hero', photo: photos[0], name, age }]
     : [{ type: 'header', name, age }];
-  // The conversation starter sits right under the main photo.
-  if (p.take && p.take.answer.trim() && takeQuestionText(p.take.questionId)) blocks.push({ type: 'take', take: p.take });
+  // Conversation starters sit right under the main photo, as ONE section.
+  const takes = (p.takes ?? []).filter((t) => t.answer.trim() && takeQuestionText(t.questionId, t.subjectId)).slice(0, 3);
+  if (takes.length > 0) blocks.push({ type: 'takes', takes });
   // Rhythm: info → prompt → photo, repeated; leftovers keep their order.
   const rest = photos.slice(1);
   const n = Math.max(sections.length, prompts.length, rest.length);

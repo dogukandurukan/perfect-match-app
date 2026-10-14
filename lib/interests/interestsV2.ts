@@ -2,10 +2,10 @@
 // operations of supabase/proposed/20261014090000_v2_interests_takes.sql.
 // Only accepted, active members can change anything, only their own
 // selections / take, and only these fields — enforced on the server.
-import { SERVER_ERROR_TEXT, type Selections, type Take } from '@/lib/interests/takes';
+import { orderedTakes, SERVER_ERROR_TEXT, type Selections, type Take } from '@/lib/interests/takes';
 import { supabase } from '@/lib/supabaseClient';
 
-export type MyInterests = Selections & { editable: boolean; take: Take | null };
+export type MyInterests = Selections & { editable: boolean; takes: Take[] };
 
 export type Loaded =
   | { kind: 'ok'; value: MyInterests }
@@ -27,7 +27,7 @@ export function parseMyInterests(raw: unknown): MyInterests {
     artists: arr(d.artists),
     books: arr(d.books),
     screen: arr(d.screen),
-    take: (d.take as Take | null) ?? null,
+    takes: orderedTakes(arr<Take>(d.takes)),
   };
 }
 
@@ -47,9 +47,9 @@ export async function loadMyInterests(): Promise<Loaded> {
 }
 
 export type SaveSelectionsResult =
-  | { kind: 'ok'; value: MyInterests; takeRemoved: boolean }
-  /** The take's subject would be removed — nothing was written; ask first. */
-  | { kind: 'confirm'; take: Take }
+  | { kind: 'ok'; value: MyInterests; takesRemoved: number }
+  /** These takes' subjects would be removed — nothing was written; ask first. */
+  | { kind: 'confirm'; takes: Take[] }
   | { kind: 'error'; message: string };
 
 export async function saveSelections(s: Selections, removeTake: boolean): Promise<SaveSelectionsResult> {
@@ -66,8 +66,8 @@ export async function saveSelections(s: Selections, removeTake: boolean): Promis
       if (error) console.warn('[Interests] save_interests_v2 failed', error.message);
       return { kind: 'error', message: /not_member/.test(error?.message ?? '') ? SERVER_ERROR_TEXT.not_member : NETWORK };
     }
-    if (data.ok === true) return { kind: 'ok', value: parseMyInterests(data), takeRemoved: data.take_removed === true };
-    if (data.error === 'take_subject_removed' && data.take) return { kind: 'confirm', take: data.take as Take };
+    if (data.ok === true) return { kind: 'ok', value: parseMyInterests(data), takesRemoved: Number(data.takes_removed ?? 0) };
+    if (data.error === 'take_subject_removed' && Array.isArray(data.takes)) return { kind: 'confirm', takes: data.takes as Take[] };
     return { kind: 'error', message: SERVER_ERROR_TEXT[String(data.error)] ?? NETWORK };
   } catch (e) {
     console.warn('[Interests] save_interests_v2 threw', e);
@@ -77,9 +77,11 @@ export async function saveSelections(s: Selections, removeTake: boolean): Promis
 
 export type TakeResult = { kind: 'ok'; take: Take | null } | { kind: 'error'; message: string };
 
-export async function saveTake(kind: string, subjectId: string, questionId: string, answer: string): Promise<TakeResult> {
+/** takeId null → a NEW take (the server never overwrites another one). */
+export async function saveTake(takeId: string | null, kind: string, subjectId: string, questionId: string, answer: string): Promise<TakeResult> {
   try {
     const { data, error } = await supabase.rpc('save_take_v2', {
+      p_take_id: takeId,
       p_subject_kind: kind,
       p_subject_id: subjectId,
       p_question_id: questionId,
@@ -97,9 +99,10 @@ export async function saveTake(kind: string, subjectId: string, questionId: stri
   }
 }
 
-export async function deleteTake(): Promise<TakeResult> {
+/** Deletes this one take; its selection and the other takes stay. */
+export async function deleteTake(takeId: string): Promise<TakeResult> {
   try {
-    const { data, error } = await supabase.rpc('delete_take_v2');
+    const { data, error } = await supabase.rpc('delete_take_v2', { p_take_id: takeId });
     if (error || !data || data.ok !== true) {
       if (error) console.warn('[Interests] delete_take_v2 failed', error.message);
       return { kind: 'error', message: 'Couldn’t remove it. Check your connection and try again.' };

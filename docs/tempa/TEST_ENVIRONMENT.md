@@ -16,7 +16,7 @@ The owner chose **not** to create a paid cloud test project. Tempa's tests run o
 | 4 | `scripts/local-backend/start-app.sh` | Metro for the dev client with `TEMPA_BACKEND=local` and the Mac's **Wi-Fi address** (the phone must be on the same Wi-Fi); prints a one-time code for `tempa-matches-tester@tempa-test.example.com` |
 | 5 | `node scripts/local-backend/smoke_activity_local.mjs` | Activity → profile → Match & chat on real services (fresh synthetic accounts per run): read state, recipient-only accept, 5 parallel accepts → one match, no quota, no message, third account refused, Realtime first message, fresh sessions read everything back, block / unmatch |
 | 6 | `node scripts/local-backend/prepare-activity.mjs [--set p2]` | phone accounts for Activity (receiver + 3 likers, receiver premium in local data); re-runnable, never touches other accounts |
-| 7 | `node scripts/local-backend/smoke_takes_local.mjs` | Interests & conversation starter on real services (fresh synthetic accounts): narrow member-only saves, take ↔ selection consistency (confirm / cancel / atomic), third account / draft / signed-out refused, visibility, prompts and application state unchanged |
+| 7 | `node scripts/local-backend/smoke_takes_local.mjs` | Your interests + 0–3 conversation starters on real services (fresh synthetic accounts): narrow member-only saves, 3-limit / one-per-subject incl. parallel requests, starter ↔ selection consistency (confirm / cancel / atomic, only dependent starters), third account / draft / signed-out refused, visibility, prompts and application state unchanged |
 | — | `scripts/local-backend/start-app.sh [synthetic email]` | as step 4, signed-in account selectable (only `@tempa-test.example.com`) |
 | — | `node scripts/local-backend/setup.mjs --stop` | stops only `tempa-local` |
 
@@ -25,7 +25,7 @@ The owner chose **not** to create a paid cloud test project. Tempa's tests run o
 - The app's `TEMPA_BACKEND=local` accepts only loopback / private LAN addresses and a non-live anon key, otherwise it refuses to start.
 - A production build stays pinned to live.
 - Checks: `scripts/p0-checks/backend_config.check.mjs`, `scripts/p0-checks/local_launcher.check.mjs`.
-- **New packages are applied to the running local DB directly** (one transaction, `docker exec supabase_db_tempa-local psql`), never with `setup.mjs` (which resets). 2026-10-12: `20261012090000_v2_activity_accept.sql` and 2026-10-14: `20261014090000_v2_interests_takes.sql` applied this way; existing local data kept (fingerprints of prompts, likes, matches, messages and account states identical before / after). A later `setup.mjs` includes it automatically.
+- **New packages are applied to the running local DB directly** (one transaction, `docker exec supabase_db_tempa-local psql`), never with `setup.mjs` (which resets). 2026-10-12: `20261012090000_v2_activity_accept.sql` 2026-10-14: `20261014090000_v2_interests_takes.sql` and 2026-10-15: `20261015090000_v2_takes_multi.sql` applied this way; existing local data kept (fingerprints of prompts, likes, matches, messages and account states identical before / after). A later `setup.mjs` includes it automatically.
 
 ## B. Separate Supabase cloud test project (not used — kept for reference)
 

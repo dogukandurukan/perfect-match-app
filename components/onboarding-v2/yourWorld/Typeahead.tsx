@@ -30,6 +30,8 @@ type Props = {
   notice?: string | null;
   /** Source line shown under live results, e.g. "Suggestions from MusicBrainz". */
   attribution?: string;
+  /** The screen shows its own visible heading (label → screen readers only). */
+  hideLabel?: boolean;
 };
 
 export function Typeahead({
@@ -43,6 +45,7 @@ export function Typeahead({
   fullMessage,
   notice,
   attribution,
+  hideLabel = false,
 }: Props) {
   const [text, setText] = useState('');
   const [state, setState] = useState<TypeaheadState>({ status: 'idle', query: '', results: [] });
@@ -74,6 +77,7 @@ export function Typeahead({
     <View ref={wrapRef} style={styles.wrap}>
       <OnboardingTextField
         label={label}
+        hideLabel={hideLabel}
         placeholder={placeholder}
         value={text}
         onChangeText={onChange}
@@ -99,9 +103,14 @@ export function Typeahead({
             </View>
           ) : null}
           {state.status === 'error' ? (
-            <Text style={styles.meta} accessibilityLiveRegion="polite">
-              Search isn&apos;t available right now. You can add it as typed below.
-            </Text>
+            <View style={styles.stateRow}>
+              <Text style={[styles.meta, { flex: 1 }]} accessibilityLiveRegion="polite">
+                Search isn&apos;t available right now. You can add it as typed below.
+              </Text>
+              <TouchableOpacity onPress={() => ctrl.setQuery(text)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Try the search again">
+                <Text style={styles.retry}>Try again</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
           {state.status === 'done' && state.results.length === 0 ? (
             <Text style={styles.meta} accessibilityLiveRegion="polite">
@@ -331,6 +340,7 @@ const styles = StyleSheet.create({
   customRow: {
     backgroundColor: obColors.notice,
   },
+  retry: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.cta, textDecorationLine: 'underline' },
   attribution: {
     fontFamily: obFonts.body,
     fontSize: 11,

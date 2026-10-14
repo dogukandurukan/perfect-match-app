@@ -1,10 +1,10 @@
-// "Interests & conversation starter" on the LOCAL Supabase (real Postgres +
-// Auth + PostgREST, real JWTs), synthetic accounts only:
+// Conversation starters (0–3 per member) + "Your interests" on the LOCAL
+// Supabase (real Postgres + Auth + PostgREST, real JWTs), synthetic only:
 //   node scripts/local-backend/smoke_takes_local.mjs
-// Needs: setup.mjs (+ 20261014090000_v2_interests_takes) and seed.mjs. Every
-// run creates FRESH synthetic people (tempa-local-take-<tag>-*).
-//   M  accepted member (man)       — edits interests + his take
-//   V  eligible viewer (woman)     — sees M's take on his profile
+// Needs: setup.mjs (+ 20261014090000_v2_interests_takes + 20261015090000_v2_takes_multi)
+// and seed.mjs. Every run creates FRESH synthetic people (tempa-local-take-<tag>-*).
+//   M  accepted member (man)       — edits interests + his starters
+//   V  eligible viewer (woman)     — sees M's starters on his profile
 //   Y  viewer M blocks (woman)     — must not see anything
 //   X  unrelated third (woman)     — must not change anything of M's
 //   D  draft applicant (not accepted) — must be refused
@@ -24,14 +24,20 @@ const rpcHttp = (token, fn, args = {}) =>
     body: JSON.stringify(args),
   }).then(async (r) => ({ status: r.status, json: await r.json().catch(() => null) }));
 
-const BOOK_1984 = { kind: 'book', source: 'openlibrary', id: 'ol:work:OL1168083W', title: '1984', subtitle: 'George Orwell' };
+const BOOK = { kind: 'book', source: 'openlibrary', id: 'ol:work:OL1168083W', title: '1984', subtitle: 'George Orwell' };
 const FILM = { kind: 'screen', source: 'wikidata', id: 'wd:Q13417189', title: 'Interstellar', subtitle: '2014 · Movie' };
 const ARTIST = { kind: 'artist', source: 'musicbrainz', id: 'mb:artist:tarkan-test', title: 'Tarkan' };
+const snapRow = (t) => JSON.stringify({ id: t.id, position: t.position, s: `${t.subject_kind}:${t.subject_id}`, q: t.question_id, a: t.answer, u: t.updated_at });
 
 async function main() {
   const tag = Date.now().toString(36);
   const mail = (k) => `tempa-local-take-${tag}-${k}@tempa-test.example.com`;
   const woman = (k, n) => ({ email: mail(k), first: `W${k}`, gender: 'woman', interested: ['men'], dob: `199${n}-03-1${n}`, city: 'İstanbul', district: 'Kadıköy', look: LOOKS[n] });
+
+  // Takes that existed before this run (incl. ones kept through the multi
+  // migration) must come out of the run untouched.
+  const others0 = ((await admin.from('profile_takes_v2').select('*')).data ?? []).map(snapRow).sort();
+
   const M = await ensureMember({ email: mail('m'), first: 'Mert', gender: 'man', interested: ['women'], dob: '1994-02-02', city: 'İstanbul', district: 'Kadıköy', look: LOOKS[5] });
   const V = await ensureMember(woman('v', 1));
   const Y = await ensureMember(woman('y', 2));
@@ -46,122 +52,121 @@ async function main() {
     basics: (await admin.from('onboarding_v2').select('first_name, date_of_birth, location_city, intent, smoking, date_types').eq('user_id', M.uid).single()).data,
   });
   const before = await snap();
-
-  // 1. Start: no take, nothing new.
-  const s0 = (await M.c.rpc('get_my_interests_v2')).data;
-  check(s0?.editable === true && s0.take === null && s0.activities.length === 0 && s0.interests.length >= 1, 'accepted member: editable, no take, no activities yet');
-
-  // 2. Selections (broad interests 1–10, activities ≤ 5, taste ≤ 3).
+  const mine = async (c = M.c) => (await c.rpc('get_my_interests_v2')).data;
+  const rows = async () => (await admin.from('profile_takes_v2').select('*').eq('user_id', M.uid).order('position')).data ?? [];
   const save = (c, over = {}, remove = false) => c.rpc('save_interests_v2', {
-    p_interests: ['travel', 'music'], p_activities: ['running', 'cooking'], p_artists: [ARTIST], p_books: [BOOK_1984], p_screen: [FILM],
-    ...over, p_remove_take: remove });
-  const s1 = (await save(M.c)).data;
-  check(s1?.ok === true && s1.activities.join() === 'running,cooking' && s1.books[0].id === BOOK_1984.id && s1.screen[0].id === FILM.id,
-    'save selections: activities + source ids kept');
+    p_interests: ['travel', 'music'], p_activities: ['running', 'cooking'], p_artists: [ARTIST], p_books: [BOOK], p_screen: [FILM], ...over, p_remove_take: remove });
+  const take = (c, id, kind, subj, q, a) => c.rpc('save_take_v2', { p_take_id: id, p_subject_kind: kind, p_subject_id: subj, p_question_id: q, p_answer: a });
+
+  // 1. Selections.
+  const s0 = await mine();
+  check(s0?.editable === true && Array.isArray(s0.takes) && s0.takes.length === 0, 'accepted member: editable, no starters yet');
+  check((await save(M.c)).data?.ok === true, 'selections saved (activities, book, film, artist)');
+
+  // 2. Three different starters, each its own row; validation.
+  const t1 = (await take(M.c, null, 'activity', 'running', 'activity_favourite_part', 'A slow seaside run, then coffee.')).data;
+  const t2 = (await take(M.c, null, 'book', BOOK.id, 'book_why', 'Still the most unsettling ending.')).data;
+  const t3 = (await take(M.c, null, 'artist', ARTIST.id, 'artist_first_song', 'Kuzu Kuzu, obviously.')).data;
+  check([t1, t2, t3].every((r) => r?.ok) && new Set([t1, t2, t3].map((r) => r.take.id)).size === 3 && [t1, t2, t3].map((r) => r.take.position).join() === '1,2,3',
+    'three starters added: three ids, positions 1–3 (adding never overwrites)');
   const bad = [
-    (await save(M.c, { p_interests: [] })).data,
-    (await save(M.c, { p_activities: ['running', 'walking', 'cycling', 'hiking', 'swimming', 'gym'] })).data,
-    (await save(M.c, { p_activities: ['skydiving'] })).data,
-    (await save(M.c, { p_books: [BOOK_1984, BOOK_1984] })).data,
-    (await save(M.c, { p_books: [{ ...BOOK_1984, hack: 1 }] })).data,
+    (await take(M.c, null, 'activity', 'cooking', 'activity_favourite_part', 'fourth')).data?.error,
+    (await take(M.c, null, 'activity', 'running', 'activity_favourite_part', 'again')).data?.error,
+    (await take(M.c, t2.take.id, 'activity', 'running', 'activity_favourite_part', 'steal')).data?.error,
+    (await take(M.c, null, 'activity', 'hiking', 'activity_favourite_part', 'x')).data?.error,
+    (await take(M.c, t1.take.id, 'activity', 'running', 'activity_favourite_part', 'a'.repeat(181))).data?.error,
   ];
-  check(bad.map((b) => b?.error).join() === 'invalid_interests,invalid_activities,invalid_activities,invalid_taste,invalid_taste', 'invalid selections refused');
-  check((await M.c.rpc('get_my_interests_v2')).data.activities.join() === 'running,cooking', 'refused saves wrote nothing');
+  check(bad.join() === 'limit_reached,subject_taken,subject_taken,subject_not_selected,invalid_answer', '4th refused; same subject refused (add or change); unselected / 181 chars refused');
+  check((await rows()).length === 3, 'still exactly three rows');
 
-  // 3. Take: validation, then save.
-  const take = (c, kind, id, q, a) => c.rpc('save_take_v2', { p_subject_kind: kind, p_subject_id: id, p_question_id: q, p_answer: a });
-  const t0 = [
-    (await take(M.c, 'activity', 'hiking', 'activity_favourite_part', 'x')).data?.error,
-    (await take(M.c, 'activity', 'running', 'book_why', 'x')).data?.error,
-    (await take(M.c, 'activity', 'running', 'activity_favourite_part', 'a'.repeat(181))).data?.error,
-    (await take(M.c, 'activity', 'running', 'activity_favourite_part', '   ')).data?.error,
-    (await take(M.c, 'book', 'ol:work:NOT-MINE', 'book_why', 'x')).data?.error,
-  ];
-  check(t0.join() === 'subject_not_selected,invalid_question,invalid_answer,invalid_answer,subject_not_selected', 'take refused: unselected subject, wrong question, 181 chars, blank');
-  const t1 = (await take(M.c, 'activity', 'running', 'activity_favourite_part', 'A slow seaside run, then finding a good coffee.')).data;
-  check(t1?.ok === true && t1.take.subject_title === 'Running' && t1.take.answer.startsWith('A slow seaside'), 'take saved (title from the server, not the client)');
-  const t180 = (await take(M.c, 'activity', 'running', 'activity_favourite_part', 'ç'.repeat(180))).data;
-  check(t180?.ok === true && t180.take.id === t1.take.id, '180 characters accepted (Turkish letters), same subject → same id');
-  const t2 = (await take(M.c, 'activity', 'running', 'activity_perfect_day', 'Sahil boyunca yavaş bir koşu.')).data;
-  check(t2?.ok === true && t2.take.id === t1.take.id && t2.take.question_id === 'activity_perfect_day', 'edit (question + answer): same id');
-
-  // 4. Fresh sessions read the current take; others see it via get_profile_v2.
-  const M2 = await signIn(mail('m'));
-  const r1 = (await M2.c.rpc('get_my_interests_v2')).data;
-  check(r1.take?.answer === 'Sahil boyunca yavaş bir koşu.' && r1.take.id === t1.take.id, 'new session: current take from the server');
+  // 3. New session reads them in order; the viewer sees them in the same order.
+  const r1 = await mine((await signIn(mail('m'))).c);
+  check(r1.takes.map((t) => t.subject_id).join() === `running,${BOOK.id},${ARTIST.id}` && r1.takes.map((t) => t.position).join() === '1,2,3', 'new session: three starters, stable order');
   const pv = (await V.c.rpc('get_profile_v2', { p_user: M.uid })).data;
-  check(pv?.take?.answer === 'Sahil boyunca yavaş bir koşu.' && pv.take.subject_title === 'Running' && !('id' in pv.take) && pv.activities.join() === 'running,cooking',
-    'eligible viewer sees the take + activities (no internal id)');
+  check(pv?.takes?.length === 3 && pv.takes.map((t) => t.subject_title).join() === 'Running,1984,Tarkan' && !('id' in pv.takes[0]) && !('take' in pv), 'viewer: three starters in order, no internal id');
 
-  // 5. Change subject: new row / id; the old answer is not carried over.
-  const t3 = (await take(M.c, 'book', BOOK_1984.id, 'book_why', 'Still the most unsettling ending I have read.')).data;
-  check(t3?.ok === true && t3.take.id !== t1.take.id && t3.take.subject_title === '1984' && t3.take.answer.startsWith('Still'), 'new subject → new take id, only the answer sent');
-  check(((await admin.from('profile_takes_v2').select('id').eq('user_id', M.uid)).data ?? []).length === 1, 'still exactly one take per user');
+  // 4. Edit one → same id; the others untouched.
+  const pre = (await rows()).map(snapRow);
+  const e2 = (await take(M.c, t2.take.id, 'book', BOOK.id, 'book_stayed', 'The last page.')).data;
+  const post = (await rows()).map(snapRow);
+  check(e2?.ok && e2.take.id === t2.take.id && e2.take.position === 2 && post[0] === pre[0] && post[2] === pre[2] && post[1] !== pre[1], 'edit one: same id + position, others unchanged');
 
-  // 6. Removing the take's subject: refused without confirmation, atomic with it.
+  // 5. Change one's subject → new id, same position, only the sent text; others untouched.
+  const c1 = (await take(M.c, t1.take.id, 'activity', 'cooking', 'activity_perfect_day', 'Slow Sunday menemen.')).data;
+  const post2 = (await rows()).map(snapRow);
+  check(c1?.ok && c1.take.id !== t1.take.id && c1.take.position === 1 && c1.take.answer === 'Slow Sunday menemen.' && post2[1] === post[1] && post2[2] === post[2],
+    'change subject: new id in the same position, old text not carried, others unchanged');
+
+  // 6. Delete one → others untouched; a new one fills the free position.
+  const pre3 = (await rows()).map(snapRow);
+  const del = (await M.c.rpc('delete_take_v2', { p_take_id: t3.take.id })).data;
+  const post3 = (await rows()).map(snapRow);
+  check(del?.ok === true && post3.length === 2 && post3[0] === pre3[0] && post3[1] === pre3[1] && (await mine()).artists.length === 1, 'delete one: others and the artist stay');
+  const t4 = (await take(M.c, null, 'screen', FILM.id, 'screen_scene', 'The docking scene.')).data;
+  check(t4?.ok && t4.take.position === 3, 'new starter takes the free position 3');
+
+  // 7. Removing ONE subject: refused until confirmed; then only that starter goes.
+  const pre4 = (await rows()).map(snapRow);
   const noConfirm = (await save(M.c, { p_books: [] })).data;
-  const after1 = (await M.c.rpc('get_my_interests_v2')).data;
-  check(noConfirm?.ok === false && noConfirm.error === 'take_subject_removed' && noConfirm.take?.subject_title === '1984'
-    && after1.books.length === 1 && after1.take?.id === t3.take.id, 'remove subject, cancelled/unconfirmed → both kept');
-  const confirm = (await save(M.c, { p_books: [] }, true)).data;
-  check(confirm?.ok === true && confirm.take_removed === true && confirm.books.length === 0 && confirm.take === null, 'confirmed → subject and take removed together');
-  const other = (await save(M.c, { p_activities: ['cooking'] })).data;
-  check(other?.ok === true && other.take_removed === false, 'removing something unrelated never needs confirmation');
+  check(noConfirm?.ok === false && noConfirm.error === 'take_subject_removed' && noConfirm.takes?.length === 1 && noConfirm.takes[0].subject_title === '1984'
+    && JSON.stringify((await rows()).map(snapRow)) === JSON.stringify(pre4) && (await mine()).books.length === 1, 'remove book, unconfirmed / cancelled → book + all starters kept');
+  const conf = (await save(M.c, { p_books: [] }, true)).data;
+  const post4 = (await rows()).map(snapRow);
+  check(conf?.ok === true && conf.takes_removed === 1 && conf.books.length === 0 && post4.length === 2 && post4[0] === pre4[0] && post4[1] === pre4[2],
+    'confirmed → book and ONLY its starter removed together; the other two kept');
 
-  // 7. Delete the take alone: selection stays.
-  await take(M.c, 'activity', 'cooking', 'activity_favourite_part', 'Slow Sunday menemen.');
-  const del = (await M.c.rpc('delete_take_v2')).data;
-  const after2 = (await M.c.rpc('get_my_interests_v2')).data;
-  check(del?.ok === true && del.deleted === true && after2.take === null && after2.activities.join() === 'cooking', 'delete take alone → activity kept');
-  check((await V.c.rpc('get_profile_v2', { p_user: M.uid })).data?.take === null, 'viewer: no take → none (no empty card data)');
-
-  // 8. Concurrency: parallel take saves + a confirmed subject removal stay consistent.
-  await save(M.c, { p_activities: ['cooking', 'running'] });
-  const burst = await Promise.all([
-    rpcHttp(tokM, 'save_take_v2', { p_subject_kind: 'activity', p_subject_id: 'running', p_question_id: 'activity_favourite_part', p_answer: 'one' }),
-    rpcHttp(tokM, 'save_take_v2', { p_subject_kind: 'activity', p_subject_id: 'cooking', p_question_id: 'activity_favourite_part', p_answer: 'two' }),
-    rpcHttp(tokM, 'save_interests_v2', { p_interests: ['travel'], p_activities: ['cooking'], p_artists: [], p_books: [], p_screen: [], p_remove_take: true }),
-    rpcHttp(tokM, 'save_take_v2', { p_subject_kind: 'activity', p_subject_id: 'running', p_question_id: 'activity_perfect_day', p_answer: 'three' }),
+  // 8. Concurrency: limits hold under parallel requests.
+  await save(M.c, { p_books: [BOOK] });
+  const race = await Promise.all([
+    rpcHttp(tokM, 'save_take_v2', { p_take_id: null, p_subject_kind: 'book', p_subject_id: BOOK.id, p_question_id: 'book_why', p_answer: 'a' }),
+    rpcHttp(tokM, 'save_take_v2', { p_take_id: null, p_subject_kind: 'artist', p_subject_id: ARTIST.id, p_question_id: 'artist_when', p_answer: 'b' }),
+    rpcHttp(tokM, 'save_take_v2', { p_take_id: null, p_subject_kind: 'activity', p_subject_id: 'running', p_question_id: 'activity_favourite_part', p_answer: 'c' }),
+    rpcHttp(tokM, 'save_take_v2', { p_take_id: null, p_subject_kind: 'book', p_subject_id: BOOK.id, p_question_id: 'book_stayed', p_answer: 'd' }),
   ]);
-  const fin = (await M.c.rpc('get_my_interests_v2')).data;
-  const rows = (await admin.from('profile_takes_v2').select('subject_id').eq('user_id', M.uid)).data ?? [];
-  check(burst.every((b) => b.status === 200) && rows.length <= 1 && (!fin.take || fin.activities.includes(fin.take.subject_id)),
-    'parallel saves: at most one take, always tied to a saved selection');
+  const after8 = await rows();
+  check(race.every((r) => r.status === 200) && race.filter((r) => r.json?.ok).length === 1 && after8.length === 3
+    && new Set(after8.map((t) => `${t.subject_kind}:${t.subject_id}`)).size === 3 && new Set(after8.map((t) => t.position)).size === 3,
+    '4 parallel adds with 1 free slot → exactly one added; never 4, never a duplicate subject or position');
+  await M.c.rpc('delete_take_v2', { p_take_id: after8[2].id });
+  const same = await Promise.all([1, 2, 3].map(() =>
+    rpcHttp(tokM, 'save_take_v2', { p_take_id: null, p_subject_kind: 'activity', p_subject_id: 'running', p_question_id: 'activity_favourite_part', p_answer: 'same' })));
+  check(same.filter((r) => r.json?.ok).length <= 1 && (await rows()).filter((t) => t.subject_id === 'running').length <= 1, 'parallel adds for the same subject → at most one');
 
   // 9. Authorization.
-  await take(M.c, 'activity', 'cooking', 'activity_favourite_part', 'Menemen, no onions.');
-  const mTake = (await admin.from('profile_takes_v2').select('*').eq('user_id', M.uid).single()).data;
-  const xIns = await X.c.from('profile_takes_v2').insert({ user_id: M.uid, subject_kind: 'activity', subject_id: 'cooking', subject_title: 'Cooking', question_id: 'activity_favourite_part', answer: 'hijack' });
+  const mRows = (await rows()).map(snapRow);
+  const target = (await rows())[0];
+  // X selects the SAME subject, so the request reaches the ownership check.
+  await save(X.c, { p_books: [BOOK] });
+  const xDel = (await X.c.rpc('delete_take_v2', { p_take_id: target.id })).data;
+  const xEdit = (await take(X.c, target.id, target.subject_kind, target.subject_id, target.question_id, 'hijack')).data;
+  const xIns = await X.c.from('profile_takes_v2').insert({ user_id: M.uid, position: 3, subject_kind: 'activity', subject_id: 'gym', subject_title: 'Gym', question_id: 'activity_favourite_part', answer: 'hijack' });
   const xUpd = await X.c.from('profile_takes_v2').update({ answer: 'hijack' }).eq('user_id', M.uid).select('id');
-  const xDel = await X.c.from('profile_takes_v2').delete().eq('user_id', M.uid).select('id');
   const xSel = (await X.c.from('profile_takes_v2').select('id').eq('user_id', M.uid)).data ?? [];
   const xOnb = await X.c.from('onboarding_v2').update({ activities: ['gym'] }).eq('user_id', M.uid).select('user_id');
-  const mNow = (await admin.from('profile_takes_v2').select('*').eq('user_id', M.uid).single()).data;
-  check(!!xIns.error && (!!xUpd.error || (xUpd.data ?? []).length === 0) && (!!xDel.error || (xDel.data ?? []).length === 0) && xSel.length === 0
-    && (!!xOnb.error || (xOnb.data ?? []).length === 0) && mNow.answer === mTake.answer && mNow.id === mTake.id,
-    'third account: cannot insert / update / delete / read M’s take or change M’s selections');
-  const xOwn = (await take(X.c, 'activity', 'cooking', 'activity_favourite_part', 'mine')).data;
-  check(xOwn?.ok === false && xOwn.error === 'subject_not_selected' && (await admin.from('profile_takes_v2').select('answer').eq('user_id', M.uid).single()).data.answer === mTake.answer,
-    'third account’s own save never reaches M (and needs its own selection)');
+  check(xDel?.error === 'not_found' && xEdit?.error === 'not_found' && !!xIns.error && (!!xUpd.error || (xUpd.data ?? []).length === 0) && xSel.length === 0
+    && (!!xOnb.error || (xOnb.data ?? []).length === 0) && JSON.stringify((await rows()).map(snapRow)) === JSON.stringify(mRows),
+    'third account: cannot delete / edit / insert / read M’s starters or change M’s selections');
   const mDirect = await M.c.from('profile_takes_v2').update({ answer: 'direct' }).eq('user_id', M.uid).select('id');
   check(!!mDirect.error || (mDirect.data ?? []).length === 0, 'even the owner cannot bypass the server operations');
-  const anon = await rpcHttp(null, 'save_take_v2', { p_subject_kind: 'activity', p_subject_id: 'cooking', p_question_id: 'activity_favourite_part', p_answer: 'x' });
+  const anon = await rpcHttp(null, 'delete_take_v2', { p_take_id: target.id });
   check(anon.status === 401, `signed out → refused (HTTP ${anon.status})`);
-  const dTake = await D.c.rpc('save_take_v2', { p_subject_kind: 'activity', p_subject_id: 'cooking', p_question_id: 'activity_favourite_part', p_answer: 'x' });
-  const dSave = await D.c.rpc('save_interests_v2', { p_interests: ['travel'], p_activities: [], p_artists: [], p_books: [], p_screen: [], p_remove_take: false });
-  check(!!dTake.error && !!dSave.error && (await D.c.rpc('get_my_interests_v2')).data?.editable === false, 'draft applicant: not editable through these operations');
+  const dTake = await D.c.rpc('save_take_v2', { p_take_id: null, p_subject_kind: 'activity', p_subject_id: 'running', p_question_id: 'activity_favourite_part', p_answer: 'x' });
+  check(!!dTake.error && (await D.c.rpc('get_my_interests_v2')).data?.editable === false, 'draft applicant: refused');
 
-  // 10. Visibility: blocked viewer sees nothing.
+  // 10. Visibility: blocked viewer sees nothing; no starters → empty list.
   await M.c.from('blocks').insert({ blocker_id: M.uid, blocked_id: Y.uid });
-  check((await Y.c.rpc('get_profile_v2', { p_user: M.uid })).data === null, 'blocked viewer: no profile, no take');
+  check((await Y.c.rpc('get_profile_v2', { p_user: M.uid })).data === null, 'blocked viewer: no profile, no starters');
+  check(((await X.c.rpc('get_profile_v2', { p_user: X.uid })).data?.takes ?? null)?.length === 0, 'no starters → empty list (nothing to show)');
 
-  // 11. Nothing else changed; the general lock is intact.
+  // 11. Nothing else changed; the general lock is intact; others' takes untouched.
   const after = await snap();
   check(JSON.stringify(after.prompts) === JSON.stringify(before.prompts), 'standard prompts unchanged (same ids, slots, answers)');
   check(JSON.stringify(after.state) === JSON.stringify(before.state) && JSON.stringify(after.basics) === JSON.stringify(before.basics), 'application state and other answers unchanged');
   const locked = await M.c.rpc('save_onboarding_v2', { p_section: 'yourWorld', p_data: { interests: ['gym'] } });
   const lockedPrompts = await M.c.rpc('save_prompts_v2', { p_prompts: [] });
   check(/application_locked/.test(locked.error?.message ?? '') && /application_locked/.test(lockedPrompts.error?.message ?? ''), 'general onboarding / prompt lock still refuses accepted members');
+  const othersNow = ((await admin.from('profile_takes_v2').select('*').neq('user_id', M.uid)).data ?? []).map(snapRow).sort();
+  check(others0.every((r) => othersNow.includes(r)), `earlier members’ starters (${others0.length}) untouched`);
 
   console.log(`smoke_takes_local (local Supabase, real services): ${passed}/${passed + failed} passed`);
   process.exit(failed ? 1 : 0);

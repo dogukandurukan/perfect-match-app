@@ -1,5 +1,102 @@
 # V2 Interests & conversation starter — first package — result
 
+# Round 2 (2026-10-15): up to three conversation starters, simpler "Your interests"
+
+From `0ddcef8`. Decisions **D94–D97**; D93 (the onboarding rule) is unchanged and still not built.
+
+**Not done:**
+- Nothing on the shared remote project; no merge or deploy.
+- No reset or bulk delete; the real-e-mail local auth user was not touched.
+- Onboarding / submission rules, D81, ranking, AI, chat suggestions and likes on starters are out of scope.
+
+## Owner's phone test of round 1 (verified by the owner on LOCAL, 2026-10-15)
+- The personal answer was **kept after fully closing and reopening the app**.
+- Removing the linked **book** → **Cancel**: the book and the answer were both kept.
+- Removing it → **confirm**: the book and its answer were removed together.
+
+**Not yet tried on the phone:** the other account seeing the profile card (round 1, §4 step 6).
+
+## Server — `supabase/proposed/20261015090000_v2_takes_multi.sql`
+Applied to tempa-local in one transaction (local migration `…022`; in `setup.mjs`; not in `apply-dev.mjs`).
+
+**Before / after fingerprints identical** for:
+- profile prompts (ids included), likes, matches, messages, account states and onboarding answers;
+- **all existing starters (2 rows: id, content, created / updated time)**, which now have position 1.
+
+| Change | |
+|---|---|
+| One-per-user unique constraint dropped | → `position` 1–3 (check) + unique `(user, position)` + unique `(user, kind, subject)` |
+| `save_take_v2(p_take_id, kind, subject, question, answer)` | `p_take_id` null = add (refused with `subject_taken` or `limit_reached`; never overwrites). An own id = edit (same subject → same id) or change (new id in the **same position**, only the sent text). Another member's id → `not_found`. Runs under the per-user row lock, so the limits hold for parallel requests. |
+| `delete_take_v2(p_take_id)` | Deletes that one starter only (own only). |
+| `save_interests_v2` | Unconfirmed: lists the starters whose subject would go and writes nothing. Confirmed: removes **only those** starters together with the selection change. |
+| `get_my_interests_v2` / `get_profile_v2` | Return `takes` (0–3, by position) instead of `take`. The visibility rule is unchanged. |
+| Question keys and answers | Unchanged. |
+
+## App
+- **`app/v2/edit-interests.tsx` — "Your interests":**
+  - "Conversation starters" with an "n of 3" counter;
+  - compact cards (Edit / Change / Remove); "Add a conversation starter" only below three;
+  - the subject list opens only while adding or changing, and offers only subjects without a starter;
+  - one editor at a time; switching never drops typed text silently.
+  - Below it: Interests, Activities, Artists, Books, Movies & series — one heading each, no repeated labels, no catalog notes.
+  - Saves are server-first: a failure keeps the draft, and after a save the starters are re-read from the server.
+- **`components/onboarding-v2/yourWorld/Typeahead.tsx`:** a search failure now shows **Try again** next to the short error (also in onboarding). It also takes an opt-in `hideLabel`.
+- **`components/interests/TakeCard.tsx` → `TakesSection`:** one compact section of 0–3 rows. Answers are in regular body text (16 pt DM Sans), not a large serif. Nothing is shown when the list is empty. Used by the own profile and the full V2 profile (Discover / Matches / Activity / chat → profile).
+- **Profile entry:** the button now reads **"Your interests"**.
+
+## Question keys and texts (for review — only Running's wording changed)
+| Kind | Key | Text shown |
+|---|---|---|
+| Activity | `activity_favourite_part` | What’s your favourite part? |
+| Activity | `activity_perfect_day` | What does a perfect one look like? — **for Running: "What does your ideal run look like?"** (same key, same meaning) |
+| Book | `book_why` | Why this book? |
+| Book | `book_stayed` | What stayed with you? |
+| Film & series | `screen_why` | Why this one? |
+| Film & series | `screen_scene` | A scene you’d watch again? |
+| Music | `artist_first_song` | Which song should someone start with? |
+| Music | `artist_when` | When do you listen to them most? |
+
+## Tests
+**`smoke_takes_local.mjs` (real local services): 25 / 25, 2 runs.** Fresh synthetic accounts each run.
+- three starters → three ids, positions 1–3;
+- refused: a 4th, a second starter on the same subject (both adding and changing), an unselected subject, 181 characters;
+- a new session reads all three in order; the viewer sees them in the same order, with no internal id;
+- editing keeps the id and position, and the others are byte-identical;
+- changing the subject gives a new id in the same position, with no carry-over and the others unchanged;
+- deleting one leaves the others and the artist untouched, and a new one fills the free position;
+- removing the book: unconfirmed keeps everything; confirmed removes the book and **only** its starter;
+- **4 parallel adds with one free slot → exactly one**, with no duplicate subject or position; parallel adds for the same subject → at most one;
+- the third account can't delete, edit, insert or read M's starters or change M's selections (it had selected the same subject, so the ownership check was really reached);
+- the owner can't bypass the operations; signed out → 401; the draft applicant is refused;
+- the blocked viewer sees nothing; no starters → an empty list;
+- unchanged: prompts, application state and the general lock; **earlier members' starters untouched**.
+
+**Regression:**
+- `v2_interests_takes` **43/43**; `run.js` all suites pass (Activity real 36, Activity preview 51, Discover 85/30, Matches 45/23, public profile 6).
+- `p0-checks` all pass; `tsc` clean; the iOS bundle builds with the LOCAL config.
+- `smoke_matches_local` 18/18.
+- `smoke_activity_local` **39/40**: the known Realtime check ("A receives it over Realtime") timed out again. Investigation, **not solved**:
+  - the replication slots were active with no lag, and `public.messages` is in the publication;
+  - a live subscription registers in `realtime.subscription` (role `authenticated`, the receiver filter);
+  - a targeted A/B (5 inserts immediately after `SUBSCRIBED`, 5 after a 1.5 s wait) delivered **10/10**, so the "insert too early" hypothesis has **no support**;
+  - an earlier 0/13 result came from a bug in my own probe script (it awaited the message before sending it) and was discarded.
+
+  The cause is still unknown. Intermittent: 2 of ~10 runs since the test fix. The probes added 26 test messages inside one synthetic run pair (not deleted).
+
+## Phone test (two accounts) — not done yet
+1. `scripts/local-backend/start-app.sh tempa-activity-p1-receiver@tempa-test.example.com` → DEV · Test account sign-in.
+2. Profile → **Your interests**. Under Activities select **Running** and **Cooking**; add a book → **Save interests**.
+3. Add three starters (Running, Cooking, the book). The counter reads **3 of 3** and Add disappears. Edit one; change another's subject (its text starts empty; Cancel keeps the old one); remove one.
+4. Deselect the book → Save → **Cancel** (all kept), then **Remove** (only the book's starter goes). Close and reopen: everything is as saved.
+5. Profile → **View profile**: one compact "Conversation starters" section.
+6. `start-app.sh tempa-activity-p1-defne@tempa-test.example.com`, sign in → chat with Mert → header → **View profile**: the same section, in the same order, with no "You both".
+
+**Not tried on the phone:** everything in this round, plus the round 1 other-account step.
+
+---
+
+# Round 1 (2026-10-14)
+
 Date 2026-10-14 · Folder `~/tempa-p0` · Branch `tempa/v2-persist-r2` (from `a8ecb23`) · Author: Claude Code. Decisions **D87–D93** in `docs/tempa/DECISIONS.md`.
 
 **Not done:**

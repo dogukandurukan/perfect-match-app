@@ -34,6 +34,7 @@ const PACKAGES = [
   '20261009090000_v2_matches_daily_picks.sql',
   '20261012090000_v2_activity_accept.sql',
   '20261014090000_v2_interests_takes.sql',
+  '20261015090000_v2_takes_multi.sql',
 ];
 
 const fail = (m) => {

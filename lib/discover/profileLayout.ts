@@ -61,8 +61,8 @@ export type DiscoverItem =
   | { type: 'groups'; groups: PreviewGroup[] }
   | { type: 'taste'; groups: PreviewTaste[] }
   | { type: 'firstDate'; facts: PreviewFact[] }
-  /** Conversation starter (read-only for now — no heart / comment). */
-  | { type: 'take'; take: PublicTake };
+  /** Conversation starters, 0–3 (read-only for now — no heart / comment). */
+  | { type: 'takes'; takes: PublicTake[] };
 
 /** District when shared, otherwise the city. Never coordinates. */
 export function heroLocation(p: Pick<DiscoverPerson, 'district' | 'city'>): string | null {
@@ -112,7 +112,7 @@ export function buildDiscoverLayout(p: DiscoverPerson): DiscoverItem[] {
   const photo = (i: number): DiscoverItem | null => (i < p.photoCount ? { type: 'photo', photoIndex: i, target: photoTarget(p, i) } : null);
 
   const lookingFor = allGroups.filter((g) => g.title === 'Looking for' || g.title === 'What matters most');
-  const takeBlock = shared.find((b) => b.type === 'take');
+  const takesBlock = shared.find((b) => b.type === 'takes');
   const interestsLife: PreviewGroup[] = [
     ...allGroups.filter((g) => g.title === 'Into' || g.title === 'Activities'),
     ...(lifestyle && lifestyle.type === 'facts' ? [{ title: 'Lifestyle', items: lifestyle.facts }] : []),
@@ -121,7 +121,7 @@ export function buildDiscoverLayout(p: DiscoverPerson): DiscoverItem[] {
 
   const head: (DiscoverItem | null)[] = [
     { type: 'hero', photoIndex: 0, target: photoTarget(p, 0), name: p.name, age: p.age, location: heroLocation(p) },
-    takeBlock && takeBlock.type === 'take' ? { type: 'take', take: takeBlock.take } : null,
+    takesBlock && takesBlock.type === 'takes' ? { type: 'takes', takes: takesBlock.takes } : null,
     prompts[0] ?? null,
     details.length ? { type: 'details', facts: details } : null,
     photo(1),
