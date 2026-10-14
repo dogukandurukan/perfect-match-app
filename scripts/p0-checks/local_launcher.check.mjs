@@ -41,5 +41,11 @@ check(/\[auth\.email\.template\.magic_link\][\s\S]{0,120}content_path = "\.\/sup
   && /\[auth\.email\.template\.confirmation\][\s\S]{0,120}content_path = "\.\/supabase\/templates\/confirmation\.html"/.test(cfg), 'local Auth: sign-in + new-user email templates configured');
 const tpl = ['magic_link', 'confirmation'].map((n) => fs.readFileSync(new URL(`../../local-backend/supabase/templates/${n}.html`, import.meta.url), 'utf8'));
 check(tpl.every((t) => /\{\{ \.Token \}\}/.test(t) && !/ConfirmationURL|TokenHash/.test(t)), 'local Auth templates show the code ({{ .Token }}), no link');
+// Local reviewer tool: local guards, existing server operation only.
+const rv = fs.readFileSync(new URL('../local-backend/review.mjs', import.meta.url), 'utf8');
+check(/from '\.\/_local\.mjs'/.test(rv) && !/dev-backend|test-backend|TEMPA_TARGET/.test(rv) && /admin\.rpc\('review_application_v2'/.test(rv)
+  && !/from\('account_state_v2'\)\.(update|insert|upsert|delete)/.test(rv) && !/\.(update|insert|upsert|delete)\(/.test(rv), 'reviewer: _local guards, decisions only via review_application_v2, no direct writes');
+check(/const yes = args\.includes\('--yes'\)/.test(rv) && /if \(!yes\)/.test(rv) && /yourProfile\.selfie DELETES the current verification selfie/.test(rv)
+  && /os\.homedir\(\), 'tempa-review'/.test(rv) && /mode: 0o600/.test(rv) && !/serviceKey|anonKey/.test(rv), 'reviewer: dry run without --yes, selfie warning, HTML outside the repo (600), no keys written');
 console.log(`local launcher: ${passed}/${passed + failed} passed`);
 process.exit(failed ? 1 : 0);

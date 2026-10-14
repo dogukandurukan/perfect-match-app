@@ -18,7 +18,9 @@ export function fail(m) {
 }
 
 export function loadLocalEnv() {
-  const f = path.join(repo, '.env.local-backend.local');
+  // TEMPA_LOCAL_ENV_FILE: tests only (guard checks); the same refusals apply
+  // to whatever it points at.
+  const f = process.env.TEMPA_LOCAL_ENV_FILE || path.join(repo, '.env.local-backend.local');
   if (!fs.existsSync(f)) fail('missing .env.local-backend.local — run: node scripts/local-backend/setup.mjs');
   const env = Object.fromEntries(
     fs.readFileSync(f, 'utf8').split('\n').map((l) => /^([A-Z_]+)=(.*)$/.exec(l.trim())).filter(Boolean).map((m) => [m[1], m[2]]),
