@@ -71,7 +71,7 @@ Applied to tempa-local in one transaction (local migration `…023`; in `setup.m
 - `tsc` clean; the iOS bundle builds with the LOCAL config.
 
 ## Phone (new onboarding) — not tried yet
-1. On the signed-out screen use **TEST · Join with new onboarding**, with a new synthetic e-mail. The badge must read LOCAL.
+1. Run `scripts/local-backend/start-app.sh`. On the signed-out screen use **LOCAL · Join with new onboarding** with a new synthetic address (e.g. `tempa-onb-phone-1@tempa-test.example.com`). The 6-digit code arrives in the local mailbox: open http://127.0.0.1:55424 on the Mac. The badge must read LOCAL.
 2. "What are you into?": pick interests, plus e.g. **Running** under Activities. In "Books & movies" add one book.
 3. "A little more you": answer **one** prompt, then add a conversation starter about Running. The second prompt card reads "Optional" and Continue is enabled.
 4. Go back to Your World, remove Running → Continue: the question appears. Cancel keeps it; Remove deletes only that starter, and step 3 needs a second prompt or a new starter again.
