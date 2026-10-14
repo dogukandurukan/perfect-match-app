@@ -34,5 +34,12 @@ check(/export TEMPA_BACKEND=local/.test(sh) && /unset TEMPA_TEST_SUPABASE_URL TE
 check(/10\.\*\|192\.168\.\*\|172\.1\[6-9\]/.test(sh) && /exit 2/.test(sh), 'launcher: private LAN address required, otherwise stops');
 const env = fs.readFileSync(new URL('../local-backend/_local.mjs', import.meta.url), 'utf8');
 check(/LOCAL_SUPABASE_URL !== 'http:\/\/127\.0\.0\.1:55421'/.test(env), 'local test scripts accept only http://127.0.0.1:55421');
+// Email sign-in uses a 6-digit CODE (app/v2/welcome.tsx): the local Auth
+// templates must contain {{ .Token }} (the defaults only have a link).
+const cfg = fs.readFileSync(new URL('../../local-backend/supabase/config.toml', import.meta.url), 'utf8');
+check(/\[auth\.email\.template\.magic_link\][\s\S]{0,120}content_path = "\.\/supabase\/templates\/magic_link\.html"/.test(cfg)
+  && /\[auth\.email\.template\.confirmation\][\s\S]{0,120}content_path = "\.\/supabase\/templates\/confirmation\.html"/.test(cfg), 'local Auth: sign-in + new-user email templates configured');
+const tpl = ['magic_link', 'confirmation'].map((n) => fs.readFileSync(new URL(`../../local-backend/supabase/templates/${n}.html`, import.meta.url), 'utf8'));
+check(tpl.every((t) => /\{\{ \.Token \}\}/.test(t) && !/ConfirmationURL|TokenHash/.test(t)), 'local Auth templates show the code ({{ .Token }}), no link');
 console.log(`local launcher: ${passed}/${passed + failed} passed`);
 process.exit(failed ? 1 : 0);

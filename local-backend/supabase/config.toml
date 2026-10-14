@@ -247,6 +247,17 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# tempa-local: the app signs in with a 6-digit email CODE (signInWithOtp +
+# verifyOtp type 'email'). The default templates only contain a link, so the
+# code ({{ .Token }}) must be in both the sign-in and the new-user email.
+[auth.email.template.magic_link]
+subject = "Your Tempa sign-in code"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.confirmation]
+subject = "Your Tempa sign-in code"
+content_path = "./supabase/templates/confirmation.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"

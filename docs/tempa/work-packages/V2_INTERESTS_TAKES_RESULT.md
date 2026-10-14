@@ -1,5 +1,55 @@
 # V2 Interests & conversation starter — first package — result
 
+# Round 5 (2026-10-15): local email sign-in code (unblocks the D93 phone test)
+
+**Blocker reported by the owner:**
+- "LOCAL · Join with new onboarding" with `tempa-onb-phone-1@tempa-test.example.com` waited for a 6-digit code.
+- The local mailbox only received "Your sign-in link" (`/auth/v1/verify?…&type=magiclink` → `127.0.0.1:3000`).
+
+**Cause (verified):**
+- The app signs in with a **code**: `app/v2/welcome.tsx` uses `signInWithOtp` and then `verifyOtp({ type: 'email' })`.
+- The local Supabase had **no email templates configured** (`local-backend/supabase/config.toml`). The built-in default contains only the link, never `{{ .Token }}`.
+- The mailbox text was checked with digits and the token masked: it contains the link only, no code.
+- The same requirement was already documented for the separate cloud test project ("Magic Link: include `{{ .Token }}`"), but had never been applied to the local setup.
+
+**Fix (in the repo; nothing applied only to a running container):**
+- `local-backend/supabase/templates/magic_link.html` and `confirmation.html` (new): "Your Tempa sign-in code" with `{{ .Token }}`, no link. The sign-in and new-user emails both carry the code.
+- `local-backend/supabase/config.toml`: `[auth.email.template.magic_link]` and `[auth.email.template.confirmation]` point at them.
+- **Auth verification is not bypassed:** no fixed code, no test shortcut.
+- **Restart:** only the `tempa-local` project was stopped and started (the CLI reads templates at start; `terapi-yerel` was untouched).
+  - The database started from its existing volume, with **no reset**.
+  - A dated backup was taken first: `~/tempa-backups/2026-10-15-before-auth-templates/` (DB dump + Storage files, outside the repo).
+  - Fingerprints of prompts, likes, matches, messages, account states, onboarding answers, starters, auth users (140) and Storage objects (520) were **identical before and after**.
+  - Local keys are unchanged (the app's anon key still works).
+
+**Checks:**
+- **`scripts/local-backend/check_email_otp_local.mjs` (new; real local Auth + mailbox; code never printed): 9 / 9, 2 runs.**
+  - New user: the code is requested with the app's own call; the email has a 6-digit code and no link; `verifyOtp` type `email` signs in; the session reaches onboarding (draft).
+  - The **used code is refused**.
+  - Existing user: a fresh code arrives and signs in; a **wrong code is refused**.
+- `local_launcher` 10/10 (+2: templates configured; both show `{{ .Token }}` with no link); all `p0-checks` pass; `onboarding-v2-checks/run.js` all pass.
+- `smoke_onboarding_takes_local` 18/18 after the restart.
+
+**The phone test address:**
+- `tempa-onb-phone-1` exists in local Auth: confirmed, and signed in once, apparently by opening the old link in the Mac browser.
+- It has **no application, answers or starters**.
+- It can be used as is: the existing-user code path is verified. A new address works the same way.
+
+## Phone status (as reported by the owner)
+**Verified by the owner:**
+- Three personal answers are kept after fully closing and reopening the app.
+- They appear with the right content and order on the own profile and, from the other account, on Mert's profile.
+- Chat header → profile → back works.
+
+**Not yet verified:**
+- The new look of the keyboard fix from `38b3fa2`.
+- The **whole new onboarding flow**: it stopped at the email-code step, which this round fixes.
+- That the older Mert message was seen on Defne's account: the last "Hi" screenshot can't establish it.
+- The **root cause of the intermittent Realtime timeout**: still open.
+
+---
+
+
 # Round 4 (2026-10-16): D93 in onboarding — 2 standard answers OR 1 + a conversation starter
 
 Separate commit from round 3. Decisions **D98–D100**.

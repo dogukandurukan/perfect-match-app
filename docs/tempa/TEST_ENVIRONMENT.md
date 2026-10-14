@@ -18,6 +18,7 @@ The owner chose **not** to create a paid cloud test project. Tempa's tests run o
 | 6 | `node scripts/local-backend/prepare-activity.mjs [--set p2]` | phone accounts for Activity (receiver + 3 likers, receiver premium in local data); re-runnable, never touches other accounts |
 | 7 | `node scripts/local-backend/smoke_takes_local.mjs` | Your interests + 0–3 conversation starters on real services (fresh synthetic accounts): narrow member-only saves, 3-limit / one-per-subject incl. parallel requests, starter ↔ selection consistency (confirm / cancel / atomic, only dependent starters), third account / draft / signed-out refused, visibility, prompts and application state unchanged |
 | 8 | `node scripts/local-backend/smoke_onboarding_takes_local.mjs` | D93 on real services (fresh synthetic applicants): 2 standard answers or 1 + a starter submit; 1 alone / starters alone refused; applicant writes own starters while editable; subject removal confirm + recomputed completeness; changes requested, rejected, suspended, other accounts, signed out |
+| 9 | `node scripts/local-backend/check_email_otp_local.mjs` | email sign-in **code** like the app (new + existing user, used / wrong code refused), read from the local mailbox; the code is never printed |
 | — | `scripts/local-backend/start-app.sh [synthetic email]` | as step 4, signed-in account selectable (only `@tempa-test.example.com`) |
 | — | `node scripts/local-backend/setup.mjs --stop` | stops only `tempa-local` |
 
@@ -26,6 +27,7 @@ The owner chose **not** to create a paid cloud test project. Tempa's tests run o
 - The app's `TEMPA_BACKEND=local` accepts only loopback / private LAN addresses and a non-live anon key, otherwise it refuses to start.
 - A production build stays pinned to live.
 - Checks: `scripts/p0-checks/backend_config.check.mjs`, `scripts/p0-checks/local_launcher.check.mjs`.
+- **Email sign-in code (2026-10-15):** the app signs in with a 6-digit code (`signInWithOtp` + `verifyOtp` type `email`). The local Auth uses `local-backend/supabase/templates/magic_link.html` + `confirmation.html` (both show `{{ .Token }}`, no link; set in `config.toml`). The email arrives in the local mailbox at **http://127.0.0.1:55424** (Mac), subject "Your Tempa sign-in code". Template changes need a restart of this project only (`npx supabase@2.120.0 stop/start --workdir local-backend`, data kept in the volumes — never `db reset`).
 - **New packages are applied to the running local DB directly** (one transaction, `docker exec supabase_db_tempa-local psql`), never with `setup.mjs` (which resets). 2026-10-12: `20261012090000_v2_activity_accept.sql` 2026-10-14: `20261014090000_v2_interests_takes.sql` 2026-10-15: `20261015090000_v2_takes_multi.sql` and 2026-10-16: `20261016090000_v2_onboarding_takes.sql` applied this way; existing local data kept (fingerprints of prompts, likes, matches, messages and account states identical before / after). A later `setup.mjs` includes it automatically.
 
 ## B. Separate Supabase cloud test project (not used — kept for reference)
