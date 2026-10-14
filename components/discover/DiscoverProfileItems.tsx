@@ -8,6 +8,7 @@ import { Image, type ImageSource } from 'expo-image';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
+import { TakeCard } from '@/components/interests/TakeCard';
 import { COMMENT_MAX, type DiscoverItem, type DiscoverPerson, type LabelledFact } from '@/lib/discover/profileLayout';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewFact, PreviewGroup, PreviewTaste } from '@/lib/onboardingV2/yourProfile';
@@ -66,6 +67,9 @@ export function DiscoverProfileItems({ items, h }: { items: DiscoverItem[]; h: I
             return <Taste key="taste" groups={it.groups} />;
           case 'firstDate':
             return <FirstDate key="firstDate" facts={it.facts} />;
+          case 'take':
+            // Read-only conversation starter (no heart / comment yet).
+            return <TakeCard key="take" take={it.take} style={styles.takeCard} />;
           default:
             return null;
         }
@@ -399,6 +403,7 @@ const styles = StyleSheet.create({
   heartOnCard: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: obColors.border, backgroundColor: 'transparent' },
   disabled: { opacity: 0.4 },
   photoEditorWrap: { paddingHorizontal: obSpacing.md, paddingTop: obSpacing.md },
+  takeCard: { marginHorizontal: obSpacing.md, marginVertical: obSpacing.sm },
   promptCard: {
     marginHorizontal: obSpacing.md,
     marginVertical: obSpacing.sm,

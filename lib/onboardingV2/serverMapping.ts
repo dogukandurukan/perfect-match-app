@@ -7,7 +7,7 @@ import type { CompatDraft } from './compatibility';
 import type { FlowPos, SectionId } from './previewFlow';
 import type { DatesDraft, DaysKey, TimeKey } from './yourDates';
 import type { LifeDraft } from './yourLife';
-import type { LocalPhoto, PromptAnswer, PublicProfileInput } from './yourProfile';
+import type { LocalPhoto, PromptAnswer, PublicProfileInput, PublicTake } from './yourProfile';
 import type { TasteItem, WorldDraft } from './yourWorld';
 
 export type ServerDraft = {
@@ -305,7 +305,20 @@ export type ServerPublicProfile = {
   time_pref: string | null;
   prompts: { slot: number; prompt_id: string; answer: string }[] | null;
   photo_paths: string[] | null;
+  /** 20261014090000_v2_interests_takes (older servers: absent). */
+  activities?: string[] | null;
+  take?: { subject_kind: string; subject_id: string; subject_title: string; question_id: string; answer: string } | null;
 };
+
+const TAKE_KINDS = ['activity', 'book', 'screen', 'artist'];
+
+/** Server take → profile input; unknown kind / empty answer → none. (No
+ * runtime imports in this file: the question text is resolved — and an
+ * unknown question dropped — by buildPublicProfileBlocks.) */
+export function publicTakeFromServer(t: ServerPublicProfile['take']): PublicTake | null {
+  if (!t || !t.answer?.trim() || !TAKE_KINDS.includes(t.subject_kind) || !t.subject_title?.trim()) return null;
+  return { kind: t.subject_kind as PublicTake['kind'], subjectTitle: t.subject_title.trim(), questionId: t.question_id, answer: t.answer.trim() };
+}
 
 /** Server public profile + signed photo URLs → the shared preview input. Photos
  * that could not be signed are dropped (never shown as a broken slot). */
@@ -334,5 +347,7 @@ export function publicProfileFromServer(p: ServerPublicProfile, signed: Map<stri
     screen: p.screen ?? [],
     prompts: [...(p.prompts ?? [])].sort((a, b) => a.slot - b.slot).map((r) => ({ promptId: r.prompt_id, answer: r.answer })),
     photos,
+    activities: p.activities ?? [],
+    take: publicTakeFromServer(p.take ?? null),
   };
 }

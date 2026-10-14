@@ -11,6 +11,7 @@ import { HAVE_PETS, type LifeDraft } from '@/lib/onboardingV2/yourLife';
 import { INTERESTS, WORK_OPTIONS, type TasteItem, type WorldDraft } from '@/lib/onboardingV2/yourWorld';
 import { getZodiacFromDate } from '@/lib/zodiac';
 import { promptById } from '@/lib/onboardingV2/promptCatalog';
+import { ACTIVITIES, takeQuestionText, type TakeKind } from '@/lib/interests/takes';
 
 // P07 R1: the separate "Ready to submit?" checklist state was removed; the
 // email-code screen shows "Email confirmed" + Submit application instead.
@@ -376,7 +377,12 @@ export type PreviewBlock =
   | { type: 'facts'; title?: string; facts: PreviewFact[] }
   | { type: 'groups'; groups: PreviewGroup[] }
   | { type: 'prompt'; label: string; answer: string }
-  | { type: 'taste'; groups: PreviewTaste[] };
+  | { type: 'taste'; groups: PreviewTaste[] }
+  /** The member's conversation starter (D87–D93); no like / comment yet. */
+  | { type: 'take'; take: PublicTake };
+
+/** A conversation starter as shown on a profile (from get_profile_v2). */
+export type PublicTake = { kind: TakeKind; subjectTitle: string; questionId: string; answer: string };
 
 // Display phrasing for the preview (P07 R1). Keys stay the approved ones;
 // these strings are proposed profile copy, not new answers.
@@ -426,6 +432,10 @@ export type PublicProfileInput = {
   screen: TasteItem[];
   prompts: { promptId: PromptId; answer: string }[];
   photos: LocalPhoto[];
+  /** Concrete activities (keys of lib/interests/takes ACTIVITIES); optional. */
+  activities?: string[];
+  /** Conversation starter; absent / null → nothing is shown to others. */
+  take?: PublicTake | null;
 };
 
 /**
@@ -500,10 +510,17 @@ export function buildPublicProfileBlocks(p: PublicProfileInput): PreviewBlock[] 
       return it ? { icon: it.icon, text: it.label } : null;
     }),
   );
+  const activities: PreviewFact[] = nonEmpty<PreviewFact>(
+    (p.activities ?? []).map((k) => {
+      const a = ACTIVITIES.find((x) => x.key === k);
+      return a ? { icon: a.icon, text: a.label } : null;
+    }),
+  );
   const chipGroups: PreviewGroup[] = nonEmpty<PreviewGroup>([
     intent && { title: 'Looking for', items: [{ icon: 'heart-outline', text: intent }] },
     values.length > 0 && { title: 'What matters most', items: values },
     interests.length > 0 && { title: 'Into', items: interests },
+    activities.length > 0 && { title: 'Activities', items: activities },
   ]);
 
   // Lifestyle
@@ -552,6 +569,8 @@ export function buildPublicProfileBlocks(p: PublicProfileInput): PreviewBlock[] 
   const blocks: PreviewBlock[] = photos[0]
     ? [{ type: 'hero', photo: photos[0], name, age }]
     : [{ type: 'header', name, age }];
+  // The conversation starter sits right under the main photo.
+  if (p.take && p.take.answer.trim() && takeQuestionText(p.take.questionId)) blocks.push({ type: 'take', take: p.take });
   // Rhythm: info → prompt → photo, repeated; leftovers keep their order.
   const rest = photos.slice(1);
   const n = Math.max(sections.length, prompts.length, rest.length);

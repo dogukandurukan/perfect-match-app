@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { AddTakeCard } from '@/components/interests/TakeCard';
 import { ProfilePreview } from '@/components/onboarding-v2/yourProfile/ProfilePreview';
 import { loadPublicProfile } from '@/lib/onboardingV2/remote';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
@@ -18,7 +19,10 @@ type State =
   | { kind: 'unavailable' }
   | { kind: 'ready'; blocks: PreviewBlock[] };
 
-export function PublicProfileView({ userId }: { userId: string }) {
+/** `onAddTake` (own profile only): shows "Add a conversation starter" under
+ * the main photo when there is none. `refreshKey` reloads from the server
+ * (e.g. when the screen regains focus after editing). */
+export function PublicProfileView({ userId, onAddTake, refreshKey = 0 }: { userId: string; onAddTake?: () => void; refreshKey?: number }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
   const load = useCallback(async () => {
@@ -42,7 +46,7 @@ export function PublicProfileView({ userId }: { userId: string }) {
     return () => {
       live = false;
     };
-  }, [userId]);
+  }, [userId, refreshKey]);
 
   if (state.kind === 'loading') {
     return (
@@ -74,13 +78,22 @@ export function PublicProfileView({ userId }: { userId: string }) {
   }
   return (
     <View style={styles.wrap}>
-      <ProfilePreview blocks={state.blocks} />
+      {onAddTake && !state.blocks.some((b) => b.type === 'take') ? (
+        <>
+          <ProfilePreview blocks={state.blocks.slice(0, 1)} />
+          <AddTakeCard onPress={onAddTake} style={styles.addTake} />
+          <ProfilePreview blocks={state.blocks.slice(1)} />
+        </>
+      ) : (
+        <ProfilePreview blocks={state.blocks} />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: obSpacing.gutter, paddingTop: obSpacing.sm },
+  addTake: { marginVertical: obSpacing.md },
   center: { alignItems: 'center', justifyContent: 'center', gap: obSpacing.md, paddingVertical: 48, paddingHorizontal: obSpacing.gutter },
   text: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary, textAlign: 'center' },
   link: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.cta, textDecorationLine: 'underline' },

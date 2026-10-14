@@ -2,8 +2,10 @@
 // counts, and two actions. No completion percentage (the old one read V1
 // columns and showed an approved profile as 25%). "View profile" opens the
 // approved V2 profile view (get_profile_v2 — exactly what others see).
-// Editing after approval is not decided yet (the server locks answers once an
-// application is sent), so "Edit profile" never routes to the V1 editor.
+// Editing after approval: only "Interests & conversation starter" (D87–D93,
+// narrow server operations); everything else stays locked (the server locks
+// answers once an application is sent), so "Edit profile" never routes to the
+// V1 editor.
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -113,11 +115,14 @@ export function V2ProfileHome() {
       <View style={styles.actions}>
         <OnboardingPrimaryButton
           label="View profile"
-          onPress={() => router.push(`/v2/profile?userId=${data.userId}` as never)}
+          onPress={() => router.push(`/v2/profile?userId=${data.userId}&own=1` as never)}
         />
+        {/* The only editing after approval (D87–D93): interests, activities,
+            books / movies / artists and the conversation starter. */}
+        <OnboardingPrimaryButton label="Interests & conversation starter" variant="outline" onPress={() => router.push('/v2/edit-interests' as never)} />
         <OnboardingPrimaryButton label="Edit profile" variant="outline" disabled onPress={() => {}} />
         <Text style={styles.caption} maxFontSizeMultiplier={1.6}>
-          Editing after approval isn&apos;t available yet.
+          Other profile details can&apos;t be edited after approval yet.
         </Text>
       </View>
 

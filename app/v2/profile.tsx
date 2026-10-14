@@ -1,7 +1,8 @@
 // A V2 member's full public profile (approved preview design), reached from
 // the Profile tab ("View profile"). Same data path as Home: get_profile_v2.
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,7 +12,18 @@ import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 export default function V2ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { userId } = useLocalSearchParams<{ userId?: string }>();
+  const { userId, own } = useLocalSearchParams<{ userId?: string; own?: string }>();
+  const isOwn = own === '1';
+  // Fresh server read whenever the screen regains focus (e.g. after editing
+  // the conversation starter) — the first focus is the initial load.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) firstFocus.current = false;
+      else setRefreshKey((n) => n + 1);
+    }, []),
+  );
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -24,7 +36,13 @@ export default function V2ProfileScreen() {
         <View style={styles.back} />
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + obSpacing.xl }}>
-        {userId ? <PublicProfileView userId={String(userId)} /> : null}
+        {userId ? (
+          <PublicProfileView
+            userId={String(userId)}
+            refreshKey={refreshKey}
+            onAddTake={isOwn ? () => router.push('/v2/edit-interests' as never) : undefined}
+          />
+        ) : null}
       </ScrollView>
     </View>
   );

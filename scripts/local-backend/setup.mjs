@@ -7,7 +7,7 @@
 //   node scripts/local-backend/setup.mjs --stop   # stop this project's containers only
 //
 // Schema = the sanitized live-schema snapshot (no data, no webhook, no keys)
-// + every package in the live order + the proposed Matches and Activity packages. NO real
+// + every package in the live order + the proposed Matches, Activity and Interests packages. NO real
 // user data is copied. Writes .env.local-backend.local (git-ignored) with the
 // LOCAL URL and keys only; refuses anything that isn't this machine.
 import fs from 'node:fs';
@@ -33,6 +33,7 @@ const PACKAGES = [
   '20261008090000_v2_discover_targeted_likes.sql',
   '20261009090000_v2_matches_daily_picks.sql',
   '20261012090000_v2_activity_accept.sql',
+  '20261014090000_v2_interests_takes.sql',
 ];
 
 const fail = (m) => {
