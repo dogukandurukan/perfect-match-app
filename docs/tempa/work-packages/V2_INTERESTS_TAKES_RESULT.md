@@ -1,5 +1,46 @@
 # V2 Interests & conversation starter — first package — result
 
+# Round 3 (2026-10-15): owner's phone results + chat keyboard layout fix
+
+## Verified on the phone by the owner — 14 October 2026 (LOCAL, synthetic accounts; recorded as reported)
+- Three personal answers are **kept after fully closing and reopening the app**.
+- On the **own profile**, the three answers appear **in the correct order**.
+- From the **other account, via Activity**, Mert's profile shows **the same three answers**, including the **updated "Test2" answer**.
+- **Chat header → profile → back to the same chat** works.
+
+**Not confirmed by this test (no claim made):**
+- **Message delivery:** the "Hi" in the last screenshot looks like a message **Defne sent**. That an older Mert message was received or read on Defne's side is **not** established from it.
+- The known **Activity smoke Realtime timeout** is still open and not solved.
+
+## Chat keyboard layout (`app/chat.tsx`)
+- **Problem (owner screenshot IMG_6473):** with the keyboard open, the "Quick this-or-that" panel covered the empty chat's "Say hello to Mert".
+  - The screenshot file was not available on this machine. The analysis is from the code.
+- **Cause found in code:**
+  - The quiz panel was a fixed-height sibling **between** the message list and the input row, inside the `KeyboardAvoidingView`.
+  - When the keyboard shrinks the space, the fixed panel and input keep their size. The list (`flex: 1`) gets squeezed below its content: the "How it started" card plus the hello block with `paddingTop: 60`.
+  - The empty-chat content can then end up under the panel.
+- **Fix (layout only; quiz behaviour unchanged):**
+  - The panel is now the list's **footer**, so the "How it started" card, the hello and the quiz scroll together. Only the input row stays pinned above the keyboard (its bottom padding is unchanged: `12` with the keyboard up, otherwise safe area + 12).
+  - On keyboard show and on content size change the list scrolls to its end, so the last message or the quiz stays visible, including after a send.
+  - `keyboardShouldPersistTaps="handled"` and interactive dismiss are on.
+  - Where no list is shown (load error), the panel renders as before.
+  - The header → profile → back path is untouched.
+- **Checks:**
+  - `v2_activity_real` 38/38 (+2 layout source checks);
+  - `onboarding-v2-checks/run.js` all pass; `p0-checks` all pass; `tsc` clean;
+  - the iOS dev bundle builds with the LOCAL config.
+- **Not verified on a device:** the actual rendering with the keyboard open (no phone here).
+
+**Phone checklist (chat):**
+1. Open a new match's empty chat. "How it started", "Say hello to …" and the quiz should be readable without overlap.
+2. Tap the input. The keyboard opens, the input sits right above it with no extra gap, and the content above scrolls; nothing covers the hello.
+3. Answer the quiz (both options) with the keyboard closed and open: same behaviour as before.
+4. Send a message. It appears at the bottom and stays visible; with the keyboard closed there is no gap under the input.
+5. Header → profile → back: the same chat, with the draft and position intact.
+
+---
+
+
 # Round 2 (2026-10-15): up to three conversation starters, simpler "Your interests"
 
 From `0ddcef8`. Decisions **D94–D97**; D93 (the onboarding rule) is unchanged and still not built.

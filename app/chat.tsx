@@ -137,7 +137,11 @@ export default function ChatScreen() {
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvt, () => setKeyboardShown(true));
+    const showSub = Keyboard.addListener(showEvt, () => {
+      setKeyboardShown(true);
+      // The list just got shorter: keep its end (last message / quiz) visible.
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
+    });
     const hideSub = Keyboard.addListener(hideEvt, () => setKeyboardShown(false));
     return () => {
       showSub.remove();
@@ -862,6 +866,63 @@ export default function ChatScreen() {
         : 'proposed_by_them';
   const headerInitial = (userName.trim()[0] ?? '?').toUpperCase();
 
+  // Quick this-or-that / saved icebreaker (empty chat only). Rendered INSIDE
+  // the scrolling list (as its footer) so it scrolls with the header and the
+  // empty-chat hello and can never cover them when the keyboard shrinks the
+  // space; only the input row stays pinned above the keyboard. Behaviour of
+  // the quiz itself is unchanged.
+  const icebreakerPanel = showIcebreakers && savedIcebreaker ? (
+          <View style={styles.iceWrap}>
+            <ThemedText style={styles.iceTitle}>Your icebreaker ✨</ThemedText>
+            <TouchableOpacity
+              style={styles.iceSavedChip}
+              onPress={handleUseSavedIcebreaker}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Use my icebreaker opener">
+              <ThemedText style={styles.iceChipText} numberOfLines={2}>
+                {buildQuickIcebreakerLine(savedIcebreaker)}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        ) : showIcebreakers && currentIceQuestion ? (
+          <View style={styles.iceWrap}>
+            <ThemedText style={styles.iceTitle}>
+              Quick this-or-that ✨ ({iceStep + 1}/{iceQuestions.length})
+            </ThemedText>
+            <View style={styles.iceQuizRow}>
+              <TouchableOpacity
+                style={styles.iceQuizOption}
+                onPress={() => handleQuickPick('A')}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={currentIceQuestion.optionA.label}>
+                <ThemedText style={styles.iceQuizEmoji}>
+                  {currentIceQuestion.optionA.emoji}
+                </ThemedText>
+                <ThemedText style={styles.iceQuizLabel}>
+                  {currentIceQuestion.optionA.label}
+                </ThemedText>
+              </TouchableOpacity>
+              <ThemedText style={styles.iceQuizOr}>or</ThemedText>
+              <TouchableOpacity
+                style={styles.iceQuizOption}
+                onPress={() => handleQuickPick('B')}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={currentIceQuestion.optionB.label}>
+                <ThemedText style={styles.iceQuizEmoji}>
+                  {currentIceQuestion.optionB.emoji}
+                </ThemedText>
+                <ThemedText style={styles.iceQuizLabel}>
+                  {currentIceQuestion.optionB.label}
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null;
+  const listShown = !gateError && !chatLoading && !inputLocked && !(messagesError && messages.length === 0);
+
   return (
     <>
     <ScreenContainer style={[styles.container, { paddingBottom: 0 }]}>
@@ -934,6 +995,12 @@ export default function ChatScreen() {
             // V2: likes (which photo / answer + note) as "How it started"
             // context, never messages (D79). Empty V2 chat: the approved hello.
             ListHeaderComponent={v2Enabled ? <LikeContextHeader likes={chatState?.likes} otherName={userName} title={MATCH_COPY.howItStarted} /> : null}
+            ListFooterComponent={icebreakerPanel}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            // Keeps the newest message (or the quiz in an empty chat) in view
+            // when content grows or the keyboard shrinks the list.
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             ListEmptyComponent={
               v2Enabled ? (
                 <View style={styles.emptyWrap}>
@@ -949,56 +1016,7 @@ export default function ChatScreen() {
           />
         )}
 
-        {showIcebreakers && savedIcebreaker ? (
-          <View style={styles.iceWrap}>
-            <ThemedText style={styles.iceTitle}>Your icebreaker ✨</ThemedText>
-            <TouchableOpacity
-              style={styles.iceSavedChip}
-              onPress={handleUseSavedIcebreaker}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Use my icebreaker opener">
-              <ThemedText style={styles.iceChipText} numberOfLines={2}>
-                {buildQuickIcebreakerLine(savedIcebreaker)}
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
-        ) : showIcebreakers && currentIceQuestion ? (
-          <View style={styles.iceWrap}>
-            <ThemedText style={styles.iceTitle}>
-              Quick this-or-that ✨ ({iceStep + 1}/{iceQuestions.length})
-            </ThemedText>
-            <View style={styles.iceQuizRow}>
-              <TouchableOpacity
-                style={styles.iceQuizOption}
-                onPress={() => handleQuickPick('A')}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={currentIceQuestion.optionA.label}>
-                <ThemedText style={styles.iceQuizEmoji}>
-                  {currentIceQuestion.optionA.emoji}
-                </ThemedText>
-                <ThemedText style={styles.iceQuizLabel}>
-                  {currentIceQuestion.optionA.label}
-                </ThemedText>
-              </TouchableOpacity>
-              <ThemedText style={styles.iceQuizOr}>or</ThemedText>
-              <TouchableOpacity
-                style={styles.iceQuizOption}
-                onPress={() => handleQuickPick('B')}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={currentIceQuestion.optionB.label}>
-                <ThemedText style={styles.iceQuizEmoji}>
-                  {currentIceQuestion.optionB.emoji}
-                </ThemedText>
-                <ThemedText style={styles.iceQuizLabel}>
-                  {currentIceQuestion.optionB.label}
-                </ThemedText>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : null}
+        {!listShown ? icebreakerPanel : null}
 
         {meetupUiEnabled && meetupState === 'none' ? (
           <TouchableOpacity

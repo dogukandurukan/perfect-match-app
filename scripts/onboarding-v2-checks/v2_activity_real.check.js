@@ -77,6 +77,13 @@ ok(/matchAvatar: \{ width: 44, height: 44/.test(items) && /minHeight: 61/.test(i
 ok(/`Conversation started · \$\{timeAgoLong\(mins\)\}` : timeAgoLong\(mins\)/.test(scr), 'time: "3m ago" and "Conversation started · 3m ago"');
 ok(C.timeAgoLong(3) === '3m ago' && `Conversation started · ${C.timeAgoLong(3)}` === 'Conversation started · 3m ago', 'time strings');
 
+// Chat keyboard layout (2026-10-15): the quiz scrolls with the content; only
+// the input row is pinned above the keyboard.
+const chatSrc = read('app/chat.tsx');
+ok(/ListFooterComponent=\{icebreakerPanel\}/.test(chatSrc) && /\{!listShown \? icebreakerPanel : null\}/.test(chatSrc)
+  && (chatSrc.match(/Quick this-or-that ✨/g) || []).length === 1, 'chat: quiz is part of the scrolling list (no fixed panel over the hello)');
+ok(/setKeyboardShown\(true\);[\s\S]{0,160}scrollToEnd/.test(chatSrc) && /onContentSizeChange=\{\(\) => flatListRef\.current\?\.scrollToEnd/.test(chatSrc), 'chat: keeps the end (last message / quiz) in view on keyboard + new content');
+
 // Package wiring.
 ok(!/20261012090000_v2_activity_accept/.test(read('scripts/dev-backend/apply-dev.mjs')), 'Activity package not wired into apply-dev (shared project)');
 ok(/20261012090000_v2_activity_accept\.sql/.test(read('scripts/local-backend/setup.mjs')), 'Activity package in the LOCAL setup');
