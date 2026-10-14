@@ -52,7 +52,19 @@ type Sheet =
 
 type EditorDraft = { promptId: string; text: string; saved: string };
 
-export function PromptsFields({ prompts, updatePrompts, requiredCount = REQUIRED_PROMPTS }: Props & { requiredCount?: number }) {
+/** `starterCount` (D93 servers only): the member's saved conversation
+ * starters. Then two prompts OR one prompt + one starter are enough — the
+ * second card is "Optional" once a starter exists, and the counter counts a
+ * starter as one answer (only next to at least one prompt). Without it the
+ * screen is exactly the old one (two required prompts). */
+export function PromptsFields({
+  prompts,
+  updatePrompts,
+  requiredCount: requiredProp,
+  starterCount,
+}: Props & { requiredCount?: number; starterCount?: number }) {
+  const d93 = starterCount !== undefined;
+  const requiredCount = d93 ? ((starterCount ?? 0) > 0 ? 1 : 2) : (requiredProp ?? REQUIRED_PROMPTS);
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [draft, setDraft] = useState<EditorDraft | null>(null);
@@ -63,6 +75,8 @@ export function PromptsFields({ prompts, updatePrompts, requiredCount = REQUIRED
 
   // D93: with a saved conversation starter, one standard answer is enough.
   const answered = prompts.slice(0, requiredCount).filter(answerFilled).length;
+  const filledAll = prompts.filter(answerFilled).length;
+  const d93Have = Math.min(filledAll, 2) + (filledAll === 1 && (starterCount ?? 0) > 0 ? 1 : 0);
 
   const openSlot = (slot: number) => {
     const a = prompts[slot];
@@ -148,7 +162,7 @@ export function PromptsFields({ prompts, updatePrompts, requiredCount = REQUIRED
                   Choose a prompt
                 </Text>
                 <Text style={styles.meta} maxFontSizeMultiplier={1.6}>
-                  {optional ? 'Optional' : 'Required'}
+                  {optional ? 'Optional' : d93 && i === 1 ? 'Or a conversation starter' : 'Required'}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -190,7 +204,7 @@ export function PromptsFields({ prompts, updatePrompts, requiredCount = REQUIRED
         );
       })}
       <Text style={styles.meta} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
-        {answered} of {requiredCount} required answered
+        {d93 ? `${d93Have} of 2 answers` : `${answered} of ${requiredCount} required answered`}
       </Text>
 
       <Modal visible={!!sheet} animationType="slide" onRequestClose={sheet?.mode === 'editor' ? cancelEditor : close}>

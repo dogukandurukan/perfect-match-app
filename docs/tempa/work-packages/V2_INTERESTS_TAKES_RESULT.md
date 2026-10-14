@@ -1,5 +1,55 @@
 # V2 Interests & conversation starter — first package — result
 
+# Round 6 (2026-10-15): D93 copy + a separate draft applicant for the phone test
+
+## Owner's phone result (LOCAL, reported by the owner)
+- **Verified:**
+  - sign-in with the code from the local mailbox works;
+  - the new onboarding was completed up to **"Application received"**;
+  - the **Running** conversation starter appeared in the profile preview.
+- **Not verified in that run:**
+  - all three standard prompts were filled, so the **"one standard + one conversation starter" path is not yet verified on the phone**;
+  - close / reopen and removing the linked interest (Cancel / Remove) are also not verified.
+
+## Copy (D93 servers only; older servers keep the old screen exactly)
+- **Helper** of "A little more you": **"Answer two prompts, or one prompt and one conversation starter."**
+  - `PreviewFlow.tsx`: `D93_PROMPTS_HELPER`, shown only when the server supports starters.
+  - `PROFILE_SCREENS` keeps "Pick 2 prompts. Add a third if you like." for the others.
+- The **long repeated note** above the starters editor ("Prefer one prompt? …") was removed.
+- **`PromptsFields` (`starterCount`, D93 only):**
+  - Counter: **"n of 2 answers"**. A starter counts as one answer only next to at least one prompt, so starters alone show 0.
+  - The second card reads **"Or a conversation starter"** while there is no starter, and **"Optional"** once one is saved (it can then be removed).
+  - Without `starterCount`: the old "Required" labels and the "n of 2 required answered" counter.
+
+## Separate synthetic draft applicant (tempa-local)
+`node scripts/local-backend/prepare-onboarding-draft.mjs` (re-runnable; `--set 2` for another).
+- **Account:** `tempa-onb-draft-1@tempa-test.example.com`, "Deniz", İstanbul, filled through the normal V2 path.
+- **Filled:** basics, compatibility, your life, your world (+ **Running**), your dates; 3 synthetic photos and a selfie; consent; email confirmed.
+- **Left empty:** **no standard answers and no starters; not submitted.**
+- **Resume position:** "A little more you". It is set with `save_onboarding_v2`'s normal resume fields, which the app uses after every Continue; no bypass.
+- The server says only `yourProfile.prompts` is missing.
+- **Safety:** it touches only `tempa-onb-draft-<set>`. An account that already has answers or was submitted is reported and left unchanged. The owner's phone account `tempa-onb-phone-1` was not touched.
+
+## Checks
+- `v2_interests_takes` 57/57 (+2: D93 helper only on supporting servers; counter / labels); `run.js` all pass.
+- `p0-checks` all pass; `tsc` clean; the iOS bundle builds with the LOCAL config and contains the new copy.
+- `smoke_onboarding_takes_local` 18/18; `check_email_otp_local` 9/9.
+
+## Next phone test (not done)
+1. `scripts/local-backend/start-app.sh`. On the phone, if you are signed in, sign out.
+2. **LOCAL · Join with new onboarding** → `tempa-onb-draft-1@tempa-test.example.com` → the code from **http://127.0.0.1:55424** (the newest email, "Your Tempa sign-in code").
+3. The app opens at **"A little more you"**:
+   - answer **one** prompt and add a conversation starter about **Running**;
+   - the second card reads "Optional", the counter reads "2 of 2 answers", and Continue is enabled.
+4. **Close and reopen:** sign in again if asked. The prompt and the starter are back.
+5. **Back to Your World** (Back through the steps):
+   - deselect Running → Continue → **Cancel**: both are kept;
+   - again → **Remove**: the starter is gone, and "A little more you" needs a second prompt or a new starter.
+6. Add a valid answer again → continue to the end → **Submit** → "You're on the list!".
+
+---
+
+
 # Round 5 (2026-10-15): local email sign-in code (unblocks the D93 phone test)
 
 **Blocker reported by the owner:**

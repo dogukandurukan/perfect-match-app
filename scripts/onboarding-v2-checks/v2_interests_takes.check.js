@@ -107,8 +107,15 @@ ok(!('activities' in M.worldToServer(w0)) && M.worldToServer(w0, true).activitie
 const pf = code('components/onboarding-v2/PreviewFlow.tsx');
 ok(/worldToServer\(world, takesSupported\)/.test(pf) && /saveWorldSection\(data, resume, false\)/.test(pf) && /confirmRemoveStarters\(w\.confirm\)/.test(pf) && /saveWorldSection\(data, resume, true\)/.test(pf) && /refreshStarters\(\)/.test(pf),
   'onboarding Your World: removing a starter’s subject asks; Cancel keeps both; then starters reload');
-ok(/takesSupported && starters &&[\s\S]{0,1500}<TakesEditor/.test(pf) && /requiredCount=\{\(profile\.takes \?\? \[\]\)\.length > 0 \? 1 : undefined\}/.test(pf) && /takesSupported && \([\s\S]{0,40}<ActivitiesField/.test(pf), 'onboarding: starters editor + activities only when supported; one required prompt with a starter');
+ok(/takesSupported && starters &&[\s\S]{0,1500}<TakesEditor/.test(pf) && /starterCount=\{takesSupported \? \(profile\.takes \?\? \[\]\)\.length : undefined\}/.test(pf) && /takesSupported && \([\s\S]{0,40}<ActivitiesField/.test(pf), 'onboarding: starters editor + activities only when supported; one required prompt with a starter');
 ok(/confirm_remove_takes: true/.test(read('lib/onboardingV2/remote.ts')) && /take_subject_removed/.test(read('lib/onboardingV2/remote.ts')), 'remote: Your World save recognises the confirmation request');
+// D93 copy (2026-10-15): one rule line; old servers keep the old helper.
+ok(/D93_PROMPTS_HELPER = 'Answer two prompts, or one prompt and one conversation starter\.'/.test(pf) && /takesSupported && pos\.section === 'yourProfile' && pos\.step === PROFILE_STEP\.prompts\s*\?\s*D93_PROMPTS_HELPER\s*:\s*helperFor\(pos\)/.test(pf)
+  && P.PROFILE_SCREENS[1].helper === 'Pick 2 prompts. Add a third if you like.' && !/Prefer one prompt\?/.test(pf), 'D93 helper only on supporting servers; old helper kept; no repeated long note');
+const pfl = code('components/onboarding-v2/yourProfile/PromptsFields.tsx');
+ok(/const requiredCount = d93 \? \(\(starterCount \?\? 0\) > 0 \? 1 : 2\) : \(requiredProp \?\? REQUIRED_PROMPTS\)/.test(pfl) && /Math\.min\(filledAll, 2\) \+ \(filledAll === 1 && \(starterCount \?\? 0\) > 0 \? 1 : 0\)/.test(pfl)
+  && /d93 \? `\$\{d93Have\} of 2 answers` : `\$\{answered\} of \$\{requiredCount\} required answered`/.test(pfl) && /d93 && i === 1 \? 'Or a conversation starter' : 'Required'/.test(pfl),
+  'D93 counter / labels: a starter counts only next to a prompt; second card Optional once a starter exists; old text otherwise');
 const d93 = read('supabase/proposed/20261016090000_v2_onboarding_takes.sql');
 const d93c = d93.replace(/--.*$/gm, '');
 ok(/>= 2\s*or \(\(select count\(\*\) from profile_prompts_v2 p where p\.user_id = p_uid and btrim\(p\.answer\) <> ''\) >= 1\s*and public\.v2_valid_take_count\(p_uid\) >= 1\)/.test(d93c), 'server: v2_missing_for uses the D93 rule');

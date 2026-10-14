@@ -124,6 +124,9 @@ const BASICS_TITLES: Record<number, string> = {
   6: 'How tall are you?',
 };
 
+/** D93 servers only; others keep PROFILE_SCREENS' "Pick 2 prompts…". */
+export const D93_PROMPTS_HELPER = 'Answer two prompts, or one prompt and one conversation starter.';
+
 function helperFor(pos: FlowPos): string | undefined {
   if (pos.section === 'yourLife') return LIFE_QUESTIONS[pos.step - 1].helper;
   if (pos.section === 'yourWorld') return WORLD_SCREENS[pos.step - 1].helper;
@@ -669,7 +672,13 @@ export function PreviewFlow({ onExit, live }: Props) {
       step={step}
       totalSteps={section.steps}
       title={liveCodeCopy ? liveCodeCopy.title : titleFor(pos)}
-      helper={liveCodeCopy ? liveCodeCopy.helper : helperFor(pos)}
+      helper={
+        liveCodeCopy
+          ? liveCodeCopy.helper
+          : takesSupported && pos.section === 'yourProfile' && pos.step === PROFILE_STEP.prompts
+            ? D93_PROMPTS_HELPER
+            : helperFor(pos)
+      }
       compactTitle={pos.section !== 'basics'}
       reserveTitleBlock={!(inProfile && step === PROFILE_STEP.preview) && !liveCodeCopy}
       hideProgress={inProfile && step === PROFILE_STEP.preview && reviewing}
@@ -748,15 +757,12 @@ export function PreviewFlow({ onExit, live }: Props) {
         />
       )}
       {inProfile && step === PROFILE_STEP.prompts && (
-        <PromptsFields prompts={profile.prompts} updatePrompts={updatePrompts} requiredCount={(profile.takes ?? []).length > 0 ? 1 : undefined} />
+        <PromptsFields prompts={profile.prompts} updatePrompts={updatePrompts} starterCount={takesSupported ? (profile.takes ?? []).length : undefined} />
       )}
       {inProfile && step === PROFILE_STEP.prompts && takesSupported && starters && (
         // D93: one standard answer + one conversation starter is also enough.
         // Same editor and server operations as Profile → Your interests.
         <View style={styles.starters}>
-          <Text style={styles.startersNote} maxFontSizeMultiplier={1.6}>
-            Prefer one prompt? Add a conversation starter about something you picked earlier instead of a second prompt.
-          </Text>
           {startersNotice ? (
             <Text
               style={[styles.startersNote, startersNotice.kind === 'error' && { color: obColors.error }]}
