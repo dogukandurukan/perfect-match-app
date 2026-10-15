@@ -31,6 +31,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useSharedMarks } from '@/lib/interests/useSharedMarks';
 import { DiscoverProfileItems, type EditorState, type ItemHandlers, type SentNoteState } from '@/components/discover/DiscoverProfileItems';
 import { TempaWordmark } from '@/components/onboarding-v2/TempaWordmark';
 import {
@@ -143,6 +144,8 @@ export function V2DiscoverScreen() {
   }, [currentId, reloadProfileKey]);
 
   const person = profile && profile.person.id === currentId ? profile.person : null;
+  // "Both into this" (D101) — exact shared selections, recomputed per card / focus.
+  const shared = useSharedMarks(person);
   const items = useMemo(() => (person ? buildDiscoverLayout(person) : []), [person]);
   const next = useCallback(() => setIndex((i) => i + 1), []);
 
@@ -260,6 +263,7 @@ export function V2DiscoverScreen() {
   const handlers: ItemHandlers | null = person
     ? {
         person,
+        shared,
         photoSource: (i) => (profile?.photoUrls[i] ? { uri: profile.photoUrls[i] } : null),
         heroHeight: Math.max(frameHeight + (liked && showActionBar ? ACTION_BAR_HEIGHT : 0), 360),
         editor,

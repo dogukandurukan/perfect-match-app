@@ -41,6 +41,7 @@ export default function V2ProfileScreen() {
             userId={String(userId)}
             refreshKey={refreshKey}
             onAddTake={isOwn ? () => router.push('/v2/edit-interests' as never) : undefined}
+            markShared={!isOwn}
           />
         ) : null}
       </ScrollView>

@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useSharedMarks } from '@/lib/interests/useSharedMarks';
 import { DiscoverProfileItems, type EditorState, type ItemHandlers, type SentNoteState } from '@/components/discover/DiscoverProfileItems';
 import { useInlineEditorKeyboard } from '@/components/discover/useInlineEditorKeyboard';
 import {
@@ -78,6 +79,7 @@ export default function MatchProfileScreen() {
   }, [id, isPick, reload]);
 
   const person = profile?.person ?? null;
+  const shared = useSharedMarks(person);
   const items = useMemo(() => (person ? buildDiscoverLayout(person) : []), [person]);
 
   // Liking is possible only on today's pick, still in state "new".
@@ -144,6 +146,7 @@ export default function MatchProfileScreen() {
   const h: ItemHandlers | null = person && profile
     ? {
         person,
+        shared,
         photoSource: (i) => (profile.photoUrls[i] ? { uri: profile.photoUrls[i] } : null),
         heroHeight: Math.max(frameHeight, 360),
         editor,

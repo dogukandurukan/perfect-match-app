@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { TakesSection } from '@/components/interests/TakeCard';
+import { SHARED_LABEL, tasteMarkKey } from '@/lib/interests/shared';
 import { COMMENT_MAX, type DiscoverItem, type DiscoverPerson, type LabelledFact } from '@/lib/discover/profileLayout';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewFact, PreviewGroup, PreviewTaste } from '@/lib/onboardingV2/yourProfile';
@@ -47,6 +48,9 @@ export type ItemHandlers = {
   /** Viewing only (e.g. from Activity): no hearts or comment controls.
    * Optional and off by default — Discover never sets it. */
   readOnly?: boolean;
+  /** "Both into this" keys (lib/interests/shared) — another person's profile
+   * only; absent / empty → nothing marked. */
+  shared?: ReadonlySet<string>;
 };
 
 export function DiscoverProfileItems({ items, h }: { items: DiscoverItem[]; h: ItemHandlers }) {
@@ -62,9 +66,9 @@ export function DiscoverProfileItems({ items, h }: { items: DiscoverItem[]; h: I
           case 'details':
             return <Details key="details" facts={it.facts} />;
           case 'groups':
-            return <Groups key={`groups-${it.groups[0]?.title}`} groups={it.groups} />;
+            return <Groups key={`groups-${it.groups[0]?.title}`} groups={it.groups} shared={h.shared} />;
           case 'taste':
-            return <Taste key="taste" groups={it.groups} />;
+            return <Taste key="taste" groups={it.groups} shared={h.shared} />;
           case 'firstDate':
             return <FirstDate key="firstDate" facts={it.facts} />;
           case 'takes':
@@ -309,23 +313,26 @@ function DetailCell({ fact, style }: { fact: LabelledFact; style: object }) {
   );
 }
 
-function FactLine({ fact }: { fact: PreviewFact }) {
+function FactLine({ fact, both = false }: { fact: PreviewFact; both?: boolean }) {
   return (
     <View style={styles.factLine}>
       <FactIcon icon={fact.icon} family={fact.family} />
-      <Text style={styles.factText} maxFontSizeMultiplier={1.6}>{fact.text}</Text>
+      <View style={styles.factTextCol}>
+        <Text style={styles.factText} maxFontSizeMultiplier={1.6}>{fact.text}</Text>
+        {both ? <Text style={styles.both} maxFontSizeMultiplier={1.6}>{SHARED_LABEL}</Text> : null}
+      </View>
     </View>
   );
 }
 
-function Groups({ groups }: { groups: PreviewGroup[] }) {
+function Groups({ groups, shared }: { groups: PreviewGroup[]; shared?: ReadonlySet<string> }) {
   return (
     <View style={styles.sectionStack}>
       {groups.map((g) => (
         <Section key={g.title} title={g.title}>
           <View style={styles.wrapFacts}>
             {g.items.map((f) => (
-              <FactLine key={f.text} fact={f} />
+              <FactLine key={f.text} fact={f} both={!!f.markKey && !!shared?.has(f.markKey)} />
             ))}
           </View>
         </Section>
@@ -337,7 +344,7 @@ function Groups({ groups }: { groups: PreviewGroup[] }) {
 const TASTE_ICON = { artist: 'musical-notes-outline', book: 'book-outline', screen: 'film-outline' } as const;
 
 /** Text-only rows: no artist / film images exist, so no empty image boxes. */
-function Taste({ groups }: { groups: PreviewTaste[] }) {
+function Taste({ groups, shared }: { groups: PreviewTaste[]; shared?: ReadonlySet<string> }) {
   return (
     <View style={styles.sectionStack}>
       {groups.map((g) => (
@@ -348,6 +355,7 @@ function Taste({ groups }: { groups: PreviewTaste[] }) {
               <View style={styles.detailText}>
                 <Text style={styles.detailValue} maxFontSizeMultiplier={1.6}>{it.title}</Text>
                 {it.subtitle ? <Text style={styles.tasteSub} maxFontSizeMultiplier={1.6}>{it.subtitle}</Text> : null}
+                {shared?.has(tasteMarkKey(it) ?? '') ? <Text style={styles.both} maxFontSizeMultiplier={1.6}>{SHARED_LABEL}</Text> : null}
               </View>
             </View>
           ))}
@@ -465,6 +473,9 @@ const styles = StyleSheet.create({
   detailValue: { fontFamily: obFonts.bodyMedium, fontSize: 17, lineHeight: 23, color: obColors.textPrimary },
   wrapFacts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: obSpacing.lg, rowGap: obSpacing.sm },
   factLine: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.sm, maxWidth: '100%' },
+  factTextCol: { flexShrink: 1 },
+  // "Both into this": small, secondary, no badge.
+  both: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 17, color: obColors.textSecondary },
   factText: { flexShrink: 1, fontFamily: obFonts.bodyMedium, fontSize: 17, lineHeight: 23, color: obColors.textPrimary },
   tasteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: obSpacing.sm },
   tasteSub: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },

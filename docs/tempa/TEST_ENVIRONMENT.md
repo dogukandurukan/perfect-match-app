@@ -22,6 +22,7 @@ The owner chose **not** to create a paid cloud test project. Tempa's tests run o
 | 10 | `node scripts/local-backend/prepare-onboarding-draft.mjs [--set 2]` | a separate synthetic DRAFT applicant (`tempa-onb-draft-<set>`) filled up to "A little more you" (Running saved, no prompts / starters, not submitted); sign in with LOCAL · Join with new onboarding + the code from the local mailbox |
 | 11 | `node scripts/local-backend/review.mjs list` · `show --email=…` · `accept` / `changes --note=… --items=…` / `reject --email=… [--yes]` | **local reviewer** (no panel): decisions only via `review_application_v2`; without `--yes` a dry run; `show` is read-only and writes a review page to `~/tempa-review/` (600, outside the repo, 10-min signed image links, no keys). Details: `work-packages/V2_LOCAL_REVIEW_RESULT.md` |
 | 12 | `node scripts/local-backend/smoke_review_local.mjs` | reviewer on real services with fresh synthetic applicants (list / show / accept / changes incl. selfie / reject, draft refused, non-local targets refused) |
+| 13 | `node scripts/local-backend/smoke_shared_local.mjs` | "Both into this" (D101) on real services with fresh synthetic members: exact shared selections, max 2, starter subject skipped, own / blocked none, updates after selection changes |
 | — | `scripts/local-backend/start-app.sh [synthetic email]` | as step 4, signed-in account selectable (only `@tempa-test.example.com`) |
 | — | `node scripts/local-backend/setup.mjs --stop` | stops only `tempa-local` |
 

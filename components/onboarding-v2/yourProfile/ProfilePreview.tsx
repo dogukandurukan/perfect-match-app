@@ -10,6 +10,7 @@ import { Image } from 'expo-image';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { TakesSection } from '@/components/interests/TakeCard';
+import { SHARED_LABEL, tasteMarkKey } from '@/lib/interests/shared';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewBlock, PreviewFact } from '@/lib/onboardingV2/yourProfile';
 import type { TasteItem } from '@/lib/onboardingV2/yourWorld';
@@ -87,13 +88,16 @@ function FactIcon({ fact }: { fact: PreviewFact }) {
   );
 }
 
-function FactRow({ fact }: { fact: PreviewFact }) {
+function FactRow({ fact, both = false }: { fact: PreviewFact; both?: boolean }) {
   return (
     <View style={styles.fact}>
       <FactIcon fact={fact} />
-      <Text style={styles.factText} maxFontSizeMultiplier={1.6}>
-        {fact.text}
-      </Text>
+      <View style={{ flexShrink: 1 }}>
+        <Text style={styles.factText} maxFontSizeMultiplier={1.6}>
+          {fact.text}
+        </Text>
+        {both ? <Text style={styles.both} maxFontSizeMultiplier={1.6}>{SHARED_LABEL}</Text> : null}
+      </View>
     </View>
   );
 }
@@ -134,9 +138,12 @@ function LikeHeart({ label, onPress, onPhoto }: { label: string; onPress: () => 
 export function ProfilePreview({
   blocks,
   onLike,
+  shared,
 }: {
   blocks: PreviewBlock[];
   onLike?: (target: ProfileLikeTarget) => void;
+  /** "Both into this" keys — another member's profile only (never own / onboarding). */
+  shared?: ReadonlySet<string>;
 }) {
   let photoIndex = -1;
   return (
@@ -196,7 +203,7 @@ export function ProfilePreview({
                     <SectionTitle>{g.title}</SectionTitle>
                     <View style={styles.inlineFacts}>
                       {g.items.map((f) => (
-                        <FactRow key={f.text} fact={f} />
+                        <FactRow key={f.text} fact={f} both={!!f.markKey && !!shared?.has(f.markKey)} />
                       ))}
                     </View>
                   </View>
@@ -236,6 +243,11 @@ export function ProfilePreview({
                           {it.subtitle ? (
                             <Text style={styles.tasteSub} maxFontSizeMultiplier={1.6}>
                               {it.subtitle}
+                            </Text>
+                          ) : null}
+                          {shared?.has(tasteMarkKey(it) ?? '') ? (
+                            <Text style={styles.both} maxFontSizeMultiplier={1.6}>
+                              {SHARED_LABEL}
                             </Text>
                           ) : null}
                         </View>
@@ -393,6 +405,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: obColors.textSecondary,
   },
+  // "Both into this": small, secondary, no badge.
+  both: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 17, color: obColors.textSecondary },
   thumb: {
     backgroundColor: obColors.selectedFill,
   },

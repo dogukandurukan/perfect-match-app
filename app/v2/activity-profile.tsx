@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useSharedMarks } from '@/lib/interests/useSharedMarks';
 import { ACTIVITY_CARD_BORDER, InterestContext } from '@/components/activity/ActivityFeedItems';
 import { DiscoverProfileItems, type ItemHandlers } from '@/components/discover/DiscoverProfileItems';
 import { acceptErrorText, acceptLike, loadActivity, markLikeSeen, type ActivityInterest } from '@/lib/activity/activityV2';
@@ -78,6 +79,7 @@ export default function ActivityProfileScreen() {
   }, [likeId, userId, reload]);
 
   const person = profile?.person ?? null;
+  const shared = useSharedMarks(person);
   const name = person?.name || interest?.first_name || 'them';
   const items = useMemo(() => (person ? buildDiscoverLayout(person) : []), [person]);
 
@@ -110,6 +112,7 @@ export default function ActivityProfileScreen() {
           liked: false,
           sent: null,
           readOnly: true,
+          shared,
           onLike: noop,
           onOpenComment: noop,
           onEditComment: noop,

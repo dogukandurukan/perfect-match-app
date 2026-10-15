@@ -11,26 +11,39 @@ import { AddTakeCard } from '@/components/interests/TakeCard';
 import { ProfilePreview } from '@/components/onboarding-v2/yourProfile/ProfilePreview';
 import { loadPublicProfile } from '@/lib/onboardingV2/remote';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
-import { buildPublicProfileBlocks, type PreviewBlock } from '@/lib/onboardingV2/yourProfile';
+import { useSharedMarks } from '@/lib/interests/useSharedMarks';
+import { buildPublicProfileBlocks, type PreviewBlock, type PublicProfileInput } from '@/lib/onboardingV2/yourProfile';
 
 type State =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'unavailable' }
-  | { kind: 'ready'; blocks: PreviewBlock[] };
+  | { kind: 'ready'; blocks: PreviewBlock[]; input: PublicProfileInput };
 
 /** `onAddTake` (own profile only): shows "Add a conversation starter" under
  * the main photo when there is none. `refreshKey` reloads from the server
  * (e.g. when the screen regains focus after editing). */
-export function PublicProfileView({ userId, onAddTake, refreshKey = 0 }: { userId: string; onAddTake?: () => void; refreshKey?: number }) {
+export function PublicProfileView({
+  userId,
+  onAddTake,
+  refreshKey = 0,
+  markShared = false,
+}: {
+  userId: string;
+  onAddTake?: () => void;
+  refreshKey?: number;
+  /** Another member's profile: mark exact shared selections (D101). Never for the own profile. */
+  markShared?: boolean;
+}) {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const shared = useSharedMarks(state.kind === 'ready' ? { ...state.input, id: userId, takes: (state.input.takes ?? []).map((t) => ({ kind: t.kind, subjectId: t.subjectId })) } : null, markShared);
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' });
     const r = await loadPublicProfile(userId);
     if (!r.ok) return setState({ kind: 'error', message: r.message });
     if (!r.value) return setState({ kind: 'unavailable' });
-    setState({ kind: 'ready', blocks: buildPublicProfileBlocks(r.value) });
+    setState({ kind: 'ready', blocks: buildPublicProfileBlocks(r.value), input: r.value });
   }, [userId]);
 
   useEffect(() => {
@@ -41,7 +54,7 @@ export function PublicProfileView({ userId, onAddTake, refreshKey = 0 }: { userI
       if (!live) return;
       if (!r.ok) return setState({ kind: 'error', message: r.message });
       if (!r.value) return setState({ kind: 'unavailable' });
-      setState({ kind: 'ready', blocks: buildPublicProfileBlocks(r.value) });
+      setState({ kind: 'ready', blocks: buildPublicProfileBlocks(r.value), input: r.value });
     })();
     return () => {
       live = false;
@@ -85,7 +98,7 @@ export function PublicProfileView({ userId, onAddTake, refreshKey = 0 }: { userI
           <ProfilePreview blocks={state.blocks.slice(1)} />
         </>
       ) : (
-        <ProfilePreview blocks={state.blocks} />
+        <ProfilePreview blocks={state.blocks} shared={markShared ? shared : undefined} />
       )}
     </View>
   );

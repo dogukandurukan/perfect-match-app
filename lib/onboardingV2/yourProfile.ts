@@ -11,6 +11,7 @@ import { HAVE_PETS, type LifeDraft } from '@/lib/onboardingV2/yourLife';
 import { INTERESTS, WORK_OPTIONS, type TasteItem, type WorldDraft } from '@/lib/onboardingV2/yourWorld';
 import { getZodiacFromDate } from '@/lib/zodiac';
 import { promptById } from '@/lib/onboardingV2/promptCatalog';
+import { activityMarkKey, interestMarkKey } from '@/lib/interests/shared';
 import { ACTIVITIES, takeQuestionText, type TakeKind } from '@/lib/interests/takes';
 
 // P07 R1: the separate "Ready to submit?" checklist state was removed; the
@@ -378,7 +379,7 @@ export function isProfileStepValid(step: number, d: ProfileDraft): boolean {
 // ─── Public profile preview (D44 order, all sections — P07 R1) ─────────────
 
 /** One answer line with a small outline icon (Ionicons unless family 'mci'). */
-export type PreviewFact = { icon: string; family?: 'ion' | 'mci'; text: string };
+export type PreviewFact = { icon: string; family?: 'ion' | 'mci'; text: string; /** Interests / activities: the shared-selection key (lib/interests/shared). */ markKey?: string };
 /** A titled group of answers; several answers wrap onto the next line. */
 export type PreviewGroup = { title: string; items: PreviewFact[] };
 export type PreviewTaste = { label: string; kind: 'artist' | 'book' | 'screen'; items: TasteItem[] };
@@ -523,13 +524,13 @@ export function buildPublicProfileBlocks(p: PublicProfileInput): PreviewBlock[] 
   const interests: PreviewFact[] = nonEmpty<PreviewFact>(
     p.interests.map((k) => {
       const it = INTERESTS.find((i) => i.key === k);
-      return it ? { icon: it.icon, text: it.label } : null;
+      return it ? { icon: it.icon, text: it.label, markKey: interestMarkKey(it.key) } : null;
     }),
   );
   const activities: PreviewFact[] = nonEmpty<PreviewFact>(
     (p.activities ?? []).map((k) => {
       const a = ACTIVITIES.find((x) => x.key === k);
-      return a ? { icon: a.icon, text: a.label } : null;
+      return a ? { icon: a.icon, text: a.label, markKey: activityMarkKey(a.key) } : null;
     }),
   );
   const chipGroups: PreviewGroup[] = nonEmpty<PreviewGroup>([
