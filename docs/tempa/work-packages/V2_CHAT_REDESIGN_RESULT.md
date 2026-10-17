@@ -1,5 +1,77 @@
 # V2 chat screen — redesign (result)
 
+# Round 3 (2026-10-17): measured comparison, then targeted fixes; V1 restored
+
+**Owner's phone result (round 2):** no clear visual improvement on the phone.
+
+**Inputs actually used:**
+- Phone screenshot, keyboard closed: 1179 × 2556 px = **393 × 852 pt at @3x**.
+- Mockup, left screen: its screen area is 456 px wide → scaled to the same 393 pt, ignoring the frame.
+- Both were measured **pixel by pixel** (a small PNG reader in the session scratchpad), not by eye.
+- **Still no simulator** on this Mac (no Xcode).
+
+**Text scale:** "Taslak deneme" measures 12.0 pt from the ascender top to the baseline. That is DM Sans 16 at scale **1.0**, so the phone has no enlarged iOS text.
+- The round-2 "large text" assumption was **wrong**. Its `maxFontSizeMultiplier` caps are **removed**.
+- A temporary DEV badge now prints the exact numbers on the phone (see "Phone check").
+
+**Measured (pt, 393-wide):**
+
+| Element | Phone (`ae32ec7`) | Mockup | Verdict |
+|---|---|---|---|
+| Message text (ascender to baseline) | 12.0 | 12.1 | same — **not** the problem |
+| Like card | 361 × 56 at x 16 | 361 × 57 at x 15.5 | same |
+| Card thumbnail | 40 × 40 | ≈ 50 × 46 | photo too small |
+| Header name, ink height | 16.3 | 15.5 | same size … |
+| Header name, stem width | ≈ 3.0 (Playfair 700) | ≈ 1.7 (regular weight) | … **twice as heavy** |
+| Header photo | 38 | ≈ 54 | photo too small |
+| Bubble corner | 16 + 5 pt tail | ≈ 10–11, no tail | pill-like |
+| Bubble max width | 78 % of row (≈ 280) | ≈ 240 | too wide |
+| Incoming avatar | 32 | ≈ 41 | too small |
+| Day label → first bubble | ≈ 5 | ≈ 22 | label glued to the next message (round-2 regression) |
+| + / field / send | 42 | ≈ 46 / 43 / 48 | slightly small |
+
+**The differences that break the look** (photo-led and calm in the mockup; text-led and heavy on the phone):
+1. **Header:** bold name with a small photo, where the mockup has a light name with a large photo.
+2. **Bubbles:** big corners, a tail and too much width, where the mockup has small even corners and narrower bubbles.
+3. **Small photos everywhere:** header, incoming avatar, card thumbnail.
+4. **Day label:** stuck to the next message instead of centred between blocks.
+
+Not a style difference: the phone chat has only three short messages, so most of the screen is empty. Not filled (no fake content).
+
+**Changes (V2 only):**
+- **Header:**
+  - Name in **Playfair Display 400** at 21. This weight was added from the same `@expo-google-fonts/playfair-display` package as our 700 (identical SHA) and is loaded with expo-font, so no native rebuild.
+  - Photo **52**; thin Feather back arrow.
+- **Bubbles:** **11 pt even corners, no tail**; max **248 pt**; 16 / 21 text; 13 / 8 padding.
+- **Other people's photos:** incoming avatar **40** (time aligned with the bubble).
+- **Like card:** thumbnail **48 × 44**, padding 6; card height stays ≈ 56.
+- **Day label:** 18 pt above, then 6 + 12 to the first bubble (centred). Time 12.
+- **Input:** back to **44 pt** controls; keyboard alignment logic unchanged.
+- **Text scaling:** fully on (no caps).
+
+**V1 restored:**
+- V1 uses the original `styles` block, byte-identical to `354cfc7` (checked with diff).
+- It keeps its old header ("←", no View profile), old bubbles with its own avatar, no day labels or times, and old input padding.
+- V2 values live in a separate `v2` style object. The JSX branches only where the structure differs: header, bubble row, day rows, input styles.
+- Unchanged behaviour (both): scrolling only while at the end, and the sent row read back from the insert.
+
+**Temporary DEV badge:** `components/dev/DevBackendBadge.tsx`, `__DEV__` only, to be removed after the check. It shows `LOCAL · local:55421 · chat-r3 · <width>×<height> · fs <fontScale>`.
+
+**Checks:**
+- `run.js` all pass (`v2_chat_layout` 45/45: round 3 values, V1 isolation, no text-scale caps, font loaded, badge).
+- `p0-checks` all pass; `tsc` clean; LOCAL iOS export exit 0 (the Playfair 400 file is in the exported assets, matched by md5; the DEV badge text is stripped from that production-mode export, as expected).
+- These are not visual proof.
+
+**Phone check (not done):**
+1. On the Mac, stop the running Metro (Ctrl-C), then run `cd ~/tempa-p0 && git log --oneline -1` (expect the round-3 commit) and `scripts/local-backend/start-app.sh tempa-activity-p1-receiver@tempa-test.example.com`. It starts with `-c`, so the Metro cache is cleared.
+2. On the phone, fully close the dev client (swipe it away), reopen it, and connect to the Metro URL the terminal prints.
+3. The bottom-left badge must read **`… · chat-r3 · 393×852 · fs …`**:
+   - without `chat-r3`, the phone is running older JS;
+   - send a screenshot with the `fs` value.
+4. Then compare: header (light name, larger photo), bubbles (small corners, no tail), the day label centred, the card thumbnail, + / send, keyboard open and closed.
+
+---
+
 # Round 2 (2026-10-17): visual tightening after the owner's phone review
 
 **Owner's phone result (round 1):** `40a667c` is on the phone (View profile, the new card and the times are visible). It is **not close enough to the mockup**.

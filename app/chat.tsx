@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -65,13 +65,6 @@ type Message = {
 };
 
 type ChatItem = { kind: 'msg'; msg: Message } | { kind: 'date'; p: Proposal };
-
-// Larger accessibility text sizes still apply everywhere; the header and the
-// small day / time labels grow less than the message text so a large setting
-// doesn't turn the one-line header into a heavy block.
-const SCALE_HEADER = 1.15;
-const SCALE_META = 1.3;
-const SCALE_BODY = 1.8;
 type ChatRow = TimelineRow<ChatItem>;
 
 export default function ChatScreen() {
@@ -130,6 +123,9 @@ export default function ChatScreen() {
   const [savedIcebreaker, setSavedIcebreaker] = useState<QuickIcebreakerAnswer[] | null>(null);
   const [icebreakerChecked, setIcebreakerChecked] = useState(false);
   const [headerPhotoUrl, setHeaderPhotoUrl] = useState<string | null>(null);
+  // V1 only: own avatar beside own bubbles (V2 shows none).
+  const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
+  const [myInitial, setMyInitial] = useState('?');
   const [keyboardShown, setKeyboardShown] = useState(false);
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<ChatRow>>(null);
@@ -187,6 +183,26 @@ export default function ChatScreen() {
       cancelled = true;
     };
   }, [otherUserId]);
+
+  useEffect(() => {
+    if (v2Enabled || !currentUserId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('photos, first_name')
+        .eq('id', currentUserId)
+        .maybeSingle();
+      if (cancelled) return;
+      const myUrl = await resolveProfilePhotoUrl(data?.photos?.[0]);
+      if (cancelled) return;
+      setMyPhotoUrl(myUrl);
+      setMyInitial((data?.first_name?.trim()[0] ?? '?').toUpperCase());
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
 
   const resolveMatchAndGate = useCallback(async () => {
     if (!currentUserId || !otherUserId) return;
@@ -798,43 +814,84 @@ export default function ChatScreen() {
     });
   }
 
-  // One bubble. Own messages: no avatar. Theirs: the avatar only beside the
-  // last bubble of a group (an empty slot keeps the column aligned); the time
-  // sits under the last bubble of each group.
-  function renderMessage(
+  // V2: one bubble. Own messages: no avatar. Theirs: the avatar only beside
+  // the last bubble of a group (an empty slot keeps the column aligned); the
+  // time sits under the last bubble of each group.
+  function renderMessageV2(
     item: Message,
     row: { firstOfGroup: boolean; lastOfGroup: boolean; afterDay: boolean; time: string | null },
   ) {
     const isMine = item.sender_id === currentUserId;
     return (
-      <View style={[styles.msgBlock, row.afterDay ? styles.msgBlockAfterDay : row.firstOfGroup ? styles.msgBlockGroupStart : null]}>
-        <View style={[styles.msgWrap, isMine ? styles.msgWrapMine : styles.msgWrapTheirs]}>
+      <View style={[v2.msgBlock, row.afterDay ? v2.msgBlockAfterDay : row.firstOfGroup ? v2.msgBlockGroupStart : null]}>
+        <View style={[v2.msgWrap, isMine ? v2.msgWrapMine : v2.msgWrapTheirs]}>
           {!isMine ? (
             row.lastOfGroup ? (
               <TouchableOpacity onPress={openUserProfile} disabled={chatEnded || accountUnavailable} activeOpacity={0.7}
                 accessibilityRole="button" accessibilityLabel={`View ${userName}'s profile`}>
                 {headerPhotoUrl ? (
-                  <Image source={{ uri: headerPhotoUrl }} style={styles.msgAvatar} contentFit="cover" />
+                  <Image source={{ uri: headerPhotoUrl }} style={v2.msgAvatar} contentFit="cover" />
                 ) : (
-                  <View style={[styles.msgAvatar, styles.msgAvatarPlaceholder]}>
-                    <ThemedText style={styles.msgAvatarInitial}>{headerInitial}</ThemedText>
+                  <View style={[v2.msgAvatar, v2.msgAvatarPlaceholder]}>
+                    <ThemedText style={v2.msgAvatarInitial}>{headerInitial}</ThemedText>
                   </View>
                 )}
               </TouchableOpacity>
             ) : (
-              <View style={styles.msgAvatar} />
+              <View style={v2.msgAvatar} />
             )
           ) : null}
-          <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-            <ThemedText style={[styles.bubbleText, isMine && styles.bubbleTextMine]} maxFontSizeMultiplier={SCALE_BODY}>
-              {item.content}
-            </ThemedText>
+          <View style={[v2.bubble, isMine ? v2.bubbleMine : v2.bubbleTheirs]}>
+            <ThemedText style={[v2.bubbleText, isMine && v2.bubbleTextMine]}>{item.content}</ThemedText>
           </View>
         </View>
         {row.time ? (
-          <ThemedText style={[styles.msgTime, isMine ? styles.msgTimeMine : styles.msgTimeTheirs]} maxFontSizeMultiplier={SCALE_META}>
-            {row.time}
+          <ThemedText style={[v2.msgTime, isMine ? v2.msgTimeMine : v2.msgTimeTheirs]}>{row.time}</ThemedText>
+        ) : null}
+      </View>
+    );
+  }
+
+  // V1 (legacy screen): unchanged from before the V2 redesign.
+  function renderMessageV1({ item, index }: { item: Message; index: number }) {
+    const isMine = item.sender_id === currentUserId;
+    const isLastOfGroup =
+      index === messages.length - 1 ||
+      messages[index + 1]?.sender_id !== item.sender_id;
+    return (
+      <View style={[styles.msgWrap, isMine ? styles.msgWrapMine : styles.msgWrapTheirs]}>
+        {!isMine ? (
+          isLastOfGroup ? (
+            <TouchableOpacity onPress={openUserProfile} activeOpacity={0.7}>
+              {headerPhotoUrl ? (
+                <Image source={{ uri: headerPhotoUrl }} style={styles.msgAvatar} contentFit="cover" />
+              ) : (
+                <View style={styles.msgAvatarPlaceholder}>
+                  <ThemedText style={styles.msgAvatarInitial}>{headerInitial}</ThemedText>
+                </View>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.msgAvatar} />
+          )
+        ) : null}
+        <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
+          <ThemedText style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
+            {item.content}
           </ThemedText>
+        </View>
+        {isMine ? (
+          isLastOfGroup ? (
+            myPhotoUrl ? (
+              <Image source={{ uri: myPhotoUrl }} style={styles.msgAvatarMine} contentFit="cover" />
+            ) : (
+              <View style={styles.msgAvatarPlaceholderMine}>
+                <ThemedText style={styles.msgAvatarInitial}>{myInitial}</ThemedText>
+              </View>
+            )
+          ) : (
+            <View style={styles.msgAvatarMine} />
+          )
         ) : null}
       </View>
     );
@@ -863,7 +920,7 @@ export default function ChatScreen() {
   const meetupUiEnabled = !inputDisabled && !v2Enabled;
   // Messages and V2 date cards in time order, with day separators and sender
   // groups from the real timestamps (date cards never group with bubbles).
-  const chatRows: ChatRow[] = buildTimeline<ChatItem>(
+  const timelineRows: ChatRow[] = buildTimeline<ChatItem>(
     [
       ...messages.map((m) => ({ key: m.id, at: m.created_at, senderId: m.sender_id, item: { kind: 'msg' as const, msg: m } })),
       ...(v2Enabled
@@ -871,6 +928,8 @@ export default function ChatScreen() {
         : []),
     ].sort((a, b) => a.at.localeCompare(b.at)),
   );
+  // Day separators and times are V2 only; V1 keeps its plain message list.
+  const chatRows: ChatRow[] = v2Enabled ? timelineRows : timelineRows.filter((r) => r.kind !== 'day');
   // 'none' = no active proposal · 'proposed_by_me' = waiting on the other
   // person · 'proposed_by_them' = I need to respond · 'confirmed' = settled.
   const meetupState: 'none' | 'proposed_by_me' | 'proposed_by_them' | 'confirmed' = !meetingAt
@@ -941,48 +1000,78 @@ export default function ChatScreen() {
 
   return (
     <>
-    {/* Compact header: the screen's own safe-area top (no extra 12 pt), full
-        width; the list and input row set their own side padding. */}
-    <ScreenContainer style={[styles.container, { paddingTop: insets.top, paddingBottom: 0, paddingHorizontal: 0 }]}>
+    {/* V2: the screen's own safe-area top (no extra 12 pt), full width — the
+        list and input row set their own side padding. V1: unchanged. */}
+    <ScreenContainer
+      style={
+        v2Enabled
+          ? [v2.container, { paddingTop: insets.top, paddingBottom: 0, paddingHorizontal: 0 }]
+          : [styles.container, { paddingBottom: 0 }]
+      }>
+      {v2Enabled ? (
+      // V2: compact, photo-led header.
+      <View style={v2.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={v2.backBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back">
+          <Feather name="arrow-left" size={24} color={obColors.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={openUserProfile}
+          disabled={chatEnded || accountUnavailable}
+          style={v2.headerCenter}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={chatEnded || accountUnavailable ? userName : `${userName}. View profile`}>
+          {headerPhotoUrl ? (
+            <Image source={{ uri: headerPhotoUrl }} style={v2.headerAvatar} contentFit="cover" />
+          ) : (
+            <View style={[v2.headerAvatar, v2.headerAvatarPlaceholder]}>
+              <ThemedText style={v2.headerAvatarInitial}>{headerInitial}</ThemedText>
+            </View>
+          )}
+          <View style={v2.headerText}>
+            <ThemedText style={v2.headerName} numberOfLines={1}>{userName}</ThemedText>
+            {!chatEnded && !accountUnavailable ? (
+              <ThemedText style={v2.headerSub} numberOfLines={1}>View profile</ThemedText>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={openChatMenu} style={v2.menuBtn} hitSlop={10}
+          accessibilityRole="button" accessibilityLabel="More options">
+          <Ionicons name="ellipsis-horizontal" size={22} color={obColors.textPrimary} />
+        </TouchableOpacity>
+      </View>
+      ) : (
+      // V1 (legacy screen): unchanged.
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backBtn}
-          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={obColors.textPrimary} />
+          <ThemedText style={styles.backText}>←</ThemedText>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={openUserProfile}
           disabled={chatEnded || accountUnavailable}
           style={styles.headerCenter}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={chatEnded || accountUnavailable ? userName : `${userName}. View profile`}>
+          activeOpacity={0.7}>
           {headerPhotoUrl ? (
             <Image source={{ uri: headerPhotoUrl }} style={styles.headerAvatar} contentFit="cover" />
           ) : (
-            <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+            <View style={styles.headerAvatarPlaceholder}>
               <ThemedText style={styles.headerAvatarInitial}>{headerInitial}</ThemedText>
             </View>
           )}
-          <View style={styles.headerText}>
-            <ThemedText style={styles.headerName} numberOfLines={1} maxFontSizeMultiplier={SCALE_HEADER}>{userName}</ThemedText>
-            {!chatEnded && !accountUnavailable ? (
-              <ThemedText style={styles.headerSub} numberOfLines={1} maxFontSizeMultiplier={SCALE_META}>View profile</ThemedText>
-            ) : null}
-          </View>
+          <ThemedText style={styles.headerName}>{userName}</ThemedText>
         </TouchableOpacity>
-        {v2Enabled ? (
-          <TouchableOpacity onPress={openChatMenu} style={styles.menuBtn} hitSlop={10}
-            accessibilityRole="button" accessibilityLabel="More options">
-            <Ionicons name="ellipsis-horizontal" size={22} color={obColors.textPrimary} />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
+        <View style={{ width: 40 }} />
       </View>
+      )}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -1014,15 +1103,19 @@ export default function ChatScreen() {
             renderItem={({ item: row }) => {
               if (row.kind === 'day') {
                 return (
-                  <ThemedText style={styles.daySeparator} accessibilityRole="header" maxFontSizeMultiplier={SCALE_META}>
+                  <ThemedText style={v2.daySeparator} accessibilityRole="header">
                     {row.label}
                   </ThemedText>
                 );
               }
               if (row.item.kind === 'date') return renderProposal(row.item.p);
-              return renderMessage(row.item.msg, row);
+              if (!v2Enabled) {
+                const msg = row.item.msg;
+                return renderMessageV1({ item: msg, index: messages.findIndex((m) => m.id === msg.id) });
+              }
+              return renderMessageV2(row.item.msg, row);
             }}
-            contentContainerStyle={styles.messagesList}
+            contentContainerStyle={v2Enabled ? v2.messagesList : styles.messagesList}
             showsVerticalScrollIndicator={false}
             // V2: likes (which photo / answer + note) as a compact "How it
             // started" card, never messages (D79); it scrolls away with the
@@ -1145,27 +1238,27 @@ export default function ChatScreen() {
         ) : null}
         <View
           style={[
-            styles.inputRow,
+            v2Enabled ? v2.inputRow : styles.inputRow,
             inputLocked && styles.inputRowLocked,
-            // Keyboard open: sits right on it. Closed: just the home-indicator
-            // inset (no extra gap below the field).
-            { paddingBottom: keyboardShown ? 8 : Math.max(insets.bottom, 8) },
+            // V2 — keyboard open: sits right on it; closed: just the
+            // home-indicator inset. V1: unchanged.
+            v2Enabled
+              ? { paddingBottom: keyboardShown ? 8 : Math.max(insets.bottom, 8) }
+              : { paddingBottom: keyboardShown ? 12 : insets.bottom + 12 },
           ]}>
           <TouchableOpacity
-            style={[styles.attachBtn, inputDisabled && { opacity: 0.4 }]}
-            hitSlop={3}
+            style={[v2Enabled ? v2.attachBtn : styles.attachBtn, inputDisabled && { opacity: 0.4 }]}
             onPress={v2Enabled ? openPlusMenu : handleAddPhoto}
             disabled={inputDisabled}
             accessibilityRole="button"
             accessibilityLabel={v2Enabled ? 'More: suggest a date or add a photo' : 'Add a photo'}>
-            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 23 : 20} color={obColors.textPrimary} />
+            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 24 : 22} color={obColors.textPrimary} />
           </TouchableOpacity>
           <TextInput
             ref={inputRef}
-            style={[styles.input, inputDisabled && styles.inputDisabled]}
+            style={v2Enabled ? [v2.input, inputDisabled && v2.inputDisabled] : [styles.input, inputDisabled && styles.inputDisabled]}
             placeholder={accountUnavailable ? 'Account unavailable' : inputLocked ? 'Chat locked' : `Message ${userName}…`}
             placeholderTextColor={obColors.textSecondary}
-            maxFontSizeMultiplier={SCALE_BODY}
             value={text}
             onChangeText={(v) => {
               setText(v);
@@ -1177,12 +1270,12 @@ export default function ChatScreen() {
             onSubmitEditing={() => void handleSend()}
           />
           <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (inputDisabled || !text.trim()) && !sending && styles.sendBtnDisabled,
-            ]}
+            style={
+              v2Enabled
+                ? [v2.sendBtn, (inputDisabled || !text.trim()) && !sending && v2.sendBtnDisabled]
+                : [styles.sendBtn, (inputDisabled || !text.trim() || sending) && { opacity: 0.4 }]
+            }
             onPress={() => void handleSend()}
-            hitSlop={3}
             disabled={inputDisabled || !text.trim() || sending}
             accessibilityRole="button"
             accessibilityLabel="Send message"
@@ -1190,7 +1283,7 @@ export default function ChatScreen() {
             {sending ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
-              <Ionicons name="arrow-up" size={20} color="#FFF" />
+              <Ionicons name="arrow-up" size={22} color="#FFF" />
             )}
           </TouchableOpacity>
         </View>
@@ -1341,7 +1434,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start', backgroundColor: obColors.background },
   proposeIdeasLabel: { fontSize: 13, lineHeight: 18, color: obColors.textSecondary, marginBottom: 6 },
-  menuBtn: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  menuBtn: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },
   dateCard: {
     marginVertical: 8,
     maxWidth: '88%',
@@ -1381,42 +1474,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 2,
-    paddingBottom: 6,
-    paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#DDD4C2',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E4DCCB',
   },
-  backBtn: { width: 44, height: 44, alignItems: 'flex-start', justifyContent: 'center' },
+  backBtn: { width: 40, alignItems: 'flex-start' },
+  backText: { fontSize: 24, color: obColors.cta },
   headerCenter: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    minHeight: 44,
+    gap: 8,
   },
-  headerAvatar: { width: 38, height: 38, borderRadius: 19 },
+  headerAvatar: { width: 32, height: 32, borderRadius: 16 },
   headerAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerAvatarInitial: { fontSize: 15, fontWeight: '700', color: obColors.textPrimary },
-  headerText: { flexShrink: 1, minWidth: 0 },
-  headerName: { fontFamily: obFonts.heading, fontSize: 21, lineHeight: 25, color: obColors.textPrimary },
-  headerSub: { fontFamily: obFonts.body, fontSize: 12.5, lineHeight: 16, color: obColors.textSecondary },
-  messagesList: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
-  // Day label: a small caption, not a section — 10 pt above, 4 pt to the
-  // first bubble (msgBlockAfterDay).
-  daySeparator: {
-    alignSelf: 'center',
-    marginTop: 10,
-    fontFamily: obFonts.body,
-    fontSize: 12,
-    lineHeight: 16,
-    color: obColors.textSecondary,
-  },
+  headerAvatarInitial: { fontSize: 14, fontWeight: '700', color: obColors.textPrimary },
+  headerName: { fontFamily: obFonts.heading, fontSize: 19, lineHeight: 25, color: obColors.textPrimary },
+  messagesList: { padding: 16, gap: 8, flexGrow: 1 },
   emptyWrap: {
     flex: 1,
     alignItems: 'center',
@@ -1600,44 +1683,147 @@ const styles = StyleSheet.create({
     backgroundColor: obColors.cta,
   },
   proposeConfirmBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
-  // Bubbles: 5 pt between bubbles of one group, 14 pt between groups, 4 pt
-  // under a day label.
-  msgBlock: { marginTop: 5 },
-  msgBlockGroupStart: { marginTop: 14 },
-  msgBlockAfterDay: { marginTop: 4 },
-  msgWrap: { flexDirection: 'row', alignItems: 'flex-end' },
+  msgWrap: { flexDirection: 'row', marginBottom: 6, alignItems: 'flex-end' },
   msgWrapMine: { justifyContent: 'flex-end' },
   msgWrapTheirs: { justifyContent: 'flex-start' },
-  msgAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: 10 },
+  msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+  msgAvatarMine: { width: 28, height: 28, borderRadius: 14, marginLeft: 8 },
   msgAvatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
     backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  msgAvatarInitial: { fontSize: 13, fontWeight: '700', color: obColors.textPrimary },
-  // 16 pt corners with a one-line height of ~40 pt: a rounded card, not a pill.
+  msgAvatarPlaceholderMine: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginLeft: 8,
+    backgroundColor: obColors.selectedFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  msgAvatarInitial: { fontSize: 12, fontWeight: '700', color: obColors.textPrimary },
   bubble: {
-    maxWidth: '78%',
-    flexShrink: 1,
+    maxWidth: '75%',
     borderRadius: 16,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   bubbleMine: {
     backgroundColor: obColors.cta,
-    borderBottomRightRadius: 5,
+    borderBottomRightRadius: 4,
   },
   bubbleTheirs: {
     backgroundColor: '#FFFDF8',
-    borderBottomLeftRadius: 5,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
     borderColor: '#E4DCCB',
   },
-  bubbleText: { fontFamily: obFonts.body, fontSize: 16, color: obColors.textPrimary, lineHeight: 22 },
+  bubbleText: { fontFamily: obFonts.body, fontSize: 15.5, color: obColors.textPrimary, lineHeight: 22 },
   bubbleTextMine: { color: '#FFF' },
-  msgTime: { marginTop: 2, fontFamily: obFonts.body, fontSize: 11.5, lineHeight: 14, color: obColors.textSecondary },
-  msgTimeMine: { alignSelf: 'flex-end', marginRight: 4 },
-  msgTimeTheirs: { alignSelf: 'flex-start', marginLeft: 46 },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E4DCCB',
+    backgroundColor: '#FFFDF8',
+  },
+  inputRowLocked: { opacity: 0.85 },
+  unavailableBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 12, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: obColors.notice },
+  unavailableTitle: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
+  unavailableText: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
+  attachBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F1ECE1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  input: {
+    flex: 1,
+    backgroundColor: '#F1ECE1',
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: obColors.textPrimary,
+    maxHeight: 100,
+  },
+  inputDisabled: { backgroundColor: '#F1ECE1', color: obColors.textSecondary },
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: obColors.cta,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+// V2 chat only (V1 keeps `styles` above unchanged). Values measured against
+// the approved mockup at the same 393 pt width (2026-10-17, round 3):
+// photo-led header with a regular-weight name, ~11 pt bubble corners with
+// no tail, bubbles up to ~240 pt, larger avatar / like thumbnail, and day
+// labels centred between blocks.
+const v2 = StyleSheet.create({
+  container: { justifyContent: 'flex-start', backgroundColor: obColors.background },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 2,
+    paddingBottom: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#DDD4C2',
+  },
+  backBtn: { width: 44, height: 44, alignItems: 'flex-start', justifyContent: 'center' },
+  menuBtn: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 44 },
+  headerAvatar: { width: 52, height: 52, borderRadius: 26 },
+  headerAvatarPlaceholder: { backgroundColor: obColors.selectedFill, alignItems: 'center', justifyContent: 'center' },
+  headerAvatarInitial: { fontSize: 19, fontWeight: '700', color: obColors.textPrimary },
+  headerText: { flexShrink: 1, minWidth: 0 },
+  // Mockup name: same size as before, about half the stroke weight → Regular.
+  headerName: { fontFamily: obFonts.headingRegular, fontSize: 21, lineHeight: 26, color: obColors.textPrimary },
+  headerSub: { marginTop: 1, fontFamily: obFonts.body, fontSize: 13, lineHeight: 17, color: obColors.textSecondary },
+  messagesList: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
+  // Day label centred between blocks (~20 pt above and below in the mockup).
+  daySeparator: {
+    alignSelf: 'center',
+    marginTop: 18,
+    marginBottom: 6,
+    fontFamily: obFonts.body,
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: obColors.textSecondary,
+  },
+  msgBlock: { marginTop: 5 },
+  msgBlockGroupStart: { marginTop: 14 },
+  msgBlockAfterDay: { marginTop: 12 },
+  msgWrap: { flexDirection: 'row', alignItems: 'flex-end' },
+  msgWrapMine: { justifyContent: 'flex-end' },
+  msgWrapTheirs: { justifyContent: 'flex-start' },
+  msgAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
+  msgAvatarPlaceholder: { backgroundColor: obColors.selectedFill, alignItems: 'center', justifyContent: 'center' },
+  msgAvatarInitial: { fontSize: 15, fontWeight: '700', color: obColors.textPrimary },
+  // Same 16 pt text as the mockup; uniform ~11 pt corners (no tail), width
+  // capped near the mockup's ~240 pt.
+  bubble: { maxWidth: 248, flexShrink: 1, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 8 },
+  bubbleMine: { backgroundColor: obColors.cta },
+  bubbleTheirs: { backgroundColor: '#FFFDF8', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E4DCCB' },
+  bubbleText: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 21, color: obColors.textPrimary },
+  bubbleTextMine: { color: '#FFF' },
+  msgTime: { marginTop: 3, fontFamily: obFonts.body, fontSize: 12, lineHeight: 15, color: obColors.textSecondary },
+  msgTimeMine: { alignSelf: 'flex-end', marginRight: 2 },
+  msgTimeTheirs: { alignSelf: 'flex-start', marginLeft: 50 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -1648,27 +1834,15 @@ const styles = StyleSheet.create({
     borderTopColor: '#DDD4C2',
     backgroundColor: obColors.background,
   },
-  inputRowLocked: { opacity: 0.85 },
-  unavailableBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 12, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: obColors.notice },
-  unavailableTitle: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
-  unavailableText: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
-  // + and send: 42 pt circles, 48 pt touch area with hitSlop 3.
-  attachBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#EFE8DA',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  attachBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EFE8DA', alignItems: 'center', justifyContent: 'center' },
   input: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     backgroundColor: '#EFE8DA',
-    borderRadius: 21,
+    borderRadius: 22,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 11,
+    paddingBottom: 11,
     // No lineHeight on the multiline iOS input (stale paragraph style, P05 R2).
     fontFamily: obFonts.body,
     fontSize: 16,
@@ -1676,13 +1850,6 @@ const styles = StyleSheet.create({
     maxHeight: 120,
   },
   inputDisabled: { color: obColors.textSecondary },
-  sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: obColors.cta,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: obColors.cta, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: obColors.ctaDisabled },
 });

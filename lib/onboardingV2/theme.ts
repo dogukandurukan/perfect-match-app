@@ -36,6 +36,7 @@ export const obRadius = {
 // these fonts (which would trigger synthetic bold on some platforms).
 export const obFonts = {
   heading: 'PlayfairDisplay-Bold', // Playfair Display 700
+  headingRegular: 'PlayfairDisplay-Regular', // Playfair Display 400 (V2 chat header name)
   body: 'DMSans-Regular', // DM Sans 400
   bodyMedium: 'DMSans-Medium', // DM Sans 500
   bodySemiBold: 'DMSans-SemiBold', // DM Sans 600
@@ -50,6 +51,7 @@ export const obFonts = {
 export function useOnboardingFonts(): boolean {
   const [loaded, error] = useFonts({
     [obFonts.heading]: require('../../assets/fonts/PlayfairDisplay_700Bold.ttf'),
+    [obFonts.headingRegular]: require('../../assets/fonts/PlayfairDisplay_400Regular.ttf'),
     [obFonts.body]: require('../../assets/fonts/DMSans_400Regular.ttf'),
     [obFonts.bodyMedium]: require('../../assets/fonts/DMSans_500Medium.ttf'),
     [obFonts.bodySemiBold]: require('../../assets/fonts/DMSans_600SemiBold.ttf'),

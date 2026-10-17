@@ -57,27 +57,42 @@ const chat = code('app/chat.tsx');
 ok(/ListHeaderComponent=\{v2Enabled \? <HowItStartedCard likes=\{chatState\?\.likes\}/.test(chat), 'card is the list header (scrolls away with the chat)');
 ok(/paddingTop: insets\.top, paddingBottom: 0, paddingHorizontal: 0/.test(chat), 'header: safe-area top only (no extra 12 pt)');
 ok(/>View profile</.test(chat) && /onPress=\{openUserProfile\}[\s\S]{0,120}style=\{styles\.headerCenter\}/.test(chat) && /openChatMenu/.test(chat), 'header: photo + name + View profile open the full profile; ⋯ menu kept');
-ok(!/myPhotoUrl|myInitial|msgAvatarMine/.test(chat), 'no avatar next to own messages');
+const v2Msg = (chat.match(/function renderMessageV2\([\s\S]*?\n  \}\n/) || [''])[0];
+ok(v2Msg.length > 0 && !/myPhotoUrl|myInitial|msgAvatarMine/.test(v2Msg), 'V2: no avatar next to own messages');
 ok(/row\.lastOfGroup \?/.test(chat) && /<View style=\{styles\.msgAvatar\} \/>/.test(chat), 'their avatar only beside the last bubble of a group');
-ok(/buildTimeline<ChatItem>/.test(chat) && /styles\.daySeparator/.test(chat) && /row\.time \?/.test(chat), 'day separators + time from real timestamps');
+ok(/buildTimeline<ChatItem>/.test(chat) && /v2\.daySeparator/.test(chat) && /row\.time \?/.test(chat), 'day separators + time from real timestamps');
 ok(!/\b(typing|is_typing|online|last_seen|seen_at|delivered)\b|'Seen'|"Seen"/i.test(chat), 'no fake online / typing / seen state');
-ok(/maxWidth: '78%',\s*flexShrink: 1/.test(chat), 'bubble width capped and shrinkable (long text / emoji wrap)');
-ok(/disabled=\{inputDisabled \|\| !text\.trim\(\) \|\| sending\}/.test(chat) && /styles\.sendBtnDisabled/.test(chat), 'send disabled for an empty message');
+ok(/maxWidth: 248, flexShrink: 1/.test(chat), 'bubble width capped and shrinkable (long text / emoji wrap)');
+ok(/disabled=\{inputDisabled \|\| !text\.trim\(\) \|\| sending\}/.test(chat) && /v2\.sendBtnDisabled/.test(chat), 'send disabled for an empty message');
 ok(/paddingBottom: keyboardShown \? 8 : Math\.max\(insets\.bottom, 8\)/.test(chat), 'input: on the keyboard when open; only the home-indicator inset when closed');
 ok(/if \(!nearEndRef\.current && !forceEndRef\.current\) return;/.test(chat) && /nearEndRef\.current = isNearEnd\(e\.nativeEvent\)/.test(chat), 'never pulls a reader of older messages down');
 ok(/\.select\('id, sender_id, receiver_id, content, created_at'\)\s*\.single\(\)/.test(chat) && /forceEndRef\.current = true;/.test(chat) && /prev\.some\(\(m\) => m\.id === row\.id\)/.test(chat), 'own message appears right away (read back, de-duplicated with the realtime echo) and stays in view');
 ok(/onPress=\{v2Enabled \? openPlusMenu : handleAddPhoto\}/.test(chat) && /'Suggest a date'/.test(chat), '+ menu unchanged');
 ok(!/lineHeight/.test((chat.match(/  input: \{[\s\S]*?\n  \},/) || [''])[0]), 'multiline input has no lineHeight (iOS stale paragraph style)');
 
-// Round 2 (2026-10-17): sizes from the owner's phone review.
-ok(/headerName: \{ fontFamily: obFonts\.heading, fontSize: 21,/.test(chat) && /headerSub: \{ fontFamily: obFonts\.body, fontSize: 12\.5,/.test(chat) && /headerAvatar: \{ width: 38, height: 38/.test(chat), 'header: name 21, View profile 12.5, avatar 38');
-ok(/bubbleText: \{ fontFamily: obFonts\.body, fontSize: 16,/.test(chat) && /msgTime: \{[^}]*fontSize: 11\.5/.test(chat) && /daySeparator: \{[^}]*fontSize: 12,/.test(chat), 'type: body 16, time 11.5, day 12');
-ok(/borderRadius: 16,\s*paddingHorizontal: 13,\s*paddingVertical: 9,/.test(chat), 'bubble: 16 pt corners, 13 / 9 padding (not a pill)');
-ok(/msgBlock: \{ marginTop: 5 \}/.test(chat) && /msgBlockGroupStart: \{ marginTop: 14 \}/.test(chat) && /msgBlockAfterDay: \{ marginTop: 4 \}/.test(chat) && /row\.afterDay \? styles\.msgBlockAfterDay/.test(chat), 'spacing: 5 in a group, 14 between groups, 4 under a day label');
-ok(/daySeparator: \{\s*alignSelf: 'center',\s*marginTop: 10,\s*fontFamily/.test(chat), 'day label: 10 pt above, no bottom margin');
-ok(/attachBtn: \{\s*width: 42,\s*height: 42/.test(chat) && /sendBtn: \{\s*width: 42,\s*height: 42/.test(chat) && (chat.match(/hitSlop=\{3\}/g) || []).length >= 2, 'input buttons: 42 pt + hitSlop 3 = 48 pt touch area');
-ok(/maxFontSizeMultiplier=\{SCALE_HEADER\}/.test(chat) && /maxFontSizeMultiplier=\{SCALE_BODY\}/.test(chat) && !/maxFontSizeMultiplier=\{1\}|allowFontScaling=\{false\}/.test(chat), 'text scaling kept (bounded for header / labels, generous for messages)');
-const card2 = read('components/chat/HowItStartedCard.tsx');
-ok(/const THUMB = 40;/.test(card2) && /line: \{ fontFamily: obFonts\.bodySemiBold, fontSize: 13\.5/.test(card2) && /preview: \{ fontFamily: obFonts\.body, fontSize: 13,/.test(card2) && /numberOfLines=\{1\}/.test(card2), 'card: 40 pt thumb, 13.5 / 13 text, one line each when collapsed');
+// Round 3 (2026-10-17): values from measuring the phone screenshot against
+// the mockup at the same 393 pt width; V1 keeps its pre-redesign look.
+const sty = (name) => (chat.match(new RegExp(`const ${name} = StyleSheet\\.create\\(\\{[\\s\\S]*?\\n\\}\\);`)) || [''])[0];
+const v2s = sty('v2');
+const v1s = sty('styles');
+ok(/headerName: \{ fontFamily: obFonts\.headingRegular, fontSize: 21/.test(v2s) && /headerAvatar: \{ width: 52, height: 52/.test(v2s), 'V2 header: regular-weight serif name, 52 pt photo');
+ok(/<Feather name="arrow-left"/.test(chat), 'V2 header: thin back arrow');
+ok(/bubble: \{ maxWidth: 248, flexShrink: 1, borderRadius: 11,/.test(v2s) && !/borderBottom(Right|Left)Radius/.test(v2s), 'V2 bubble: ~11 pt uniform corners (no tail), up to ~248 pt wide');
+ok(/bubbleText: \{ fontFamily: obFonts\.body, fontSize: 16, lineHeight: 21/.test(v2s), 'V2 body text 16 (same as the mockup)');
+ok(/msgAvatar: \{ width: 40, height: 40/.test(v2s) && /msgTimeTheirs: \{ alignSelf: 'flex-start', marginLeft: 50 \}/.test(v2s), 'V2 incoming avatar 40, time aligned with the bubble');
+ok(/daySeparator: \{\s*alignSelf: 'center',\s*marginTop: 18,\s*marginBottom: 6,/.test(v2s) && /msgBlockAfterDay: \{ marginTop: 12 \}/.test(v2s), 'V2 day label centred between blocks (not glued to the next bubble)');
+ok(/attachBtn: \{ width: 44, height: 44/.test(v2s) && /sendBtn: \{ width: 44, height: 44/.test(v2s) && /minHeight: 44/.test(v2s), 'V2 input: 44 pt controls');
+ok(!/maxFontSizeMultiplier|allowFontScaling=\{false\}/.test(chat + read('components/chat/HowItStartedCard.tsx')), 'text scaling not limited (round-2 caps removed)');
+const card3 = read('components/chat/HowItStartedCard.tsx');
+ok(/const THUMB_W = 48;/.test(card3) && /const THUMB_H = 44;/.test(card3) && /numberOfLines=\{1\}/.test(card3), 'card: ~48 × 44 thumbnail, one line each when collapsed');
+// V1 isolation: the legacy screen keeps its pre-redesign styles and layout.
+ok(/headerName: \{ fontFamily: obFonts\.heading, fontSize: 19, lineHeight: 25/.test(v1s) && /bubble: \{\s*maxWidth: '75%',/.test(v1s) && /msgAvatarMine:/.test(v1s) && /messagesList: \{ padding: 16, gap: 8, flexGrow: 1 \}/.test(v1s), 'V1 styles = pre-redesign values');
+ok(/function renderMessageV1\(/.test(chat) && /if \(!v2Enabled\) \{[\s\S]{0,120}renderMessageV1\(/.test(chat) && /if \(v2Enabled \|\| !currentUserId\) return;/.test(chat), 'V1 renders its old bubbles (own avatar kept, fetched only for V1)');
+ok(/v2Enabled \? timelineRows : timelineRows\.filter\(\(r\) => r\.kind !== 'day'\)/.test(chat) && /<ThemedText style=\{styles\.backText\}>←<\/ThemedText>/.test(chat), 'V1: no day separators, old header');
+ok(/paddingBottom: keyboardShown \? 12 : insets\.bottom \+ 12/.test(chat), 'V1 input padding unchanged');
+const theme = read('lib/onboardingV2/theme.ts');
+ok(/headingRegular: 'PlayfairDisplay-Regular'/.test(theme) && /PlayfairDisplay_400Regular\.ttf/.test(theme) && fs.existsSync(path.join(ROOT, 'assets/fonts/PlayfairDisplay_400Regular.ttf')), 'Playfair Display 400 vendored and loaded (OFL, same source as 700)');
+const badge = read('components/dev/DevBackendBadge.tsx');
+ok(/if \(!__DEV__\) return null;/.test(badge) && /DEV_BUILD_MARK/.test(badge) && /fontScale\.toFixed\(2\)/.test(badge), 'temporary DEV-only build mark + window size + font scale');
 
 module.exports = done('v2_chat_layout');
