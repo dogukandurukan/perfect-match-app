@@ -1,5 +1,20 @@
 # Local application review tool (tempa-local) — result
 
+## Owner's phone result — 17 October 2026 (verified by the owner, LOCAL)
+Account `tempa-onb-phone-1@tempa-test.example.com`:
+- Approved with this local review tool → **accepted / verified / active**.
+- After sign-in with the email code the **main app opened**.
+- After fully closing and reopening the app it went straight in, with **no new code and no application screen**.
+- On the **own profile**: the photos, the standard answers and the **Running ("Kosmak") conversation starter** are shown.
+
+Recorded for this scope only. Still **open** (not verified):
+- D93's one-standard + one-starter path;
+- the chat keyboard look (`38b3fa2`);
+- the old Mert message on Defne's side;
+- the intermittent Realtime timeout;
+- "Both into this" on a phone.
+
+
 Date 2026-10-15 · Branch `tempa/v2-persist-r2` · Author: Claude Code.
 
 **Status:**

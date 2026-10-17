@@ -241,7 +241,9 @@ export default function MessagesScreen() {
           </View>
           <ThemedText style={styles.emptyText}>Your chats will show up here</ThemedText>
           <ThemedText style={styles.emptySubtext}>
-            Once someone accepts your invite, the conversation opens right here.
+            {v2Enabled
+              ? 'When you match with someone, your conversation will appear here.'
+              : 'Once someone accepts your invite, the conversation opens right here.'}
           </ThemedText>
           <TouchableOpacity
             style={styles.emptyCta}

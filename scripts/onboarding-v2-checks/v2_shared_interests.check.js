@@ -56,4 +56,8 @@ ok(/shared\?\.has\(f\.markKey\)/.test(dpi) && /shared\?\.has\(tasteMarkKey\(it\)
 ok(/both: \{ fontFamily: obFonts\.body, fontSize: 13/.test(dpi) && /both: \{ fontFamily: obFonts\.body, fontSize: 13/.test(pp) && !/perfect match|% match|Animated/i.test(code('lib/interests/shared.ts') + code('lib/interests/useSharedMarks.ts')), 'small secondary text; no score / animation');
 ok(!/shared|Both into/.test(code('components/interests/TakeCard.tsx')), 'conversation starters unchanged');
 
+// V2 Chats empty text (2026-10-17); V1 unchanged.
+const msgs = read('app/(tabs)/messages.tsx');
+ok(/v2Enabled\s*\?\s*'When you match with someone, your conversation will appear here\.'\s*:\s*'Once someone accepts your invite, the conversation opens right here\.'/.test(msgs), 'Chats empty: V2 text; V1 text kept');
+
 module.exports = done('v2_shared_interests');
