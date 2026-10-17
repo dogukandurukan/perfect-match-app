@@ -112,8 +112,9 @@ ok(!/activity-preview|activityPreview/.test(fs.readFileSync(path.join(ROOT, 'app
 const items = fs.readFileSync(path.join(ROOT, 'components/discover/DiscoverProfileItems.tsx'), 'utf8');
 ok(/readOnly\?: boolean/.test(items) && !/readOnly/.test(fs.readFileSync(path.join(ROOT, 'components/main/V2DiscoverScreen.tsx'), 'utf8')), 'shared profile: readOnly is opt-in; real Discover does not set it');
 const chat = fs.readFileSync(path.join(ROOT, 'app/chat.tsx'), 'utf8');
-// Since the Activity integration (2026-10-12, D79) the real V2 chat shows the
-// same "How it started" heading; checked in v2_activity_real.check.js.
-ok(/<LikeContextHeader likes=\{chatState\?\.likes\} otherName=\{userName\} title=\{MATCH_COPY\.howItStarted\} \/>/.test(chat), 'real chat uses the shared context with the How it started title');
+// Since the chat redesign (2026-10-17) the real V2 chat shows the compact,
+// expandable HowItStartedCard (same likes, same wording helper); the DEV
+// preview keeps LikeContextHeader. Checked in v2_chat_layout.check.js.
+ok(/<HowItStartedCard likes=\{chatState\?\.likes\} otherName=\{userName\} \/>/.test(chat) && /likeContextLine/.test(fs.readFileSync(path.join(ROOT, 'components/chat/HowItStartedCard.tsx'), 'utf8')), 'real chat uses the compact How it started card (shared like wording)');
 
 module.exports = done('v2_activity_preview');

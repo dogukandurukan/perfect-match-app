@@ -66,7 +66,7 @@ ok(!/It’s a match|It's a match|Like back|Just match/.test(prof + scr), 'no cel
 
 // Chat (D79).
 const chat = read('app/chat.tsx');
-ok(/title=\{MATCH_COPY\.howItStarted\}/.test(chat) && /MATCH_COPY\.hello\(userName\)/.test(chat) && /MATCH_COPY\.helloText/.test(chat), 'V2 chat: How it started + Say hello empty state');
+ok(/<HowItStartedCard /.test(chat) && /How it started/.test(read('components/chat/HowItStartedCard.tsx')) && /MATCH_COPY\.hello\(userName\)/.test(chat) && /MATCH_COPY\.helloText/.test(chat), 'V2 chat: How it started + Say hello empty state');
 ok(/You matched — say hi 👋/.test(chat), 'V1 chat empty text unchanged');
 ok(/!!title \|\| l\.target_type !== 'profile' \|\| !!l\.note/.test(read('components/chat/LikeContext.tsx')), 'titled context also shows a whole-profile like');
 
@@ -82,7 +82,8 @@ ok(C.timeAgoLong(3) === '3m ago' && `Conversation started · ${C.timeAgoLong(3)}
 const chatSrc = read('app/chat.tsx');
 ok(/ListFooterComponent=\{icebreakerPanel\}/.test(chatSrc) && /\{!listShown \? icebreakerPanel : null\}/.test(chatSrc)
   && (chatSrc.match(/Quick this-or-that ✨/g) || []).length === 1, 'chat: quiz is part of the scrolling list (no fixed panel over the hello)');
-ok(/setKeyboardShown\(true\);[\s\S]{0,160}scrollToEnd/.test(chatSrc) && /onContentSizeChange=\{\(\) => flatListRef\.current\?\.scrollToEnd/.test(chatSrc), 'chat: keeps the end (last message / quiz) in view on keyboard + new content');
+// Since 2026-10-17: only while the reader is at the end (or just sent).
+ok(/setKeyboardShown\(true\);[\s\S]{0,240}scrollToEndIfFollowing\(\)/.test(chatSrc) && /onContentSizeChange=\{\(\) => scrollToEndIfFollowing\(\)\}/.test(chatSrc), 'chat: keeps the end (last message / quiz) in view on keyboard + new content');
 
 // Package wiring.
 ok(!/20261012090000_v2_activity_accept/.test(read('scripts/dev-backend/apply-dev.mjs')), 'Activity package not wired into apply-dev (shared project)');

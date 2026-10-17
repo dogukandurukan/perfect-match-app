@@ -37,7 +37,8 @@ import { supabase, v2Enabled } from '@/lib/supabaseClient';
 import { isSendableTime } from '@/lib/onboardingV2/dateSuggestions';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { SuggestDateSheet } from '@/components/chat/SuggestDateSheet';
-import { LikeContextHeader } from '@/components/chat/LikeContext';
+import { HowItStartedCard } from '@/components/chat/HowItStartedCard';
+import { buildTimeline, isNearEnd, type TimelineRow } from '@/lib/chat/timeline';
 import { MATCH_COPY } from '@/lib/activity/copy';
 import {
   loadChatState,
@@ -62,6 +63,9 @@ type Message = {
   content: string;
   created_at: string;
 };
+
+type ChatItem = { kind: 'msg'; msg: Message } | { kind: 'date'; p: Proposal };
+type ChatRow = TimelineRow<ChatItem>;
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -119,11 +123,19 @@ export default function ChatScreen() {
   const [savedIcebreaker, setSavedIcebreaker] = useState<QuickIcebreakerAnswer[] | null>(null);
   const [icebreakerChecked, setIcebreakerChecked] = useState(false);
   const [headerPhotoUrl, setHeaderPhotoUrl] = useState<string | null>(null);
-  const [myPhotoUrl, setMyPhotoUrl] = useState<string | null>(null);
-  const [myInitial, setMyInitial] = useState('?');
   const [keyboardShown, setKeyboardShown] = useState(false);
   const insets = useSafeAreaInsets();
-  const flatListRef = useRef<FlatList<Message>>(null);
+  const flatListRef = useRef<FlatList<ChatRow>>(null);
+  // Follow the newest message only while the reader is at the end of the
+  // list; someone reading older messages is never pulled down by an update
+  // (realtime message, 20 s state refresh, keyboard). Own sends always scroll.
+  const nearEndRef = useRef(true);
+  const forceEndRef = useRef(false);
+  const scrollToEndIfFollowing = useCallback((animated = true) => {
+    if (!nearEndRef.current && !forceEndRef.current) return;
+    forceEndRef.current = false;
+    flatListRef.current?.scrollToEnd({ animated });
+  }, []);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -139,15 +151,16 @@ export default function ChatScreen() {
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const showSub = Keyboard.addListener(showEvt, () => {
       setKeyboardShown(true);
-      // The list just got shorter: keep its end (last message / quiz) visible.
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
+      // The list just got shorter: keep its end (last message / quiz) visible
+      // — only if the reader was already there.
+      setTimeout(() => scrollToEndIfFollowing(), 60);
     });
     const hideSub = Keyboard.addListener(hideEvt, () => setKeyboardShown(false));
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [scrollToEndIfFollowing]);
 
   useEffect(() => {
     if (!otherUserId) return;
@@ -167,26 +180,6 @@ export default function ChatScreen() {
       cancelled = true;
     };
   }, [otherUserId]);
-
-  useEffect(() => {
-    if (!currentUserId) return;
-    let cancelled = false;
-    void (async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('photos, first_name')
-        .eq('id', currentUserId)
-        .maybeSingle();
-      if (cancelled) return;
-      const myUrl = await resolveProfilePhotoUrl(data?.photos?.[0]);
-      if (cancelled) return;
-      setMyPhotoUrl(myUrl);
-      setMyInitial((data?.first_name?.trim()[0] ?? '?').toUpperCase());
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUserId]);
 
   const resolveMatchAndGate = useCallback(async () => {
     if (!currentUserId || !otherUserId) return;
@@ -311,7 +304,8 @@ export default function ChatScreen() {
               if (prev.some((m) => m.id === msg.id)) return prev;
               return [...prev, msg];
             });
-            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            if (msg.sender_id === currentUserId) forceEndRef.current = true;
+            setTimeout(() => scrollToEndIfFollowing(), 100);
             if (msg.sender_id === otherUserId) void markIncomingMessagesRead();
           }
         },
@@ -321,7 +315,7 @@ export default function ChatScreen() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, otherUserId, chatOpened]);
+  }, [currentUserId, otherUserId, chatOpened, scrollToEndIfFollowing]);
 
   // Per-chat quiz progress resets on a new conversation; the underlying
   // answers (savedIcebreaker) are per-USER and fetched separately below, not
@@ -395,7 +389,7 @@ export default function ChatScreen() {
     setMessagesError(false);
     if (data) {
       setMessages(data as Message[]);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
+      setTimeout(() => scrollToEndIfFollowing(false), 100);
       void markIncomingMessagesRead();
     }
   }
@@ -407,16 +401,28 @@ export default function ChatScreen() {
     const content = text.trim();
     const isFirstMessage = messages.length === 0;
     setText('');
-    const { error } = await supabase.from('messages').insert({
-      sender_id: currentUserId,
-      receiver_id: otherUserId,
-      content,
-    });
+    // Read the inserted row back so the sent message shows right away even if
+    // the realtime echo is late or missed (the echo is de-duplicated by id).
+    const { data: sent, error } = await supabase
+      .from('messages')
+      .insert({
+        sender_id: currentUserId,
+        receiver_id: otherUserId,
+        content,
+      })
+      .select('id, sender_id, receiver_id, content, created_at')
+      .single();
     if (error) {
       setText(content);
       setSendError(true);
-    } else if (isFirstMessage) {
-      logEvent('first_message_sent', { match_source: matchSource });
+    } else {
+      if (sent) {
+        const row = sent as Message;
+        setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+      }
+      forceEndRef.current = true;
+      setTimeout(() => scrollToEndIfFollowing(), 100);
+      if (isFirstMessage) logEvent('first_message_sent', { match_source: matchSource });
     }
     setSending(false);
   }
@@ -785,45 +791,38 @@ export default function ChatScreen() {
     });
   }
 
-  function renderMessage({ item, index }: { item: Message; index: number }) {
+  // One bubble. Own messages: no avatar. Theirs: the avatar only beside the
+  // last bubble of a group (an empty slot keeps the column aligned); the time
+  // sits under the last bubble of each group.
+  function renderMessage(item: Message, row: { firstOfGroup: boolean; lastOfGroup: boolean; time: string | null }) {
     const isMine = item.sender_id === currentUserId;
-    const isLastOfGroup =
-      index === messages.length - 1 ||
-      messages[index + 1]?.sender_id !== item.sender_id;
     return (
-      <View style={[styles.msgWrap, isMine ? styles.msgWrapMine : styles.msgWrapTheirs]}>
-        {!isMine ? (
-          isLastOfGroup ? (
-            <TouchableOpacity onPress={openUserProfile} activeOpacity={0.7}>
-              {headerPhotoUrl ? (
-                <Image source={{ uri: headerPhotoUrl }} style={styles.msgAvatar} contentFit="cover" />
-              ) : (
-                <View style={styles.msgAvatarPlaceholder}>
-                  <ThemedText style={styles.msgAvatarInitial}>{headerInitial}</ThemedText>
-                </View>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.msgAvatar} />
-          )
-        ) : null}
-        <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-          <ThemedText style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
-            {item.content}
-          </ThemedText>
-        </View>
-        {isMine ? (
-          isLastOfGroup ? (
-            myPhotoUrl ? (
-              <Image source={{ uri: myPhotoUrl }} style={styles.msgAvatarMine} contentFit="cover" />
+      <View style={[styles.msgBlock, row.firstOfGroup ? styles.msgBlockGroupStart : null]}>
+        <View style={[styles.msgWrap, isMine ? styles.msgWrapMine : styles.msgWrapTheirs]}>
+          {!isMine ? (
+            row.lastOfGroup ? (
+              <TouchableOpacity onPress={openUserProfile} disabled={chatEnded || accountUnavailable} activeOpacity={0.7}
+                accessibilityRole="button" accessibilityLabel={`View ${userName}'s profile`}>
+                {headerPhotoUrl ? (
+                  <Image source={{ uri: headerPhotoUrl }} style={styles.msgAvatar} contentFit="cover" />
+                ) : (
+                  <View style={[styles.msgAvatar, styles.msgAvatarPlaceholder]}>
+                    <ThemedText style={styles.msgAvatarInitial}>{headerInitial}</ThemedText>
+                  </View>
+                )}
+              </TouchableOpacity>
             ) : (
-              <View style={styles.msgAvatarPlaceholderMine}>
-                <ThemedText style={styles.msgAvatarInitial}>{myInitial}</ThemedText>
-              </View>
+              <View style={styles.msgAvatar} />
             )
-          ) : (
-            <View style={styles.msgAvatarMine} />
-          )
+          ) : null}
+          <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
+            <ThemedText style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
+              {item.content}
+            </ThemedText>
+          </View>
+        </View>
+        {row.time ? (
+          <ThemedText style={[styles.msgTime, isMine ? styles.msgTimeMine : styles.msgTimeTheirs]}>{row.time}</ThemedText>
         ) : null}
       </View>
     );
@@ -850,11 +849,16 @@ export default function ChatScreen() {
   // meetup_proposed_by/meetup_confirmed columns drive both paths now.
   // V2 replaces this persistent bar with in-chat cards + the + menu.
   const meetupUiEnabled = !inputDisabled && !v2Enabled;
-  type ChatItem = { kind: 'msg'; at: string; msg: Message } | { kind: 'date'; at: string; p: Proposal };
-  const chatItems: ChatItem[] = [
-    ...messages.map((m) => ({ kind: 'msg' as const, at: m.created_at, msg: m })),
-    ...(v2Enabled ? (chatState?.proposals ?? []).map((p) => ({ kind: 'date' as const, at: p.created_at, p })) : []),
-  ].sort((a, b) => a.at.localeCompare(b.at));
+  // Messages and V2 date cards in time order, with day separators and sender
+  // groups from the real timestamps (date cards never group with bubbles).
+  const chatRows: ChatRow[] = buildTimeline<ChatItem>(
+    [
+      ...messages.map((m) => ({ key: m.id, at: m.created_at, senderId: m.sender_id, item: { kind: 'msg' as const, msg: m } })),
+      ...(v2Enabled
+        ? (chatState?.proposals ?? []).map((p) => ({ key: `date-${p.id}`, at: p.created_at, senderId: null, item: { kind: 'date' as const, p } }))
+        : []),
+    ].sort((a, b) => a.at.localeCompare(b.at)),
+  );
   // 'none' = no active proposal · 'proposed_by_me' = waiting on the other
   // person · 'proposed_by_them' = I need to respond · 'confirmed' = settled.
   const meetupState: 'none' | 'proposed_by_me' | 'proposed_by_them' | 'confirmed' = !meetingAt
@@ -925,28 +929,38 @@ export default function ChatScreen() {
 
   return (
     <>
-    <ScreenContainer style={[styles.container, { paddingBottom: 0 }]}>
+    {/* Compact header: the screen's own safe-area top (no extra 12 pt), full
+        width; the list and input row set their own side padding. */}
+    <ScreenContainer style={[styles.container, { paddingTop: insets.top, paddingBottom: 0, paddingHorizontal: 0 }]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backBtn}
+          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Go back">
-          <ThemedText style={styles.backText}>←</ThemedText>
+          <Ionicons name="arrow-back" size={24} color={obColors.textPrimary} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={openUserProfile}
           disabled={chatEnded || accountUnavailable}
           style={styles.headerCenter}
-          activeOpacity={0.7}>
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={chatEnded || accountUnavailable ? userName : `${userName}. View profile`}>
           {headerPhotoUrl ? (
             <Image source={{ uri: headerPhotoUrl }} style={styles.headerAvatar} contentFit="cover" />
           ) : (
-            <View style={styles.headerAvatarPlaceholder}>
+            <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
               <ThemedText style={styles.headerAvatarInitial}>{headerInitial}</ThemedText>
             </View>
           )}
-          <ThemedText style={styles.headerName}>{userName}</ThemedText>
+          <View style={styles.headerText}>
+            <ThemedText style={styles.headerName} numberOfLines={1}>{userName}</ThemedText>
+            {!chatEnded && !accountUnavailable ? (
+              <ThemedText style={styles.headerSub} numberOfLines={1}>View profile</ThemedText>
+            ) : null}
+          </View>
         </TouchableOpacity>
         {v2Enabled ? (
           <TouchableOpacity onPress={openChatMenu} style={styles.menuBtn} hitSlop={10}
@@ -983,24 +997,32 @@ export default function ChatScreen() {
         ) : (
           <FlatList
             ref={flatListRef as never}
-            data={chatItems}
-            keyExtractor={(item) => (item.kind === 'msg' ? item.msg.id : `date-${item.p.id}`)}
-            renderItem={({ item }) => {
-              if (item.kind === 'date') return renderProposal(item.p);
-              const index = messages.findIndex((m) => m.id === item.msg.id);
-              return renderMessage({ item: item.msg, index });
+            data={chatRows}
+            keyExtractor={(row) => row.key}
+            renderItem={({ item: row }) => {
+              if (row.kind === 'day') {
+                return <ThemedText style={styles.daySeparator} accessibilityRole="header">{row.label}</ThemedText>;
+              }
+              if (row.item.kind === 'date') return renderProposal(row.item.p);
+              return renderMessage(row.item.msg, row);
             }}
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
-            // V2: likes (which photo / answer + note) as "How it started"
-            // context, never messages (D79). Empty V2 chat: the approved hello.
-            ListHeaderComponent={v2Enabled ? <LikeContextHeader likes={chatState?.likes} otherName={userName} title={MATCH_COPY.howItStarted} /> : null}
+            // V2: likes (which photo / answer + note) as a compact "How it
+            // started" card, never messages (D79); it scrolls away with the
+            // chat. Empty V2 chat: the approved hello.
+            ListHeaderComponent={v2Enabled ? <HowItStartedCard likes={chatState?.likes} otherName={userName} /> : null}
             ListFooterComponent={icebreakerPanel}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            onScroll={(e) => {
+              nearEndRef.current = isNearEnd(e.nativeEvent);
+            }}
+            scrollEventThrottle={64}
             // Keeps the newest message (or the quiz in an empty chat) in view
-            // when content grows or the keyboard shrinks the list.
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            // when content grows or the keyboard shrinks the list — only while
+            // the reader is at the end (or just sent a message).
+            onContentSizeChange={() => scrollToEndIfFollowing()}
             ListEmptyComponent={
               v2Enabled ? (
                 <View style={styles.emptyWrap}>
@@ -1109,7 +1131,9 @@ export default function ChatScreen() {
           style={[
             styles.inputRow,
             inputLocked && styles.inputRowLocked,
-            { paddingBottom: keyboardShown ? 12 : insets.bottom + 12 },
+            // Keyboard open: sits right on it. Closed: just the home-indicator
+            // inset (no extra gap below the field).
+            { paddingBottom: keyboardShown ? 8 : Math.max(insets.bottom, 8) },
           ]}>
           <TouchableOpacity
             style={[styles.attachBtn, inputDisabled && { opacity: 0.4 }]}
@@ -1117,7 +1141,7 @@ export default function ChatScreen() {
             disabled={inputDisabled}
             accessibilityRole="button"
             accessibilityLabel={v2Enabled ? 'More: suggest a date or add a photo' : 'Add a photo'}>
-            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 26 : 22} color={obColors.textPrimary} />
+            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 24 : 21} color={obColors.textPrimary} />
           </TouchableOpacity>
           <TextInput
             ref={inputRef}
@@ -1137,7 +1161,7 @@ export default function ChatScreen() {
           <TouchableOpacity
             style={[
               styles.sendBtn,
-              (inputDisabled || !text.trim() || sending) && { opacity: 0.4 },
+              (inputDisabled || !text.trim()) && !sending && styles.sendBtnDisabled,
             ]}
             onPress={() => void handleSend()}
             disabled={inputDisabled || !text.trim() || sending}
@@ -1147,7 +1171,7 @@ export default function ChatScreen() {
             {sending ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
-              <Ionicons name="arrow-up" size={22} color="#FFF" />
+              <Ionicons name="arrow-up" size={21} color="#FFF" />
             )}
           </TouchableOpacity>
         </View>
@@ -1298,7 +1322,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: { justifyContent: 'flex-start', backgroundColor: obColors.background },
   proposeIdeasLabel: { fontSize: 13, lineHeight: 18, color: obColors.textSecondary, marginBottom: 6 },
-  menuBtn: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },
+  menuBtn: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' },
   dateCard: {
     marginVertical: 8,
     maxWidth: '88%',
@@ -1338,32 +1362,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E4DCCB',
+    paddingTop: 4,
+    paddingBottom: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#DDD4C2',
   },
-  backBtn: { width: 40, alignItems: 'flex-start' },
-  backText: { fontSize: 24, color: obColors.cta },
+  backBtn: { width: 44, height: 44, alignItems: 'flex-start', justifyContent: 'center' },
   headerCenter: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
+    minHeight: 44,
   },
-  headerAvatar: { width: 32, height: 32, borderRadius: 16 },
+  headerAvatar: { width: 40, height: 40, borderRadius: 20 },
   headerAvatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerAvatarInitial: { fontSize: 14, fontWeight: '700', color: obColors.textPrimary },
-  headerName: { fontFamily: obFonts.heading, fontSize: 19, lineHeight: 25, color: obColors.textPrimary },
-  messagesList: { padding: 16, gap: 8, flexGrow: 1 },
+  headerAvatarInitial: { fontSize: 16, fontWeight: '700', color: obColors.textPrimary },
+  headerText: { flexShrink: 1, minWidth: 0 },
+  headerName: { fontFamily: obFonts.heading, fontSize: 19, lineHeight: 24, color: obColors.textPrimary },
+  headerSub: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 17, color: obColors.textSecondary },
+  messagesList: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, flexGrow: 1 },
+  daySeparator: {
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+    fontFamily: obFonts.bodyMedium,
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: obColors.textSecondary,
+  },
   emptyWrap: {
     flex: 1,
     alignItems: 'center',
@@ -1547,56 +1580,50 @@ const styles = StyleSheet.create({
     backgroundColor: obColors.cta,
   },
   proposeConfirmBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
-  msgWrap: { flexDirection: 'row', marginBottom: 6, alignItems: 'flex-end' },
+  // Bubbles: 3 pt between bubbles of one group, 12 pt between groups.
+  msgBlock: { marginTop: 3 },
+  msgBlockGroupStart: { marginTop: 12 },
+  msgWrap: { flexDirection: 'row', alignItems: 'flex-end' },
   msgWrapMine: { justifyContent: 'flex-end' },
   msgWrapTheirs: { justifyContent: 'flex-start' },
-  msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
-  msgAvatarMine: { width: 28, height: 28, borderRadius: 14, marginLeft: 8 },
+  msgAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: 8 },
   msgAvatarPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginRight: 8,
     backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  msgAvatarPlaceholderMine: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginLeft: 8,
-    backgroundColor: obColors.selectedFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  msgAvatarInitial: { fontSize: 12, fontWeight: '700', color: obColors.textPrimary },
+  msgAvatarInitial: { fontSize: 13, fontWeight: '700', color: obColors.textPrimary },
   bubble: {
-    maxWidth: '75%',
-    borderRadius: 16,
+    maxWidth: '78%',
+    flexShrink: 1,
+    borderRadius: 18,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
   },
   bubbleMine: {
     backgroundColor: obColors.cta,
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 6,
   },
   bubbleTheirs: {
     backgroundColor: '#FFFDF8',
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
+    borderBottomLeftRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#E4DCCB',
   },
-  bubbleText: { fontFamily: obFonts.body, fontSize: 15.5, color: obColors.textPrimary, lineHeight: 22 },
+  bubbleText: { fontFamily: obFonts.body, fontSize: 15.5, color: obColors.textPrimary, lineHeight: 21 },
   bubbleTextMine: { color: '#FFF' },
+  msgTime: { marginTop: 3, fontFamily: obFonts.body, fontSize: 11.5, lineHeight: 15, color: obColors.textSecondary },
+  msgTimeMine: { alignSelf: 'flex-end', marginRight: 4 },
+  msgTimeTheirs: { alignSelf: 'flex-start', marginLeft: 44 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E4DCCB',
-    backgroundColor: '#FFFDF8',
+    paddingTop: 8,
+    paddingHorizontal: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#DDD4C2',
+    backgroundColor: obColors.background,
   },
   inputRowLocked: { opacity: 0.85 },
   unavailableBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 12, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: obColors.notice },
@@ -1606,21 +1633,25 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F1ECE1',
+    backgroundColor: '#EFE8DA',
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
-    backgroundColor: '#F1ECE1',
-    borderRadius: radius.pill,
+    minHeight: 44,
+    backgroundColor: '#EFE8DA',
+    borderRadius: 22,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
+    paddingTop: 11,
+    paddingBottom: 11,
+    // No lineHeight on the multiline iOS input (stale paragraph style, P05 R2).
+    fontFamily: obFonts.body,
+    fontSize: 15.5,
     color: obColors.textPrimary,
-    maxHeight: 100,
+    maxHeight: 120,
   },
-  inputDisabled: { backgroundColor: '#F1ECE1', color: obColors.textSecondary },
+  inputDisabled: { color: obColors.textSecondary },
   sendBtn: {
     width: 44,
     height: 44,
@@ -1629,4 +1660,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  sendBtnDisabled: { backgroundColor: obColors.ctaDisabled },
 });
