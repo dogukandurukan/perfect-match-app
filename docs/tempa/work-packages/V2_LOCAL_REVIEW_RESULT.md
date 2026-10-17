@@ -1,5 +1,38 @@
 # Local application review tool (tempa-local) — result
 
+## Investigation (2026-10-17): "form-like blocks" in Profile → View profile — photo content, not a UI bug
+**Report (owner):** on `tempa-onb-phone-1`, View profile showed blocks that looked like onboarding forms:
+- "For a first date." / Days radios / Time;
+- "Pick a few things you enjoy." / all interest chips / "2 of 10 selected" / "Activities (optional) · 3 of 5";
+- they looked clipped, as if they scrolled inside a card.
+
+**Code check:**
+- View profile = `/v2/profile` → `PublicProfileView` → `ProfilePreview`, built from `get_profile_v2` by `buildPublicProfileBlocks`. It is read-only.
+- The real blocks for this account were listed with the app's own mapping: hero, conversation starters, about, prompt → photo, interest groups, prompt → photo, lifestyle, prompt → photo, First dates (once), taste.
+- No code in that path renders unselected options, counters, instructions or radio buttons.
+
+**Photo check (read-only; the stored photos were downloaded to a temporary folder, opened, then the copies deleted):**
+
+| Position | Type | Content |
+|---|---|---|
+| 1 | HEIC (camera) | a real photo |
+| **2** | **PNG** | **a screenshot of the onboarding step "When are you free?"** (Days / Time / "Weekends · Evening" / "Continue to your profile") |
+| **3** | **PNG** | **a screenshot of the onboarding step "What are you into?"** (all interests, "2 of 10 selected", "Activities (optional) · 3 of 5", "Continue") |
+| 4 | HEIC (camera) | a real photo |
+
+**Result:**
+- The "forms" are **uploaded profile photos (onboarding screenshots)**, shown in the photo slots that follow the standard answers.
+- The clipping is the tall screenshot cropped to the 4:5 photo card. There is no inner scroll and nothing editable.
+- The apparent First dates repetition is the screenshot's content.
+- **No component was changed; no photo was deleted or changed.**
+- An earlier guess in this investigation (the onboarding "Edit profile" path) was wrong: the cause is the photo content.
+
+**Options (owner's decision, not done):**
+- Use real photos in a new test onboarding. Approved members can't edit photos (the general lock is unchanged).
+- Or, in review, ask for changes with `review.mjs changes --items=yourProfile.photos`.
+- A future upload-time check for in-app screenshots is a separate package, if wanted.
+
+
 ## Owner's phone result — 17 October 2026 (verified by the owner, LOCAL)
 Account `tempa-onb-phone-1@tempa-test.example.com`:
 - Approved with this local review tool → **accepted / verified / active**.
