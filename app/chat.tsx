@@ -65,6 +65,13 @@ type Message = {
 };
 
 type ChatItem = { kind: 'msg'; msg: Message } | { kind: 'date'; p: Proposal };
+
+// Larger accessibility text sizes still apply everywhere; the header and the
+// small day / time labels grow less than the message text so a large setting
+// doesn't turn the one-line header into a heavy block.
+const SCALE_HEADER = 1.15;
+const SCALE_META = 1.3;
+const SCALE_BODY = 1.8;
 type ChatRow = TimelineRow<ChatItem>;
 
 export default function ChatScreen() {
@@ -794,10 +801,13 @@ export default function ChatScreen() {
   // One bubble. Own messages: no avatar. Theirs: the avatar only beside the
   // last bubble of a group (an empty slot keeps the column aligned); the time
   // sits under the last bubble of each group.
-  function renderMessage(item: Message, row: { firstOfGroup: boolean; lastOfGroup: boolean; time: string | null }) {
+  function renderMessage(
+    item: Message,
+    row: { firstOfGroup: boolean; lastOfGroup: boolean; afterDay: boolean; time: string | null },
+  ) {
     const isMine = item.sender_id === currentUserId;
     return (
-      <View style={[styles.msgBlock, row.firstOfGroup ? styles.msgBlockGroupStart : null]}>
+      <View style={[styles.msgBlock, row.afterDay ? styles.msgBlockAfterDay : row.firstOfGroup ? styles.msgBlockGroupStart : null]}>
         <View style={[styles.msgWrap, isMine ? styles.msgWrapMine : styles.msgWrapTheirs]}>
           {!isMine ? (
             row.lastOfGroup ? (
@@ -816,13 +826,15 @@ export default function ChatScreen() {
             )
           ) : null}
           <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-            <ThemedText style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>
+            <ThemedText style={[styles.bubbleText, isMine && styles.bubbleTextMine]} maxFontSizeMultiplier={SCALE_BODY}>
               {item.content}
             </ThemedText>
           </View>
         </View>
         {row.time ? (
-          <ThemedText style={[styles.msgTime, isMine ? styles.msgTimeMine : styles.msgTimeTheirs]}>{row.time}</ThemedText>
+          <ThemedText style={[styles.msgTime, isMine ? styles.msgTimeMine : styles.msgTimeTheirs]} maxFontSizeMultiplier={SCALE_META}>
+            {row.time}
+          </ThemedText>
         ) : null}
       </View>
     );
@@ -956,9 +968,9 @@ export default function ChatScreen() {
             </View>
           )}
           <View style={styles.headerText}>
-            <ThemedText style={styles.headerName} numberOfLines={1}>{userName}</ThemedText>
+            <ThemedText style={styles.headerName} numberOfLines={1} maxFontSizeMultiplier={SCALE_HEADER}>{userName}</ThemedText>
             {!chatEnded && !accountUnavailable ? (
-              <ThemedText style={styles.headerSub} numberOfLines={1}>View profile</ThemedText>
+              <ThemedText style={styles.headerSub} numberOfLines={1} maxFontSizeMultiplier={SCALE_META}>View profile</ThemedText>
             ) : null}
           </View>
         </TouchableOpacity>
@@ -1001,7 +1013,11 @@ export default function ChatScreen() {
             keyExtractor={(row) => row.key}
             renderItem={({ item: row }) => {
               if (row.kind === 'day') {
-                return <ThemedText style={styles.daySeparator} accessibilityRole="header">{row.label}</ThemedText>;
+                return (
+                  <ThemedText style={styles.daySeparator} accessibilityRole="header" maxFontSizeMultiplier={SCALE_META}>
+                    {row.label}
+                  </ThemedText>
+                );
               }
               if (row.item.kind === 'date') return renderProposal(row.item.p);
               return renderMessage(row.item.msg, row);
@@ -1137,17 +1153,19 @@ export default function ChatScreen() {
           ]}>
           <TouchableOpacity
             style={[styles.attachBtn, inputDisabled && { opacity: 0.4 }]}
+            hitSlop={3}
             onPress={v2Enabled ? openPlusMenu : handleAddPhoto}
             disabled={inputDisabled}
             accessibilityRole="button"
             accessibilityLabel={v2Enabled ? 'More: suggest a date or add a photo' : 'Add a photo'}>
-            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 24 : 21} color={obColors.textPrimary} />
+            <Ionicons name={v2Enabled ? 'add' : 'camera-outline'} size={v2Enabled ? 23 : 20} color={obColors.textPrimary} />
           </TouchableOpacity>
           <TextInput
             ref={inputRef}
             style={[styles.input, inputDisabled && styles.inputDisabled]}
             placeholder={accountUnavailable ? 'Account unavailable' : inputLocked ? 'Chat locked' : `Message ${userName}…`}
             placeholderTextColor={obColors.textSecondary}
+            maxFontSizeMultiplier={SCALE_BODY}
             value={text}
             onChangeText={(v) => {
               setText(v);
@@ -1164,6 +1182,7 @@ export default function ChatScreen() {
               (inputDisabled || !text.trim()) && !sending && styles.sendBtnDisabled,
             ]}
             onPress={() => void handleSend()}
+            hitSlop={3}
             disabled={inputDisabled || !text.trim() || sending}
             accessibilityRole="button"
             accessibilityLabel="Send message"
@@ -1171,7 +1190,7 @@ export default function ChatScreen() {
             {sending ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
-              <Ionicons name="arrow-up" size={21} color="#FFF" />
+              <Ionicons name="arrow-up" size={20} color="#FFF" />
             )}
           </TouchableOpacity>
         </View>
@@ -1362,8 +1381,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 4,
-    paddingBottom: 8,
+    paddingTop: 2,
+    paddingBottom: 6,
     paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#DDD4C2',
@@ -1377,24 +1396,25 @@ const styles = StyleSheet.create({
     gap: 10,
     minHeight: 44,
   },
-  headerAvatar: { width: 40, height: 40, borderRadius: 20 },
+  headerAvatar: { width: 38, height: 38, borderRadius: 19 },
   headerAvatarPlaceholder: {
     backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerAvatarInitial: { fontSize: 16, fontWeight: '700', color: obColors.textPrimary },
+  headerAvatarInitial: { fontSize: 15, fontWeight: '700', color: obColors.textPrimary },
   headerText: { flexShrink: 1, minWidth: 0 },
-  headerName: { fontFamily: obFonts.heading, fontSize: 19, lineHeight: 24, color: obColors.textPrimary },
-  headerSub: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 17, color: obColors.textSecondary },
-  messagesList: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, flexGrow: 1 },
+  headerName: { fontFamily: obFonts.heading, fontSize: 21, lineHeight: 25, color: obColors.textPrimary },
+  headerSub: { fontFamily: obFonts.body, fontSize: 12.5, lineHeight: 16, color: obColors.textSecondary },
+  messagesList: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
+  // Day label: a small caption, not a section — 10 pt above, 4 pt to the
+  // first bubble (msgBlockAfterDay).
   daySeparator: {
     alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 4,
-    fontFamily: obFonts.bodyMedium,
-    fontSize: 12.5,
-    lineHeight: 17,
+    marginTop: 10,
+    fontFamily: obFonts.body,
+    fontSize: 12,
+    lineHeight: 16,
     color: obColors.textSecondary,
   },
   emptyWrap: {
@@ -1580,46 +1600,49 @@ const styles = StyleSheet.create({
     backgroundColor: obColors.cta,
   },
   proposeConfirmBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
-  // Bubbles: 3 pt between bubbles of one group, 12 pt between groups.
-  msgBlock: { marginTop: 3 },
-  msgBlockGroupStart: { marginTop: 12 },
+  // Bubbles: 5 pt between bubbles of one group, 14 pt between groups, 4 pt
+  // under a day label.
+  msgBlock: { marginTop: 5 },
+  msgBlockGroupStart: { marginTop: 14 },
+  msgBlockAfterDay: { marginTop: 4 },
   msgWrap: { flexDirection: 'row', alignItems: 'flex-end' },
   msgWrapMine: { justifyContent: 'flex-end' },
   msgWrapTheirs: { justifyContent: 'flex-start' },
-  msgAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: 8 },
+  msgAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: 10 },
   msgAvatarPlaceholder: {
     backgroundColor: obColors.selectedFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   msgAvatarInitial: { fontSize: 13, fontWeight: '700', color: obColors.textPrimary },
+  // 16 pt corners with a one-line height of ~40 pt: a rounded card, not a pill.
   bubble: {
     maxWidth: '78%',
     flexShrink: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
+    borderRadius: 16,
+    paddingHorizontal: 13,
     paddingVertical: 9,
   },
   bubbleMine: {
     backgroundColor: obColors.cta,
-    borderBottomRightRadius: 6,
+    borderBottomRightRadius: 5,
   },
   bubbleTheirs: {
     backgroundColor: '#FFFDF8',
-    borderBottomLeftRadius: 6,
+    borderBottomLeftRadius: 5,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#E4DCCB',
   },
-  bubbleText: { fontFamily: obFonts.body, fontSize: 15.5, color: obColors.textPrimary, lineHeight: 21 },
+  bubbleText: { fontFamily: obFonts.body, fontSize: 16, color: obColors.textPrimary, lineHeight: 22 },
   bubbleTextMine: { color: '#FFF' },
-  msgTime: { marginTop: 3, fontFamily: obFonts.body, fontSize: 11.5, lineHeight: 15, color: obColors.textSecondary },
+  msgTime: { marginTop: 2, fontFamily: obFonts.body, fontSize: 11.5, lineHeight: 14, color: obColors.textSecondary },
   msgTimeMine: { alignSelf: 'flex-end', marginRight: 4 },
-  msgTimeTheirs: { alignSelf: 'flex-start', marginLeft: 44 },
+  msgTimeTheirs: { alignSelf: 'flex-start', marginLeft: 46 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
-    paddingTop: 8,
+    paddingTop: 7,
     paddingHorizontal: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#DDD4C2',
@@ -1629,33 +1652,34 @@ const styles = StyleSheet.create({
   unavailableBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 12, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: obColors.notice },
   unavailableTitle: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
   unavailableText: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
+  // + and send: 42 pt circles, 48 pt touch area with hitSlop 3.
   attachBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: '#EFE8DA',
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 42,
     backgroundColor: '#EFE8DA',
-    borderRadius: 22,
+    borderRadius: 21,
     paddingHorizontal: 16,
-    paddingTop: 11,
-    paddingBottom: 11,
+    paddingTop: 10,
+    paddingBottom: 10,
     // No lineHeight on the multiline iOS input (stale paragraph style, P05 R2).
     fontFamily: obFonts.body,
-    fontSize: 15.5,
+    fontSize: 16,
     color: obColors.textPrimary,
     maxHeight: 120,
   },
   inputDisabled: { color: obColors.textSecondary },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: obColors.cta,
     alignItems: 'center',
     justifyContent: 'center',

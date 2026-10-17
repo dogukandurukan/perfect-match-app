@@ -1,4 +1,55 @@
-# V2 chat screen — redesign, round 1 (result)
+# V2 chat screen — redesign (result)
+
+# Round 2 (2026-10-17): visual tightening after the owner's phone review
+
+**Owner's phone result (round 1):** `40a667c` is on the phone (View profile, the new card and the times are visible). It is **not close enough to the mockup**.
+
+**Inputs:**
+- The phone screenshot mentioned in the brief **did not reach this session**; the values below come from the brief and the mockup.
+- The code already used **19 pt** for the name and **15.5 pt** for the body, yet both read large on the phone. That suggests a larger iOS text size on the device. This is **not verified**.
+- **No simulator check:** this Mac has only the Command Line Tools (no Xcode, no iOS Simulator). The look is unchecked until the phone test, and the static checks are not proof of mockup fit.
+
+**Changes (no new feature; send / Realtime / backend unchanged; the instant own-message display from round 1 kept):**
+
+| | Round 1 | Round 2 |
+|---|---|---|
+| Header | name 19, View profile 13, avatar 40, padding 4 / 8 | **name 21, View profile 12.5, avatar 38**, padding 2 / 6 |
+| Message body | 15.5 / 21 | **16 / 22** |
+| Time / day label | 11.5 · 12.5 medium, 8 above + 4 below | time **11.5 / 14**, 2 above · day **12 regular, 10 above, 0 below**, first bubble of a day only 4 pt under it |
+| Bubble | radius 18 (pill-like), 14 / 9 | **radius 16** (tail 5), **13 / 9** |
+| Spacing | 3 in a group · 12 between groups | **5 in a group · 14 between groups** |
+| How it started | 14 / 13.5 text, padding 10 / 12, radius 14 | **13.5 / 13 text**, comment 14 when expanded, padding 8, radius 12; thumbnail 40; one line each when collapsed |
+| Input | 44 pt +, field and send | **42 pt** circles and field, **hitSlop 3 → 48 pt touch area**; keyboard alignment unchanged |
+
+**Text size:** scaling stays on, never disabled. Each kind of text has its own cap (`maxFontSizeMultiplier`):
+
+| Text | Cap |
+|---|---|
+| Header name | **1.15** |
+| View profile, day labels, times, the card | **1.3** |
+| Message text and input | **1.8** |
+
+**V1 impact (stated explicitly):**
+- `app/chat.tsx` is **one screen for V1 and V2**. The header, bubble, spacing, input and text-size changes (in both rounds) also change the legacy V1 chat look.
+- The V1-only parts are kept: meetup bar, camera button, "You matched — say hi 👋".
+- I did not split the styles. The production build still ships V1 on the shared database, which the Chats alignment report lists as a release blocker. Limiting the look to V2 would mean keeping a second set of styles, which you can ask for separately.
+- The card (`HowItStartedCard`) is V2-only.
+
+**Checks:**
+- `run.js` all pass: `v2_chat_layout` **38/38** (+9: round 2 sizes, spacing, touch areas, text-scale caps, `afterDay` marker).
+- `p0-checks` all pass; `tsc` clean; LOCAL iOS export exit 0.
+
+**Phone test (not done):** same chat (Mert → Defne).
+- Keyboard closed and open: does the header weight now match the mockup?
+- Are "Today" / "Wednesday" small captions, not sections?
+- Bubbles: rounded cards, not pills; tighter spacing.
+- The card's proportions.
+- The + / send taps.
+- If the name still reads large: compare at the default iOS text size (Settings → Display → Text Size), to check the text-size hypothesis.
+
+---
+
+# Round 1
 
 Date 2026-10-17 · Folder `~/tempa-p0` · Branch `tempa/v2-persist-r2`, from `354cfc7` (clean, same as origin; the brief named `03d4bb1`, `354cfc7` is one docs-only commit later) · Author: Claude Code.
 Reference: the owner's mockup, **left screen ("Sohbet") only**.

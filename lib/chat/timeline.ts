@@ -17,6 +17,8 @@ export type TimelineRow<T> =
       /** First / last bubble of a same-sender group (date cards are their own group). */
       firstOfGroup: boolean;
       lastOfGroup: boolean;
+      /** Directly under a day separator (the separator already gives the space). */
+      afterDay: boolean;
       /** "20:12" under the last bubble of a group; null otherwise. */
       time: string | null;
     };
@@ -68,7 +70,8 @@ export function buildTimeline<T>(items: TimelineInput<T>[], now: Date = new Date
   items.forEach((it, i) => {
     const d = new Date(it.at);
     const k = Number.isNaN(d.getTime()) ? 'invalid' : dayKey(d);
-    if (k !== lastDay) {
+    const newDay = k !== lastDay;
+    if (newDay) {
       lastDay = k;
       rows.push({ kind: 'day', key: `day-${k}`, label: formatChatDay(it.at, now) });
     }
@@ -80,6 +83,7 @@ export function buildTimeline<T>(items: TimelineInput<T>[], now: Date = new Date
       item: it.item,
       firstOfGroup: first,
       lastOfGroup: last,
+      afterDay: newDay,
       time: last && it.senderId !== null ? formatChatTime(it.at) : null,
     });
   });

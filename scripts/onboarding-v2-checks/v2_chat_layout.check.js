@@ -42,6 +42,7 @@ ok(
   'timeline: one separator per day, groups break on sender / day / 5 min / date card, time only under the last bubble',
 );
 ok(eq(T.buildTimeline([], now), []), 'timeline: empty');
+ok(eq(rows.filter((r) => r.kind === 'item').map((r) => r.afterDay), [true, true, false, false, false, false, false]), 'timeline: the first bubble of each day is marked (no extra group gap under a day label)');
 ok(T.isNearEnd({ contentOffset: { y: 920 }, contentSize: { height: 1600 }, layoutMeasurement: { height: 620 } }) === true, 'near end: within 80 pt');
 ok(T.isNearEnd({ contentOffset: { y: 200 }, contentSize: { height: 1600 }, layoutMeasurement: { height: 620 } }) === false, 'near end: reading older messages');
 
@@ -67,5 +68,16 @@ ok(/if \(!nearEndRef\.current && !forceEndRef\.current\) return;/.test(chat) && 
 ok(/\.select\('id, sender_id, receiver_id, content, created_at'\)\s*\.single\(\)/.test(chat) && /forceEndRef\.current = true;/.test(chat) && /prev\.some\(\(m\) => m\.id === row\.id\)/.test(chat), 'own message appears right away (read back, de-duplicated with the realtime echo) and stays in view');
 ok(/onPress=\{v2Enabled \? openPlusMenu : handleAddPhoto\}/.test(chat) && /'Suggest a date'/.test(chat), '+ menu unchanged');
 ok(!/lineHeight/.test((chat.match(/  input: \{[\s\S]*?\n  \},/) || [''])[0]), 'multiline input has no lineHeight (iOS stale paragraph style)');
+
+// Round 2 (2026-10-17): sizes from the owner's phone review.
+ok(/headerName: \{ fontFamily: obFonts\.heading, fontSize: 21,/.test(chat) && /headerSub: \{ fontFamily: obFonts\.body, fontSize: 12\.5,/.test(chat) && /headerAvatar: \{ width: 38, height: 38/.test(chat), 'header: name 21, View profile 12.5, avatar 38');
+ok(/bubbleText: \{ fontFamily: obFonts\.body, fontSize: 16,/.test(chat) && /msgTime: \{[^}]*fontSize: 11\.5/.test(chat) && /daySeparator: \{[^}]*fontSize: 12,/.test(chat), 'type: body 16, time 11.5, day 12');
+ok(/borderRadius: 16,\s*paddingHorizontal: 13,\s*paddingVertical: 9,/.test(chat), 'bubble: 16 pt corners, 13 / 9 padding (not a pill)');
+ok(/msgBlock: \{ marginTop: 5 \}/.test(chat) && /msgBlockGroupStart: \{ marginTop: 14 \}/.test(chat) && /msgBlockAfterDay: \{ marginTop: 4 \}/.test(chat) && /row\.afterDay \? styles\.msgBlockAfterDay/.test(chat), 'spacing: 5 in a group, 14 between groups, 4 under a day label');
+ok(/daySeparator: \{\s*alignSelf: 'center',\s*marginTop: 10,\s*fontFamily/.test(chat), 'day label: 10 pt above, no bottom margin');
+ok(/attachBtn: \{\s*width: 42,\s*height: 42/.test(chat) && /sendBtn: \{\s*width: 42,\s*height: 42/.test(chat) && (chat.match(/hitSlop=\{3\}/g) || []).length >= 2, 'input buttons: 42 pt + hitSlop 3 = 48 pt touch area');
+ok(/maxFontSizeMultiplier=\{SCALE_HEADER\}/.test(chat) && /maxFontSizeMultiplier=\{SCALE_BODY\}/.test(chat) && !/maxFontSizeMultiplier=\{1\}|allowFontScaling=\{false\}/.test(chat), 'text scaling kept (bounded for header / labels, generous for messages)');
+const card2 = read('components/chat/HowItStartedCard.tsx');
+ok(/const THUMB = 40;/.test(card2) && /line: \{ fontFamily: obFonts\.bodySemiBold, fontSize: 13\.5/.test(card2) && /preview: \{ fontFamily: obFonts\.body, fontSize: 13,/.test(card2) && /numberOfLines=\{1\}/.test(card2), 'card: 40 pt thumb, 13.5 / 13 text, one line each when collapsed');
 
 module.exports = done('v2_chat_layout');

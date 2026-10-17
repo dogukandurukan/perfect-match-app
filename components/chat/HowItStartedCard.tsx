@@ -18,6 +18,8 @@ import { promptLabel } from '@/lib/onboardingV2/yourProfile';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 
 const THUMB = 40;
+// Text still follows the accessibility size, but this compact card grows less than the messages.
+const SCALE = 1.3;
 
 function Thumb({ item }: { item: LikeItem }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -67,12 +69,12 @@ export function HowItStartedCard({ likes, otherName }: { likes: LikeItem[] | und
         <View style={styles.row}>
           <Thumb item={first} />
           <View style={styles.text}>
-            <Text style={styles.line} numberOfLines={1}>
+            <Text style={styles.line} numberOfLines={1} maxFontSizeMultiplier={SCALE}>
               {likeContextLine(first, otherName)}
               {shown.length > 1 ? <Text style={styles.more}>{`  +${shown.length - 1}`}</Text> : null}
             </Text>
             {preview ? (
-              <Text style={styles.preview} numberOfLines={1}>
+              <Text style={styles.preview} numberOfLines={1} maxFontSizeMultiplier={SCALE}>
                 {preview}
               </Text>
             ) : null}
@@ -82,21 +84,21 @@ export function HowItStartedCard({ likes, otherName }: { likes: LikeItem[] | und
       ) : (
         <View style={styles.expanded}>
           <View style={styles.expandedHead}>
-            <Text style={styles.title}>How it started</Text>
+            <Text style={styles.title} maxFontSizeMultiplier={SCALE}>How it started</Text>
             <Ionicons name="chevron-up" size={18} color={obColors.textSecondary} />
           </View>
           {shown.map((l, i) => (
             <View key={`${l.created_at}-${i}`} style={styles.row}>
               <Thumb item={l} />
               <View style={styles.text}>
-                <Text style={styles.line}>{likeContextLine(l, otherName)}</Text>
+                <Text style={styles.line} maxFontSizeMultiplier={SCALE}>{likeContextLine(l, otherName)}</Text>
                 {l.answer ? (
-                  <Text style={styles.answer}>
+                  <Text style={styles.answer} maxFontSizeMultiplier={SCALE}>
                     {promptOf(l) ? <Text style={styles.prompt}>{`${promptOf(l)} `}</Text> : null}
                     {l.answer}
                   </Text>
                 ) : null}
-                {l.note ? <Text style={styles.note}>{`“${l.note}”`}</Text> : null}
+                {l.note ? <Text style={styles.note} maxFontSizeMultiplier={SCALE}>{`“${l.note}”`}</Text> : null}
               </View>
             </View>
           ))}
@@ -108,24 +110,25 @@ export function HowItStartedCard({ likes, otherName }: { likes: LikeItem[] | und
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: obSpacing.md,
-    paddingVertical: 10,
-    paddingHorizontal: obSpacing.md,
-    borderRadius: 14,
+    marginBottom: obSpacing.sm,
+    paddingVertical: 8,
+    paddingLeft: 8,
+    paddingRight: 10,
+    borderRadius: 12,
     backgroundColor: obColors.selectedFill,
   },
   pressed: { opacity: 0.85 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.md },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   thumb: { width: THUMB, height: THUMB, borderRadius: 8, backgroundColor: obColors.notice },
   iconThumb: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFDF8' },
   text: { flex: 1, minWidth: 0, gap: 1 },
-  line: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
-  more: { fontFamily: obFonts.bodyMedium, fontSize: 13, color: obColors.textSecondary },
-  preview: { fontFamily: obFonts.body, fontSize: 13.5, lineHeight: 18, color: obColors.textSecondary },
-  expanded: { gap: obSpacing.md },
+  line: { fontFamily: obFonts.bodySemiBold, fontSize: 13.5, lineHeight: 18, color: obColors.textPrimary },
+  more: { fontFamily: obFonts.bodyMedium, fontSize: 12.5, color: obColors.textSecondary },
+  preview: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 17, color: obColors.textSecondary },
+  expanded: { gap: 10 },
   expandedHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontFamily: obFonts.bodySemiBold, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
-  answer: { fontFamily: obFonts.body, fontSize: 13.5, lineHeight: 19, color: obColors.textSecondary },
+  answer: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
   prompt: { fontFamily: obFonts.bodyMedium, color: obColors.textPrimary },
-  note: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 21, color: obColors.textPrimary },
+  note: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
 });
