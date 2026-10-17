@@ -95,4 +95,6 @@ ok(/headingRegular: 'PlayfairDisplay-Regular'/.test(theme) && /PlayfairDisplay_4
 const badge = read('components/dev/DevBackendBadge.tsx');
 ok(/if \(!__DEV__\) return null;/.test(badge) && /DEV_BUILD_MARK/.test(badge) && /fontScale\.toFixed\(2\)/.test(badge), 'temporary DEV-only build mark + window size + font scale');
 
+ok(/\{v2Enabled \? <StatusBar style="dark" \/> : null\}/.test(chat), 'V2: dark status-bar content on ivory (not the dark-mode white clock)');
+
 module.exports = done('v2_chat_layout');

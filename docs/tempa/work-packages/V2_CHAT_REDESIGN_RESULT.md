@@ -1,5 +1,30 @@
 # V2 chat screen — redesign (result)
 
+# Round 3b (2026-10-18): phone check of round 3 + status bar
+
+**Owner's phone result (`6e4dd73`, screenshots with the keyboard closed and open):**
+- The DEV badge reads `LOCAL · local:55421 · chat-r3 · 393×852 · fs 1.00`: the phone runs the round-3 JS, and the text scale is 1.0.
+- Measured on the screenshot, round 3 landed as intended:
+  - name stem **1.7 pt** (mockup 1.7), ink height 16.3;
+  - bubble corner ≈ **11 pt**, no tail;
+  - 52 pt photo, 48 × 44 card thumbnail, day labels centred.
+- The keyboard-open view keeps the input row right on the keyboard.
+
+**Bug found:**
+- The **status-bar clock and icons were white on ivory** (measured 255, 255, 255): the global `<StatusBar style="auto" />` follows the phone's dark mode.
+- Home and onboarding already override it with `style="dark"`; the chat did not.
+- Fixed for the V2 chat only: `{v2Enabled ? <StatusBar style="dark" /> : null}`.
+
+**Remaining differences, not style measurements (owner's decision):**
+1. The conversation has only three short messages, so most of the screen is empty, while the mockup is full. No fake content.
+2. The empty-field send button is muted grey-green (disabled, round 1 rule); the mockup shows it solid green.
+3. Mockup incoming bubbles have no visible border (a faint shadow instead).
+4. Option: anchor short conversations to the bottom, next to the input (WhatsApp-style), instead of the top.
+
+`v2_chat_layout` 46/46; `tsc` clean. Not tried on the phone yet.
+
+---
+
 # Round 3 (2026-10-17): measured comparison, then targeted fixes; V1 restored
 
 **Owner's phone result (round 2):** no clear visual improvement on the phone.

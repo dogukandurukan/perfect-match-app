@@ -19,6 +19,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
 import { ErrorState } from '@/components/ErrorState';
 import { ThemedText } from '@/components/themed-text';
@@ -1000,6 +1001,10 @@ export default function ChatScreen() {
 
   return (
     <>
+    {/* V2: dark status-bar content on the ivory screen. The global
+        <StatusBar style="auto" /> follows the phone's dark mode and drew a
+        white clock on ivory (phone screenshot 2026-10-18), same fix as Home. */}
+    {v2Enabled ? <StatusBar style="dark" /> : null}
     {/* V2: the screen's own safe-area top (no extra 12 pt), full width — the
         list and input row set their own side padding. V1: unchanged. */}
     <ScreenContainer
