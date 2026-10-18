@@ -38,6 +38,7 @@ import { supabase, v2Enabled } from '@/lib/supabaseClient';
 import { isSendableTime } from '@/lib/onboardingV2/dateSuggestions';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { SuggestDateSheet } from '@/components/chat/SuggestDateSheet';
+import { ChatPlusSheet } from '@/components/chat/ChatPlusSheet';
 import { HowItStartedCard } from '@/components/chat/HowItStartedCard';
 import { buildTimeline, isNearEnd, type TimelineRow } from '@/lib/chat/timeline';
 import { MATCH_COPY } from '@/lib/activity/copy';
@@ -92,6 +93,8 @@ export default function ChatScreen() {
   const [meetupConfirmed, setMeetupConfirmed] = useState<boolean | null>(null);
   const [respondingMeetup, setRespondingMeetup] = useState(false);
   const [proposeModalVisible, setProposeModalVisible] = useState(false);
+  // V2 "+" menu (ivory bottom sheet; replaces the system alert).
+  const [plusOpen, setPlusOpen] = useState(false);
   const [proposeTimes, setProposeTimes] = useState<string[]>([]);
   const [selectedProposeTime, setSelectedProposeTime] = useState<string | null>(null);
   const [proposePlace, setProposePlace] = useState('');
@@ -714,11 +717,7 @@ export default function ChatScreen() {
 
   function openPlusMenu() {
     if (inputDisabled) return;
-    Alert.alert('Add to chat', undefined, [
-      { text: 'Suggest a date', onPress: () => void openProposeModal(null) },
-      { text: 'Add a photo', onPress: handleAddPhoto },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setPlusOpen(true);
   }
 
   function openChatMenu() {
@@ -1295,6 +1294,14 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
     </ScreenContainer>
 
+    {v2Enabled ? (
+      <ChatPlusSheet
+        visible={plusOpen}
+        onClose={() => setPlusOpen(false)}
+        onSuggestDate={() => void openProposeModal(null)}
+        onAddPhoto={handleAddPhoto}
+      />
+    ) : null}
     {v2Enabled ? (
       <SuggestDateSheet
         visible={proposeModalVisible}

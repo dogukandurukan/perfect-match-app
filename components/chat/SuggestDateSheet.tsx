@@ -7,9 +7,10 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -59,6 +60,19 @@ export function SuggestDateSheet({ visible, counter, otherName, otherPhotoUrl, s
   const [place, setPlace] = useState('');
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
   const [draft, setDraft] = useState(new Date());
+  // Keyboard up (typing the place): the sheet sits on the keyboard, so the
+  // home-indicator inset below the Send button is dropped.
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardUp(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardUp(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   // Fresh, empty form every time the sheet opens (no preselected day / time).
   useEffect(() => {
@@ -108,7 +122,7 @@ export function SuggestDateSheet({ visible, counter, otherName, otherPhotoUrl, s
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, obSpacing.lg) }]}>
+        <View style={[styles.sheet, { paddingBottom: keyboardUp ? obSpacing.sm : Math.max(insets.bottom, obSpacing.md) }]}>
           <View style={styles.handle} importantForAccessibility="no" />
           <View style={styles.header}>
             {otherPhotoUrl ? (
@@ -131,7 +145,7 @@ export function SuggestDateSheet({ visible, counter, otherName, otherPhotoUrl, s
             </TouchableOpacity>
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
+          <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
             <Text style={styles.label} accessibilityRole="header">Day</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
               {[...days, ...(extraDay ? [extraDay] : [])].map((d) => {
@@ -145,8 +159,8 @@ export function SuggestDateSheet({ visible, counter, otherName, otherPhotoUrl, s
                     accessibilityRole="button"
                     accessibilityLabel={`${l.top} ${l.bottom}`}
                     accessibilityState={{ selected: on }}>
-                    <Text style={[styles.dayTop, on && styles.textOn]}>{l.top}</Text>
-                    <Text style={[styles.dayBottom, on && styles.textOn]}>{l.bottom}</Text>
+                    <Text style={[styles.dayTop, on && styles.textOn]} numberOfLines={1}>{l.top}</Text>
+                    <Text style={[styles.dayBottom, on && styles.textOn]} numberOfLines={1}>{l.bottom}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -221,6 +235,8 @@ export function SuggestDateSheet({ visible, counter, otherName, otherPhotoUrl, s
               maxLength={120}
               returnKeyType="done"
               accessibilityLabel="Place, optional"
+              // Keep the field (and the Send button below it) in view above the keyboard.
+              onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
             />
           </ScrollView>
 
@@ -252,18 +268,19 @@ const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,27,24,0.4)' },
   sheet: { maxHeight: '92%', backgroundColor: obColors.background, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8 },
   handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: obColors.border, marginBottom: 8 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.md, paddingHorizontal: obSpacing.gutter, paddingBottom: obSpacing.sm },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: obColors.selectedFill },
+  header: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.md, paddingHorizontal: obSpacing.gutter, paddingBottom: 4 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: obColors.selectedFill },
   avatarEmpty: { alignItems: 'center', justifyContent: 'center' },
   initial: { fontFamily: obFonts.heading, fontSize: 18, lineHeight: 24, color: obColors.cta },
   headerText: { flex: 1 },
-  title: { fontFamily: obFonts.heading, fontSize: 24, lineHeight: 30, color: obColors.textPrimary },
+  title: { fontFamily: obFonts.heading, fontSize: 22, lineHeight: 28, color: obColors.textPrimary },
   with: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 20, color: obColors.textSecondary },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
-  body: { paddingHorizontal: obSpacing.gutter, paddingBottom: obSpacing.md, gap: obSpacing.sm },
-  label: { marginTop: obSpacing.md, fontFamily: obFonts.bodySemiBold, fontSize: 13, lineHeight: 18, letterSpacing: 0.4, textTransform: 'uppercase', color: obColors.textSecondary },
+  body: { paddingHorizontal: obSpacing.gutter, paddingBottom: obSpacing.sm, gap: 6 },
+  label: { marginTop: obSpacing.sm, fontFamily: obFonts.bodySemiBold, fontSize: 13, lineHeight: 18, letterSpacing: 0.4, textTransform: 'uppercase', color: obColors.textSecondary },
   dayRow: { gap: obSpacing.sm, paddingVertical: 2 },
-  dayCard: { ...CARD, width: 68, minHeight: 64, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
+  // Width follows the label ("Tomorrow" stays on one line); 72 pt minimum.
+  dayCard: { ...CARD, minWidth: 72, minHeight: 60, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 12 },
   cardOn: { backgroundColor: obColors.selectedFill, borderColor: obColors.cta },
   dayTop: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.textPrimary },
   dayBottom: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
@@ -288,7 +305,7 @@ const styles = StyleSheet.create({
     color: obColors.textPrimary,
     paddingVertical: 10,
   },
-  footer: { paddingHorizontal: obSpacing.gutter, paddingTop: obSpacing.md, gap: obSpacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E4DCCB' },
+  footer: { paddingHorizontal: obSpacing.gutter, paddingTop: obSpacing.sm, gap: obSpacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E4DCCB' },
   summary: { fontFamily: obFonts.bodyMedium, fontSize: 15, lineHeight: 21, color: obColors.textPrimary, textAlign: 'center' },
   warn: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.error, textAlign: 'center' },
   send: { minHeight: 52, borderRadius: 14, backgroundColor: obColors.cta, alignItems: 'center', justifyContent: 'center' },

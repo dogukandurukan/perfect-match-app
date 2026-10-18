@@ -181,6 +181,26 @@ async function main() {
     'new B session: same match, conversation started, no pending card');
   check(b2act.pending.find((p) => p.like_id === idD)?.seen === false && b2act.pending.find((p) => p.like_id === idE)?.seen === false, 'other cards still unread after restart');
 
+  // 10b. Suggest a date (the chat's + → Suggest a date, same RPCs as the app):
+  // a past time is refused, a double tap (same request id) makes one row, the
+  // other person sees it in their chat and can accept; never your own.
+  const past = await B.c.rpc('propose_date_v2', { p_match: matchId, p_meeting_at: new Date(Date.now() - 3600e3).toISOString(), p_place: null, p_request_id: crypto.randomUUID() });
+  check(!!past.error, 'date suggestion: a past time is refused');
+  const reqId = crypto.randomUUID();
+  const when = new Date(Date.now() + 3 * 86400e3).toISOString();
+  const taps = await Promise.all([0, 1].map(() => B.c.rpc('propose_date_v2', { p_match: matchId, p_meeting_at: when, p_place: 'Moda pier', p_request_id: reqId })));
+  const propRows = (await admin.from('date_proposals_v2').select('id, status').eq('match_id', matchId)).data ?? [];
+  check(taps.some((t) => !t.error) && propRows.length === 1, 'date suggestion: double tap (same request id) → exactly one suggestion');
+  const aChat = (await A2.c.rpc('get_chat_v2', { p_match: matchId })).data;
+  const aProp = (aChat?.proposals ?? []).find((x) => x.id === propRows[0]?.id);
+  check(aProp?.mine === false && aProp.status === 'pending' && aProp.place === 'Moda pier' && new Date(aProp.meeting_at).getTime() === new Date(when).getTime(),
+    'date suggestion reaches A’s chat (pending, place and time intact)');
+  const own = await B.c.rpc('respond_date_v2', { p_proposal: propRows[0]?.id, p_action: 'accept' });
+  check(!!own.error, 'date suggestion: the proposer cannot accept their own');
+  const acc = await A2.c.rpc('respond_date_v2', { p_proposal: propRows[0]?.id, p_action: 'accept' });
+  const bChat = (await B2.c.rpc('get_chat_v2', { p_match: matchId })).data;
+  check(!acc.error && (bChat?.proposals ?? []).find((x) => x.id === propRows[0]?.id)?.status === 'accepted', 'A accepts; B’s chat shows it accepted');
+
   // 11. Existing rules kept: block → card gone, accept refused; unmatch → not revived.
   await B.c.from('blocks').insert({ blocker_id: B.uid, blocked_id: D.uid });
   const blocked = (await B.c.rpc('accept_like_v2', { p_like: idD })).data;

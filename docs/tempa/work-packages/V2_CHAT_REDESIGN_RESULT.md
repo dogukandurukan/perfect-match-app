@@ -1,5 +1,60 @@
 # V2 chat screen — redesign (result)
 
+# Round 4 (2026-10-19): + menu sheet and Suggest a date tidy-up
+
+**Inputs:**
+- The phone screenshots named in the brief **did not reach this session**: none was attached, and `~/Downloads` is no longer readable here ("Operation not permitted").
+- The layout below comes from the brief's text and the code, **not** from the screenshots.
+
+**Changes (V2 only; V1 unchanged):**
+- **+ menu:** `components/chat/ChatPlusSheet.tsx` (new) replaces the grey system alert.
+  - An ivory bottom sheet with a handle, the title "Add to chat" and a × button. A tap outside or Android back also closes it.
+  - Two icon rows: **Suggest a date** / **Add a photo**, wired to the existing `openProposeModal(null)` / `handleAddPhoto`.
+  - The chosen action runs **after** the sheet has closed (`onDismiss` on iOS; Android runs right away), so the date sheet or the photo alert can appear.
+  - Opening or closing it never touches the draft.
+- **Suggest a date:**
+  - **Tomorrow fix:** day cards had a fixed `width: 68`, and "Tomorrow" (14 pt semibold) broke to "Tomorro / w". They now use `minWidth: 72` plus 12 pt side padding, and both lines are single-line.
+  - **Spacing:** title 22 (was 24), avatar 40 (was 44), section label spacing 8 (was 12), body gap 6 (was 8), footer top 8 (was 12).
+  - **Footer:** keeps the safe-area inset when the keyboard is down and drops it to 8 pt when the keyboard is up.
+  - **Place field:** on focus the list scrolls to the end, so the field and Send stay visible.
+  - **Kept as they were:** Another date / Other time, "Decide together", the empty place, Send disabled until a day and a time are picked, and the possibly half-visible last day card.
+
+**Behaviour review (code; no change made):**
+
+| Question | Finding |
+|---|---|
+| Past date / time blocked? | **Yes, at three layers.** (1) The date picker's `minimumDate` is today, and time chips < 5 min away are disabled. (2) Send is disabled and a warning shows when the chosen time is < 5 min away; `confirmProposeV2` checks `isSendableTime` again at send time. (3) The server refuses `p_meeting_at <= now()` and more than 120 days ahead. |
+| Double tap → two suggestions? | **No duplicate row.** The request id is fixed per sheet opening, `propose_date_v2` returns the existing row for the same id (`unique (proposed_by, request_id)`), and only one suggestion can be pending per match. **Gap (client, small):** the guard `if (proposing) return` and the button's `disabled={sending}` read React state. Two taps inside one frame can both start an RPC with the same id. The second can then hit the unique constraint and show a needless "Could not send" alert even though the first one succeeded. **Needed fix:** a `useRef` in-flight guard in `confirmProposeV2` (≈3 lines, client only). Not done in this package. |
+| Failure → selections kept + error? | **Yes.** On `!r.ok` an alert shows the mapped message, and the sheet stays open with day / time / place unchanged (it resets only when opened). A retry reuses the same request id (idempotent). |
+| Add a photo | **Neither preview nor send:** after picking or taking a photo, the app shows "Coming soon — Photo sharing is on the way." Nothing is uploaded or sent (`TODO(P2 Katman 2)`). |
+
+**Local real-service check, written but not run:**
+- `smoke_activity_local.mjs` got step 10b, using the app's own RPCs:
+  - a past time is refused;
+  - two parallel taps with the same request id → exactly one suggestion;
+  - it reaches A's chat (pending, place and time intact);
+  - the proposer can't accept their own;
+  - A accepts → B's chat shows "accepted".
+- **It could not run:** tempa-local's Auth and Storage time out connecting to its Postgres ("failed SASL auth … i/o timeout", "Connection terminated due to connection timeout").
+  - The DB answers `psql` from inside its container, TCP to 5432 is open and REST answers.
+  - The DB log also shows the Realtime replication connection dropping at 22:03 UTC ("unexpected EOF on standby connection").
+  - Recovering needs a stop / start of only the tempa-local stack. Its data is kept in the volume, and there is no reset.
+  - **Not done without the owner's go-ahead.**
+
+**Checks:**
+- `run.js` all pass: `v2_chat_layout` 53/53 (+7 for the + sheet and the date sheet); `V2 suggest a date` 10/10.
+- `tsc` clean.
+
+**Phone test (not done):**
+- + opens the ivory sheet, and × / outside / back close it.
+- Suggest a date opens after choosing it, and Add a photo shows its picker alert.
+- A typed draft survives opening and closing the menu.
+- "Tomorrow" on one line.
+- Typing a place keeps the field and Send above the keyboard.
+- **Defne's account receives the suggestion and can answer it.**
+
+---
+
 # Round 3b (2026-10-18): phone check of round 3 + status bar
 
 **Owner's phone result (`6e4dd73`, screenshots with the keyboard closed and open):**

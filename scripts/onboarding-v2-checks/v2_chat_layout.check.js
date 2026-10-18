@@ -97,4 +97,15 @@ ok(/if \(!__DEV__\) return null;/.test(badge) && /DEV_BUILD_MARK/.test(badge) &&
 
 ok(/\{v2Enabled \? <StatusBar style="dark" \/> : null\}/.test(chat), 'V2: dark status-bar content on ivory (not the dark-mode white clock)');
 
+// + menu and Suggest a date (2026-10-19).
+const plus = read('components/chat/ChatPlusSheet.tsx');
+ok(/function openPlusMenu\(\) \{\s*if \(inputDisabled\) return;\s*setPlusOpen\(true\);\s*\}/.test(chat) && !/Alert\.alert\('Add to chat'/.test(chat), 'V2 +: ivory bottom sheet instead of the system alert; draft untouched');
+ok(/'Suggest a date'/.test(plus) && /'Add a photo'/.test(plus) && /accessibilityLabel="Close"/.test(plus) && /<Pressable style=\{styles\.backdrop\} onPress=\{onClose\}/.test(plus) && /onRequestClose=\{onClose\}/.test(plus), '+ sheet: two rows, × button, tap outside / back closes');
+ok(/onDismiss=\{run\}/.test(plus) && /Platform\.OS !== 'ios'\) setTimeout\(run, 0\)/.test(plus), '+ sheet: the action runs after it closed (iOS modal / alert stacking)');
+ok(/onSuggestDate=\{\(\) => void openProposeModal\(null\)\}/.test(chat) && /onAddPhoto=\{handleAddPhoto\}/.test(chat), '+ sheet wired to the existing actions');
+const sds = read('components/chat/SuggestDateSheet.tsx');
+ok(/dayCard: \{ \.\.\.CARD, minWidth: 72,/.test(sds) && !/dayCard: \{[^}]*\bwidth: 68/.test(sds) && (sds.match(/numberOfLines=\{1\}>\{l\.(top|bottom)\}/g) || []).length === 2, 'day cards size to their label (Tomorrow on one line)');
+ok(/keyboardUp \? obSpacing\.sm : Math\.max\(insets\.bottom, obSpacing\.md\)/.test(sds) && /scrollRef\.current\?\.scrollToEnd/.test(sds), 'sheet: safe-area footer, no extra gap with the keyboard; place field scrolled into view');
+ok(/disabled=\{!sendable \|\| sending\}/.test(sds) && /placeholder="Decide together"/.test(sds) && /Another date/.test(sds) && /Other time/.test(sds), 'send disabled until day + time; Decide together, Another date, Other time kept');
+
 module.exports = done('v2_chat_layout');
