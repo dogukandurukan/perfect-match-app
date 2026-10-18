@@ -1,5 +1,82 @@
 # V2 chat screen — redesign (result)
 
+# Round 4b (2026-10-19): tempa-local restart, double-tap lock, Mert ↔ Defne suggestion
+
+**tempa-local restart (owner-approved; data kept):**
+
+*Targets verified.* Only containers and volumes labelled `com.supabase.cli.project=tempa-local`:
+- 7 containers;
+- volumes `supabase_db_tempa-local` and `supabase_storage_tempa-local`.
+
+The `terapi-yerel` containers kept running, untouched. Docker / Colima as a whole was not restarted.
+
+*Backup:* `~/tempa-backups/2026-10-19-before-restart/` (mode 700, outside the repo).
+
+| File | Content | Checked |
+|---|---|---|
+| `db_full.dump` | `pg_dump -Fc` | `pg_restore --list` reads it: 74 table-data entries |
+| `storage_files.tar.gz` | Storage volume | 689 files = 689 `storage.objects` rows |
+| `fingerprint_*.txt` | row counts | — |
+| `SHA256SUMS` | checksums | — |
+
+Restore was **not** tried.
+
+*Restart:* `supabase stop` (volumes kept, `"backup": true`), then `supabase start` ("Starting database from backup"). No reset, no volume deletion, no re-seed.
+
+*After:*
+
+| Check | Result |
+|---|---|
+| Row-count fingerprint | **identical** (auth.users 185, profiles 184, matches 42, messages 59, likes 86, date_proposals 0, storage.objects 689) |
+| Storage files | 689 |
+| Auth health / REST (app anon key) / Storage status | 200 |
+| Account creation and photo upload in the smoke | work again |
+
+Before the restart, Auth / Storage timed out connecting to Postgres ("failed SASL auth … i/o timeout"); that cause is **not identified**. The restart fixing it is not proof of a root cause.
+
+*Realtime:*
+- First smoke after the restart: **44/45**, and "A receives it over Realtime" timed out again. Second run: **45/45**.
+- The Realtime log shows the `messages` replication slot being (re)created on the first subscription after the start, at 22:20:11 UTC.
+- The earlier DB log had the replication connection dropping (22:03, "unexpected EOF on standby connection").
+- Hypothesis, **not verified**: inserts made while the replication stream is down or still starting are not delivered. The intermittent Realtime timeout stays **open**.
+
+**Double-tap lock (client, `app/chat.tsx`):**
+- `confirmProposeV2` now uses a synchronous `useRef` in-flight lock (`proposeInFlightRef`) instead of the `proposing` state read.
+- The lock is released in `finally`, after success **and** failure: the sheet stays open on failure for a retry.
+- The request-id behaviour is unchanged (one id per opening, reused on retry).
+
+**Mert ↔ Defne, real local services** (synthetic `tempa-activity-p1-receiver` = Mert `3d1525b2-…`, `tempa-activity-p1-defne` = Defne `e40b19ac-…`, match `f19c1951-…`):
+
+| Step | Result |
+|---|---|
+| Mert sends a suggestion, double tap (same request id, in parallel) | 1st `ok`, 2nd **`proposal_pending` error**; **one** row. Exactly the needless-error gap the client lock now prevents (the server stays correct). |
+| Defne reads her chat (`get_chat_v2`) | `mine=false`, `pending`, place "Moda pier (local test)", 22 Oct 19:30 local |
+| Defne's notification | `date_proposed` written |
+| Defne answers **Not now** (`respond_date_v2 decline`) | `declined` |
+| Mert's chat | `mine=true`, **declined** |
+
+**Test data created** (tempa-local, kept, not deleted):
+- `date_proposals_v2` `ed32c91a-f5cf-431a-8db2-b365d1f39335` (declined).
+- `notifications` `2565b965-9837-4905-a88a-5f70016674d7` (`date_proposed`, Defne).
+- No message, no match change: "Not now" writes no plan, so a new suggestion can be sent in the phone test.
+- The two smoke runs also created their own fresh synthetic accounts (as always).
+
+**Incomplete feature (recorded):**
+- **Add a photo** in the V2 chat is not built. After picking or taking a photo the app shows "Coming soon — Photo sharing is on the way."
+- No preview, upload or message; `TODO(P2 Katman 2)` in `openPhotoPicker`.
+- Out of scope here.
+
+**Checks:**
+- `run.js` all pass (`v2_chat_layout` 54/54, +1 for the lock); `tsc` clean.
+- `smoke_activity_local` 45/45 on the second run, including the date-suggestion steps.
+
+**Phone (not done):**
+- The + sheet and the Suggest a date layout.
+- Mert sends a suggestion from the app → it appears in Defne's app chat → her answer appears in Mert's app.
+- A fast double tap on Send shows no error.
+
+---
+
 # Round 4 (2026-10-19): + menu sheet and Suggest a date tidy-up
 
 **Inputs:**

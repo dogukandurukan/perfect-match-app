@@ -108,4 +108,6 @@ ok(/dayCard: \{ \.\.\.CARD, minWidth: 72,/.test(sds) && !/dayCard: \{[^}]*\bwidt
 ok(/keyboardUp \? obSpacing\.sm : Math\.max\(insets\.bottom, obSpacing\.md\)/.test(sds) && /scrollRef\.current\?\.scrollToEnd/.test(sds), 'sheet: safe-area footer, no extra gap with the keyboard; place field scrolled into view');
 ok(/disabled=\{!sendable \|\| sending\}/.test(sds) && /placeholder="Decide together"/.test(sds) && /Another date/.test(sds) && /Other time/.test(sds), 'send disabled until day + time; Decide together, Another date, Other time kept');
 
+ok(/if \(!matchId \|\| proposeInFlightRef\.current\) return;/.test(chat) && /proposeInFlightRef\.current = true;/.test(chat) && /finally \{[\s\S]{0,200}proposeInFlightRef\.current = false;/.test(chat) && /const requestId = proposeRequestRef\.current \?\? newRequestId\(\);/.test(chat), 'date suggestion: synchronous double-tap lock, released after success and failure; request id kept');
+
 module.exports = done('v2_chat_layout');

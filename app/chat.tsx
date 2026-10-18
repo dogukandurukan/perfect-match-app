@@ -110,6 +110,10 @@ export default function ChatScreen() {
   const [counterTarget, setCounterTarget] = useState<Proposal | null>(null);
   const [answering, setAnswering] = useState<string | null>(null);
   const proposeRequestRef = useRef<string | null>(null);
+  // Synchronous in-flight lock for sending a date suggestion: two taps in the
+  // same frame both saw `proposing === false` (React state), started two RPCs
+  // with the same request id and the loser could show a needless error.
+  const proposeInFlightRef = useRef(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesError, setMessagesError] = useState(false);
   const [text, setText] = useState('');
@@ -684,19 +688,29 @@ export default function ChatScreen() {
   // V2: send a suggestion (or a counter to theirs). The request id is fixed
   // per opening of the sheet, so a double tap or retry never creates two.
   async function confirmProposeV2(meetingAt: string, place: string | null) {
-    if (!matchId || proposing) return;
+    if (!matchId || proposeInFlightRef.current) return;
     if (!isSendableTime(meetingAt)) {
       Alert.alert('Pick a later time', 'Choose a time at least a few minutes from now.');
       return;
     }
+    proposeInFlightRef.current = true;
     setProposing(true);
     const selectedProposeTime = meetingAt;
     const requestId = proposeRequestRef.current ?? newRequestId();
     proposeRequestRef.current = requestId;
-    const r = counterTarget
-      ? await respondDate(counterTarget.id, 'counter', { meetingAt: selectedProposeTime, place, requestId })
-      : await proposeDate(matchId, selectedProposeTime, place, requestId);
-    setProposing(false);
+    let r: Awaited<ReturnType<typeof proposeDate>>;
+    try {
+      r = counterTarget
+        ? await respondDate(counterTarget.id, 'counter', { meetingAt: selectedProposeTime, place, requestId })
+        : await proposeDate(matchId, selectedProposeTime, place, requestId);
+    } catch {
+      r = { ok: false, message: 'Could not send your suggestion. Try again.' };
+    } finally {
+      // Released after success AND failure (the sheet stays open on failure,
+      // so a retry — same request id — must be possible).
+      proposeInFlightRef.current = false;
+      setProposing(false);
+    }
     if (!r.ok) {
       Alert.alert('Could not send', r.message);
       return;
