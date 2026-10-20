@@ -126,7 +126,35 @@ One run is not counted: at 13:09 a watcher matched the old 13:08:10 shutdown, so
 - **A hosted project** may not rebalance this way, but dropped sockets and late joins happen there too; the same catch-up covers them.
 - **Restarting the service** is not a fix and was not used.
 
-## Phone check (not done)
+## Phone check — background resume (owner, 2026-10-20, one phone, LOCAL)
+
+**Setup:**
+- Phone signed in as Defne (`e40b19ac-…`), running the build marked `chat-rt1` (commit `7b0c0d0`, Realtime catch-up included).
+- Chat with Mert open and scrolled up to older messages, then the app put in the background.
+
+**Sent by Claude Code** from the existing local Mert account (`3d1525b2-…`, own session, RLS applied; no new account):
+
+| # | Message id | `created_at` | Text |
+|---|---|---|---|
+| 1 | `c7ca5042-2d5f-4dd9-b5be-de7dfa4e84ed` | 15:57:47.134 UTC (18:57:47 TR) | "BG-TEST 1/2 — Mert’ten arka plan mesajı" |
+| 2 | `0ff9205e-a40a-4d53-8a57-6f4e38601a25` | 15:57:50.245 UTC (18:57:50 TR) | "BG-TEST 2/2 — ikinci arka plan mesajı" |
+
+**Owner's result:** "evet geldi test mesajları". Both messages appeared after returning to the app.
+
+**Database, read-only:**
+- Both messages got `read_at = 15:58:56.366 UTC` at the same instant, ~66 s after sending.
+- That is consistent with the chat loading both at once when it came back to the foreground and marking them read.
+- Exactly 2 BG-TEST rows exist.
+
+**Not stated by the owner, so not recorded as verified:**
+- that no message appeared twice on screen;
+- that the scroll position was kept (no pull-down);
+- whether the badge read `chat-rt1`;
+- whether they arrived by the foreground catch-up or by a Realtime re-join (the same instant for both is consistent with a single catch-up fetch, but that is inferred, not proven).
+
+The ≥ 10-min idle check and the two-phone checks below are still open.
+
+## Phone check (remaining)
 
 1. Mert and Defne on two phones, chat open on both.
 2. **Background:** Defne puts the app in the background (or locks the phone) for ≥ 1 min. Mert sends 2 messages. Defne returns:
