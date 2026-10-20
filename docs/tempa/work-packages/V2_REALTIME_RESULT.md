@@ -146,11 +146,14 @@ One run is not counted: at 13:09 a watcher matched the old 13:08:10 shutdown, so
 - That is consistent with the chat loading both at once when it came back to the foreground and marking them read.
 - Exactly 2 BG-TEST rows exist.
 
-**Not stated by the owner, so not recorded as verified:**
-- that no message appeared twice on screen;
-- that the scroll position was kept (no pull-down);
-- whether the badge read `chat-rt1`;
-- whether they arrived by the foreground catch-up or by a Realtime re-join (the same instant for both is consistent with a single catch-up fetch, but that is inferred, not proven).
+**Owner's follow-up confirmation:**
+- Each message appeared **once** on screen.
+- The **scroll position was kept** while reading older messages (no pull-down).
+- The badge read **`chat-rt1`**.
+
+**Still inferred, not proven:** whether they arrived through the foreground catch-up or a Realtime re-join. Both were marked read at the same instant, which fits one catch-up fetch.
+
+**Not yet phone-verified:** a message arriving while the chat is in the **foreground** during a real Realtime re-establishment. Local automated tests do not replace this check.
 
 The ≥ 10-min idle check and the two-phone checks below are still open.
 
