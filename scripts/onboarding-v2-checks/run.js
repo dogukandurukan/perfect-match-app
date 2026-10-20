@@ -3,8 +3,11 @@
 const fs = require('fs');
 const path = require('path');
 
-let failures = 0;
-for (const f of fs.readdirSync(__dirname).filter((x) => x.endsWith('.check.js')).sort()) {
-  failures += require(path.join(__dirname, f));
-}
-process.exit(failures ? 1 : 0);
+(async () => {
+  let failures = 0;
+  // A check may export a number or a Promise of one (async checks).
+  for (const f of fs.readdirSync(__dirname).filter((x) => x.endsWith('.check.js')).sort()) {
+    failures += await require(path.join(__dirname, f));
+  }
+  process.exit(failures ? 1 : 0);
+})();

@@ -30,7 +30,7 @@ ok(/setPhotoDraft\(checked\.photo\)/.test(chat) && !/pickPhotoV2[\s\S]{0,900}sen
 ok(/function cancelPhotoV2\(\) \{[\s\S]{0,200}setPhotoDraft\(null\);\s*\}/.test(chat) && !/function cancelPhotoV2\(\) \{[\s\S]{0,200}setText/.test(chat), 'cancel keeps the message draft');
 ok(/if \(!photoDraft \|\| !matchId \|\| !currentUserId \|\| photoInFlightRef\.current\) return;/.test(chat) && /finally \{\s*photoInFlightRef\.current = false;/.test(chat), 'synchronous send lock, released after success and failure');
 ok(/const requestId = photoRequestRef\.current \?\? newRequestId\(\);/.test(chat) && /photoRequestRef\.current = newRequestId\(\);\s*setPhotoError\(null\);\s*setPhotoDraft/.test(chat), 'one request id per picked photo, kept for Try again');
-ok(/\.select\('\*'\)\s*\.or\(/.test(chat), 'messages read with * (works with and without the photo columns)');
+ok((code('lib/chat/sync.ts').match(/\.select\('\*'\)\s*\.or\(/g) || []).length === 2 && /from '@\/lib\/chat\/sync'/.test(read('app/chat.tsx')), 'messages read with * in lib/chat/sync (works with and without the photo columns)');
 ok(/item\.kind === 'photo' && item\.media_path \? \(\s*<PhotoBubble/.test(chat) && /onOpen=\{setViewerUrl\}/.test(chat), 'photo bubble in the V2 list, tap → viewer');
 ok(/forgetChatPhotoUrls\(\);/.test(chat), 'ended chat drops cached photo URLs');
 const api = code('lib/chat/photoApi.ts');

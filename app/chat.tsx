@@ -48,6 +48,7 @@ import { forgetChatPhotoUrls, sendChatPhoto } from '@/lib/chat/photoApi';
 import { HowItStartedCard } from '@/components/chat/HowItStartedCard';
 import { buildTimeline, isNearEnd, type TimelineRow } from '@/lib/chat/timeline';
 import { countNew, mergeMessages } from '@/lib/chat/merge';
+import { CatchUpRunner, loadLatest, loadSince, newestCreatedAt } from '@/lib/chat/sync';
 import { MATCH_COPY } from '@/lib/activity/copy';
 import {
   loadChatState,
@@ -336,8 +337,17 @@ export default function ChatScreen() {
     }, [matchId, refreshChatState]),
   );
 
+  // Another chat in the same screen instance: never show the previous list.
+  useEffect(() => {
+    setMessages([]);
+  }, [currentUserId, otherUserId]);
+
   useEffect(() => {
     if (!currentUserId || !otherUserId || chatOpened !== true) return;
+    // Set false on cleanup: events of a removed channel (including the
+    // CLOSED caused by our own removeChannel) are ignored.
+    let live = true;
+    let readyTimer: ReturnType<typeof setTimeout> | null = null;
 
     void fetchMessages();
 
@@ -364,10 +374,8 @@ export default function ChatScreen() {
             (msg.sender_id === currentUserId && msg.receiver_id === otherUserId) ||
             (msg.sender_id === otherUserId && msg.receiver_id === currentUserId)
           ) {
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === msg.id)) return prev;
-              return [...prev, msg];
-            });
+            // Same merge as the catch-up: one copy per id, time order.
+            setMessages((prev) => mergeMessages(prev, [msg]));
             if (msg.sender_id === currentUserId) forceEndRef.current = true;
             setTimeout(() => scrollToEndIfFollowing(), 100);
             if (msg.sender_id === otherUserId) void markIncomingMessagesRead();
@@ -375,19 +383,40 @@ export default function ChatScreen() {
         },
       )
       .on('system', {}, (payload: { extension?: string; status?: string }) => {
-        if (payload?.extension === 'postgres_changes' && payload?.status === 'ok') void catchUpMessages();
+        if (!live || payload?.extension !== 'postgres_changes') return;
+        if (readyTimer) clearTimeout(readyTimer);
+        readyTimer = null;
+        // ok: the stream is running now — fetch what was written before it.
+        // error: Realtime can't deliver for this channel — at least sync once.
+        void catchUpMessages();
       })
       .subscribe((status) => {
-        if (__DEV__ && status !== 'SUBSCRIBED') console.warn('[Chat] realtime status', status);
+        if (!live) return;
+        if (status === 'SUBSCRIBED') {
+          // The readiness signal never came (probe: a failing postgres_changes
+          // join sends none): one catch-up after 10 s. No polling.
+          if (readyTimer) clearTimeout(readyTimer);
+          readyTimer = setTimeout(() => {
+            readyTimer = null;
+            if (live) void catchUpMessages();
+          }, 10000);
+          return;
+        }
+        // CHANNEL_ERROR / TIMED_OUT / CLOSED (not ours): supabase-js re-joins
+        // by itself; sync once now so the open chat is not left stale.
+        if (__DEV__) console.warn('[Chat] realtime status', status);
+        void catchUpMessages();
       });
 
     // Back from the background: the socket may have been dropped while the
     // app was suspended (nothing is replayed) — catch up from the server.
     const appSub = AppState.addEventListener('change', (st) => {
-      if (st === 'active') void catchUpMessages();
+      if (live && st === 'active') void catchUpMessages();
     });
 
     return () => {
+      live = false;
+      if (readyTimer) clearTimeout(readyTimer);
       appSub.remove();
       void supabase.removeChannel(channel);
     };
@@ -445,58 +474,60 @@ export default function ChatScreen() {
     void emitUnreadMessageCount();
   }
 
+  // The chat these requests belong to. A response that comes back after the
+  // chat changed (or the screen closed) is dropped, never written into
+  // another chat's list.
+  const chatKey = currentUserId && otherUserId ? `${currentUserId}:${otherUserId}` : '';
+  const chatKeyRef = useRef(chatKey);
+  chatKeyRef.current = chatKey;
+  // Always the latest render's fetch (the runner and Realtime callbacks call it).
+  const fetchRef = useRef<(mode: 'initial' | 'catchup', key: string) => Promise<void>>(async () => {});
+
   // Catch-up after (re)connecting / returning to the foreground: one at a
-  // time; a trigger during a run schedules exactly one more.
-  const catchUpRef = useRef<{ running: boolean; again: boolean }>({ running: false, again: false });
-  async function catchUpMessages() {
-    const st = catchUpRef.current;
-    if (st.running) {
-      st.again = true;
-      return;
-    }
-    st.running = true;
-    try {
-      do {
-        st.again = false;
-        await fetchMessages('catchup');
-      } while (st.again);
-    } finally {
-      st.running = false;
-    }
+  // time; a trigger during a run schedules exactly one more, for the CURRENT chat.
+  const catchUpRunnerRef = useRef<CatchUpRunner | null>(null);
+  if (!catchUpRunnerRef.current) {
+    catchUpRunnerRef.current = new CatchUpRunner(() => ({ key: chatKeyRef.current, run: (k) => fetchRef.current('catchup', k) }));
+  }
+  function catchUpMessages() {
+    return catchUpRunnerRef.current!.trigger();
   }
 
-  async function fetchMessages(mode: 'initial' | 'catchup' = 'initial') {
-    if (!currentUserId || !otherUserId) return;
-    const { data, error } = await supabase
-      .from('messages')
-      // '*': also the photo columns where the server has them; a named
-      // column the server lacks would fail the whole select.
-      .select('*')
-      .or(
-        `and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),` +
-          `and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`,
-      )
-      .order('created_at', { ascending: true });
+  async function fetchMessages(mode: 'initial' | 'catchup' = 'initial', key: string = chatKeyRef.current) {
+    if (!currentUserId || !otherUserId || !key || key !== `${currentUserId}:${otherUserId}`) return;
+    // Initial: the newest INITIAL_LIMIT messages (PostgREST caps responses at
+    // max_rows, so "everything oldest-first" lost the newest in long chats).
+    // Catch-up: everything after the newest message on screen, paged.
+    const since = mode === 'catchup' ? newestCreatedAt(messagesRef.current) : null;
+    let r = mode === 'catchup'
+      ? await loadSince<Message>(supabase, currentUserId, otherUserId, since)
+      : await loadLatest<Message>(supabase, currentUserId, otherUserId);
+    if (chatKeyRef.current !== key) return; // chat changed / screen closed meanwhile
+    // Too much missed for the paged catch-up: show the newest instead.
+    if (r.ok && !r.complete && mode === 'catchup') {
+      const latest = await loadLatest<Message>(supabase, currentUserId, otherUserId);
+      if (chatKeyRef.current !== key) return;
+      if (latest.ok) r = { ok: true, rows: [...r.rows, ...latest.rows], complete: true };
+    }
 
-    if (error) {
-      console.warn(`[Chat] fetchMessages (${mode}) failed`, error);
+    if (!r.ok) {
+      console.warn(`[Chat] fetchMessages (${mode}) failed`, r.error);
       // A failed catch-up keeps what is on screen; only the first load shows the error state.
       if (mode === 'initial') setMessagesError(true);
       return;
     }
 
     setMessagesError(false);
-    if (data) {
-      // Merge, never replace: a realtime message that arrived meanwhile stays,
-      // nothing appears twice, and an unchanged list is not re-rendered.
-      const rows = data as Message[];
-      const added = countNew(messagesRef.current, mergeMessages(messagesRef.current, rows));
-      setMessages((prev) => mergeMessages(prev, rows));
-      // New rows follow the end only if the reader is already there.
-      if (mode === 'initial' || added > 0) setTimeout(() => scrollToEndIfFollowing(mode === 'catchup'), 100);
-      void markIncomingMessagesRead();
-    }
+    // Merge, never replace: a realtime message that arrived meanwhile stays,
+    // nothing appears twice, and an unchanged list is not re-rendered.
+    const rows = r.rows;
+    const added = countNew(messagesRef.current, mergeMessages(messagesRef.current, rows));
+    setMessages((prev) => mergeMessages(prev, rows));
+    // New rows follow the end only if the reader is already there.
+    if (mode === 'initial' || added > 0) setTimeout(() => scrollToEndIfFollowing(mode === 'catchup'), 100);
+    void markIncomingMessagesRead();
   }
+  fetchRef.current = fetchMessages;
 
   async function handleSend() {
     if (!text.trim() || !currentUserId || !otherUserId || chatOpened !== true) return;
