@@ -40,7 +40,7 @@ export function ChatPlusSheet({ visible, onClose, onSuggestDate, onAddPhoto }: P
 
   const rows: { key: Action; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string }[] = [
     { key: 'date', icon: 'calendar-outline', title: 'Suggest a date', sub: 'Pick a day and a time' },
-    { key: 'photo', icon: 'image-outline', title: 'Add a photo', sub: 'From your camera or library' },
+    { key: 'photo', icon: 'image-outline', title: 'Add a photo', sub: 'Choose one from your library' },
   ];
 
   return (

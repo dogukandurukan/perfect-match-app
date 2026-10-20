@@ -1,5 +1,17 @@
 # V2 chat screen — redesign (result)
 
+# Phone verification (owner, 2026-10-19/20)
+
+**Verified on the phone (LOCAL):**
+- Mert sent a date suggestion from the app (20 Oct 19:30, Moda) and saw "Awaiting reply".
+- Defne saw it and accepted.
+- After reopening, Mert saw "Plan confirmed / Accepted".
+- Mert's messages were also seen on Defne's account.
+
+**Not verified by this test:** the intermittent Realtime timeout (still open).
+
+---
+
 # Round 4b (2026-10-19): tempa-local restart, double-tap lock, Mert ↔ Defne suggestion
 
 **tempa-local restart (owner-approved; data kept):**

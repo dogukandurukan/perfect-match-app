@@ -39,6 +39,11 @@ import { isSendableTime } from '@/lib/onboardingV2/dateSuggestions';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { SuggestDateSheet } from '@/components/chat/SuggestDateSheet';
 import { ChatPlusSheet } from '@/components/chat/ChatPlusSheet';
+import { PhotoBubble } from '@/components/chat/PhotoBubble';
+import { PhotoSendSheet } from '@/components/chat/PhotoSendSheet';
+import { PhotoViewer } from '@/components/chat/PhotoViewer';
+import { checkPickedPhoto, PICK_QUALITY, type CheckedPhoto } from '@/lib/chat/photo';
+import { forgetChatPhotoUrls, sendChatPhoto } from '@/lib/chat/photoApi';
 import { HowItStartedCard } from '@/components/chat/HowItStartedCard';
 import { buildTimeline, isNearEnd, type TimelineRow } from '@/lib/chat/timeline';
 import { MATCH_COPY } from '@/lib/activity/copy';
@@ -64,6 +69,11 @@ type Message = {
   receiver_id: string;
   content: string;
   created_at: string;
+  // V2 chat photos (servers with the chat-photos package; absent elsewhere).
+  kind?: 'text' | 'photo';
+  media_path?: string | null;
+  media_width?: number | null;
+  media_height?: number | null;
 };
 
 type ChatItem = { kind: 'msg'; msg: Message } | { kind: 'date'; p: Proposal };
@@ -95,6 +105,14 @@ export default function ChatScreen() {
   const [proposeModalVisible, setProposeModalVisible] = useState(false);
   // V2 "+" menu (ivory bottom sheet; replaces the system alert).
   const [plusOpen, setPlusOpen] = useState(false);
+  // V2 photo: picked → preview → explicit send. One request id per picked
+  // photo (kept across "Try again", so a retry never makes a second message).
+  const [photoDraft, setPhotoDraft] = useState<CheckedPhoto | null>(null);
+  const [photoSending, setPhotoSending] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const photoRequestRef = useRef<string | null>(null);
+  const photoInFlightRef = useRef(false);
   const [proposeTimes, setProposeTimes] = useState<string[]>([]);
   const [selectedProposeTime, setSelectedProposeTime] = useState<string | null>(null);
   const [proposePlace, setProposePlace] = useState('');
@@ -288,6 +306,8 @@ export default function ChatScreen() {
     setMessages([]);
     setHeaderPhotoUrl(null);
     if (otherUserId) forgetProfilePhotoUrls(otherUserId);
+    forgetChatPhotoUrls();
+    setViewerUrl(null);
     void emitUnreadMessageCount();
   }, [chatState, chatStateLoaded, otherUserId]);
 
@@ -404,7 +424,9 @@ export default function ChatScreen() {
     if (!currentUserId || !otherUserId) return;
     const { data, error } = await supabase
       .from('messages')
-      .select('id, sender_id, receiver_id, content, created_at')
+      // '*': also the photo columns where the server has them; a named
+      // column the server lacks would fail the whole select.
+      .select('*')
       .or(
         `and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),` +
           `and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`,
@@ -460,6 +482,10 @@ export default function ChatScreen() {
 
   function handleAddPhoto() {
     if (inputDisabled) return;
+    if (v2Enabled) {
+      void pickPhotoV2();
+      return;
+    }
     Alert.alert('Add a photo', undefined, [
       { text: 'Take Photo', onPress: () => void openPhotoPicker('camera') },
       { text: 'Choose from Library', onPress: () => void openPhotoPicker('library') },
@@ -487,6 +513,69 @@ export default function ChatScreen() {
     } catch (e) {
       console.warn('[Chat] photo picker failed', e);
     }
+  }
+
+  // V2: one photo from the library (no camera / video / multi-select in this
+  // package). Picking only opens the preview — nothing is sent yet.
+  async function pickPhotoV2() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: false,
+        allowsEditing: false,
+        quality: PICK_QUALITY,
+        exif: false,
+        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const checked = checkPickedPhoto(result.assets[0]);
+      if (!checked.ok) {
+        Alert.alert('Can’t use this photo', checked.message);
+        return;
+      }
+      photoRequestRef.current = newRequestId();
+      setPhotoError(null);
+      setPhotoDraft(checked.photo);
+    } catch (e) {
+      console.warn('[Chat] photo picker failed', e);
+      Alert.alert('Can’t open your photos', 'Check photo access for Tempa in Settings and try again.');
+    }
+  }
+
+  async function sendPhotoV2() {
+    if (!photoDraft || !matchId || !currentUserId || photoInFlightRef.current) return;
+    photoInFlightRef.current = true;
+    setPhotoSending(true);
+    setPhotoError(null);
+    const requestId = photoRequestRef.current ?? newRequestId();
+    photoRequestRef.current = requestId;
+    const isFirstMessage = messages.length === 0;
+    let r: Awaited<ReturnType<typeof sendChatPhoto>>;
+    try {
+      r = await sendChatPhoto(matchId, currentUserId, photoDraft, requestId);
+    } finally {
+      photoInFlightRef.current = false;
+      setPhotoSending(false);
+    }
+    if (!r.ok) {
+      setPhotoError(r.message);
+      return;
+    }
+    const row = r.message as Message;
+    setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+    forceEndRef.current = true;
+    setTimeout(() => scrollToEndIfFollowing(), 100);
+    if (isFirstMessage) logEvent('first_message_sent', { match_source: matchSource });
+    photoRequestRef.current = null;
+    setPhotoDraft(null);
+  }
+
+  // Cancel: closes the preview only — the typed message draft is untouched.
+  function cancelPhotoV2() {
+    if (photoInFlightRef.current) return;
+    photoRequestRef.current = null;
+    setPhotoError(null);
+    setPhotoDraft(null);
   }
 
   function handleQuickPick(choice: QuickIcebreakerChoice) {
@@ -855,9 +944,20 @@ export default function ChatScreen() {
               <View style={v2.msgAvatar} />
             )
           ) : null}
-          <View style={[v2.bubble, isMine ? v2.bubbleMine : v2.bubbleTheirs]}>
-            <ThemedText style={[v2.bubbleText, isMine && v2.bubbleTextMine]}>{item.content}</ThemedText>
-          </View>
+          {item.kind === 'photo' && item.media_path ? (
+            <PhotoBubble
+              path={item.media_path}
+              width={item.media_width}
+              height={item.media_height}
+              mine={isMine}
+              label={isMine ? 'Your photo' : `Photo from ${userName}`}
+              onOpen={setViewerUrl}
+            />
+          ) : (
+            <View style={[v2.bubble, isMine ? v2.bubbleMine : v2.bubbleTheirs]}>
+              <ThemedText style={[v2.bubbleText, isMine && v2.bubbleTextMine]}>{item.content}</ThemedText>
+            </View>
+          )}
         </View>
         {row.time ? (
           <ThemedText style={[v2.msgTime, isMine ? v2.msgTimeMine : v2.msgTimeTheirs]}>{row.time}</ThemedText>
@@ -1308,6 +1408,19 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
     </ScreenContainer>
 
+    {v2Enabled ? (
+      <>
+        <PhotoSendSheet
+          photo={photoDraft}
+          otherName={userName}
+          sending={photoSending}
+          error={photoError}
+          onCancel={cancelPhotoV2}
+          onSend={() => void sendPhotoV2()}
+        />
+        <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
+      </>
+    ) : null}
     {v2Enabled ? (
       <ChatPlusSheet
         visible={plusOpen}
