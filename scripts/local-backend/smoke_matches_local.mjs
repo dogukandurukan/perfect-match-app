@@ -92,7 +92,11 @@ async function main() {
   const received = new Promise((resolve) => {
     const ch = P.c.channel(`smoke-${tag}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${pick.user_id}` },
       (payload) => { resolve(payload.new?.content); ch.unsubscribe(); });
-    ch.subscribe((s) => { if (s === 'SUBSCRIBED') subscribed(true); });
+    // Ready = the server's "Subscribed to PostgreSQL" (postgres_changes ok), not
+    // SUBSCRIBED: after the local Realtime tenant restarted, a row written between
+    // the two was never delivered (probe 2026-10-20, V2_REALTIME_RESULT.md).
+    ch.on('system', {}, (p) => { if (p?.extension === 'postgres_changes' && p?.status === 'ok') subscribed(true); });
+    ch.subscribe();
     setTimeout(() => resolve(null), 12000);
   });
   check(await Promise.race([joined, new Promise((r) => setTimeout(() => r(false), 10000))]), 'receiver subscribed to Realtime');

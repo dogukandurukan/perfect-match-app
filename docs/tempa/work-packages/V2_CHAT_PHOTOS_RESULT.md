@@ -127,7 +127,19 @@ Test data: only the fresh synthetic accounts of each smoke run (`tempa-local-pho
 - Pixel downscaling (see above).
 - Push notifications for photo messages: no message push exists today.
 
-## Phone test (not done)
+## Phone verification (owner, 2026-10-20, LOCAL)
+
+**Passed on the phone:**
+- Mert sends a photo; Defne sees it.
+- Full screen opens and closes.
+- Cancelling the preview keeps the typed draft.
+- With the connection cut, Send fails; Try again after reconnecting leaves **one** photo.
+
+**Not reported:** HEIC and very-large-photo cases.
+
+The original phone checklist is kept below for reference.
+
+## Phone test checklist
 
 1. Mert → Defne chat → **+ → Add a photo** → pick a photo.
    - The preview shows it whole and nothing is sent yet.

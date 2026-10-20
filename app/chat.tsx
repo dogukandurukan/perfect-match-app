@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -46,6 +47,7 @@ import { checkPickedPhoto, PICK_QUALITY, type CheckedPhoto } from '@/lib/chat/ph
 import { forgetChatPhotoUrls, sendChatPhoto } from '@/lib/chat/photoApi';
 import { HowItStartedCard } from '@/components/chat/HowItStartedCard';
 import { buildTimeline, isNearEnd, type TimelineRow } from '@/lib/chat/timeline';
+import { countNew, mergeMessages } from '@/lib/chat/merge';
 import { MATCH_COPY } from '@/lib/activity/copy';
 import {
   loadChatState,
@@ -133,6 +135,9 @@ export default function ChatScreen() {
   // with the same request id and the loser could show a needless error.
   const proposeInFlightRef = useRef(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  // Latest list for synchronous checks (how many rows a catch-up added).
+  const messagesRef = useRef<Message[]>([]);
+  messagesRef.current = messages;
   const [messagesError, setMessagesError] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -336,6 +341,14 @@ export default function ChatScreen() {
 
     void fetchMessages();
 
+    // Realtime only delivers rows written AFTER the server's replication
+    // stream is running. "SUBSCRIBED" is not that moment: after the local
+    // Realtime tenant was shut down (it rebalances ~every 10 min) the first
+    // join re-creates the replication slot, and the server's "Subscribed to
+    // PostgreSQL" system message arrived ~2.4 s after SUBSCRIBED; a message
+    // written in between was never delivered (probe, 2026-10-20). So on every
+    // "postgres_changes ok" (first join AND every automatic re-join) the chat
+    // catches up from the server; the merge drops duplicates.
     const channel = supabase
       .channel(`chat-${currentUserId}-${otherUserId}`)
       .on(
@@ -361,9 +374,21 @@ export default function ChatScreen() {
           }
         },
       )
-      .subscribe();
+      .on('system', {}, (payload: { extension?: string; status?: string }) => {
+        if (payload?.extension === 'postgres_changes' && payload?.status === 'ok') void catchUpMessages();
+      })
+      .subscribe((status) => {
+        if (__DEV__ && status !== 'SUBSCRIBED') console.warn('[Chat] realtime status', status);
+      });
+
+    // Back from the background: the socket may have been dropped while the
+    // app was suspended (nothing is replayed) — catch up from the server.
+    const appSub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') void catchUpMessages();
+    });
 
     return () => {
+      appSub.remove();
       void supabase.removeChannel(channel);
     };
   }, [currentUserId, otherUserId, chatOpened, scrollToEndIfFollowing]);
@@ -420,7 +445,27 @@ export default function ChatScreen() {
     void emitUnreadMessageCount();
   }
 
-  async function fetchMessages() {
+  // Catch-up after (re)connecting / returning to the foreground: one at a
+  // time; a trigger during a run schedules exactly one more.
+  const catchUpRef = useRef<{ running: boolean; again: boolean }>({ running: false, again: false });
+  async function catchUpMessages() {
+    const st = catchUpRef.current;
+    if (st.running) {
+      st.again = true;
+      return;
+    }
+    st.running = true;
+    try {
+      do {
+        st.again = false;
+        await fetchMessages('catchup');
+      } while (st.again);
+    } finally {
+      st.running = false;
+    }
+  }
+
+  async function fetchMessages(mode: 'initial' | 'catchup' = 'initial') {
     if (!currentUserId || !otherUserId) return;
     const { data, error } = await supabase
       .from('messages')
@@ -434,15 +479,21 @@ export default function ChatScreen() {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.warn('[Chat] fetchMessages failed', error);
-      setMessagesError(true);
+      console.warn(`[Chat] fetchMessages (${mode}) failed`, error);
+      // A failed catch-up keeps what is on screen; only the first load shows the error state.
+      if (mode === 'initial') setMessagesError(true);
       return;
     }
 
     setMessagesError(false);
     if (data) {
-      setMessages(data as Message[]);
-      setTimeout(() => scrollToEndIfFollowing(false), 100);
+      // Merge, never replace: a realtime message that arrived meanwhile stays,
+      // nothing appears twice, and an unchanged list is not re-rendered.
+      const rows = data as Message[];
+      const added = countNew(messagesRef.current, mergeMessages(messagesRef.current, rows));
+      setMessages((prev) => mergeMessages(prev, rows));
+      // New rows follow the end only if the reader is already there.
+      if (mode === 'initial' || added > 0) setTimeout(() => scrollToEndIfFollowing(mode === 'catchup'), 100);
       void markIncomingMessagesRead();
     }
   }
@@ -1212,7 +1263,7 @@ export default function ChatScreen() {
             ) : null}
           </View>
         ) : messagesError && messages.length === 0 ? (
-          <ErrorState onRetry={() => void fetchMessages()} />
+          <ErrorState onRetry={() => void fetchMessages('initial')} />
         ) : (
           <FlatList
             ref={flatListRef as never}
