@@ -8,7 +8,7 @@ import { backend } from '@/lib/supabaseClient';
 
 // TEMPORARY (chat redesign phone check, 2026-10-17): which JS build is on the
 // phone, plus the real window size and text scale. Remove after the check.
-const DEV_BUILD_MARK = 'chat-r3';
+const DEV_BUILD_MARK = 'chat-rt1';
 
 export function DevBackendBadge() {
   const insets = useSafeAreaInsets();
