@@ -80,6 +80,15 @@ function Confetti() {
   );
 }
 
+/** Live /v2/status copy for the states other than "submitted" (which shows
+ * ReceivedFields). Shared with the DEV design preview. */
+export const STATUS_COPY = {
+  rejected: "Thanks for applying. We can't offer you a membership right now.",
+  unreadable: "We couldn't read your application status.",
+  refresh: 'Refresh',
+  signOut: 'Sign out',
+} as const;
+
 /** `live`: shown after the server recorded the application — no preview notice. */
 export function ReceivedFields({ live = false }: { live?: boolean } = {}) {
   return (

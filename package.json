@@ -6,7 +6,13 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "collab:doctor": "sh scripts/collab/doctor.sh",
+    "collab:preview": "sh scripts/collab/start-preview.sh",
+    "collab:setup": "sh scripts/collab/first-setup.sh",
+    "collab:start": "sh scripts/collab/start.sh",
+    "collab:stop": "sh scripts/collab/stop.sh",
+    "collab:lan": "sh scripts/collab/lan-check.sh"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.0",

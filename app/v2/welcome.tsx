@@ -4,13 +4,13 @@
 // verification; the address is then confirmed, which the application requires.
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Text } from 'react-native';
 
+import { ACCOUNT_COPY, AccountError, AccountLink, ConsentRow, accountStyles } from '@/components/onboarding-v2/account/AccountFields';
 import { OnboardingPrimaryButton } from '@/components/onboarding-v2/OnboardingPrimaryButton';
 import { OnboardingScreen } from '@/components/onboarding-v2/OnboardingScreen';
 import { OnboardingTextField } from '@/components/onboarding-v2/OnboardingTextField';
 import { loadMyOnboarding } from '@/lib/onboardingV2/remote';
-import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { emailLooksValid, normalizeEmail, RESEND_COOLDOWN_SECONDS } from '@/lib/onboardingV2/yourProfile';
 import { devCodeCommand, devSwitchAccountHint } from '@/lib/devSignIn';
 import { backend, devTestEmail, supabase } from '@/lib/supabaseClient';
@@ -62,7 +62,7 @@ export default function V2Welcome() {
       );
       console.log(`[v2 welcome] send code: done (error: ${e ? e.name : 'none'})`);
       if (e) {
-        setError(/rate|seconds/i.test(e.message) ? 'Please wait a moment before asking for another code.' : "We couldn't send a code. Check the address and try again.");
+        setError(/rate|seconds/i.test(e.message) ? ACCOUNT_COPY.errors.rateLimited : ACCOUNT_COPY.errors.sendFailed);
         return;
       }
       setSentAt(Date.now());
@@ -95,8 +95,8 @@ export default function V2Welcome() {
           ambiguous
             ? testMode
               ? `That code isn’t valid or has expired. Use the newest code made for ${normalizeEmail(email)}.`
-              : 'That code isn’t valid or has expired. Use the newest code or send a new one.'
-            : "That code isn't right. Try again.",
+              : ACCOUNT_COPY.errors.codeInvalid
+            : ACCOUNT_COPY.errors.codeWrong,
         );
         return;
       }
@@ -132,16 +132,16 @@ export default function V2Welcome() {
   const isEmail = phase === 'email';
   return (
     <OnboardingScreen
-      sectionLabel="Account"
+      sectionLabel={ACCOUNT_COPY.sectionLabel}
       step={isEmail ? 1 : 2}
       totalSteps={2}
-      title={isEmail ? "What's your email?" : 'Enter your code'}
+      title={isEmail ? ACCOUNT_COPY.emailTitle : ACCOUNT_COPY.codeTitle}
       helper={
         isEmail
-          ? "We'll send you a code to sign in."
+          ? ACCOUNT_COPY.emailHelper
           : testMode
             ? `DEV test account ${normalizeEmail(email)} — enter the code shown in your Mac terminal.`
-            : `We sent a sign-in code to ${normalizeEmail(email)}.`
+            : ACCOUNT_COPY.codeHelper(normalizeEmail(email))
       }
       onBack={
         isEmail || testMode ? (router.canGoBack() ? () => router.back() : undefined) : () => setPhase('email')
@@ -149,13 +149,9 @@ export default function V2Welcome() {
       contentKey={phase}
       footer={
         <>
-          {error ? (
-            <Text style={styles.error} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
-              {error}
-            </Text>
-          ) : null}
+          {error ? <AccountError text={error} /> : null}
           <OnboardingPrimaryButton
-            label={busy ? 'Please wait…' : isEmail ? 'Send code' : 'Continue'}
+            label={busy ? ACCOUNT_COPY.busy : isEmail ? ACCOUNT_COPY.sendCode : ACCOUNT_COPY.continue}
             onPress={() => void (isEmail ? sendCode() : verify())}
             disabled={busy || (isEmail ? !emailLooksValid(email) || !consent : code.length < MIN_CODE || (testMode && !consent))}
           />
@@ -163,7 +159,7 @@ export default function V2Welcome() {
       }>
       {isEmail ? (
         <OnboardingTextField
-          label="Email"
+          label={ACCOUNT_COPY.emailLabel}
           value={email}
           onChangeText={(v) => {
             setEmail(v);
@@ -179,26 +175,11 @@ export default function V2Welcome() {
         />
       ) : null}
       {isEmail ? (
-        <TouchableOpacity
-          onPress={() => setConsent((c) => !c)}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: consent }}
-          accessibilityLabel="I have read the Privacy Notice and agree to the processing of my personal data"
-          hitSlop={6}
-          style={styles.consentRow}>
-          <Text style={styles.box}>{consent ? '☑' : '☐'}</Text>
-          <Text style={styles.consentText} maxFontSizeMultiplier={1.6}>
-            {'I have read the '}
-            <Text style={styles.consentLink} onPress={() => router.push('/privacy-notice')}>
-              Privacy Notice
-            </Text>
-            {' and agree to the processing of my personal data.'}
-          </Text>
-        </TouchableOpacity>
+        <ConsentRow checked={consent} onToggle={() => setConsent((c) => !c)} onOpenNotice={() => router.push('/privacy-notice')} />
       ) : (
         <>
           <OnboardingTextField
-            label="Sign-in code"
+            label={ACCOUNT_COPY.codeLabel}
             value={code}
             onChangeText={(v) => {
               setCode(cleanCode(v));
@@ -211,40 +192,20 @@ export default function V2Welcome() {
             onSubmitEditing={() => void verify()}
           />
           {testMode ? (
-            <Text style={styles.consentText} maxFontSizeMultiplier={1.6}>
+            <Text style={accountStyles.consentText} maxFontSizeMultiplier={1.6}>
               {`New code for ${normalizeEmail(email)}? On your Mac run: ${devCodeCommand(backend.env, normalizeEmail(email))}\n${devSwitchAccountHint(backend.env)}`}
             </Text>
           ) : null}
           {testMode ? (
-            <TouchableOpacity
-              onPress={() => setConsent((c) => !c)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: consent }}
-              accessibilityLabel="I have read the Privacy Notice and agree to the processing of my personal data"
-              hitSlop={6}
-              style={styles.consentRow}>
-              <Text style={styles.box}>{consent ? '☑' : '☐'}</Text>
-              <Text style={styles.consentText} maxFontSizeMultiplier={1.6}>
-                {'I have read the '}
-                <Text style={styles.consentLink} onPress={() => router.push('/privacy-notice')}>
-                  Privacy Notice
-                </Text>
-                {' and agree to the processing of my personal data.'}
-              </Text>
-            </TouchableOpacity>
+            <ConsentRow checked={consent} onToggle={() => setConsent((c) => !c)} onOpenNotice={() => router.push('/privacy-notice')} />
           ) : null}
           {testMode ? null : (
-          <TouchableOpacity
+          <AccountLink
+            label={cooldown > 0 ? ACCOUNT_COPY.resendIn(cooldown) : ACCOUNT_COPY.resend}
             onPress={() => void sendCode()}
             disabled={cooldown > 0 || busy}
-            accessibilityRole="button"
             accessibilityLabel={cooldown > 0 ? `Resend code in ${cooldown} seconds` : 'Resend code'}
-            hitSlop={10}
-            style={styles.link}>
-            <Text style={[styles.linkText, (cooldown > 0 || busy) && styles.linkDisabled]} maxFontSizeMultiplier={1.6}>
-              {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-            </Text>
-          </TouchableOpacity>
+          />
           )}
         </>
       )}
@@ -252,13 +213,3 @@ export default function V2Welcome() {
   );
 }
 
-const styles = StyleSheet.create({
-  error: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 21, color: '#A33A2B', textAlign: 'center', marginBottom: 8 },
-  link: { minHeight: 44, justifyContent: 'center', marginTop: 16 },
-  linkText: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.cta, textDecorationLine: 'underline' },
-  linkDisabled: { color: obColors.textSecondary },
-  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 20, minHeight: 44 },
-  box: { fontSize: 22, lineHeight: 26, color: obColors.cta },
-  consentText: { flex: 1, fontFamily: obFonts.body, fontSize: 15, lineHeight: 21, color: obColors.textSecondary },
-  consentLink: { color: obColors.cta, textDecorationLine: 'underline' },
-});
