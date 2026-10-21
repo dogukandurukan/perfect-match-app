@@ -54,7 +54,7 @@ ok(/target_type === 'photo' && url/.test(card) && /'chatbox-ellipses-outline'/.t
 ok(/likeContextLine\(first, otherName\)/.test(card) && /setOpen\(\(v\) => !v\)/.test(card) && /accessibilityState=\{expandable \? \{ expanded: open \}/.test(card), 'card: real like line, tap to expand, expanded state announced');
 
 const chat = code('app/chat.tsx');
-ok(/ListHeaderComponent=\{v2Enabled \? <HowItStartedCard likes=\{chatState\?\.likes\}/.test(chat), 'card is the list header (scrolls away with the chat)');
+ok(/ListHeaderComponent=\{\s*older\.hasMore \|\| older\.loading \|\| older\.error \? \([\s\S]{0,120}\) : v2Enabled \? \(\s*<HowItStartedCard likes=\{chatState\?\.likes\}/.test(chat), 'card is the list header (scrolls away with the chat; at the start once older history is loaded)');
 ok(/paddingTop: insets\.top, paddingBottom: 0, paddingHorizontal: 0/.test(chat), 'header: safe-area top only (no extra 12 pt)');
 ok(/>View profile</.test(chat) && /onPress=\{openUserProfile\}[\s\S]{0,120}style=\{styles\.headerCenter\}/.test(chat) && /openChatMenu/.test(chat), 'header: photo + name + View profile open the full profile; ⋯ menu kept');
 const v2Msg = (chat.match(/function renderMessageV2\([\s\S]*?\n  \}\n/) || [''])[0];

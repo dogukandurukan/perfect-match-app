@@ -45,7 +45,7 @@ ok(/out\.refreshPicks/.test(code('components/main/V2DiscoverScreen.tsx')), 'Disc
 
 // Chat: context, not messages; suspended → read-only history.
 const chat = code('app/chat.tsx');
-ok(/ListHeaderComponent=\{v2Enabled \? <HowItStartedCard/.test(chat), 'likes shown as chat context');
+ok(/ListHeaderComponent=\{[\s\S]{0,200}: v2Enabled \? \(\s*<HowItStartedCard/.test(chat), 'likes shown as chat context');
 ok(/chatState\?\.state === 'unavailable'/.test(chat) && /Account unavailable/.test(chat) && /inputDisabled = chatLoading \|\| inputLocked \|\| accountUnavailable/.test(chat), 'suspended: history readable, input closed, “Account unavailable”');
 ok(/'Account unavailable'/.test(code('app/(tabs)/messages.tsx')), 'Chats shows Account unavailable rows');
 

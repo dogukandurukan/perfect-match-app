@@ -48,7 +48,8 @@ import { forgetChatPhotoUrls, sendChatPhoto } from '@/lib/chat/photoApi';
 import { HowItStartedCard } from '@/components/chat/HowItStartedCard';
 import { buildTimeline, isNearEnd, type TimelineRow } from '@/lib/chat/timeline';
 import { countNew, mergeMessages } from '@/lib/chat/merge';
-import { CatchUpRunner, loadLatest, loadSince, newestCreatedAt } from '@/lib/chat/sync';
+import { CatchUpRunner, loadBefore, loadLatest, loadSince, newestCreatedAt, oldestCursor, OlderPager, type OlderState } from '@/lib/chat/sync';
+import { OlderHistoryHeader } from '@/components/chat/OlderHistoryHeader';
 import { MATCH_COPY } from '@/lib/activity/copy';
 import {
   loadChatState,
@@ -139,6 +140,14 @@ export default function ChatScreen() {
   // Latest list for synchronous checks (how many rows a catch-up added).
   const messagesRef = useRef<Message[]>([]);
   messagesRef.current = messages;
+  // Older history (pages before the oldest message on screen). One request at
+  // a time; stops when the start is reached; results for another chat dropped.
+  const [older, setOlder] = useState<OlderState>({ hasMore: false, loading: false, error: null });
+  const olderPagerRef = useRef<OlderPager | null>(null);
+  if (!olderPagerRef.current) olderPagerRef.current = new OlderPager(setOlder);
+  // Only a reader's own scroll near the top loads older pages (never the
+  // list's own first layout at offset 0 → no chain of requests on open).
+  const userScrolledRef = useRef(false);
   const [messagesError, setMessagesError] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -310,6 +319,7 @@ export default function ChatScreen() {
       return;
     }
     setMessages([]);
+    olderPagerRef.current?.reset('', false);
     setHeaderPhotoUrl(null);
     if (otherUserId) forgetProfilePhotoUrls(otherUserId);
     forgetChatPhotoUrls();
@@ -337,9 +347,12 @@ export default function ChatScreen() {
     }, [matchId, refreshChatState]),
   );
 
-  // Another chat in the same screen instance: never show the previous list.
+  // Another chat in the same screen instance: never show the previous list,
+  // and drop any older-page request of the previous chat.
   useEffect(() => {
     setMessages([]);
+    userScrolledRef.current = false;
+    olderPagerRef.current?.reset(currentUserId && otherUserId ? `${currentUserId}:${otherUserId}` : '', false);
   }, [currentUserId, otherUserId]);
 
   useEffect(() => {
@@ -518,6 +531,8 @@ export default function ChatScreen() {
     }
 
     setMessagesError(false);
+    // First page: older history exists only if the page was full.
+    if (mode === 'initial') olderPagerRef.current?.reset(key, !r.complete);
     // Merge, never replace: a realtime message that arrived meanwhile stays,
     // nothing appears twice, and an unchanged list is not re-rendered.
     const rows = r.rows;
@@ -528,6 +543,22 @@ export default function ChatScreen() {
     void markIncomingMessagesRead();
   }
   fetchRef.current = fetchMessages;
+
+  // One older page before the oldest message on screen (keyset on
+  // created_at, id). Merged like every other fetch; never scrolls.
+  function loadOlderMessages() {
+    if (!currentUserId || !otherUserId) return;
+    const key = chatKeyRef.current;
+    const cursor = oldestCursor(messagesRef.current);
+    if (!key || !cursor) return;
+    const me = currentUserId;
+    const other = otherUserId;
+    void olderPagerRef.current?.load<Message>(
+      key,
+      () => loadBefore<Message>(supabase, me, other, cursor),
+      (rows) => setMessages((prev) => mergeMessages(prev, rows)),
+    );
+  }
 
   async function handleSend() {
     if (!text.trim() || !currentUserId || !otherUserId || chatOpened !== true) return;
@@ -1320,12 +1351,27 @@ export default function ChatScreen() {
             // V2: likes (which photo / answer + note) as a compact "How it
             // started" card, never messages (D79); it scrolls away with the
             // chat. Empty V2 chat: the approved hello.
-            ListHeaderComponent={v2Enabled ? <HowItStartedCard likes={chatState?.likes} otherName={userName} /> : null}
+            // Older history first; the "How it started" card sits at the
+            // real start of the conversation, once, after the last page.
+            ListHeaderComponent={
+              older.hasMore || older.loading || older.error ? (
+                <OlderHistoryHeader state={older} onLoad={loadOlderMessages} />
+              ) : v2Enabled ? (
+                <HowItStartedCard likes={chatState?.likes} otherName={userName} />
+              ) : null
+            }
+            // Rows added above keep the message being read in place
+            // (index 0 is the header).
+            maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
+            onScrollBeginDrag={() => {
+              userScrolledRef.current = true;
+            }}
             ListFooterComponent={icebreakerPanel}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScroll={(e) => {
               nearEndRef.current = isNearEnd(e.nativeEvent);
+              if (userScrolledRef.current && e.nativeEvent.contentOffset.y < 400) loadOlderMessages();
             }}
             scrollEventThrottle={64}
             // Keeps the newest message (or the quiz in an empty chat) in view

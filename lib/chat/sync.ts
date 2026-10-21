@@ -112,3 +112,81 @@ export class CatchUpRunner {
     }
   }
 }
+
+// ---- Older history (2026-10-21) ----
+// Keyset paging backwards from the oldest message on screen, on the total
+// order (created_at, id): no offset (no shift when messages arrive), and rows
+// sharing one timestamp are split by id — never skipped or repeated.
+
+export const OLDER_PAGE = 100;
+
+/** Oldest row in a list by (created_at, id); null for an empty list. */
+export function oldestCursor(rows: { id: string; created_at: string }[]): { created_at: string; id: string } | null {
+  let best: { created_at: string; id: string } | null = null;
+  for (const r of rows) {
+    if (!best) { best = r; continue; }
+    const a = Date.parse(r.created_at);
+    const b = Date.parse(best.created_at);
+    if (a < b || (a === b && (r.created_at < best.created_at || (r.created_at === best.created_at && r.id < best.id)))) best = r;
+  }
+  return best ? { created_at: best.created_at, id: best.id } : null;
+}
+
+export async function loadBefore<T extends Row>(
+  client: QueryClient,
+  me: string,
+  other: string,
+  cursor: { created_at: string; id: string },
+  page = OLDER_PAGE,
+): Promise<Result<T>> {
+  const c = cursor.created_at.replace(/"/g, '');
+  const { data, error } = await client
+    .from('messages')
+    .select('*')
+    .or(pairFilter(me, other))
+    .or(`created_at.lt."${c}",and(created_at.eq."${c}",id.lt.${cursor.id})`)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(page);
+  if (error) return { ok: false, error: error.message ?? String(error) };
+  const rows = ((data ?? []) as T[]).slice().reverse();
+  return { ok: true, rows, complete: rows.length < page };
+}
+
+export type OlderState = { hasMore: boolean; loading: boolean; error: string | null };
+
+/**
+ * Loads older pages one at a time. Nothing happens while a page is loading or
+ * once the history is complete. A result that comes back after the chat
+ * changed (reset with another key) is dropped and touches no state. A failure
+ * keeps the list and leaves `hasMore` so the user can retry.
+ */
+export class OlderPager {
+  state: OlderState = { hasMore: false, loading: false, error: null };
+  private key = '';
+  constructor(private readonly onChange: (s: OlderState) => void = () => {}) {}
+  reset(key: string, hasMore: boolean): void {
+    this.key = key;
+    this.state = { hasMore, loading: false, error: null };
+    this.onChange(this.state);
+  }
+  async load<T>(key: string, fetchPage: () => Promise<Result<T>>, apply: (rows: T[]) => void): Promise<void> {
+    if (key !== this.key || this.state.loading || !this.state.hasMore) return;
+    this.state = { ...this.state, loading: true, error: null };
+    this.onChange(this.state);
+    let r: Result<T>;
+    try {
+      r = await fetchPage();
+    } catch (e) {
+      r = { ok: false, error: (e as Error)?.message ?? 'failed' };
+    }
+    if (key !== this.key) return; // chat changed meanwhile: drop
+    if (!r.ok) {
+      this.state = { ...this.state, loading: false, error: r.error };
+    } else {
+      apply(r.rows);
+      this.state = { hasMore: !r.complete, loading: false, error: null };
+    }
+    this.onChange(this.state);
+  }
+}
