@@ -1,5 +1,91 @@
 # V2 chat — intermittent Realtime timeout: root cause and fix (result)
 
+# Reliability hardening (2026-10-21)
+
+## Summary
+
+**What I found:**
+- **Long chats lost their newest messages:** PostgREST caps every response at `max_rows` = 1000, and the chat read all messages oldest-first. A chat over 1000 messages showed the oldest 1000, and a catch-up could never return the new ones.
+- **An older response could blank newer data:** a stale catch-up response could set `read_at` back to null.
+- **The catch-up runner re-ran its first closure:** a pending run could fetch the previous chat.
+- **A failing Realtime join sends no readiness signal at all** (probe), so the chat never caught up.
+- **Two permanent broken-photo paths:** "Tap to retry" handed out the same cached broken URL; the full-screen viewer reused a possibly expired URL and had no error handling.
+- **The LOCAL code screen showed the shared-DEV code command.**
+
+**Fixes:** `a05b019` (sync), `93f6e2f` (photos), `68a1b67` (sign-in help).
+
+**Missing or duplicate messages:**
+- **None** in any run: 0 missing, 0 duplicates in the soak (18 + 2 messages).
+- Realtime alone did lose the two messages written in the gaps; the catch-up recovered both (below).
+
+**Real re-establishment:**
+- **Observed twice** while connected (16:28:03 and 14:23:09).
+- A message was written **inside** the second gap.
+- The cold first join was observed too.
+
+**Pushed:** `4c6f7a0`, `a05b019`, `93f6e2f`, `68a1b67`, and this report commit.
+
+**Synthetic data created in this package:**
+- **3 accounts:** one `smoke_chat_photos_local` run, `tempa-local-photo-<tag>-a/b/c`.
+- **25 messages:**
+  - 20 soak messages ("rt-soak …"), on the existing probe pair;
+  - 5 in the photo smoke (1 text + 4 photo messages, with their Storage files).
+- No message to Mert / Defne; their dates and photos were not touched.
+
+**Shortest phone check left (yours):**
+- Mert ↔ Defne, one phone. Keep Defne's chat **open in the foreground** for ≥ 11 min.
+- At that point send her one message from Mert.
+- It should appear within a few seconds, once.
+
+## Verified by the owner on the phone
+
+- **Background resume:** both messages arrived, each once; the scroll position was kept; badge `chat-rt1`.
+- **Earlier packages:** photo send / view / cancel / Try again; date suggestion and accept.
+
+## Verified with real local services
+
+- **`soak_realtime_local.mjs`** (the app's `lib/chat/sync.ts` + `merge.ts`, one synthetic pair):
+
+  | Run | Conditions | Messages | Result |
+  |---|---|---|---|
+  | 16:18–16:29 UTC (2026-10-20) | Cold first join: #1 written .684, slot created .727 → caught up. Server shutdown 16:28:03 while connected, re-ready 16:28:08 → catch-up ran, +0 (no message fell into that gap). | 18 | 17 Realtime, 1 catch-up, 0 missing, 0 duplicates, sorted |
+  | `--gap`, 14:13–14:23 UTC (2026-10-21) | Shutdown 14:23:09.5 while connected. **G1 written 14:23:10.100 inside the gap: Realtime did not deliver; the catch-up on re-join (14:23:12.8) added it.** G2 after the re-join arrived via Realtime. | 2 | 0 missing, 0 duplicates |
+
+  Total: 20 messages, ~24 min of observation, within the limits (≤ 40 messages, ≤ 30 min).
+- **`smoke_chat_photos_local` 29/29**, with the app's send code and injected faults:
+  - **R1:** upload done, the message RPC fails → retry with the same request id → one message;
+  - **R2:** message created, response lost → retry → **the same** message;
+  - **R3:** three parallel tries → one message;
+  - each: the right chat, the receiver can open it, a third account can't.
+- **Realtime failure probe:** a `postgres_changes` join on a non-existent table → SUBSCRIBED but **no** system message; a bad filter → CLOSED. This is what the 10 s readiness fallback and the status handling cover.
+
+## Verified by code review / simulated faults (no device)
+
+`v2_chat_realtime` 35/35, using an in-memory PostgREST-like client with `max_rows`:
+- **Loading:** newest-500 initial load; paged catch-up with a 2-min overlap; stops after 10 pages, then shows the newest page; no loop on equal timestamps.
+- **Runner:** never overlaps, and always runs the current chat.
+- **Merge:** never blanks newer data; Realtime / REST timestamp formats are sorted correctly; text and photo rows share one path.
+- **Wiring:**
+  - catch-up on any `postgres_changes` system message, on CHANNEL_ERROR / TIMED_OUT / CLOSED, once after 10 s without readiness, and on foreground;
+  - cleanup ignores the removed channel's events;
+  - late responses for another chat are dropped;
+  - the list resets on a chat change.
+
+**Other checks:**
+- `v2_chat_photos` 33/33 (URL cache expiry / force / forget; bubble and viewer refresh paths).
+- `dev_sign_in` 8/8.
+- `run.js` all pass (it now awaits async checks).
+- `p0-checks` all pass; `tsc` clean.
+
+## Not verified yet
+
+- **Phone:** a message during a real Realtime re-establishment **with the chat in the foreground**; the shortest check is above.
+- **Phone:** the photo bubble / viewer recovering from an expired or failed signed URL. Code-reviewed; it needs a > 1 h open chat or a broken URL to see.
+- **Chats with more than 500 messages:** only the newest 500 load on open. Scrolling back to older ones is not built (there is no "load earlier"); this is a deliberate limit, not a regression.
+- **Out of scope, still open:** clean-up of unsent photo uploads; real pixel downscaling. The cause of the 2026-10-19 Auth / Storage → Postgres timeouts is not identified. The Docker CLI hung for a few minutes after the Mac woke today (no restart was done).
+
+---
+
 Date 2026-10-20 · Folder `~/tempa-p0` · Branch `tempa/v2-persist-r2`, from `bcd4ee0` (clean) · Author: Claude Code.
 **Target:** tempa-local only. Nothing on shared DEV / production or other local projects; no reset, merge or deploy; no service restart used as a fix.
 
