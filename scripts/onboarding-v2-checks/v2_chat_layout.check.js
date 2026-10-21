@@ -93,7 +93,7 @@ ok(/paddingBottom: keyboardShown \? 12 : insets\.bottom \+ 12/.test(chat), 'V1 i
 const theme = read('lib/onboardingV2/theme.ts');
 ok(/headingRegular: 'PlayfairDisplay-Regular'/.test(theme) && /PlayfairDisplay_400Regular\.ttf/.test(theme) && fs.existsSync(path.join(ROOT, 'assets/fonts/PlayfairDisplay_400Regular.ttf')), 'Playfair Display 400 vendored and loaded (OFL, same source as 700)');
 const badge = read('components/dev/DevBackendBadge.tsx');
-ok(/if \(!__DEV__\) return null;/.test(badge) && /DEV_BUILD_MARK/.test(badge) && /fontScale\.toFixed\(2\)/.test(badge), 'temporary DEV-only build mark + window size + font scale');
+ok(/if \(!__DEV__\) return null;/.test(badge) && !/DEV_BUILD_MARK|fontScale|useWindowDimensions|chat-r3|chat-rt1/.test(badge) && /\$\{backend\.env\.toUpperCase\(\)\} · \$\{backend\.projectRef\}/.test(badge), 'DEV badge: backend label only (temporary build mark / size / font scale removed before merge)');
 
 ok(/\{v2Enabled \? <StatusBar style="dark" \/> : null\}/.test(chat), 'V2: dark status-bar content on ivory (not the dark-mode white clock)');
 

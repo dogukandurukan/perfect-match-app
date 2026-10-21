@@ -1,18 +1,13 @@
 // DEV-only: always shows which backend this app is talking to
 // ("TEST · <project ref>" / "LIVE · <project ref>"), on every screen, so a
 // phone test can never be mistaken for the other environment.
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { backend } from '@/lib/supabaseClient';
 
-// TEMPORARY (chat redesign phone check, 2026-10-17): which JS build is on the
-// phone, plus the real window size and text scale. Remove after the check.
-const DEV_BUILD_MARK = 'chat-rt1';
-
 export function DevBackendBadge() {
   const insets = useSafeAreaInsets();
-  const { width, height, fontScale } = useWindowDimensions();
   if (!__DEV__) return null;
   const isLive = backend.env === 'live';
   const isDev = backend.env === 'dev';
@@ -22,7 +17,7 @@ export function DevBackendBadge() {
         style={[styles.text, isLive ? styles.live : isDev ? styles.dev : backend.env === 'local' ? styles.local : styles.test]}
         accessibilityLabel={`Backend ${backend.env}, project ${backend.projectRef}`}
       >
-        {`${backend.env.toUpperCase()} · ${backend.projectRef} · ${DEV_BUILD_MARK} · ${Math.round(width)}×${Math.round(height)} · fs ${fontScale.toFixed(2)}`}
+        {`${backend.env.toUpperCase()} · ${backend.projectRef}`}
       </Text>
     </View>
   );
