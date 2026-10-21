@@ -37,6 +37,7 @@ const PACKAGES = [
   '20261015090000_v2_takes_multi.sql',
   '20261016090000_v2_onboarding_takes.sql',
   '20261020090000_v2_chat_photos.sql',
+  '20261021090000_v2_member_photo_order.sql',
 ];
 
 const fail = (m) => {
