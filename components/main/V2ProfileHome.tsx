@@ -117,8 +117,10 @@ export function V2ProfileHome() {
           label="View profile"
           onPress={() => router.push(`/v2/profile?userId=${data.userId}&own=1` as never)}
         />
-        {/* The only editing after approval (D87–D93): interests, activities,
-            books / movies / artists and the conversation starter. */}
+        {/* Editing after approval: photo order / main photo (2026-10-21,
+            narrow D90 exception) and interests, activities, books / movies /
+            artists and the conversation starters (D87–D93). */}
+        <OnboardingPrimaryButton label="Photos" variant="outline" onPress={() => router.push('/v2/edit-photos' as never)} />
         <OnboardingPrimaryButton label="Your interests" variant="outline" onPress={() => router.push('/v2/edit-interests' as never)} />
         <OnboardingPrimaryButton label="Edit profile" variant="outline" disabled onPress={() => {}} />
         <Text style={styles.caption} maxFontSizeMultiplier={1.6}>
