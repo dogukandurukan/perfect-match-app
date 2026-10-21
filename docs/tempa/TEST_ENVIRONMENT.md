@@ -25,6 +25,21 @@ The owner chose **not** to create a paid cloud test project. Tempa's tests run o
 | 13 | `node scripts/local-backend/smoke_shared_local.mjs` | "Both into this" (D101) on real services with fresh synthetic members: exact shared selections, max 2, starter subject skipped, own / blocked none, updates after selection changes |
 | — | `scripts/local-backend/start-app.sh [synthetic email]` | as step 4, signed-in account selectable (only `@tempa-test.example.com`) |
 | — | `node scripts/local-backend/setup.mjs --stop` | stops only `tempa-local` |
+| — | `node scripts/local-backend/probe_realtime_local.mjs setup\|immediate\|system` · `soak_realtime_local.mjs [--gap]` | Realtime timing probe / bounded soak with the app's sync code (synthetic pair in `.test-backend/`, git-ignored) |
+
+**Phone test accounts (LOCAL): new code vs. another account (2026-10-21)**
+
+The phone's **"DEV · Test account sign-in"** screen is bound to the account Metro was started with (`TEMPA_DEV_TEST_EMAIL`, set by `start-app.sh <email>`). It shows that address ("DEV test account … — enter the code …").
+
+| You want | Do |
+|---|---|
+| **A new code, same account** (the old one expired or was used) | `node scripts/local-backend/login-code.mjs <that email>`. The newest code replaces the previous one. Metro keeps running. |
+| **Another account** | Stop Metro, run `scripts/local-backend/start-app.sh <other email>` (it prints that account's code), reopen the app on the phone, **sign out** if a session is still there, then "DEV · Test account sign-in". |
+
+- **Check the address** on the code screen before typing: a code made for another address is refused ("That code isn't valid… made for <email>").
+- **Restarting Metro does not sign the phone out.** The stored session stays until you sign out in the app.
+- **Use the local script on LOCAL.** `scripts/dev-backend/test-login-code.mjs` targets the shared DEV project, never the local one. The code screen now shows the right command for the backend in use (`lib/devSignIn.ts`).
+- Never write codes, tokens or keys into documents. Codes are printed in the terminal and kept only in the git-ignored `.test-backend/local-phone-code.txt`.
 
 **Guards:**
 - The scripts accept only `http://127.0.0.1:55421`.

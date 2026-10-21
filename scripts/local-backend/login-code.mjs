@@ -24,3 +24,7 @@ fs.writeFileSync(file, `LOCAL tester: ${EMAIL}\nCode: ${code}\nCreated: ${at.toI
 console.log(`Local tester: ${EMAIL}`);
 console.log(`One-time sign-in code: ${code}   (newest; also in .test-backend/local-phone-code.txt)`);
 console.log('Phone: signed-out screen → "DEV · Test account sign-in" (not Log In / Join with new onboarding)');
+console.log(`This code is for ${EMAIL} only. It works on the phone only if the DEV sign-in screen shows ${EMAIL}.`);
+console.log('Another account than the one Metro was started with? Stop Metro and run:');
+console.log(`  scripts/local-backend/start-app.sh ${EMAIL}`);
+console.log('then reopen the app and sign out first. A Metro restart alone does not change who is signed in on the phone.');

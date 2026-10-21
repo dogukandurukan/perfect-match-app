@@ -12,7 +12,8 @@ import { OnboardingTextField } from '@/components/onboarding-v2/OnboardingTextFi
 import { loadMyOnboarding } from '@/lib/onboardingV2/remote';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { emailLooksValid, normalizeEmail, RESEND_COOLDOWN_SECONDS } from '@/lib/onboardingV2/yourProfile';
-import { devTestEmail, supabase } from '@/lib/supabaseClient';
+import { devCodeCommand, devSwitchAccountHint } from '@/lib/devSignIn';
+import { backend, devTestEmail, supabase } from '@/lib/supabaseClient';
 import { friendlyNetworkError, withTimeout } from '@/lib/withTimeout';
 
 type Phase = 'email' | 'code';
@@ -93,7 +94,7 @@ export default function V2Welcome() {
         setError(
           ambiguous
             ? testMode
-              ? 'That code isn’t valid or has expired. Use the newest code from your Mac terminal.'
+              ? `That code isn’t valid or has expired. Use the newest code made for ${normalizeEmail(email)}.`
               : 'That code isn’t valid or has expired. Use the newest code or send a new one.'
             : "That code isn't right. Try again.",
         );
@@ -211,7 +212,7 @@ export default function V2Welcome() {
           />
           {testMode ? (
             <Text style={styles.consentText} maxFontSizeMultiplier={1.6}>
-              Need a new code? On your Mac run: node scripts/dev-backend/test-login-code.mjs
+              {`New code for ${normalizeEmail(email)}? On your Mac run: ${devCodeCommand(backend.env, normalizeEmail(email))}\n${devSwitchAccountHint(backend.env)}`}
             </Text>
           ) : null}
           {testMode ? (
