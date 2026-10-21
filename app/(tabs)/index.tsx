@@ -894,6 +894,18 @@ function LegacyHomeScreen() {
                 <ThemedText style={styles.devPreviewBtnText}>DEV · Preview new onboarding</ThemedText>
               </TouchableOpacity>
             ) : null}
+            {/* DEV-ONLY: branding / onboarding design preview (app/dev/design-preview.tsx)
+                — real onboarding components, synthetic content, no backend. */}
+            {__DEV__ ? (
+              <TouchableOpacity
+                style={styles.devPreviewBtn}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Design preview (development only)"
+                onPress={() => router.push('/dev/design-preview' as Parameters<typeof router.push>[0])}>
+                <ThemedText style={styles.devPreviewBtnText}>DEV · Design preview</ThemedText>
+              </TouchableOpacity>
+            ) : null}
             {/* V2 live onboarding (email code → persistent answers → application).
                 Only in DEV builds AND only against the separate TEST backend
                 until V2 is validated; V1 Log In / Sign Up stay the default. */}

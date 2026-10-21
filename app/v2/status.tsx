@@ -6,7 +6,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ReceivedFields } from '@/components/onboarding-v2/yourProfile/ApplicationFields';
+import { ReceivedFields, STATUS_COPY } from '@/components/onboarding-v2/yourProfile/ApplicationFields';
 import { getAccessGate, type AccessGate } from '@/lib/onboardingV2/remote';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
 import { supabase } from '@/lib/supabaseClient';
@@ -49,18 +49,18 @@ export default function V2Status() {
         <ReceivedFields live />
       ) : gate.gate === 'waiting' && gate.applicationStatus === 'rejected' ? (
         <Text style={styles.text} maxFontSizeMultiplier={1.6}>
-          Thanks for applying. We can't offer you a membership right now.
+          {STATUS_COPY.rejected}
         </Text>
       ) : (
         <Text style={styles.text} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
-          {gate.gate === 'error' ? gate.message : "We couldn't read your application status."}
+          {gate.gate === 'error' ? gate.message : STATUS_COPY.unreadable}
         </Text>
       )}
       <TouchableOpacity onPress={() => void check()} accessibilityRole="button" hitSlop={10} style={styles.link}>
-        <Text style={styles.linkText}>Refresh</Text>
+        <Text style={styles.linkText}>{STATUS_COPY.refresh}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => void signOut()} accessibilityRole="button" hitSlop={10} style={styles.link}>
-        <Text style={styles.linkText}>Sign out</Text>
+        <Text style={styles.linkText}>{STATUS_COPY.signOut}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
