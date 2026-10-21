@@ -94,16 +94,25 @@ module.exports = (async () => {
   const chat = code('app/chat.tsx');
   ok(/maintainVisibleContentPosition=\{\{ minIndexForVisible: 1 \}\}/.test(chat), 'rows added above keep the visible message in place');
   ok(/if \(userScrolledRef\.current && e\.nativeEvent\.contentOffset\.y < 400\) loadOlderMessages\(\);/.test(chat) && /onScrollBeginDrag=\{\(\) => \{\s*userScrolledRef\.current = true;/.test(chat), 'older pages only after the reader scrolls near the top (no chain on open)');
-  ok(/if \(mode === 'initial'\) olderPagerRef\.current\?\.reset\(key, !r\.complete\);/.test(chat), 'older history exists only when the first page was full');
+  ok(/if \(mode === 'initial'\) \{\s*olderPagerRef\.current\?\.reset\(key, !r\.complete\);/.test(chat), 'older history exists only when the first page was full');
   ok(/\(rows\) => setMessages\(\(prev\) => mergeMessages\(prev, rows\)\)/.test(chat), 'older pages use the same merge (with realtime / catch-up)');
   ok(/older\.hasMore \|\| older\.loading \|\| older\.error \? \(\s*<OlderHistoryHeader state=\{older\} onLoad=\{loadOlderMessages\} \/>\s*\) : v2Enabled \? \(\s*<HowItStartedCard/.test(chat), 'How it started once, at the real start (after the last page); never per page');
   ok(/olderPagerRef\.current\?\.reset\(currentUserId && otherUserId \? `\$\{currentUserId\}:\$\{otherUserId\}` : '', false\);/.test(chat), 'chat change resets paging (late pages dropped)');
   // Opening position (2026-10-21): pin to the newest until the reader acts.
-  ok(/onContentSizeChange=\{\(\) => \{\s*if \(pinToEndRef\.current\) \{\s*nearEndRef\.current = true;\s*flatListRef\.current\?\.scrollToEnd\(\{ animated: false \}\);\s*return;\s*\}\s*scrollToEndIfFollowing\(\);/.test(chat), 'opening: every content-size change goes to the newest message while pinned (no timer)');
+  ok(/onContentSizeChange=\{\(_w, h\) => \{\s*listMetricsRef\.current\.contentH = h;\s*if \(pinToEndRef\.current\) \{\s*nearEndRef\.current = true;\s*flatListRef\.current\?\.scrollToEnd\(\{ animated: false \}\);\s*revealList\(\);\s*return;\s*\}\s*scrollToEndIfFollowing\(\);/.test(chat), 'opening: every content-size change goes to the newest message while pinned (no timer)');
   ok(/if \(!pinToEndRef\.current\) nearEndRef\.current = isNearEnd\(e\.nativeEvent\);/.test(chat), 'opening: layout / position-keeping scroll events cannot unpin');
   ok(/userScrolledRef\.current = true;\s*pinToEndRef\.current = false;/.test(chat) && /function loadOlderMessages\(\) \{\s*if \(!currentUserId \|\| !otherUserId\) return;\s*pinToEndRef\.current = false;/.test(chat), 'first drag or "Earlier messages" ends pinning (late layout never pulls a reader down)');
-  ok(/pinToEndRef\.current = true;\s*nearEndRef\.current = true;\s*olderPagerRef\.current\?\.reset/.test(chat), 'pinning restarts for each chat');
+  ok(/pinToEndRef\.current = true;\s*nearEndRef\.current = true;[\s\S]{0,200}olderPagerRef\.current\?\.reset/.test(chat), 'pinning restarts for each chat');
   ok(!/mode === 'initial' \|\| added > 0/.test(chat), 'no timed scroll after the first load');
+  // Opening without a visible move (2026-10-21): hidden until positioned.
+  const reveal = (chat.match(/const revealList = useCallback\([\s\S]*?\}, \[\]\);/) || [''])[0];
+  ok(/style=\{listReady \? null : styles\.listHidden\}/.test(chat) && /pointerEvents=\{listReady \? 'auto' : 'none'\}/.test(chat) && /\{!listReady \? \(\s*<View style=\{styles\.listLoading\}/.test(chat), 'only the message area is hidden (spinner) until positioned; header / input untouched');
+  ok(/lastRowVisible \|\| lastRowKeyRef\.current === null \|\| \(viewH > 0 && contentH > 0 && contentH <= viewH \+ 1\)/.test(reveal) && !/setTimeout/.test(reveal), 'ready = last row viewable, or content fits, or no rows — real layout, no timer');
+  ok(/if \(viewableItems\.some\(\(v\) => v\.key === lastRowKeyRef\.current\)\) revealList\(true\);/.test(chat) && /onViewableItemsChanged=\{onViewableItemsChanged\}/.test(chat), 'last-row visibility comes from FlatList viewability');
+  ok(/if \(mode === 'initial'\) \{\s*setMessagesError\(true\);\s*initialLoadedRef\.current = true;\s*listReadyRef\.current = true;/.test(chat), 'first-load error never leaves the area hidden');
+  ok(/if \(r\.rows\.length === 0 && messagesRef\.current\.length === 0\) \{\s*listReadyRef\.current = true;\s*setListReady\(true\);/.test(chat), 'empty chat shows at once');
+  ok(/initialLoadedRef\.current = false;\s*listReadyRef\.current = false;\s*setListReady\(false\);/.test(chat), 'opening state resets for each chat');
+  ok(/scrollToEnd\(\{ animated: false \}\);\s*revealList\(\);/.test(chat) && /scrollToEndIfFollowing\(!pinToEndRef\.current\)/.test(chat), 'opening scrolls are never animated');
   const sync = code('lib/chat/sync.ts');
   ok(/\.or\(`created_at\.lt\."\$\{c\}",and\(created_at\.eq\."\$\{c\}",id\.lt\.\$\{cursor\.id\}\)`\)/.test(sync) && !/\.range\(|offset/.test(sync.split('// ---- Older history')[1]), 'keyset (created_at, id), no offset');
   return done('v2_chat_history');

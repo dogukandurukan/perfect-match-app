@@ -81,6 +81,10 @@ type Message = {
 };
 
 type ChatItem = { kind: 'msg'; msg: Message } | { kind: 'date'; p: Proposal };
+
+// Any visible part of the last row counts (a last message taller than the
+// screen must still count); at the top the last row is not visible at all.
+const LIST_VIEWABILITY = { itemVisiblePercentThreshold: 1 };
 type ChatRow = TimelineRow<ChatItem>;
 
 export default function ChatScreen() {
@@ -182,6 +186,26 @@ export default function ChatScreen() {
   // layout / maintainVisibleContentPosition cannot mark the reader as "not at
   // the end". Event-driven, no timer; reset for every chat.
   const pinToEndRef = useRef(true);
+  // The message area stays hidden (spinner) until the list really sits at the
+  // newest message, so no frame is shown at the top and no top→bottom move is
+  // visible. Ready = the last row is reported viewable, or the content fits,
+  // or the first load came back empty / failed. Real layout events only.
+  const [listReady, setListReady] = useState(false);
+  const listReadyRef = useRef(false);
+  const initialLoadedRef = useRef(false);
+  const listMetricsRef = useRef({ viewH: 0, contentH: 0 });
+  const lastRowKeyRef = useRef<string | null>(null);
+  const revealList = useCallback((lastRowVisible = false) => {
+    if (listReadyRef.current || !initialLoadedRef.current) return;
+    const { viewH, contentH } = listMetricsRef.current;
+    if (lastRowVisible || lastRowKeyRef.current === null || (viewH > 0 && contentH > 0 && contentH <= viewH + 1)) {
+      listReadyRef.current = true;
+      setListReady(true);
+    }
+  }, []);
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { key?: string }[] }) => {
+    if (viewableItems.some((v) => v.key === lastRowKeyRef.current)) revealList(true);
+  }).current;
   const scrollToEndIfFollowing = useCallback((animated = true) => {
     if (!nearEndRef.current && !forceEndRef.current) return;
     forceEndRef.current = false;
@@ -361,6 +385,9 @@ export default function ChatScreen() {
     userScrolledRef.current = false;
     pinToEndRef.current = true;
     nearEndRef.current = true;
+    initialLoadedRef.current = false;
+    listReadyRef.current = false;
+    setListReady(false);
     olderPagerRef.current?.reset(currentUserId && otherUserId ? `${currentUserId}:${otherUserId}` : '', false);
   }, [currentUserId, otherUserId]);
 
@@ -535,13 +562,26 @@ export default function ChatScreen() {
     if (!r.ok) {
       console.warn(`[Chat] fetchMessages (${mode}) failed`, r.error);
       // A failed catch-up keeps what is on screen; only the first load shows the error state.
-      if (mode === 'initial') setMessagesError(true);
+      if (mode === 'initial') {
+        setMessagesError(true);
+        initialLoadedRef.current = true;
+        listReadyRef.current = true; // never leave the area hidden on an error
+        setListReady(true);
+      }
       return;
     }
 
     setMessagesError(false);
     // First page: older history exists only if the page was full.
-    if (mode === 'initial') olderPagerRef.current?.reset(key, !r.complete);
+    if (mode === 'initial') {
+      olderPagerRef.current?.reset(key, !r.complete);
+      initialLoadedRef.current = true;
+      // Empty chat: nothing to position (the hello may not change the size).
+      if (r.rows.length === 0 && messagesRef.current.length === 0) {
+        listReadyRef.current = true;
+        setListReady(true);
+      }
+    }
     // Merge, never replace: a realtime message that arrived meanwhile stays,
     // nothing appears twice, and an unchanged list is not re-rendered.
     const rows = r.rows;
@@ -549,7 +589,7 @@ export default function ChatScreen() {
     setMessages((prev) => mergeMessages(prev, rows));
     // New rows follow the end only if the reader is already there.
     // (The first load is positioned by pinToEndRef on content-size changes.)
-    if (mode === 'catchup' && added > 0) setTimeout(() => scrollToEndIfFollowing(true), 100);
+    if (mode === 'catchup' && added > 0) setTimeout(() => scrollToEndIfFollowing(!pinToEndRef.current), 100);
     void markIncomingMessagesRead();
   }
   fetchRef.current = fetchMessages;
@@ -1168,6 +1208,7 @@ export default function ChatScreen() {
   );
   // Day separators and times are V2 only; V1 keeps its plain message list.
   const chatRows: ChatRow[] = v2Enabled ? timelineRows : timelineRows.filter((r) => r.kind !== 'day');
+  lastRowKeyRef.current = chatRows.length ? chatRows[chatRows.length - 1].key : null;
   // 'none' = no active proposal · 'proposed_by_me' = waiting on the other
   // person · 'proposed_by_them' = I need to respond · 'confirmed' = settled.
   const meetupState: 'none' | 'proposed_by_me' | 'proposed_by_them' | 'confirmed' = !meetingAt
@@ -1338,9 +1379,22 @@ export default function ChatScreen() {
         ) : messagesError && messages.length === 0 ? (
           <ErrorState onRetry={() => void fetchMessages('initial')} />
         ) : (
+          <View style={styles.listArea}>
           <FlatList
             ref={flatListRef as never}
             data={chatRows}
+            // Hidden until positioned at the newest message (see revealList);
+            // laid out and scrolled meanwhile, just not shown or touchable.
+            style={listReady ? null : styles.listHidden}
+            pointerEvents={listReady ? 'auto' : 'none'}
+            accessibilityElementsHidden={!listReady}
+            importantForAccessibility={listReady ? 'auto' : 'no-hide-descendants'}
+            onLayout={(e) => {
+              listMetricsRef.current.viewH = e.nativeEvent.layout.height;
+              revealList();
+            }}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={LIST_VIEWABILITY}
             keyExtractor={(row) => row.key}
             renderItem={({ item: row }) => {
               if (row.kind === 'day') {
@@ -1389,10 +1443,12 @@ export default function ChatScreen() {
             // Keeps the newest message (or the quiz in an empty chat) in view
             // when content grows or the keyboard shrinks the list — only while
             // the reader is at the end (or just sent a message).
-            onContentSizeChange={() => {
+            onContentSizeChange={(_w, h) => {
+              listMetricsRef.current.contentH = h;
               if (pinToEndRef.current) {
                 nearEndRef.current = true;
                 flatListRef.current?.scrollToEnd({ animated: false });
+                revealList();
                 return;
               }
               scrollToEndIfFollowing();
@@ -1410,6 +1466,12 @@ export default function ChatScreen() {
               )
             }
           />
+          {!listReady ? (
+            <View style={styles.listLoading} pointerEvents="none" accessible accessibilityLabel="Loading messages">
+              <ActivityIndicator color={obColors.textSecondary} />
+            </View>
+          ) : null}
+          </View>
         )}
 
         {!listShown ? icebreakerPanel : null}
@@ -1718,6 +1780,9 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
+  listArea: { flex: 1 },
+  listHidden: { opacity: 0 },
+  listLoading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   container: { justifyContent: 'flex-start', backgroundColor: obColors.background },
   proposeIdeasLabel: { fontSize: 13, lineHeight: 18, color: obColors.textSecondary, marginBottom: 6 },
   menuBtn: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },

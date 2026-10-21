@@ -1,5 +1,38 @@
 # V2 chat — older history (result)
 
+## Phone result + opening without a visible move (2026-10-21, round 3)
+
+**Owner's phone result (`2a948ec`):**
+- The chat now reaches the newest message, and the other checks are fine.
+- **But it first appears at the top and then moves down.** Wanted: open directly at the newest message.
+
+**Cause (code):**
+- Not an animation: the opening scroll was already `animated: false`.
+- FlatList always draws its first frame at offset 0 (the oldest of the loaded 500).
+- The jump to the end can only happen after the content is measured, and virtualisation renders the last rows only after scrolling there.
+- So at least one wrong frame was visible.
+
+**Fix (`app/chat.tsx`, V1 + V2 share it):**
+- Only the **message area** stays hidden (`opacity: 0`, not touchable, hidden from screen readers) with a small spinner. The header and the input stay as they are.
+- Meanwhile the list lays out and scrolls to the end; it is not shown.
+- It becomes visible on **real events only, no timer**:
+  - FlatList viewability reports the **last row** visible (any part, so a very tall last message counts); or
+  - the content fits the screen (short chat); or
+  - the first load came back **empty**; or
+  - the first load **failed** (the error screen is shown; never hidden).
+- It resets for every chat.
+- A catch-up during opening scrolls without animation.
+- After it is shown, everything else is unchanged: pinning until the first drag / "Earlier messages", older pages with position keeping, new messages, the merge, the start card, own-send scrolling.
+
+**Checks:**
+- `v2_chat_history` 30/30 (+7: hidden-until-positioned, reveal conditions without a timer, viewability wiring, error / empty reveal, reset per chat, no animated opening scroll).
+- `run.js` all pass. Assertions adapted: `v2_activity_real`, `v2_chat_realtime`.
+- `tsc` clean; LOCAL iOS export exit 0.
+
+**Not verified:** on the phone (owner to re-check), for short, empty and long chats.
+
+---
+
 ## Phone result + opening-position fix (2026-10-21)
 
 **Owner's phone result (`faf60ea`, synthetic `tempa-local-hist-…-a`):**
