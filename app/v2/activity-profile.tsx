@@ -18,6 +18,7 @@ import { useSharedMarks } from '@/lib/interests/useSharedMarks';
 import { ACTIVITY_CARD_BORDER, InterestContext } from '@/components/activity/ActivityFeedItems';
 import { DiscoverProfileItems, type ItemHandlers } from '@/components/discover/DiscoverProfileItems';
 import { acceptErrorText, acceptLike, loadActivity, markLikeSeen, type ActivityInterest } from '@/lib/activity/activityV2';
+import { activityBadge } from '@/lib/activity/badge';
 import { interestLabelFor, MATCH_COPY } from '@/lib/activity/copy';
 import { loadRealProfile, type RealProfile } from '@/lib/discover/discoverV2';
 import { buildDiscoverLayout, STATE_COPY } from '@/lib/discover/profileLayout';
@@ -66,7 +67,10 @@ export default function ActivityProfileScreen() {
         // Viewing ≠ accepting: only this like is marked read, once.
         if (i && !i.seen && !markedRef.current) {
           markedRef.current = true;
-          void markLikeSeen(i.like_id);
+          // Opened → seen on the server, then the tab badge follows the server.
+          void markLikeSeen(i.like_id).then((ok) => {
+            if (ok) void activityBadge.refresh();
+          });
         }
       } catch (e) {
         console.warn('[ActivityProfile] load failed', e);
@@ -97,7 +101,10 @@ export default function ActivityProfileScreen() {
     const r = await acceptLike(interest.like_id);
     busyRef.current = false;
     setBusy(false);
-    if (r.kind === 'ok') return openChat(r.matchId);
+    if (r.kind === 'ok') {
+      void activityBadge.refresh(); // no longer pending
+      return openChat(r.matchId);
+    }
     setError(acceptErrorText(r, name));
   }, [interest, match, name, openChat]);
 

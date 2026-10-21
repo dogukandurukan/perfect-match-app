@@ -82,3 +82,17 @@ export function buildActivityFeed(d: Pick<ActivityData, 'pending' | 'matches'>):
 /** Pure: a match row's second line ("Conversation started" only after a
  * real stored message). */
 export const conversationStarted = (m: Pick<MyMatch, 'last_message'>) => m.last_message !== null && m.last_message !== undefined;
+
+/**
+ * Activity tab badge: incoming likes still pending (server rules) that the
+ * user can see — the premium list (D84) — and hasn't opened yet. Without
+ * premium the identities are hidden and none can be opened, so the badge
+ * stays 0 (the in-Activity "N people like you" teaser is unchanged).
+ */
+export function unseenLikeCount(d: Pick<ActivityData, 'premium' | 'pending' | 'matches'>): number {
+  if (!d.premium) return 0;
+  const matched = new Set(d.matches.map((m) => m.other_id));
+  const people = new Set<string>();
+  for (const p of d.pending) if (!p.seen && !matched.has(p.user_id)) people.add(p.user_id);
+  return people.size;
+}

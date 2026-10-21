@@ -20,6 +20,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 
 import { ACTIVITY_CARD_BORDER, ACTIVITY_SURFACE, CARD_GAP, CARD_INFO, InterestCard, MatchRow } from '@/components/activity/ActivityFeedItems';
 import { buildActivityFeed, conversationStarted, loadActivity, type ActivityData } from '@/lib/activity/activityV2';
+import { publishActivityBadge } from '@/lib/activity/badge';
 import { interestLabelFor, MATCH_COPY, matchedLine, minutesSince, timeAgo, timeAgoLong } from '@/lib/activity/copy';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
@@ -55,6 +56,8 @@ export function V2ActivityScreen({ fallback }: { fallback: ReactNode }) {
         const r = await loadActivity();
         if (!live) return;
         if (r.kind === 'unsupported') return setLoad({ kind: 'unsupported' });
+        // The tab badge from this same snapshot (listing never marks anything seen).
+        if (r.kind === 'ok') publishActivityBadge(r.value);
         // A failed refresh keeps what is already on screen.
         if (r.kind === 'error') return setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'error', message: r.message }));
         await preloadProfilePhotoUrls([

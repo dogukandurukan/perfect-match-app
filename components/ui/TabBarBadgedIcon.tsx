@@ -2,7 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { useActivityBadge } from '@/hooks/useActivityBadge';
 import { useTabBadgeCounts } from '@/hooks/useTabBadgeCounts';
+import { v2Enabled } from '@/lib/supabaseClient';
 
 function MessageCountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -51,14 +53,18 @@ export function TabBarNotificationsIcon({
   focused?: boolean;
 }) {
   const { showNotificationDot } = useTabBadgeCounts();
+  // V2: the number of pending likes not yet opened (0 → no badge). V1 keeps
+  // its unread-notification dot.
+  const unseenLikes = useActivityBadge(v2Enabled);
   return (
-    <View style={[styles.wrap, focused && styles.wrapActive]}>
+    <View style={[styles.wrap, focused && styles.wrapActive]}
+      accessibilityLabel={v2Enabled && unseenLikes > 0 ? `${unseenLikes} new ${unseenLikes === 1 ? 'like' : 'likes'}` : undefined}>
       <Ionicons
         name={focused ? 'notifications' : 'notifications-outline'}
         size={size}
         color={color}
       />
-      <NotificationDot visible={showNotificationDot} />
+      {v2Enabled ? <MessageCountBadge count={unseenLikes} /> : <NotificationDot visible={showNotificationDot} />}
     </View>
   );
 }

@@ -13,7 +13,9 @@ import {
   ProfileHeaderActions,
   TabHeaderActions,
 } from '@/components/ui/TabHeaderActions';
+import { activityBadge } from '@/lib/activity/badge';
 import { obColors, obFonts } from '@/lib/onboardingV2/theme';
+import { v2Enabled } from '@/lib/supabaseClient';
 
 const ACCENT = obColors.cta;
 
@@ -46,6 +48,13 @@ const styles = StyleSheet.create({
 export default function TabLayout() {
   return (
     <Tabs
+      // V2: refresh the Activity badge whenever another tab comes into view
+      // (Activity itself publishes the count from its own load). Event-driven.
+      screenListeners={({ route }) => ({
+        focus: () => {
+          if (v2Enabled && route.name !== 'notifications') void activityBadge.refresh();
+        },
+      })}
       screenOptions={{
         tabBarActiveTintColor: ACCENT,
         tabBarInactiveTintColor: obColors.textSecondary,

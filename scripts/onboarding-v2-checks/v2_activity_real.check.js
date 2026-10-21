@@ -60,7 +60,7 @@ ok(/readOnly: true/.test(prof) && /buildDiscoverLayout\(person\)/.test(prof) && 
 ok((prof.match(/onPress=\{\(\) => void matchAndChat\(\)\}/g) || []).length === 1, 'exactly one action button');
 ok(/if \(i && !i\.seen && !markedRef\.current\)/.test(prof) && (prof.match(/markLikeSeen\(/g) || []).length === 1, 'opening marks only this like read, once');
 ok(/if \(!interest \|\| busyRef\.current\) return;/.test(prof) && /disabled=\{busy\}/.test(prof), 'no second request while one is in flight');
-ok(/if \(r\.kind === 'ok'\) return openChat\(r\.matchId\);/.test(prof) && /setError\(acceptErrorText\(r, name\)\)/.test(prof), 'opens the chat only after the server confirmed; otherwise an error');
+ok(/if \(r\.kind === 'ok'\) \{\s*void activityBadge\.refresh\(\);[^\n]*\n\s*return openChat\(r\.matchId\);\s*\}/.test(prof) && /setError\(acceptErrorText\(r, name\)\)/.test(prof), 'opens the chat only after the server confirmed; otherwise an error');
 ok(/if \(match\) return openChat\(match\.match_id\);/.test(prof), 'already matched → Open chat (existing chat)');
 ok(!/It’s a match|It's a match|Like back|Just match/.test(prof + scr), 'no celebration / superseded buttons');
 
