@@ -98,6 +98,12 @@ module.exports = (async () => {
   ok(/\(rows\) => setMessages\(\(prev\) => mergeMessages\(prev, rows\)\)/.test(chat), 'older pages use the same merge (with realtime / catch-up)');
   ok(/older\.hasMore \|\| older\.loading \|\| older\.error \? \(\s*<OlderHistoryHeader state=\{older\} onLoad=\{loadOlderMessages\} \/>\s*\) : v2Enabled \? \(\s*<HowItStartedCard/.test(chat), 'How it started once, at the real start (after the last page); never per page');
   ok(/olderPagerRef\.current\?\.reset\(currentUserId && otherUserId \? `\$\{currentUserId\}:\$\{otherUserId\}` : '', false\);/.test(chat), 'chat change resets paging (late pages dropped)');
+  // Opening position (2026-10-21): pin to the newest until the reader acts.
+  ok(/onContentSizeChange=\{\(\) => \{\s*if \(pinToEndRef\.current\) \{\s*nearEndRef\.current = true;\s*flatListRef\.current\?\.scrollToEnd\(\{ animated: false \}\);\s*return;\s*\}\s*scrollToEndIfFollowing\(\);/.test(chat), 'opening: every content-size change goes to the newest message while pinned (no timer)');
+  ok(/if \(!pinToEndRef\.current\) nearEndRef\.current = isNearEnd\(e\.nativeEvent\);/.test(chat), 'opening: layout / position-keeping scroll events cannot unpin');
+  ok(/userScrolledRef\.current = true;\s*pinToEndRef\.current = false;/.test(chat) && /function loadOlderMessages\(\) \{\s*if \(!currentUserId \|\| !otherUserId\) return;\s*pinToEndRef\.current = false;/.test(chat), 'first drag or "Earlier messages" ends pinning (late layout never pulls a reader down)');
+  ok(/pinToEndRef\.current = true;\s*nearEndRef\.current = true;\s*olderPagerRef\.current\?\.reset/.test(chat), 'pinning restarts for each chat');
+  ok(!/mode === 'initial' \|\| added > 0/.test(chat), 'no timed scroll after the first load');
   const sync = code('lib/chat/sync.ts');
   ok(/\.or\(`created_at\.lt\."\$\{c\}",and\(created_at\.eq\."\$\{c\}",id\.lt\.\$\{cursor\.id\}\)`\)/.test(sync) && !/\.range\(|offset/.test(sync.split('// ---- Older history')[1]), 'keyset (created_at, id), no offset');
   return done('v2_chat_history');

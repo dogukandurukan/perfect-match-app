@@ -104,10 +104,10 @@ module.exports = (async () => {
   ok(/if \(__DEV__\) console\.warn\('\[Chat\] realtime status', status\);\s*void catchUpMessages\(\);/.test(chat), 'CHANNEL_ERROR / TIMED_OUT / CLOSED → one catch-up');
   ok(/return \(\) => \{\s*live = false;\s*if \(readyTimer\) clearTimeout\(readyTimer\);\s*appSub\.remove\(\);\s*void supabase\.removeChannel\(channel\);/.test(chat), 'cleanup: events ignored, timer cleared, AppState listener and channel removed');
   ok(/if \(live && st === 'active'\) void catchUpMessages\(\);/.test(chat), 'back to the foreground → catch-up');
-  ok(/if \(chatKeyRef\.current !== key\) return; \/\/ chat changed/.test(read('app/chat.tsx')) && /setMessages\(\[\]\);\s*userScrolledRef\.current = false;\s*olderPagerRef\.current\?\.reset\([^;]*\);\s*\}, \[currentUserId, otherUserId\]\);/.test(chat), 'a late response never lands in another chat; the list resets on a chat change');
+  ok(/if \(chatKeyRef\.current !== key\) return; \/\/ chat changed/.test(read('app/chat.tsx')) && /setMessages\(\[\]\);\s*userScrolledRef\.current = false;\s*pinToEndRef\.current = true;\s*nearEndRef\.current = true;\s*olderPagerRef\.current\?\.reset\([^;]*\);\s*\}, \[currentUserId, otherUserId\]\);/.test(chat), 'a late response never lands in another chat; the list resets on a chat change');
   ok(/mode === 'catchup'\s*\? await loadSince<Message>/.test(chat) && /: await loadLatest<Message>/.test(chat) && !/\.order\('created_at', \{ ascending: true \}\);/.test(chat), 'initial = newest page, catch-up = since newest (no unlimited oldest-first read)');
   ok(/setMessages\(\(prev\) => mergeMessages\(prev, \[msg\]\)\)/.test(chat) && /setMessages\(\(prev\) => mergeMessages\(prev, rows\)\)/.test(chat), 'realtime rows and fetched rows go through the same merge');
-  ok(/if \(mode === 'initial' \|\| added > 0\) setTimeout\(\(\) => scrollToEndIfFollowing\(mode === 'catchup'\), 100\)/.test(chat), 'catch-up scrolls only for new rows and only if the reader is at the end');
+  ok(/if \(mode === 'catchup' && added > 0\) setTimeout\(\(\) => scrollToEndIfFollowing\(true\), 100\)/.test(chat), 'catch-up scrolls only for new rows and only if the reader is at the end');
   ok(/if \(mode === 'initial'\) setMessagesError\(true\);/.test(chat), 'a failed catch-up keeps the visible chat (no error screen)');
   for (const f of ['scripts/local-backend/smoke_activity_local.mjs', 'scripts/local-backend/smoke_matches_local.mjs']) {
     const s = read(f);

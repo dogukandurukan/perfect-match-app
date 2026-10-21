@@ -83,7 +83,7 @@ const chatSrc = read('app/chat.tsx');
 ok(/ListFooterComponent=\{icebreakerPanel\}/.test(chatSrc) && /\{!listShown \? icebreakerPanel : null\}/.test(chatSrc)
   && (chatSrc.match(/Quick this-or-that ✨/g) || []).length === 1, 'chat: quiz is part of the scrolling list (no fixed panel over the hello)');
 // Since 2026-10-17: only while the reader is at the end (or just sent).
-ok(/setKeyboardShown\(true\);[\s\S]{0,240}scrollToEndIfFollowing\(\)/.test(chatSrc) && /onContentSizeChange=\{\(\) => scrollToEndIfFollowing\(\)\}/.test(chatSrc), 'chat: keeps the end (last message / quiz) in view on keyboard + new content');
+ok(/setKeyboardShown\(true\);[\s\S]{0,240}scrollToEndIfFollowing\(\)/.test(chatSrc) && /onContentSizeChange=\{\(\) => \{[\s\S]{0,400}scrollToEndIfFollowing\(\);\s*\}\}/.test(chatSrc), 'chat: keeps the end (last message / quiz) in view on keyboard + new content');
 
 // Package wiring.
 ok(!/20261012090000_v2_activity_accept/.test(read('scripts/dev-backend/apply-dev.mjs')), 'Activity package not wired into apply-dev (shared project)');

@@ -1,5 +1,41 @@
 # V2 chat — older history (result)
 
+## Phone result + opening-position fix (2026-10-21)
+
+**Owner's phone result (`faf60ea`, synthetic `tempa-local-hist-…-a`):**
+
+| Behaviour | Result |
+|---|---|
+| Older pages load when scrolling up | ✅ |
+| "How it started" appears at the real start ("You liked Histb's photo") | ✅ |
+| **The chat does not open at the newest message** | ❌ |
+| Position kept while rows are added above; behaviour on a new message | not checked yet |
+
+**Cause (from the code; not measured on the device):**
+- The opening position relied on "go to the end while following". `nearEndRef` was recomputed on **every** scroll event, including events the list produces itself, not just the reader's drags:
+  - FlatList measuring ~500 rows in batches;
+  - the header switching from the card to "Earlier messages" after the first page;
+  - `maintainVisibleContentPosition` adjusting the offset for that header change.
+- One such event near the top set "not at the end", and every later content-size change stopped going to the end.
+- The only explicit positioning was one `setTimeout(…, 100)` after the load, which often fired before the 500 rows were measured.
+- Short chats never showed it: their content fits the screen.
+
+**Fix (`app/chat.tsx`):**
+- A `pinToEndRef` phase, on from opening (and for every chat) until the reader's **first drag** or **"Earlier messages"**.
+- While on, each `onContentSizeChange` goes to the newest message (no animation), and scroll events can't mark the reader as away from the end.
+- After that, the existing rules apply: late layout or data never pulls a reader down; a catch-up / new message follows only at the end; an own send always goes to the end.
+- The timed scroll after the first load was removed. **No new timer; no unconditional scroll on later list changes.**
+- Older paging, the merge, the start card and own-send scrolling are unchanged.
+
+**Checks:**
+- `v2_chat_history` 23/23 (+5: pin on content-size change, layout events can't unpin, the first drag / "Earlier messages" end the pinning, reset per chat, no timed scroll).
+- `run.js` all pass. Updated assertions: `v2_activity_real`, `v2_chat_realtime`.
+- `tsc` clean; LOCAL iOS export exit 0.
+
+**Not verified:** the opening position on the phone, and position-keeping while older rows are added.
+
+---
+
 Date 2026-10-21 · Folder `~/tempa-p0` · Branch `tempa/v2-persist-r2`, from `652e2ba` (clean, same as origin) · Author: Claude Code.
 **Target:** tempa-local only. Branding worktree (`~/tempa-collab-prep`) not touched; no shared DEV / production, no reset, delete, merge or deploy.
 

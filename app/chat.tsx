@@ -175,6 +175,13 @@ export default function ChatScreen() {
   // (realtime message, 20 s state refresh, keyboard). Own sends always scroll.
   const nearEndRef = useRef(true);
   const forceEndRef = useRef(false);
+  // Opening a chat: keep the newest message in view until the reader first
+  // drags (or asks for earlier messages). While this holds, every content-size
+  // change (FlatList measuring 500 rows in batches, the header switching to
+  // "Earlier messages") goes to the end, and scroll events from the list's own
+  // layout / maintainVisibleContentPosition cannot mark the reader as "not at
+  // the end". Event-driven, no timer; reset for every chat.
+  const pinToEndRef = useRef(true);
   const scrollToEndIfFollowing = useCallback((animated = true) => {
     if (!nearEndRef.current && !forceEndRef.current) return;
     forceEndRef.current = false;
@@ -352,6 +359,8 @@ export default function ChatScreen() {
   useEffect(() => {
     setMessages([]);
     userScrolledRef.current = false;
+    pinToEndRef.current = true;
+    nearEndRef.current = true;
     olderPagerRef.current?.reset(currentUserId && otherUserId ? `${currentUserId}:${otherUserId}` : '', false);
   }, [currentUserId, otherUserId]);
 
@@ -539,7 +548,8 @@ export default function ChatScreen() {
     const added = countNew(messagesRef.current, mergeMessages(messagesRef.current, rows));
     setMessages((prev) => mergeMessages(prev, rows));
     // New rows follow the end only if the reader is already there.
-    if (mode === 'initial' || added > 0) setTimeout(() => scrollToEndIfFollowing(mode === 'catchup'), 100);
+    // (The first load is positioned by pinToEndRef on content-size changes.)
+    if (mode === 'catchup' && added > 0) setTimeout(() => scrollToEndIfFollowing(true), 100);
     void markIncomingMessagesRead();
   }
   fetchRef.current = fetchMessages;
@@ -548,6 +558,7 @@ export default function ChatScreen() {
   // created_at, id). Merged like every other fetch; never scrolls.
   function loadOlderMessages() {
     if (!currentUserId || !otherUserId) return;
+    pinToEndRef.current = false; // the reader asked for history: stop pinning
     const key = chatKeyRef.current;
     const cursor = oldestCursor(messagesRef.current);
     if (!key || !cursor) return;
@@ -1365,19 +1376,27 @@ export default function ChatScreen() {
             maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
             onScrollBeginDrag={() => {
               userScrolledRef.current = true;
+              pinToEndRef.current = false;
             }}
             ListFooterComponent={icebreakerPanel}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
             onScroll={(e) => {
-              nearEndRef.current = isNearEnd(e.nativeEvent);
+              if (!pinToEndRef.current) nearEndRef.current = isNearEnd(e.nativeEvent);
               if (userScrolledRef.current && e.nativeEvent.contentOffset.y < 400) loadOlderMessages();
             }}
             scrollEventThrottle={64}
             // Keeps the newest message (or the quiz in an empty chat) in view
             // when content grows or the keyboard shrinks the list — only while
             // the reader is at the end (or just sent a message).
-            onContentSizeChange={() => scrollToEndIfFollowing()}
+            onContentSizeChange={() => {
+              if (pinToEndRef.current) {
+                nearEndRef.current = true;
+                flatListRef.current?.scrollToEnd({ animated: false });
+                return;
+              }
+              scrollToEndIfFollowing();
+            }}
             ListEmptyComponent={
               v2Enabled ? (
                 <View style={styles.emptyWrap}>
