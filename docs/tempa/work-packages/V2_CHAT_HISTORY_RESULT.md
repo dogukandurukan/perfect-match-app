@@ -29,7 +29,15 @@
 - `run.js` all pass. Assertions adapted: `v2_activity_real`, `v2_chat_realtime`.
 - `tsc` clean; LOCAL iOS export exit 0.
 
-**Not verified:** on the phone (owner to re-check), for short, empty and long chats.
+**Owner's phone result (`33d74ad`):**
+- ✅ The chat opens directly at the newest message.
+- No problem reported in the other scrolling checks: older pages, position kept, no pull-down.
+
+**Still open, separate tests (not closed by this):**
+- foreground message during a real Realtime re-establishment;
+- photo-URL refresh;
+- unsent-upload clean-up;
+- pixel downscaling.
 
 ---
 
