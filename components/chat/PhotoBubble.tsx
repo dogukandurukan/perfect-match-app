@@ -1,10 +1,12 @@
 // V2 chat: a photo message. Keeps the photo's aspect ratio (from the stored
 // width / height), loads a short-lived signed URL (the server checks the
 // viewer is a participant), shows a quiet placeholder while loading and
-// "Tap to retry" if the photo can't be loaded. Tap → full-screen viewer.
+// "Tap to retry" if the photo can't be loaded. A load error first fetches a
+// NEW signed URL once (an expired / invalid URL must not be handed out again
+// from the cache); retry also forces a new one. Tap → full-screen viewer.
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { photoBubbleSize } from '@/lib/chat/photo';
@@ -17,19 +19,21 @@ type Props = {
   height: number | null | undefined;
   mine: boolean;
   label: string;
-  onOpen: (url: string) => void;
+  onOpen: (path: string) => void;
 };
 
 export function PhotoBubble({ path, width, height, mine, label, onOpen }: Props) {
   const size = photoBubbleSize(width, height);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  // 0 = cached URL allowed; >0 = a fresh URL is forced.
   const [attempt, setAttempt] = useState(0);
+  const autoRefreshed = useRef(false);
 
   useEffect(() => {
     let live = true;
     setFailed(false);
-    void chatPhotoUrl(path).then((u) => {
+    void chatPhotoUrl(path, { force: attempt > 0 }).then((u) => {
       if (!live) return;
       if (u) setUrl(u);
       else setFailed(true);
@@ -44,15 +48,25 @@ export function PhotoBubble({ path, width, height, mine, label, onOpen }: Props)
     setAttempt((n) => n + 1);
   }, []);
 
+  const onLoadError = useCallback(() => {
+    // Once per bubble: silently fetch a new URL; after that show "Tap to retry".
+    if (!autoRefreshed.current) {
+      autoRefreshed.current = true;
+      retry();
+      return;
+    }
+    setFailed(true);
+  }, [retry]);
+
   return (
     <Pressable
-      onPress={failed ? retry : url ? () => onOpen(url) : undefined}
+      onPress={failed ? retry : url ? () => onOpen(path) : undefined}
       style={[styles.wrap, size, mine ? styles.mine : styles.theirs]}
       accessibilityRole={failed ? 'button' : 'imagebutton'}
       accessibilityLabel={failed ? `${label}. Couldn’t load. Tap to retry` : `${label}. Opens full screen`}>
       {url && !failed ? (
         <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120}
-          onError={() => setFailed(true)} accessible={false} />
+          onError={onLoadError} accessible={false} />
       ) : failed ? (
         <View style={styles.center}>
           <Ionicons name="refresh" size={20} color={obColors.textSecondary} />

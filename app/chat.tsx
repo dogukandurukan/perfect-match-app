@@ -113,7 +113,7 @@ export default function ChatScreen() {
   const [photoDraft, setPhotoDraft] = useState<CheckedPhoto | null>(null);
   const [photoSending, setPhotoSending] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerPath, setViewerPath] = useState<string | null>(null);
   const photoRequestRef = useRef<string | null>(null);
   const photoInFlightRef = useRef(false);
   const [proposeTimes, setProposeTimes] = useState<string[]>([]);
@@ -313,7 +313,7 @@ export default function ChatScreen() {
     setHeaderPhotoUrl(null);
     if (otherUserId) forgetProfilePhotoUrls(otherUserId);
     forgetChatPhotoUrls();
-    setViewerUrl(null);
+    setViewerPath(null);
     void emitUnreadMessageCount();
   }, [chatState, chatStateLoaded, otherUserId]);
 
@@ -1033,7 +1033,7 @@ export default function ChatScreen() {
               height={item.media_height}
               mine={isMine}
               label={isMine ? 'Your photo' : `Photo from ${userName}`}
-              onOpen={setViewerUrl}
+              onOpen={setViewerPath}
             />
           ) : (
             <View style={[v2.bubble, isMine ? v2.bubbleMine : v2.bubbleTheirs]}>
@@ -1500,7 +1500,7 @@ export default function ChatScreen() {
           onCancel={cancelPhotoV2}
           onSend={() => void sendPhotoV2()}
         />
-        <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
+        <PhotoViewer path={viewerPath} onClose={() => setViewerPath(null)} />
       </>
     ) : null}
     {v2Enabled ? (

@@ -60,3 +60,25 @@ export function photoSendError(message: string | undefined | null): string {
 
 /** Storage says the object is already there (a retry after the upload succeeded). */
 export const isAlreadyUploaded = (message: string | undefined | null) => /already exists|duplicate|resource already/i.test(message ?? '');
+
+/**
+ * Signed-URL cache (pure; the clock is passed in). An entry is used only until
+ * `margin` before the URL itself expires; `force` skips it (a URL that failed
+ * to load is replaced instead of being handed out again).
+ */
+export class PhotoUrlCache {
+  private readonly map = new Map<string, { url: string; until: number }>();
+  constructor(private readonly ttlS: number, private readonly marginS = 120) {}
+  get(path: string, now: number, force = false): string | null {
+    if (force) return null;
+    const hit = this.map.get(path);
+    return hit && hit.until > now ? hit.url : null;
+  }
+  set(path: string, url: string, now: number): void {
+    this.map.set(path, { url, until: now + Math.max(0, this.ttlS - this.marginS) * 1000 });
+  }
+  forget(path?: string): void {
+    if (path) this.map.delete(path);
+    else this.map.clear();
+  }
+}

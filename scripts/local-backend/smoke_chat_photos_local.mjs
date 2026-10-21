@@ -9,8 +9,18 @@
 //   B (man)   sends a photo   (upload → send_photo_message_v2)
 //   C (woman) unrelated third account — refused everywhere
 import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { renderPortraits } from '../dev-backend/portraits.mjs';
-import { admin, env, ensureMember, LOOKS } from './_local.mjs';
+import { admin, env, ensureMember, LOOKS, repo } from './_local.mjs';
+
+// The app's own send step (lib/chat/photoSend.ts), compiled on the fly.
+const require = createRequire(import.meta.url);
+const Module = require('module');
+const orig = Module._resolveFilename;
+Module._resolveFilename = function (req, ...a) { if (req.startsWith('@/')) req = path.join(repo, req.slice(2)); return orig.call(this, req, ...a); };
+require(path.join(repo, 'node_modules/sucrase/register/ts'));
+const { sendChatPhotoWith } = require(path.join(repo, 'lib/chat/photoSend.ts'));
 
 let passed = 0;
 let failed = 0;
@@ -100,6 +110,37 @@ async function main() {
 
   const preview = (await A.c.rpc('get_my_matches_v2')).data?.find((m) => m.match_id === matchId);
   check(preview?.last_message === '📷 Photo', 'Chats preview reads "📷 Photo"');
+
+  // Recovery windows with the app's send code and injected faults.
+  const photo = { uri: `data:image/png;base64,${img.toString('base64')}`, width: w, height: h, contentType: 'image/png', ext: 'png' };
+  const count = async (p) => ((await admin.from('messages').select('id').eq('media_path', p)).data ?? []).length;
+  const pathFor = (r) => `${matchId}/${B.uid}/${r}.png`;
+  const access = async (p) => {
+    const a = await A.c.storage.from(BUCKET).createSignedUrl(p, 600);
+    const c3 = await C.c.storage.from(BUCKET).createSignedUrl(p, 600);
+    const row = (await admin.from('messages').select('receiver_id, sender_id, kind').eq('media_path', p).single()).data;
+    return !a.error && !!c3.error && row?.receiver_id === A.uid && row?.sender_id === B.uid && row?.kind === 'photo';
+  };
+  // R1: upload done, the message RPC fails (no server call) → retry, same id.
+  const r1 = crypto.randomUUID();
+  const rpcFails = { storage: B.c.storage, rpc: async () => ({ data: null, error: { message: 'Failed to fetch' } }) };
+  const f1 = await sendChatPhotoWith(rpcFails, matchId, B.uid, photo, r1);
+  const objR1 = (await admin.storage.from(BUCKET).list(`${matchId}/${B.uid}`, { search: r1 })).data ?? [];
+  check(!f1.ok && (await count(pathFor(r1))) === 0 && objR1.length === 1, 'R1: upload done, message RPC failed → error, no message yet');
+  const s1 = await sendChatPhotoWith(B.c, matchId, B.uid, photo, r1);
+  check(s1.ok && (await count(pathFor(r1))) === 1 && (await access(pathFor(r1))), 'R1: retry with the same request id → one message, right chat, receiver yes, third account no');
+  // R2: the server created the message, the response was lost → retry returns it.
+  const r2 = crypto.randomUUID();
+  let serverId = null;
+  const lost = { storage: B.c.storage, rpc: async (fn, args) => { const r = await B.c.rpc(fn, args); serverId = r.data?.id ?? null; throw new TypeError('Network request failed'); } };
+  const f2 = await sendChatPhotoWith(lost, matchId, B.uid, photo, r2);
+  check(!f2.ok && !!serverId && (await count(pathFor(r2))) === 1, 'R2: message created on the server, client got no response → error shown');
+  const s2 = await sendChatPhotoWith(B.c, matchId, B.uid, photo, r2);
+  check(s2.ok && s2.message.id === serverId && (await count(pathFor(r2))) === 1 && (await access(pathFor(r2))), 'R2: retry → the SAME message (no second one), receiver yes, third account no');
+  // R3: three parallel retries with one request id.
+  const r3 = crypto.randomUUID();
+  const par = await Promise.all([0, 1, 2].map(() => sendChatPhotoWith(B.c, matchId, B.uid, photo, r3)));
+  check(par.every((x) => x.ok) && new Set(par.map((x) => x.message.id)).size === 1 && (await count(pathFor(r3))) === 1, 'R3: three parallel tries → one message, every try gets it');
 
   // Ended chat: photos close for both.
   const un = await B.c.rpc('unmatch_v2', { p_match: matchId });
