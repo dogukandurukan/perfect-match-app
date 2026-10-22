@@ -97,7 +97,8 @@ Author: Claude Code. Read-only review plus small clean-ups; **no merge, no deplo
   - The photo send shows "Photos aren't available on this server yet".
   - Other V2 calls show their errors.
 
-  None of these packages exists on the shared project yet.
+  Per the earlier reports, the packages up to `20261008090000` (rows 1–2 of the table) **were** applied to the shared project via `apply-dev.mjs` (`V2_DEV_APPLY_RESULT`, `V2_PROFILE_INTEGRATION_RESULT`, `V2_MATCH_CHAT_DATE_RESULT`, `V2_DISCOVER_INTEGRATION_RESULT`). The packages from `20261009090000` on (Matches daily picks, Activity, interests / starters / D93, chat photos, member photo order, profile visits, connection questions) are documented as **LOCAL only** — no report applies them to the shared project, and `apply-dev.mjs` doesn't list them.
+  **Correction (2026-10-23):** an earlier hand-off said "none of the V2 server packages are on the shared project". That was too broad. The shared project's *current* state was not checked again after those reports (no remote access in these packages), so it is **unknown**: whether the 20261009+ packages are absent, and whether the earlier ones are still exactly as applied.
 
 ## Open items: merge vs. release
 

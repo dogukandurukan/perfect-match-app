@@ -17,7 +17,7 @@ Author: Claude Code. **LOCAL (tempa-local) only**; no merge, no deploy, nothing 
   - **OK:** acknowledges (`account_state_v2.visits_notice_ack_at`), then records.
 - **Activity:** a small "Profile visits" row above the like cards ("No visits yet" / "N people"), which opens `app/v2/profile-visits.tsx`.
   - **Premium:** rows with photo, name, age, label and time; a tap opens their profile. That opening is itself a visit, after the notice.
-  - **Non-premium:** "N people visited your profile" + "See who visited" → `/premium` (the D84 rule, owner's choice).
+  - **Non-premium:** "N people visited your profile" + "See who visited" → `/premium` (follows the D84 likes rule — **a proposal and the current implementation, not a final owner decision**; see D103).
   - An info line says visits are visible both ways; there is an empty state.
 - **Excluded from the list:** blocked, deleted, suspended or no-longer-visible people (`v2_can_view_public_profile`).
 - **Not a like, match or notification; not in the Activity badge** (the badge still counts only likes).
