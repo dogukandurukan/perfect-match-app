@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PublicProfileView } from '@/components/onboarding-v2/PublicProfileView';
+import { useProfileVisit } from '@/hooks/useProfileVisit';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 
 export default function V2ProfileScreen() {
@@ -14,6 +15,7 @@ export default function V2ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { userId, own } = useLocalSearchParams<{ userId?: string; own?: string }>();
   const isOwn = own === '1';
+  const recordVisit = useProfileVisit();
   // Fresh server read whenever the screen regains focus (e.g. after editing
   // the conversation starter) — the first focus is the initial load.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -42,6 +44,8 @@ export default function V2ProfileScreen() {
             refreshKey={refreshKey}
             onAddTake={isOwn ? () => router.push('/v2/edit-interests' as never) : undefined}
             markShared={!isOwn}
+            // Another member's full profile, really loaded → a profile visit (D103).
+            onLoaded={isOwn ? undefined : recordVisit}
           />
         ) : null}
       </ScrollView>

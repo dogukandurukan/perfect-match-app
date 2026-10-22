@@ -19,6 +19,7 @@ import { ACTIVITY_CARD_BORDER, InterestContext } from '@/components/activity/Act
 import { DiscoverProfileItems, type ItemHandlers } from '@/components/discover/DiscoverProfileItems';
 import { acceptErrorText, acceptLike, loadActivity, markLikeSeen, type ActivityInterest } from '@/lib/activity/activityV2';
 import { activityBadge } from '@/lib/activity/badge';
+import { useProfileVisit } from '@/hooks/useProfileVisit';
 import { interestLabelFor, MATCH_COPY } from '@/lib/activity/copy';
 import { loadRealProfile, type RealProfile } from '@/lib/discover/discoverV2';
 import { buildDiscoverLayout, STATE_COPY } from '@/lib/discover/profileLayout';
@@ -38,6 +39,7 @@ export default function ActivityProfileScreen() {
   const userId = String(userParam ?? '');
 
   const [load, setLoad] = useState<Load>('loading');
+  const recordVisit = useProfileVisit();
   const [reload, setReload] = useState(0);
   const [profile, setProfile] = useState<RealProfile | null>(null);
   const [interest, setInterest] = useState<ActivityInterest | null>(null);
@@ -64,6 +66,7 @@ export default function ActivityProfileScreen() {
         setInterest(i);
         setMatch(m);
         setLoad('ready');
+        recordVisit(userId); // the full profile really loaded → a profile visit (D103)
         // Viewing ≠ accepting: only this like is marked read, once.
         if (i && !i.seen && !markedRef.current) {
           markedRef.current = true;

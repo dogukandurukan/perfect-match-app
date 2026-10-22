@@ -6,6 +6,7 @@
 // An outdated pick is refused before anything is spent and the user is asked
 // to refresh Matches. "You both liked": read-only (already a match).
 // Back always returns to Matches; there is no "next candidate" here.
+import { useProfileVisit } from '@/hooks/useProfileVisit';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -44,6 +45,7 @@ export default function MatchProfileScreen() {
   const id = String(userId ?? '');
   const isPick = kind === 'pick';
 
+  const recordVisit = useProfileVisit();
   const [load, setLoad] = useState<Load>('loading');
   const [profile, setProfile] = useState<RealProfile | null>(null);
   const [card, setCard] = useState<DailyCard | null>(null);
@@ -69,6 +71,7 @@ export default function MatchProfileScreen() {
           setNotice('Today’s pick has changed. Go back to Matches to see it.');
         }
         setLoad('ready');
+        recordVisit(id); // the full profile really loaded → a profile visit (D103)
       } catch {
         if (live) setLoad('error');
       }

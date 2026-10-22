@@ -4,7 +4,7 @@
 // allowed fields on the server — never the raw onboarding draft. If the
 // server says the profile is not available (blocked, hidden, deleted, no
 // longer eligible), nothing about the person is shown.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { AddTakeCard } from '@/components/interests/TakeCard';
@@ -28,14 +28,22 @@ export function PublicProfileView({
   onAddTake,
   refreshKey = 0,
   markShared = false,
+  onLoaded,
 }: {
   userId: string;
   onAddTake?: () => void;
   refreshKey?: number;
   /** Another member's profile: mark exact shared selections (D101). Never for the own profile. */
   markShared?: boolean;
+  /** Called when the full profile was really loaded and shown (profile visits, D103). */
+  onLoaded?: (userId: string) => void;
 }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
+  useEffect(() => {
+    if (state.kind === 'ready') onLoadedRef.current?.(userId);
+  }, [state.kind, userId]);
   const shared = useSharedMarks(state.kind === 'ready' ? { ...state.input, id: userId, takes: (state.input.takes ?? []).map((t) => ({ kind: t.kind, subjectId: t.subjectId })) } : null, markShared);
 
   const load = useCallback(async () => {

@@ -24,6 +24,7 @@ import { publishActivityBadge } from '@/lib/activity/badge';
 import { interestLabelFor, MATCH_COPY, matchedLine, minutesSince, timeAgo, timeAgoLong } from '@/lib/activity/copy';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import { cachedProfilePhotoUrl, preloadProfilePhotoUrls } from '@/lib/resolveProfilePhotoUrl';
+import { loadMyVisits, visitsEntrySub } from '@/lib/visits/visits';
 
 const HEADER_HEIGHT = 56;
 
@@ -42,6 +43,9 @@ export function V2ActivityScreen({ fallback }: { fallback: ReactNode }) {
   const { height: winH } = useWindowDimensions();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [reload, setReload] = useState(0);
+  // Profile visits: a separate small entry, never part of the like cards or
+  // the badge (D103). null = unknown (not loaded / server without visits).
+  const [visitCount, setVisitCount] = useState<number | null>(null);
 
   // This screen draws its own title; the old one keeps the native header.
   const unsupported = load.kind === 'unsupported';
@@ -52,6 +56,9 @@ export function V2ActivityScreen({ fallback }: { fallback: ReactNode }) {
   useFocusEffect(
     useCallback(() => {
       let live = true;
+      void loadMyVisits().then((v) => {
+        if (live && v.ok && v.value.member) setVisitCount(v.value.count);
+      });
       void (async () => {
         const r = await loadActivity();
         if (!live) return;
@@ -108,6 +115,21 @@ export function V2ActivityScreen({ fallback }: { fallback: ReactNode }) {
     const locked = !load.data.premium && load.data.pendingCount > 0;
     body = (
       <View style={{ gap: CARD_GAP }}>
+        {visitCount !== null ? (
+          <TouchableOpacity
+            onPress={() => router.push('/v2/profile-visits' as never)}
+            style={styles.visits}
+            accessibilityRole="button"
+            accessibilityLabel={`Profile visits, ${visitsEntrySub(visitCount)}`}
+          >
+            <Ionicons name="eye-outline" size={22} color={obColors.textPrimary} importantForAccessibility="no" />
+            <View style={styles.visitsText}>
+              <Text style={styles.visitsTitle}>Profile visits</Text>
+              <Text style={styles.visitsSub}>{visitsEntrySub(visitCount)}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={obColors.textSecondary} importantForAccessibility="no" />
+          </TouchableOpacity>
+        ) : null}
         {locked ? (
           // Existing premium rule (as get_my_liker_cards): identities only
           // with premium; without it, a count. Not changed by this screen.
@@ -189,5 +211,9 @@ const styles = StyleSheet.create({
   retry: { minHeight: 48, paddingHorizontal: obSpacing.xl, borderRadius: 14, backgroundColor: obColors.cta, alignItems: 'center', justifyContent: 'center' },
   primaryText: { fontFamily: obFonts.bodySemiBold, fontSize: 17, lineHeight: 22, color: obColors.onCta },
   locked: { alignItems: 'center', gap: obSpacing.md, padding: obSpacing.lg, borderRadius: 16, backgroundColor: ACTIVITY_SURFACE, borderWidth: 1, borderColor: ACTIVITY_CARD_BORDER },
+  visits: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.md, minHeight: 60, paddingHorizontal: obSpacing.md, paddingVertical: obSpacing.sm, borderRadius: 16, backgroundColor: ACTIVITY_SURFACE, borderWidth: 1, borderColor: ACTIVITY_CARD_BORDER },
+  visitsText: { flex: 1, minWidth: 0 },
+  visitsTitle: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 21, color: obColors.textPrimary },
+  visitsSub: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
   lockedTitle: { fontFamily: obFonts.heading, fontSize: 22, lineHeight: 29, color: obColors.textPrimary, textAlign: 'center' },
 });
