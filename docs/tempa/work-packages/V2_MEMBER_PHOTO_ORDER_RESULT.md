@@ -57,9 +57,16 @@ Date 2026-10-21 · Folder `~/tempa-p0` · Branch `tempa/v2-persist-r2`, from `57
 
 **Synthetic data:** 2 smoke runs → 8 accounts (`tempa-local-mphoto-*`), their photos, 2 likes. Mert / Defne untouched.
 
+## Owner's phone verification (2026-10-22)
+
+✅ Verified on the phone with an approved member:
+- reordering photos;
+- choosing the main photo;
+- the "Discard changes?" prompt when leaving unsaved;
+- the order is kept after reopening the app.
+
 ## Not verified / open
 
-- **The screen on a phone** (below).
 - **Out of scope:** adding / replacing / deleting photos (they need re-review and minimum-count decisions); other profile fields.
 - **Not on the shared / live project:** the package exists only on tempa-local, like the other packages since 20261009.
 
