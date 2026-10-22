@@ -114,6 +114,16 @@ import {
   isWorldStepSkippable,
   type WorldDraft,
 } from '@/lib/onboardingV2/yourWorld';
+import { ConnectionInviteFields, ConnectionQuestionFields } from '@/components/onboarding-v2/yourProfile/ConnectionFields';
+import {
+  CONNECTION_COPY,
+  CONNECTION_QUESTIONS,
+  nextConnectStage,
+  prevConnectStage,
+  type ConnectionAnswers,
+  type ConnectStage,
+} from '@/lib/onboardingV2/connection';
+import { loadConnectionAnswers, saveConnectionAnswers } from '@/lib/onboardingV2/connectionRemote';
 
 const BASICS_TITLES: Record<number, string> = {
   1: "What's your name?",
@@ -326,6 +336,44 @@ export function PreviewFlow({ onExit, live }: Props) {
 
   const valid = isPosValid(pos, basics, compat, life, world, dates, profile);
 
+  // Optional "How do you connect?" (D104): an interstitial INSIDE the live
+  // first-submit screen (step "code", email verified, first application only —
+  // never an update, never after submitting). No new numbered step, so the
+  // server resume position is unchanged. Only shown when the server has the
+  // package and the application is still a draft; every path ends on the
+  // normal submit. Answers are private and never block the submit.
+  const atFirstSubmit =
+    !!live && pos.section === 'yourProfile' && pos.step === PROFILE_STEP.code && valid && !live.review && !profile.applicationPreview;
+  const [connectAvail, setConnectAvail] = useState(false);
+  const [connectStage, setConnectStage] = useState<ConnectStage>('invite');
+  const [connectAnswers, setConnectAnswers] = useState<ConnectionAnswers>({});
+  const [connectNotice, setConnectNotice] = useState<string | null>(null);
+  const connectSaveChain = useRef<Promise<void>>(Promise.resolve());
+  const hasLive = !!live;
+  useEffect(() => {
+    if (!hasLive) return;
+    let alive = true;
+    void loadConnectionAnswers().then((r) => {
+      if (!alive || r.kind !== 'ok' || !r.canEdit) return;
+      setConnectAnswers(r.answers);
+      setConnectAvail(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [hasLive]);
+  const connectActive = atFirstSubmit && connectAvail && connectStage !== 'done';
+  const connectPrev = connectActive ? prevConnectStage(connectStage) : null;
+  const pickConnect = (questionId: string, key: string) => {
+    const next = { ...connectAnswers, [questionId]: key };
+    setConnectAnswers(next);
+    // Saved in order, one at a time; a failure is shown but never blocks.
+    connectSaveChain.current = connectSaveChain.current.then(async () => {
+      const ok = await saveConnectionAnswers(next);
+      setConnectNotice(ok ? null : 'Couldn’t save that answer. You can still continue.');
+    });
+  };
+
   const goTo = (next: FlowPos) => {
     Keyboard.dismiss();
     setSaveError(null);
@@ -426,7 +474,9 @@ export function PreviewFlow({ onExit, live }: Props) {
       : inProfile && step === PROFILE_STEP.preview && reviewing
         ? RECEIVED_POS
         : prevOf(pos);
-  const handleBack = backTarget
+  const handleBack = connectPrev !== null
+    ? () => setConnectStage(connectPrev)
+    : backTarget
     ? () => goTo(backTarget)
     : inProfile && step === PROFILE_STEP.received
       ? undefined
@@ -435,6 +485,10 @@ export function PreviewFlow({ onExit, live }: Props) {
   // Android hardware back mirrors the header back within the flow.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (connectPrev !== null) {
+        setConnectStage(connectPrev);
+        return true;
+      }
       if (backTarget) {
         goTo(backTarget);
         return true;
@@ -621,6 +675,20 @@ export function PreviewFlow({ onExit, live }: Props) {
       };
     }
   }
+  if (connectActive) {
+    if (connectStage === 'invite') {
+      primary = { label: CONNECTION_COPY.explore, onPress: () => setConnectStage(0) };
+      secondary = { label: CONNECTION_COPY.skip, onPress: () => setConnectStage('done') };
+    } else if (typeof connectStage === 'number') {
+      const answered = !!connectAnswers[CONNECTION_QUESTIONS[connectStage].id];
+      const last = connectStage === CONNECTION_QUESTIONS.length - 1;
+      primary = {
+        label: answered ? (last ? 'Done' : 'Continue') : 'Skip question',
+        onPress: () => setConnectStage(nextConnectStage(connectStage)),
+      };
+      secondary = { label: CONNECTION_COPY.skip, onPress: () => setConnectStage('done') };
+    }
+  }
   if (live && saving && primary.onPress === handleContinue) {
     primary = { ...primary, label: 'Saving…', disabled: true };
   }
@@ -671,9 +739,21 @@ export function PreviewFlow({ onExit, live }: Props) {
       sectionLabel={section.label}
       step={step}
       totalSteps={section.steps}
-      title={liveCodeCopy ? liveCodeCopy.title : titleFor(pos)}
+      title={
+        connectActive
+          ? connectStage === 'invite'
+            ? CONNECTION_COPY.title
+            : CONNECTION_QUESTIONS[connectStage as number].title
+          : liveCodeCopy
+            ? liveCodeCopy.title
+            : titleFor(pos)
+      }
       helper={
-        liveCodeCopy
+        connectActive
+          ? connectStage === 'invite'
+            ? CONNECTION_COPY.helper
+            : undefined
+          : liveCodeCopy
           ? liveCodeCopy.helper
           : takesSupported && pos.section === 'yourProfile' && pos.step === PROFILE_STEP.prompts
             ? D93_PROMPTS_HELPER
@@ -683,7 +763,7 @@ export function PreviewFlow({ onExit, live }: Props) {
       reserveTitleBlock={!(inProfile && step === PROFILE_STEP.preview) && !liveCodeCopy}
       hideProgress={inProfile && step === PROFILE_STEP.preview && reviewing}
       onBack={handleBack}
-      contentKey={`${pos.section}-${step}`}
+      contentKey={connectActive ? `${pos.section}-${step}-connect-${connectStage}` : `${pos.section}-${step}`}
       onScrollY={inProfile && step === PROFILE_STEP.preview ? (y) => (previewScrollRef.current = y) : undefined}
       restoreScrollY={inProfile && step === PROFILE_STEP.preview && restorePreview ? previewScrollRef.current : null}
       footer={
@@ -802,7 +882,16 @@ export function PreviewFlow({ onExit, live }: Props) {
           </Text>
         </View>
       ) : null}
-      {inProfile && step === PROFILE_STEP.code && live && liveCode === 'verified' ? (
+      {connectActive && connectStage === 'invite' ? <ConnectionInviteFields notice={connectNotice} /> : null}
+      {connectActive && typeof connectStage === 'number' ? (
+        <ConnectionQuestionFields
+          question={CONNECTION_QUESTIONS[connectStage]}
+          value={connectAnswers[CONNECTION_QUESTIONS[connectStage].id]}
+          onPick={(key) => pickConnect(CONNECTION_QUESTIONS[connectStage as number].id, key)}
+          notice={connectNotice}
+        />
+      ) : null}
+      {inProfile && step === PROFILE_STEP.code && live && liveCode === 'verified' && !connectActive ? (
         <View style={styles.emailRow} accessible accessibilityLabel={`Verified email ${live.email}`}>
           <Ionicons name="mail-outline" size={18} color={obColors.cta} importantForAccessibility="no" />
           <Text style={styles.liveEmail} numberOfLines={1} maxFontSizeMultiplier={1.6}>

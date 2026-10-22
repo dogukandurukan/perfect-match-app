@@ -39,6 +39,7 @@ const PACKAGES = [
   '20261020090000_v2_chat_photos.sql',
   '20261021090000_v2_member_photo_order.sql',
   '20261022090000_v2_profile_visits.sql',
+  '20261022120000_v2_connection_answers.sql',
 ];
 
 const fail = (m) => {
