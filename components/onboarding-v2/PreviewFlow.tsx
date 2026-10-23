@@ -114,9 +114,18 @@ import {
   isWorldStepSkippable,
   type WorldDraft,
 } from '@/lib/onboardingV2/yourWorld';
-import { ConnectionInviteFields, ConnectionQuestionFields } from '@/components/onboarding-v2/yourProfile/ConnectionFields';
 import {
+  ConnectionInviteFields,
+  ConnectionQuestionFields,
+  ConnectionSubmitCard,
+  ConnectionSummaryFields,
+} from '@/components/onboarding-v2/yourProfile/ConnectionFields';
+import {
+  afterQuestions,
+  answeredCount,
+  commitConnectionAnswer,
   CONNECTION_COPY,
+  CONNECTION_ENABLED,
   CONNECTION_QUESTIONS,
   nextConnectStage,
   prevConnectStage,
@@ -346,16 +355,20 @@ export function PreviewFlow({ onExit, live }: Props) {
     !!live && pos.section === 'yourProfile' && pos.step === PROFILE_STEP.code && valid && !live.review && !profile.applicationPreview;
   const [connectAvail, setConnectAvail] = useState(false);
   const [connectStage, setConnectStage] = useState<ConnectStage>('invite');
-  const [connectAnswers, setConnectAnswers] = useState<ConnectionAnswers>({});
+  // Server-confirmed answers only; a pick is local until Continue saves it.
+  const [connectSaved, setConnectSaved] = useState<ConnectionAnswers>({});
+  const [connectPick, setConnectPick] = useState<string | null>(null);
+  const [connectBusy, setConnectBusy] = useState(false);
   const [connectNotice, setConnectNotice] = useState<string | null>(null);
-  const connectSaveChain = useRef<Promise<void>>(Promise.resolve());
+  const [summaryFromSubmit, setSummaryFromSubmit] = useState(false);
+  const connectBusyRef = useRef(false);
   const hasLive = !!live;
   useEffect(() => {
-    if (!hasLive) return;
+    if (!hasLive || !CONNECTION_ENABLED) return;
     let alive = true;
     void loadConnectionAnswers().then((r) => {
       if (!alive || r.kind !== 'ok' || !r.canEdit) return;
-      setConnectAnswers(r.answers);
+      setConnectSaved(r.answers);
       setConnectAvail(true);
     });
     return () => {
@@ -363,15 +376,34 @@ export function PreviewFlow({ onExit, live }: Props) {
     };
   }, [hasLive]);
   const connectActive = atFirstSubmit && connectAvail && connectStage !== 'done';
-  const connectPrev = connectActive ? prevConnectStage(connectStage) : null;
-  const pickConnect = (questionId: string, key: string) => {
-    const next = { ...connectAnswers, [questionId]: key };
-    setConnectAnswers(next);
-    // Saved in order, one at a time; a failure is shown but never blocks.
-    connectSaveChain.current = connectSaveChain.current.then(async () => {
-      const ok = await saveConnectionAnswers(next);
-      setConnectNotice(ok ? null : 'Couldn’t save that answer. You can still continue.');
-    });
+  const connectPrev = connectActive ? prevConnectStage(connectStage, summaryFromSubmit) : null;
+  const goConnect = (s: ConnectStage) => {
+    setConnectPick(null);
+    setConnectNotice(null);
+    if (s !== 'summary') setSummaryFromSubmit(false);
+    setConnectStage(s);
+  };
+  const connectQuestion = typeof connectStage === 'number' ? CONNECTION_QUESTIONS[connectStage] : null;
+  const connectSelected = connectQuestion ? (connectPick ?? connectSaved[connectQuestion.id]) : undefined;
+  /** Saves (key) or clears (null) the current question; advances only after a real save. */
+  const commitConnect = async (key: string | null, advance: boolean) => {
+    if (!connectQuestion || typeof connectStage !== 'number' || connectBusyRef.current) return;
+    connectBusyRef.current = true;
+    setConnectBusy(true);
+    setConnectNotice(null);
+    const r = await commitConnectionAnswer(connectSaved, connectQuestion.id, key, saveConnectionAnswers);
+    connectBusyRef.current = false;
+    setConnectBusy(false);
+    if (!r.ok) return setConnectNotice(CONNECTION_COPY.saveError);
+    setConnectSaved(r.saved);
+    setConnectPick(null);
+    if (advance) goConnect(nextConnectStage(connectStage, r.saved));
+  };
+  const continueConnect = () => {
+    if (!connectQuestion || typeof connectStage !== 'number' || !connectSelected) return;
+    // Unchanged saved answer: nothing to save.
+    if (connectSelected === connectSaved[connectQuestion.id]) return goConnect(nextConnectStage(connectStage, connectSaved));
+    void commitConnect(connectSelected, true);
   };
 
   const goTo = (next: FlowPos) => {
@@ -475,7 +507,7 @@ export function PreviewFlow({ onExit, live }: Props) {
         ? RECEIVED_POS
         : prevOf(pos);
   const handleBack = connectPrev !== null
-    ? () => setConnectStage(connectPrev)
+    ? () => goConnect(connectPrev)
     : backTarget
     ? () => goTo(backTarget)
     : inProfile && step === PROFILE_STEP.received
@@ -486,7 +518,7 @@ export function PreviewFlow({ onExit, live }: Props) {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (connectPrev !== null) {
-        setConnectStage(connectPrev);
+        goConnect(connectPrev);
         return true;
       }
       if (backTarget) {
@@ -675,18 +707,25 @@ export function PreviewFlow({ onExit, live }: Props) {
       };
     }
   }
+  let tertiary: Action | null = null;
   if (connectActive) {
     if (connectStage === 'invite') {
-      primary = { label: CONNECTION_COPY.explore, onPress: () => setConnectStage(0) };
-      secondary = { label: CONNECTION_COPY.skip, onPress: () => setConnectStage('done') };
+      primary = { label: CONNECTION_COPY.explore, onPress: () => goConnect(0) };
+      secondary = { label: CONNECTION_COPY.skip, onPress: () => goConnect('done') };
     } else if (typeof connectStage === 'number') {
-      const answered = !!connectAnswers[CONNECTION_QUESTIONS[connectStage].id];
-      const last = connectStage === CONNECTION_QUESTIONS.length - 1;
+      // Continue saves, then advances; nothing selected → disabled. Skipping
+      // never changes a saved answer (Clear answer does that explicitly).
       primary = {
-        label: answered ? (last ? 'Done' : 'Continue') : 'Skip question',
-        onPress: () => setConnectStage(nextConnectStage(connectStage)),
+        label: connectBusy ? CONNECTION_COPY.saving : CONNECTION_COPY.continue,
+        onPress: continueConnect,
+        disabled: !connectSelected || connectBusy,
       };
-      secondary = { label: CONNECTION_COPY.skip, onPress: () => setConnectStage('done') };
+      secondary = { label: CONNECTION_COPY.skipQuestion, onPress: () => goConnect(nextConnectStage(connectStage, connectSaved)), disabled: connectBusy };
+      tertiary = { label: CONNECTION_COPY.skipRemaining, onPress: () => goConnect(afterQuestions(connectSaved)), disabled: connectBusy };
+    } else if (connectStage === 'summary') {
+      // Never submits: Continue only leads to the normal submit screen.
+      primary = { label: CONNECTION_COPY.continue, onPress: () => goConnect('done') };
+      secondary = { label: CONNECTION_COPY.editAnswers, onPress: () => goConnect(0) };
     }
   }
   if (live && saving && primary.onPress === handleContinue) {
@@ -736,14 +775,17 @@ export function PreviewFlow({ onExit, live }: Props) {
 
   return (
     <OnboardingScreen
-      sectionLabel={section.label}
-      step={step}
-      totalSteps={section.steps}
+      // The optional questions show their own progress: the real question count.
+      sectionLabel={connectQuestion && connectActive ? 'Optional questions' : section.label}
+      step={connectQuestion && connectActive ? (connectStage as number) + 1 : step}
+      totalSteps={connectQuestion && connectActive ? CONNECTION_QUESTIONS.length : section.steps}
       title={
         connectActive
           ? connectStage === 'invite'
             ? CONNECTION_COPY.title
-            : CONNECTION_QUESTIONS[connectStage as number].title
+            : connectStage === 'summary'
+              ? CONNECTION_COPY.summaryTitle
+              : CONNECTION_QUESTIONS[connectStage as number].title
           : liveCodeCopy
             ? liveCodeCopy.title
             : titleFor(pos)
@@ -752,7 +794,9 @@ export function PreviewFlow({ onExit, live }: Props) {
         connectActive
           ? connectStage === 'invite'
             ? CONNECTION_COPY.helper
-            : undefined
+            : connectStage === 'summary'
+              ? CONNECTION_COPY.summaryHelper
+              : undefined
           : liveCodeCopy
           ? liveCodeCopy.helper
           : takesSupported && pos.section === 'yourProfile' && pos.step === PROFILE_STEP.prompts
@@ -761,7 +805,7 @@ export function PreviewFlow({ onExit, live }: Props) {
       }
       compactTitle={pos.section !== 'basics'}
       reserveTitleBlock={!(inProfile && step === PROFILE_STEP.preview) && !liveCodeCopy}
-      hideProgress={inProfile && step === PROFILE_STEP.preview && reviewing}
+      hideProgress={(inProfile && step === PROFILE_STEP.preview && reviewing) || (connectActive && !connectQuestion)}
       onBack={handleBack}
       contentKey={connectActive ? `${pos.section}-${step}-connect-${connectStage}` : `${pos.section}-${step}`}
       onScrollY={inProfile && step === PROFILE_STEP.preview ? (y) => (previewScrollRef.current = y) : undefined}
@@ -792,7 +836,20 @@ export function PreviewFlow({ onExit, live }: Props) {
                 {secondary.label}
               </Text>
             </TouchableOpacity>
-          ) : canSkip ? (
+          ) : null}
+          {tertiary ? (
+            <TouchableOpacity
+              onPress={tertiary.onPress}
+              disabled={tertiary.disabled}
+              accessibilityRole="button"
+              accessibilityLabel={tertiary.label}
+              accessibilityState={{ disabled: !!tertiary.disabled }}
+              hitSlop={8}
+              style={styles.tertiary}>
+              <Text style={styles.tertiaryText}>{tertiary.label}</Text>
+            </TouchableOpacity>
+          ) : null}
+          {!secondary && canSkip ? (
             <TouchableOpacity
               onPress={() => void handleContinue()}
               disabled={saving}
@@ -882,15 +939,22 @@ export function PreviewFlow({ onExit, live }: Props) {
           </Text>
         </View>
       ) : null}
-      {connectActive && connectStage === 'invite' ? <ConnectionInviteFields notice={connectNotice} /> : null}
-      {connectActive && typeof connectStage === 'number' ? (
+      {connectActive && connectStage === 'invite' ? <ConnectionInviteFields /> : null}
+      {connectActive && connectQuestion ? (
         <ConnectionQuestionFields
-          question={CONNECTION_QUESTIONS[connectStage]}
-          value={connectAnswers[CONNECTION_QUESTIONS[connectStage].id]}
-          onPick={(key) => pickConnect(CONNECTION_QUESTIONS[connectStage as number].id, key)}
+          question={connectQuestion}
+          selected={connectSelected}
+          onPick={(key) => {
+            setConnectPick(key);
+            setConnectNotice(null);
+          }}
+          canClear={!!connectSaved[connectQuestion.id]}
+          onClear={() => void commitConnect(null, false)}
+          busy={connectBusy}
           notice={connectNotice}
         />
       ) : null}
+      {connectActive && connectStage === 'summary' ? <ConnectionSummaryFields answers={connectSaved} /> : null}
       {inProfile && step === PROFILE_STEP.code && live && liveCode === 'verified' && !connectActive ? (
         <View style={styles.emailRow} accessible accessibilityLabel={`Verified email ${live.email}`}>
           <Ionicons name="mail-outline" size={18} color={obColors.cta} importantForAccessibility="no" />
@@ -898,6 +962,14 @@ export function PreviewFlow({ onExit, live }: Props) {
             {live.email}
           </Text>
         </View>
+      ) : null}
+      {atFirstSubmit && connectAvail && !connectActive && answeredCount(connectSaved) > 0 ? (
+        <ConnectionSubmitCard
+          onView={() => {
+            goConnect('summary');
+            setSummaryFromSubmit(true);
+          }}
+        />
       ) : null}
       {inProfile && step === PROFILE_STEP.code && live && liveCode === 'check' ? (
         <Text style={styles.liveEmail} maxFontSizeMultiplier={1.6}>
@@ -962,6 +1034,20 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: obColors.cta,
     textDecorationLine: 'underline',
+  },
+  tertiary: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: obColors.border,
+  },
+  tertiaryText: {
+    fontFamily: obFonts.body,
+    fontSize: 15,
+    lineHeight: 20,
+    color: obColors.textSecondary,
   },
   secondaryDisabled: {
     color: obColors.textSecondary,

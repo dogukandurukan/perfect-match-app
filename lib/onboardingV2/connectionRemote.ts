@@ -5,15 +5,15 @@ import { cleanConnectionAnswers, CONNECTION_VERSION, type ConnectionAnswers } fr
 
 export type ConnectionLoad =
   | { kind: 'ok'; answers: ConnectionAnswers; canEdit: boolean }
-  | { kind: 'unsupported' } // server without the package: the invite is not shown
+  | { kind: 'unsupported' } // server without the versioned package: the section is not shown
   | { kind: 'error' };
 
+/** The answers to THIS question version only; other versions stay on the server, unread. */
 export async function loadConnectionAnswers(): Promise<ConnectionLoad> {
-  const { data, error } = await supabase.rpc('get_my_connection_answers_v2');
+  const { data, error } = await supabase.rpc('get_my_connection_answers_v2', { p_version: CONNECTION_VERSION });
   if (error) return (error as { code?: string }).code === 'PGRST202' ? { kind: 'unsupported' } : { kind: 'error' };
   const d = (data ?? {}) as { version?: number | null; answers?: unknown; can_edit?: boolean };
-  // Answers to another question version are not carried into this one.
-  const answers = d.version == null || d.version === CONNECTION_VERSION ? cleanConnectionAnswers(d.answers) : {};
+  const answers = d.version === CONNECTION_VERSION ? cleanConnectionAnswers(d.answers) : {};
   return { kind: 'ok', answers, canEdit: d.can_edit === true };
 }
 
