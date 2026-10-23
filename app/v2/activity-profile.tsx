@@ -19,6 +19,7 @@ import { ACTIVITY_CARD_BORDER, InterestContext } from '@/components/activity/Act
 import { DiscoverProfileItems, type ItemHandlers } from '@/components/discover/DiscoverProfileItems';
 import { acceptErrorText, acceptLike, loadActivity, markLikeSeen, type ActivityInterest } from '@/lib/activity/activityV2';
 import { activityBadge } from '@/lib/activity/badge';
+import { VisitsNotice } from '@/components/visits/VisitsNotice';
 import { useProfileVisit } from '@/hooks/useProfileVisit';
 import { interestLabelFor, MATCH_COPY } from '@/lib/activity/copy';
 import { loadRealProfile, type RealProfile } from '@/lib/discover/discoverV2';
@@ -39,7 +40,7 @@ export default function ActivityProfileScreen() {
   const userId = String(userParam ?? '');
 
   const [load, setLoad] = useState<Load>('loading');
-  const recordVisit = useProfileVisit();
+  const { recordVisit, notice: visitNotice } = useProfileVisit();
   const [reload, setReload] = useState(0);
   const [profile, setProfile] = useState<RealProfile | null>(null);
   const [interest, setInterest] = useState<ActivityInterest | null>(null);
@@ -146,6 +147,7 @@ export default function ActivityProfileScreen() {
         <Text style={styles.subTitle} numberOfLines={1} accessibilityRole="header">{title}</Text>
         <View style={styles.iconBtn} />
       </View>
+      <VisitsNotice state={visitNotice} />
       {load === 'loading' ? (
         <View style={styles.center}>
           <ActivityIndicator color={obColors.cta} accessibilityLabel="Loading profile" />

@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PublicProfileView } from '@/components/onboarding-v2/PublicProfileView';
+import { VisitsNotice } from '@/components/visits/VisitsNotice';
 import { useProfileVisit } from '@/hooks/useProfileVisit';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 
@@ -15,7 +16,7 @@ export default function V2ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { userId, own } = useLocalSearchParams<{ userId?: string; own?: string }>();
   const isOwn = own === '1';
-  const recordVisit = useProfileVisit();
+  const { recordVisit, notice: visitNotice } = useProfileVisit();
   // Fresh server read whenever the screen regains focus (e.g. after editing
   // the conversation starter) — the first focus is the initial load.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -37,6 +38,7 @@ export default function V2ProfileScreen() {
         </Text>
         <View style={styles.back} />
       </View>
+      <VisitsNotice state={visitNotice} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + obSpacing.xl }}>
         {userId ? (
           <PublicProfileView

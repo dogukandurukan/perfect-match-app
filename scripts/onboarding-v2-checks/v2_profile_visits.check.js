@@ -11,14 +11,17 @@ const code = (f) => read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/
 ok(V.visitLabel({ again: false }) === 'Viewed your profile' && V.visitLabel({ again: true }) === 'Visited again', 'labels: first visit / a later separate visit — no number');
 ok(V.visitsEntrySub(0) === 'No visits yet' && V.visitsEntrySub(1) === '1 person' && V.visitsEntrySub(4) === '4 people', 'Activity entry counts people, not visits');
 ok(V.visitsCountLine(1) === '1 person visited your profile' && V.visitsCountLine(3) === '3 people visited your profile', 'non-premium count line');
-ok(/visible/.test(V.VISITS_NOTICE.title) && /never hidden/.test(V.VISITS_NOTICE.body) && /visible both ways/.test(V.VISITS_INFO), 'notice + info say visits are visible');
+ok(V.VISITS_NOTICE.body === 'People whose profiles you visit can see you in their profile visitors.' && V.VISITS_NOTICE.cta === 'Got it' && !('title' in V.VISITS_NOTICE) && /visible both ways/.test(V.VISITS_INFO), 'notice: one plain line + "Got it"; info line says visits are visible');
 const pv = V.parseVisits({ member: true, premium: false, count: 2, visits: [], notice_ack: true });
 ok(pv.count === 2 && pv.visits.length === 0 && !pv.premium && pv.noticeAck, 'parse: non-premium = count only');
 ok(eq(V.parseVisits(null), { member: false, premium: false, count: 0, visits: [], noticeAck: false }), 'parse: empty / unknown payload');
 
 const hook = code('hooks/useProfileVisit.ts');
-ok(/done\.current\.has\(userId\)/.test(hook) && /if \(r !== 'notice'\) return;/.test(hook), 'hook: once per person per screen; the notice only when the server asks');
-ok(/text: 'Go back'/.test(hook) && /if \(await ackVisitsNotice\(\)\) await recordProfileVisit\(userId\)/.test(hook), 'notice: Go back records nothing; OK acknowledges, then records');
+ok(/createVisitFlow\(\{ record: recordProfileVisit, ack: ackVisitsNotice \}/.test(hook) && !/Alert/.test(hook), 'hook: uses the pure flow; no system alert');
+const nc = code('components/visits/VisitsNotice.tsx');
+ok(/VISITS_NOTICE\.cta/.test(nc) && /onPress=\{state\.gotIt\}/.test(nc) && /onPress=\{state\.dismiss\}/.test(nc) && (nc.match(/styles\.cta\b/g) || []).length === 1, 'notice area: one primary "Got it" + a close icon');
+for (const f of ['app/v2/profile.tsx', 'app/v2/activity-profile.tsx', 'app/v2/match-profile.tsx'])
+  ok(/<VisitsNotice state=\{visitNotice\} \/>/.test(code(f)), `${f}: shows the notice area`);
 const ppv = code('components/onboarding-v2/PublicProfileView.tsx');
 ok(/if \(state\.kind === 'ready'\) onLoadedRef\.current\?\.\(userId\)/.test(ppv), 'full profile reports only a successful load');
 ok(/onLoaded=\{isOwn \? undefined : recordVisit\}/.test(code('app/v2/profile.tsx')), 'chat → profile records (never the own profile)');
@@ -44,4 +47,44 @@ ok(/select interval '24 hours'/.test(sql) && /where v\.last_visit_at <= now\(\) 
 ok(/values \(v_me, p_user\)/.test(sql) && /'notice_required'/.test(sql) && /v2_can_view_public_profile\(v_me, p_user\)/.test(sql), 'record: visitor is always auth.uid(); notice first; visible pairs only');
 ok(/pv\.visited_id = v_me/.test(sql) && /filter \(where v_premium\)/.test(sql) && !/'visits', vi\.visits/.test(sql), 'read: only my visitors; identities premium-only; no exact count');
 ok(/20261022090000_v2_profile_visits\.sql/.test(read('scripts/local-backend/setup.mjs')) && !/profile_visits/.test(read('scripts/dev-backend/apply-dev.mjs')), 'LOCAL setup only, not apply-dev');
-module.exports = done('v2_profile_visits');
+// The client flow with stubbed server calls (the server side: smoke_visit_notice_local.mjs).
+module.exports = (async () => {
+  const mk = () => {
+    const st = { acked: false, rows: new Set(), calls: [], shown: [] };
+    const deps = {
+      record: async (id) => { st.calls.push(['record', id]); if (!st.acked) return 'notice'; st.rows.add(id); return 'recorded'; },
+      ack: async () => { st.calls.push(['ack']); st.acked = true; return true; },
+    };
+    return { st, flow: V.createVisitFlow(deps, (id) => st.shown.push(id)) };
+  };
+  let t = mk();
+  ok((await t.flow.loaded('h')) === 'notice' && t.st.rows.size === 0 && !t.st.acked && eq(t.st.shown, ['h']), 'flow: first open → notice shown, nothing recorded, nothing acknowledged');
+  t.flow.dismiss();
+  ok(t.st.rows.size === 0 && !t.st.acked && eq(t.st.shown, ['h', null]) && !t.st.calls.some((c) => c[0] === 'ack'), 'flow: close without "Got it" → no visit, no acknowledgement');
+  ok((await t.flow.gotIt()) === false && !t.st.acked, 'flow: "Got it" after closing does nothing');
+  t = mk(); // leaving the screen = the flow is dropped; the next open is a new flow
+  await t.flow.loaded('h');
+  const t2 = { st: t.st, flow: V.createVisitFlow({ record: async (id) => { t.st.calls.push(['record', id]); return t.st.acked ? (t.st.rows.add(id), 'recorded') : 'notice'; }, ack: async () => true }, (id) => t.st.shown.push(id)) };
+  ok((await t2.flow.loaded('h')) === 'notice' && t.st.rows.size === 0, 'flow: back out, open again → the notice shows again');
+  t = mk();
+  await t.flow.loaded('h');
+  ok((await t.flow.gotIt()) === true && t.st.acked && t.st.rows.has('h'), 'flow: "Got it" acknowledges, then records');
+  const order = t.st.calls.map((c) => c[0]).join(',');
+  ok(order === 'record,ack,record', 'flow: the visit is recorded only after the acknowledgement');
+  ok((await t.flow.loaded('h')) === null && t.st.calls.length === 3, 'flow: once per person per screen');
+  t = mk();
+  t.st.acked = true;
+  ok((await t.flow.loaded('x')) === 'recorded' && eq(t.st.shown, []), 'flow: already acknowledged → no notice, recorded directly');
+  // failed acknowledgement: notice stays, nothing recorded
+  const st3 = { rows: 0, shown: [] };
+  const f3 = V.createVisitFlow({ record: async () => 'notice', ack: async () => false }, (id) => st3.shown.push(id));
+  await f3.loaded('h');
+  ok((await f3.gotIt()) === false && eq(st3.shown, ['h']), 'flow: failed acknowledgement → notice stays, nothing recorded');
+  // double tap
+  let acks = 0;
+  const f4 = V.createVisitFlow({ record: async () => (acks ? 'recorded' : 'notice'), ack: async () => { acks += 1; await new Promise((r) => setTimeout(r, 5)); return true; } }, () => {});
+  await f4.loaded('h');
+  await Promise.all([f4.gotIt(), f4.gotIt()]);
+  ok(acks === 1, 'flow: a double tap on "Got it" acknowledges once');
+  return done('v2_profile_visits');
+})();

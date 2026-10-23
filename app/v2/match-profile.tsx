@@ -6,6 +6,7 @@
 // An outdated pick is refused before anything is spent and the user is asked
 // to refresh Matches. "You both liked": read-only (already a match).
 // Back always returns to Matches; there is no "next candidate" here.
+import { VisitsNotice } from '@/components/visits/VisitsNotice';
 import { useProfileVisit } from '@/hooks/useProfileVisit';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -45,7 +46,7 @@ export default function MatchProfileScreen() {
   const id = String(userId ?? '');
   const isPick = kind === 'pick';
 
-  const recordVisit = useProfileVisit();
+  const { recordVisit, notice: visitNotice } = useProfileVisit();
   const [load, setLoad] = useState<Load>('loading');
   const [profile, setProfile] = useState<RealProfile | null>(null);
   const [card, setCard] = useState<DailyCard | null>(null);
@@ -194,6 +195,7 @@ export default function MatchProfileScreen() {
         </Text>
         <View style={styles.iconBtn} />
       </View>
+      <VisitsNotice state={visitNotice} />
       <View ref={kb.frameRef} style={styles.frame} onLayout={onFrameLayout} collapsable={false}>
         {load === 'loading' ? (
           <View style={styles.center}>

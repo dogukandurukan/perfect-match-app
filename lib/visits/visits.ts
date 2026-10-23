@@ -2,11 +2,9 @@
 // ack_profile_visits_notice_v2, get_my_profile_visits_v2).
 import { supabase } from '@/lib/supabaseClient';
 
-import { parseVisits, type VisitsData } from './visitsCore';
+import { parseVisits, type RecordResult, type VisitsData } from './visitsCore';
 
 export * from './visitsCore';
-
-export type RecordResult = 'recorded' | 'skipped' | 'notice' | 'error';
 
 export async function recordProfileVisit(userId: string): Promise<RecordResult> {
   try {
@@ -24,8 +22,12 @@ export async function recordProfileVisit(userId: string): Promise<RecordResult> 
 }
 
 export async function ackVisitsNotice(): Promise<boolean> {
-  const { data, error } = await supabase.rpc('ack_profile_visits_notice_v2');
-  return !error && data?.ok === true;
+  try {
+    const { data, error } = await supabase.rpc('ack_profile_visits_notice_v2');
+    return !error && data?.ok === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function loadMyVisits(): Promise<{ ok: true; value: VisitsData } | { ok: false; message: string }> {

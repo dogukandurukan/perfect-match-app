@@ -12,9 +12,10 @@ Author: Claude Code. **LOCAL (tempa-local) only**; no merge, no deploy, nothing 
   - After 24 h, it counts again and reads **"Visited again"**. The first one reads **"Viewed your profile"**.
   - The exact number is never returned.
   - The window is one named constant: `v2_profile_visit_window()` (redefine it to change).
-- **Notice:** before the visitor's first recorded visit, the server answers `notice_required`. The app then asks "Profile visits are visible …":
-  - **Go back:** records nothing.
-  - **OK:** acknowledges (`account_state_v2.visits_notice_ack_at`), then records.
+- **Notice:** before the visitor's first recorded visit, the server answers `notice_required`. The app shows a small inline area under the header (since 2026-10-23, see below; it was a system alert with "Go back" / "OK"):
+  - text: "People whose profiles you visit can see you in their profile visitors."
+  - **Got it:** acknowledges (`account_state_v2.visits_notice_ack_at`), then records.
+  - **Close (×) or going back:** records nothing, saves no acknowledgement; the next eligible profile open shows it again.
 - **Activity:** a small "Profile visits" row above the like cards ("No visits yet" / "N people"), which opens `app/v2/profile-visits.tsx`.
   - **Premium:** rows with photo, name, age, label and time; a tap opens their profile. That opening is itself a visit, after the notice.
   - **Non-premium:** "N people visited your profile" + "See who visited" → `/premium` (follows the D84 likes rule — **a proposal and the current implementation, not a final owner decision**; see D103).
@@ -73,14 +74,43 @@ Grants go to authenticated only.
   - a deleted visitor → not listed.
 - `run.js`: all suites pass, incl. `v2_profile_visits` 24/24. `p0-checks` 28 · 12 · 14 · 21. `tsc` clean. LOCAL iOS `expo export` exit 0.
 
-## Not seen yet
+## Phone result (2026-10-23, owner, at `c572da5` — the old alert notice)
 
-- The notice, the Activity entry and the visits screen on the phone.
+Confirmed by the owner on the phone, tempa-local:
+- As **Pars** (P): Activity → Hale's profile opened.
+- The "Profile visits are visible" notice appeared on the first open; after OK, the second open showed no notice.
+- As **Hale** (H): Activity showed **2 visitors**, Pars and Vedat.
+  - Pars = the real phone visit.
+  - Vedat = the synthetic repeat-visit row left by the smoke test (expected).
+
+**Not confirmed on the phone (open):**
+- The exact labels under Pars / Vedat ("Viewed your profile" / "Visited again").
+- That a visit doesn't change the like badge.
+- A real repeat visit after waiting 24 h.
+- That nothing is recorded before the notice is acknowledged, and backing out without acknowledging.
+- The new "Got it" notice (below) — not seen on a phone at all.
+
+The 25/25 service smoke (above) is a local test on real services, separate from this phone result.
+
+## Notice simplified (2026-10-23, owner-approved change)
+
+- The system alert ("Profile visits are visible" + Go back / OK) became a small inline area under the header on the three profile screens (`components/visits/VisitsNotice.tsx`): one line of text, one primary **Got it**, a small close icon.
+- Logic moved to a pure flow, `createVisitFlow` in `lib/visits/visitsCore.ts`; `hooks/useProfileVisit.ts` now returns `{ recordVisit, notice }`.
+  - The visit is recorded only after the profile fully loaded (unchanged call sites) and only after "Got it" succeeded.
+  - Close / back: no visit, no acknowledgement → shown again on the next eligible open.
+  - A failed acknowledgement keeps the notice ("Couldn’t save that. Try again."), records nothing; a double tap acknowledges once.
+- Server unchanged (no new package). Accounts that already acknowledged are not reset (Pars keeps his acknowledgement, so on his phone the notice won't show again — a fresh visitor is needed to see it).
+- Premium visitor identities: **unchanged, still a proposal** (D103).
+
+**Local tests (not a phone test):**
+- `v2_profile_visits.check.js` 37/37 — incl. the flow with stubbed server calls: first open → notice, nothing recorded; close → no visit / no ack; reopen → notice again; Got it → ack then record (call order `record, ack, record`); once per person per screen; already acknowledged → no notice; failed ack; double tap.
+- New `scripts/local-backend/smoke_visit_notice_local.mjs` on real local services (fresh synthetic accounts, doesn't touch `.test-backend/`), **8/8**: open before Got it → `notice_required`, no row, no ack; reopen → asks again; ack alone records nothing; then recorded; ack time kept on a second ack; after ack an ineligible profile and the own profile are still not recorded.
+- `run.js` all 22 suites pass; `p0-checks` 28 · 12 · 14 · 21; `tsc` clean; iOS `expo export` exit 0 (new copy in the bundle, old title absent).
 
 ## Phone test
 
 Accounts are in `.test-backend/profile-visits.json`: visitor `P` (premium, has a like from host `H`) and host `H` (premium).
 
-1. As **P**, open Activity, then H's card. Expect the "Profile visits are visible" notice. Tap OK.
+1. As **P**, open Activity, then H's card. Expect the visits notice (done 2026-10-23 with the old alert; P has acknowledged, so P won't see the new "Got it" area again — it needs a visitor who hasn't acknowledged yet).
 2. Close the profile and open it again. No new notice.
 3. Sign in as **H**, open Activity, then Profile visits. Expect P with "Viewed your profile · Just now". The like cards should be unchanged, and the badge should count no visit.
