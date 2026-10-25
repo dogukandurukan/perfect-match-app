@@ -126,9 +126,11 @@ import {
 import {
   commitConnection,
   CONNECTION_COPY,
+  firstIncompleteTopic,
   CONNECTION_ENABLED,
   hasAnyAnswer,
   initialConnectStage,
+  topicOf,
   nextConnectStage,
   prevConnectStage,
   prioritiesComplete,
@@ -146,6 +148,7 @@ import {
   type ConnectStage,
   type IntentKey,
   type Priorities,
+  type PriorityTopicKey,
 } from '@/lib/onboardingV2/connection';
 import { loadConnectionAnswers, saveConnectionAnswers } from '@/lib/onboardingV2/connectionRemote';
 
@@ -382,6 +385,7 @@ export function PreviewFlow({ onExit, live }: Props) {
   const [connectBusy, setConnectBusy] = useState(false);
   const [connectNotice, setConnectNotice] = useState<string | null>(null);
   const [summaryFromSubmit, setSummaryFromSubmit] = useState(false);
+  const [priorityFocus, setPriorityFocus] = useState<{ key: PriorityTopicKey; n: number } | null>(null);
   const connectBusyRef = useRef(false);
   const hasLive = !!live;
   useEffect(() => {
@@ -798,6 +802,7 @@ export function PreviewFlow({ onExit, live }: Props) {
   const dobError = dob.ok ? null : dobErrorMessage(dob.reason);
   const section = sectionOf(pos);
   const compatHidden = hideOldIntent && pos.section === 'compatibility';
+  const incompleteTopic = connectActive && stageNow === 1 ? firstIncompleteTopic(cPrios) : null;
   const bProps = { draft: basics, update: updateBasics, onSubmit: handleContinue };
   const cProps = { draft: compat, update: updateCompat };
   const lifeQuestion = pos.section === 'yourLife' ? LIFE_QUESTIONS[step - 1] : null;
@@ -882,6 +887,21 @@ export function PreviewFlow({ onExit, live }: Props) {
             <Text style={styles.saveError} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
               {saveError}
             </Text>
+          ) : null}
+          {incompleteTopic ? (
+            // Why Continue is disabled, and a way to the card that needs a detail.
+            <TouchableOpacity
+              onPress={() => setPriorityFocus((f) => ({ key: incompleteTopic, n: (f?.n ?? 0) + 1 }))}
+              accessibilityRole="button"
+              accessibilityLabel={CONNECTION_COPY.detailNeededFor(topicOf(incompleteTopic).title)}
+              accessibilityHint="Scrolls to that card"
+              hitSlop={6}
+              style={styles.connectHint}>
+              <Text style={styles.connectHintText} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
+                {CONNECTION_COPY.detailNeededFor(topicOf(incompleteTopic).title)}{' '}
+                <Text style={styles.connectHintLink}>{CONNECTION_COPY.show}</Text>
+              </Text>
+            </TouchableOpacity>
           ) : null}
           <OnboardingPrimaryButton
             label={primary.label}
@@ -1027,6 +1047,7 @@ export function PreviewFlow({ onExit, live }: Props) {
           onClear={() => void commitConnect(withPriorities(null), false)}
           busy={connectBusy}
           notice={connectNotice}
+          focus={priorityFocus}
         />
       ) : null}
       {connectActive && stageNow === 2 ? (
@@ -1118,6 +1139,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     color: obColors.cta,
+    textDecorationLine: 'underline',
+  },
+  connectHint: {
+    minHeight: 32,
+    justifyContent: 'center',
+  },
+  connectHintText: {
+    fontFamily: obFonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: obColors.error,
+    textAlign: 'center',
+  },
+  connectHintLink: {
+    fontFamily: obFonts.bodySemiBold,
     textDecorationLine: 'underline',
   },
   tertiary: {

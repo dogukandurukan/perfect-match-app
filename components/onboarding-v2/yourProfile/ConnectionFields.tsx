@@ -3,10 +3,11 @@
 // PreviewFlow owns the stage, the server-confirmed answers, local edits and
 // saving. Existing onboarding tokens and option cards; no new theme.
 import { Ionicons } from '@expo/vector-icons';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { OnboardingOptionCard } from '@/components/onboarding-v2/OnboardingOptionCard';
+import { useRevealInScroll } from '@/components/onboarding-v2/OnboardingScrollContext';
 import {
   ALSO_OPEN_KEYS,
   CONNECTION_COPY,
@@ -119,10 +120,10 @@ function Chip({ label, selected, disabled, onPress, removable }: { label: string
       accessibilityState={{ checked: selected, disabled }}
       style={[styles.chip, selected && styles.chipOn, disabled && styles.dim]}>
       {selected && !removable ? <Ionicons name="checkmark" size={16} color={obColors.onCta} importantForAccessibility="no" /> : null}
-      <Text style={[styles.chipText, selected && !removable && styles.chipTextOn]} maxFontSizeMultiplier={1.5}>
+      <Text style={[styles.chipText, selected && styles.chipTextOn]} maxFontSizeMultiplier={1.5}>
         {label}
       </Text>
-      {selected && removable ? <Ionicons name="close" size={16} color={obColors.textPrimary} importantForAccessibility="no" /> : null}
+      {selected && removable ? <Ionicons name="close" size={16} color={obColors.onCta} importantForAccessibility="no" /> : null}
     </TouchableOpacity>
   );
 }
@@ -208,6 +209,7 @@ export function PrioritiesFields({
   onClear,
   busy,
   notice,
+  focus,
 }: {
   priorities: Priorities;
   myInterests: string[];
@@ -218,12 +220,21 @@ export function PrioritiesFields({
   onClear: () => void;
   busy: boolean;
   notice: string | null;
+  /** Scrolls this topic's card into view (n changes on every request). */
+  focus: { key: PriorityTopicKey; n: number } | null;
 }) {
   const chosen = PRIORITY_TOPICS.filter((t) => !!priorities[t.key]);
   const full = chosen.length >= MAX_PRIORITIES;
   const interestKeys = myInterests.filter((k) => k !== 'other' && interestLabel(k));
+  const reveal = useRevealInScroll();
+  const cardRefs = useRef<Partial<Record<PriorityTopicKey, View | null>>>({});
+  useEffect(() => {
+    if (!focus) return;
+    const node = cardRefs.current[focus.key];
+    if (node) reveal({ current: node });
+  }, [focus, reveal]);
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, styles.tail]}>
       <Text style={styles.count} accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.6}>
         {chosen.length} of {MAX_PRIORITIES} selected
       </Text>
@@ -236,10 +247,15 @@ export function PrioritiesFields({
       {chosen.map((t) => {
         const picked = priorities[t.key] ?? {};
         const pickedKeys = Object.keys(picked);
-        const rows = t.mode === 'interests' ? interestKeys.map((k) => ({ key: k, title: interestLabel(k)! })) : t.details;
         const interestsFull = t.mode === 'interests' && pickedKeys.length >= MAX_SHARED_INTERESTS;
         return (
-          <View key={t.key} style={styles.topicCard}>
+          <View
+            key={t.key}
+            ref={(n) => {
+              cardRefs.current[t.key] = n;
+            }}
+            collapsable={false}
+            style={styles.topicCard}>
             <Text style={styles.topicTitle} accessibilityRole="header" maxFontSizeMultiplier={1.5}>
               {t.title}
             </Text>
@@ -249,28 +265,41 @@ export function PrioritiesFields({
                   {CONNECTION_COPY.sharedInterestsHelper}
                 </Text>
                 <View style={styles.chips}>
-                  {rows.map((r) => {
-                    const on = !!picked[r.key];
-                    return <Chip key={r.key} label={r.title} selected={on} removable disabled={busy || (interestsFull && !on)} onPress={() => onToggleDetail(t.key, r.key)} />;
+                  {interestKeys.map((k) => {
+                    const on = !!picked[k];
+                    return <Chip key={k} label={interestLabel(k)!} selected={on} removable disabled={busy || (interestsFull && !on)} onPress={() => onToggleDetail(t.key, k)} />;
                   })}
                 </View>
+                {/* The chip above names the interest; its importance sits in one labelled group. */}
+                {pickedKeys.map((k) => (
+                  <View key={k} style={styles.detailGroup}>
+                    <View style={styles.interestRow}>
+                      <Text style={styles.interestName} numberOfLines={2} maxFontSizeMultiplier={1.5}>
+                        {interestLabel(k) ?? k}
+                      </Text>
+                      <View style={styles.interestToggle}>
+                        <ImportanceToggle value={picked[k]} label={interestLabel(k) ?? k} onChange={(v) => onImportance(t.key, k, v)} />
+                      </View>
+                    </View>
+                  </View>
+                ))}
               </>
             ) : (
-              rows.map((r) => (
-                <MarkRow key={r.key} label={r.title} mode={t.mode === 'single' ? 'single' : 'multi'} selected={!!picked[r.key]} disabled={busy} onPress={() => onToggleDetail(t.key, r.key)} />
-              ))
+              t.details.map((r) => {
+                const on = !!picked[r.key];
+                // Option and its Preference / Must-have in ONE group; the label is written once.
+                return (
+                  <View key={r.key} style={on ? styles.detailGroup : undefined}>
+                    <MarkRow label={r.title} mode={t.mode === 'single' ? 'single' : 'multi'} selected={on} disabled={busy} onPress={() => onToggleDetail(t.key, r.key)} />
+                    {on ? (
+                      <View style={styles.detailToggle}>
+                        <ImportanceToggle value={picked[r.key]} label={r.title} onChange={(v) => onImportance(t.key, r.key, v)} />
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })
             )}
-            {pickedKeys.map((k) => {
-              const label = t.mode === 'interests' ? interestLabel(k) ?? k : t.details.find((d) => d.key === k)?.title ?? k;
-              return (
-                <View key={k} style={styles.importanceRow}>
-                  <Text style={styles.importanceLabel} maxFontSizeMultiplier={1.5}>
-                    {label}
-                  </Text>
-                  <ImportanceToggle value={picked[k]} label={label} onChange={(v) => onImportance(t.key, k, v)} />
-                </View>
-              );
-            })}
             {pickedKeys.length === 0 ? (
               <Text style={styles.hint} maxFontSizeMultiplier={1.6}>
                 {CONNECTION_COPY.detailNeeded}
@@ -463,8 +492,12 @@ const styles = StyleSheet.create({
   markOn: { borderColor: obColors.cta, backgroundColor: obColors.cta },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: obColors.onCta },
   markLabel: { flex: 1, fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary },
-  importanceRow: { gap: 6, paddingTop: obSpacing.xs },
-  importanceLabel: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
+  detailGroup: { borderRadius: 12, padding: obSpacing.sm, backgroundColor: obColors.background, borderWidth: 1, borderColor: obColors.border },
+  detailToggle: { paddingLeft: 22 + obSpacing.md, paddingBottom: obSpacing.xs },
+  interestRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: obSpacing.sm },
+  interestName: { minWidth: 72, flexShrink: 1, fontFamily: obFonts.bodyMedium, fontSize: 15, lineHeight: 20, color: obColors.textPrimary },
+  interestToggle: { flexGrow: 1, minWidth: 200 },
+  tail: { paddingBottom: obSpacing.lg },
   segment: { flexDirection: 'row', padding: 3, borderRadius: 12, backgroundColor: obColors.background, borderWidth: 1, borderColor: obColors.border },
   segmentItem: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
   segmentOn: { backgroundColor: obColors.cta },

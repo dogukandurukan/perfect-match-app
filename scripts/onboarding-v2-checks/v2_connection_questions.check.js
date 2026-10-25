@@ -121,6 +121,14 @@ module.exports = (async () => {
   ok(!/compat|matching score/i.test(code('lib/onboardingV2/connectionRemote.ts')) && /d\.supports\.includes\(CONNECTION_VERSION\)/.test(code('lib/onboardingV2/connectionRemote.ts')), 'reads version 3 only, and only from a server that supports it');
   ok(!/connection_answers|connectionRemote|lib\/onboardingV2\/connection/.test(read('lib/onboardingV2/yourProfile.ts') + read('lib/onboardingV2/serverMapping.ts')), 'not in the profile preview or the public-profile mapping');
 
+  // UI fixes after the first version-3 phone look (2026-10-25).
+  ok(/styles\.chipText, selected && styles\.chipTextOn\]/.test(fields) && /selected && removable \? <Ionicons name="close" size=\{16\} color=\{obColors\.onCta\}/.test(fields), 'selected shared-interest chips: white text and white remove icon');
+  ok(!/importanceLabel|importanceRow/.test(fields) && /<MarkRow label=\{r\.title\}[^\n]*\n\s*\{on \? \(\s*<View style=\{styles\.detailToggle\}>/.test(fields), 'Preference / Must-have sits in the option’s own group; the option text is not repeated above it');
+  ok(eq([C.firstIncompleteTopic({ active: { exercises: 'preference' }, education: {}, money: {} }), C.firstIncompleteTopic({ active: { exercises: 'preference' } })], ['education', null]) && C.CONNECTION_COPY.detailNeededFor('Education') === 'Choose at least one detail for Education.', 'disabled Continue explains which topic needs a detail');
+  ok(/onPress=\{\(\) => setPriorityFocus/.test(flow) && /focus=\{priorityFocus\}/.test(flow) && /reveal\(\{ current: node \}\)/.test(fields), 'the hint scrolls to that topic card');
+  ok(C.CONNECTION_COPY.summaryMatters === 'What matters to you in a partner' && !/numberOfLines[^\n]*\n[^\n]*title/.test(fields), 'summary heading "What matters to you in a partner", free to wrap');
+  ok(/styles\.wrap, styles\.tail/.test(fields), 'extra room under the last priority line (footer is outside the scroll area)');
+
   // Server package.
   const sql = read('supabase/proposed/20261025090000_v2_connection_intent_priorities.sql').replace(/^--.*$/gm, '');
   ok(/if p_version = 3 then\s+if not public\.v2_connection_check_v3\(v_me, p_answers\)/.test(sql), 'version 3 validated by its own rules');

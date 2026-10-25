@@ -206,3 +206,19 @@ Open decisions: Must-have = hard filter or ranking; missing data = unknown, neve
 ## Phone test (version 3, not done)
 
 Account Nehir `tempa-local-connv2-phone-45094@tempa-test.example.com` — draft, old intent present (so the new intention is optional there and the invite has Skip for now), version-1/2 answers kept, no version-3 answers. Checked read-only; nothing changed. The required-intention path (no old intent) is covered by local tests only.
+
+## Phone look — version 3, reported by the owner (2026-10-25, at f7246af)
+
+Owner saw on the phone (Nehir): the three questions and the summary were displayed, and the choices visible in the screenshots were carried into the summary.
+
+**Not yet verified by the owner:** Must-have, the selection limits, clearing, and version-3 persistence after closing / reopening the app.
+
+## UI fixes after that look (2026-10-25)
+
+1. Selected shared-interest chips: white text and white remove icon on dark green.
+2. Priority details: each option and its Preference / Must-have are one group; the option text is no longer repeated above the control (shared interests: the chip picks, the group shows the interest once beside its control).
+3. Disabled Continue on priorities explains why: "Choose at least one detail for {Topic}. Show" — tapping scrolls to that card.
+4. Summary heading "What matters to you in a partner" (wraps; no line limit).
+5. Bottom space: the footer is outside the scroll area (not overlaid), content already ends 24 pt above it; the priorities screen gets 16 pt more so its last line and notes clear the buttons. The partial last row in a screenshot is a scroll position, not unreachable content.
+
+No change to questions, options, stored data, matching or visibility. Verified locally (not on a phone): `v2_connection_questions` 76/76, all suites, `tsc`, iOS export.

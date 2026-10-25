@@ -125,13 +125,15 @@ export const CONNECTION_COPY = {
   prioritiesTitle: 'What matters to you?',
   prioritiesHelper: 'Choose up to 3 priorities.',
   detailNeeded: 'Choose at least one detail.',
+  detailNeededFor: (topic: string) => `Choose at least one detail for ${topic}.`,
+  show: 'Show',
   sharedInterestsHelper: 'Choose up to 3 of your interests.',
   connectionTitle: 'How do you like to connect?',
   connectionHelper: 'Choose up to 2 that feel right for you.',
   summaryTitle: 'What you’re looking for',
   summaryHelper: 'Based on the preferences you shared.',
   summaryIntent: 'Your intention',
-  summaryMatters: 'What matters',
+  summaryMatters: 'What matters to you in a partner',
   summaryStyle: 'Your connection style',
   summaryNote: 'These preferences aren’t a personality assessment.',
   continueToApplication: 'Continue to application',
@@ -220,6 +222,10 @@ export function setImportance(p: Priorities, key: PriorityTopicKey, detail: stri
   if (!cur || !cur[detail]) return p;
   return { ...p, [key]: { ...cur, [detail]: imp } };
 }
+/** The first chosen topic (screen order) that still has no detail. */
+export const firstIncompleteTopic = (p: Priorities): PriorityTopicKey | null =>
+  PRIORITY_TOPICS.find((t) => !!p[t.key] && Object.keys(p[t.key] ?? {}).length === 0)?.key ?? null;
+
 /** At least one topic and every chosen topic has at least one detail. */
 export const prioritiesComplete = (p: Priorities): boolean =>
   Object.keys(p).length > 0 && Object.values(p).every((d) => !!d && Object.keys(d).length > 0);
