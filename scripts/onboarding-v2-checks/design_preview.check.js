@@ -26,6 +26,7 @@ ok(/if \(!__DEV__\) return <Redirect href="\/" \/>/.test(route), 'route redirect
 const comp = read('components/dev/design/DesignPreview.tsx');
 const lib = read('lib/dev/designPreview.ts');
 ok(![comp, lib, route].some((t) => /supabaseClient|onboardingV2\/remote|\.rpc\(|\.from\(|storage/.test(t)), 'preview never imports Supabase / remote helpers');
+ok(/SINGLE_QUESTIONS\[1\]/.test(comp) && P.DESIGN_SCREENS[1].title.includes('2 of 7'), 'representative question is 3.2 (still live; 3.1 is hidden under D104b)');
 ok(/OnboardingScreen/.test(comp) && /SingleChoiceFields/.test(comp) && /ReceivedFields/.test(comp) && /ConsentRow/.test(comp), 'preview renders the real onboarding components');
 
 const welcome = read('app/v2/welcome.tsx');

@@ -177,7 +177,7 @@ function SpecWelcome({ onBack, proposal }: { onBack: () => void; proposal: numbe
 }
 
 function QuestionStates({ state, onBack }: { state: DesignStateId; onBack: () => void }) {
-  const question = SINGLE_QUESTIONS[0]; // 3.1 What are you looking for?
+  const question = SINGLE_QUESTIONS[1]; // 3.2 How social are you? (3.1 is hidden live under D104b)
   const [draft, setDraft] = useState<CompatDraft>(
     state === 'question-empty' ? EMPTY_COMPAT_DRAFT : { ...EMPTY_COMPAT_DRAFT, [question.id]: question.options[0].key },
   );
@@ -185,7 +185,7 @@ function QuestionStates({ state, onBack }: { state: DesignStateId; onBack: () =>
   return (
     <OnboardingScreen
       sectionLabel="Compatibility"
-      step={1}
+      step={2}
       totalSteps={COMPAT_TOTAL_STEPS}
       title={question.title}
       helper={question.helper}

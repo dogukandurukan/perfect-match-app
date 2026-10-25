@@ -52,9 +52,15 @@ paylaşma, değerlerini bir yere yapıştırma.
 ## 3. iPhone: hangi yol?
 
 Uygulama Expo Go ile değil, kendi **development build**'iyle çalışır
-(`expo-dev-client`, push bildirimi vb. yerel modüller). Doğukan'ın telefonundaki
-build başka bir iPhone'a kurulamaz: iOS, internal build'i yalnız provisioning
-profilinde kayıtlı cihazlara kurar. Bu yüzden:
+(`expo-dev-client`, push bildirimi vb. yerel modüller; Expo Go denenmedi ve önerilmiyor).
+
+Doğrulanan durum (EAS, 2026-10-26, salt okunur):
+- Tek iOS development build: 2026-08-26, commit `5dba6a8`, dağıtım **internal** (ad-hoc). Kurulum bağlantısının süresi 2026-09-09'da doldu.
+- O tarihten bu yana yerel (native) bağımlılık değişmedi (`package.json` / `app.json` farkı yalnız npm komutları + `eas.json`) → güncel JS sürümü bu build'de çalışır (Doğukan'ın telefonunda kullanılıyor).
+- Internal build yalnız provisioning profilinde **kayıtlı** cihazlara kurulur; senin iPhone'un kayıtlı değil → **yeni build gerekir** (aynı native içerik, yeni cihaz listesi).
+- Gerekenler: Doğukan'ın Apple Developer Program üyeliği (aktif olmalı) ve EAS hesabı. Senin Apple hesabına, Xcode'a gerek yok.
+
+Adımlar:
 
 1. **Doğukan:** `npx eas device:create` → çıkan kayıt bağlantısını sana gönderir.
 2. **Sen (iPhone):** bağlantıyı Safari'de aç → profili yükle (Ayarlar'da "Profil İndirildi" → Yükle). Bu yalnız cihaz kimliğini (UDID) kaydeder.
