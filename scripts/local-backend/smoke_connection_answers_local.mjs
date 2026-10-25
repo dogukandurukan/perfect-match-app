@@ -1,13 +1,13 @@
-// Optional dating-preference answers on the LOCAL Supabase (real Postgres +
+// "What you're looking for" answers on the LOCAL Supabase (real Postgres +
 // Auth + PostgREST, real JWTs): save_connection_answers_v2 /
-// get_my_connection_answers_v2, version 2 (D104 revision 2026-10-23) next to
-// the kept version-1 answers.
+// get_my_connection_answers_v2 version 3 (D104b, 2026-10-25), next to kept
+// version-1/2 answers, plus completeness (old intent OR new main intention).
 //   node scripts/local-backend/smoke_connection_answers_local.mjs
-// FRESH synthetic people only (tempa-local-connv2-<tag>-*); never the phone
-// accounts and never .test-backend (the phone draft is chosen separately).
-//   A  draft applicant (answers)      B  draft applicant (isolation)
-//   M  approved member                S  applicant who answered, then submitted
-//   C  applicant with no answers      I  incomplete draft (completeness unchanged)
+// FRESH synthetic people only (tempa-local-connv3-<tag>-*); never the phone
+// accounts and never .test-backend.
+//   A  draft with old intent (answers)   N  draft WITHOUT old intent (new flow)
+//   B  draft (isolation)                 O  draft with old intent, no new answers
+//   M  approved member
 import crypto from 'node:crypto';
 import { admin, env, ensureMember, fillApplication, LOOKS, signIn } from './_local.mjs';
 
@@ -17,88 +17,107 @@ const check = (c, n) => {
   if (c) { passed += 1; console.log('ok  ', n); }
   else { failed += 1; console.log('FAIL', n); }
 };
-const save = (c, answers, version = 2) => c.rpc('save_connection_answers_v2', { p_version: version, p_answers: answers });
-const get = async (c, version = 2) => (await c.rpc('get_my_connection_answers_v2', { p_version: version })).data;
-// jsonb reorders keys: compare independent of key order.
-const sorted = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]])) : o);
-const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
+const save = (c, answers, version = 3) => c.rpc('save_connection_answers_v2', { p_version: version, p_answers: answers });
+const get = async (c, version = 3) => (await c.rpc('get_my_connection_answers_v2', { p_version: version })).data;
+// jsonb reorders keys: compare independent of key order (deep).
+const norm = (v) => (Array.isArray(v) ? v.map(norm) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, norm(v[k])])) : v);
+const same = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
 const base = { city: 'İstanbul', district: 'Kadıköy' };
-const V1 = { meet_new: 'take_time', when_bothered: 'talk_now', time_together: 'both', show_care: 'words' };
+const missing = async (uid) => (await admin.rpc('v2_missing_for', { p_uid: uid })).data;
 
 async function main() {
   const tag = Date.now().toString(36);
-  const mail = (k) => `tempa-local-connv2-${tag}-${k}@tempa-test.example.com`;
+  const mail = (k) => `tempa-local-connv3-${tag}-${k}@tempa-test.example.com`;
   const A = await signIn(mail('a'));
   await fillApplication(A.c, A.uid, { ...base, first: 'Ada', gender: 'woman', interested: ['men'], dob: '1994-01-01', look: LOOKS[1] });
   const B = await signIn(mail('b'));
   const M = await ensureMember({ ...base, email: mail('m'), first: 'Mert', gender: 'man', interested: ['women'], dob: '1992-03-03', look: LOOKS[5] });
 
   const g0 = await get(A.c);
-  check(g0?.version === null && same(g0.answers, {}) && g0.can_edit === true, 'nothing saved yet → empty, editable (draft)');
+  check(g0?.version === null && same(g0.answers, {}) && g0.can_edit === true && same(g0.supports, [1, 2, 3]), 'nothing saved yet → empty, editable; server supports version 3');
 
-  // Old answers (version 1, e.g. from the first draft) stay separate.
-  check(!(await save(A.c, V1, 1)).error, 'setup: version-1 answers saved');
-  const p1 = await save(A.c, { plan_first_date: 'few_options' });
-  check(!p1.error && same((await get(A.c)).answers, { plan_first_date: 'few_options' }), 'partial version-2 answer saved (1 of 2)');
-  check(same((await get(A.c, 1)).answers, V1), 'version-1 answers kept unchanged next to version 2');
-  const old = await A.c.rpc('get_my_connection_answers_v2');
-  check(!old.error && old.data.version === 1 && same(old.data.answers, V1), 'a call without a version still reads version 1 (older app)');
-  const v2NoV1 = await get(A.c);
-  check(v2NoV1.version === 2 && !Object.keys(v2NoV1.answers).some((k) => k in V1), 'version 2 never contains version-1 ids');
+  // Older versions stay separate and untouched.
+  const V1 = { meet_new: 'take_time' };
+  const V2 = { plan_first_date: 'decide_together' };
+  await save(A.c, V1, 1);
+  await save(A.c, V2, 2);
 
-  // Reload persistence, edit, clear.
+  // Partial, persistence, edit, clear.
+  check(!(await save(A.c, { intent: 'long_term', intent_also: ['see_where'] })).error, 'intention + "Also open to" saved (partial)');
   const fresh = await signIn(mail('a'));
-  check(same((await get(fresh.c)).answers, { plan_first_date: 'few_options' }) && (await get(fresh.c)).version === 2, 'a fresh session (reload) reads the saved answer + version');
-  await save(A.c, { plan_first_date: 'few_options', first_date_comfort: 'quiet_place' });
-  await save(A.c, { plan_first_date: 'suggest_first', first_date_comfort: 'quiet_place' });
-  check(same((await get(A.c)).answers, { plan_first_date: 'suggest_first', first_date_comfort: 'quiet_place' }), 'answer edited');
-  await save(A.c, { first_date_comfort: 'quiet_place' });
-  check(same((await get(A.c)).answers, { first_date_comfort: 'quiet_place' }), 'Clear answer removes only that answer');
-  check(!(await save(A.c, {})).error && same((await get(A.c)).answers, {}) && (await get(A.c)).version === 2, 'all skipped / cleared: an empty set is valid');
-  check(same((await get(A.c, 1)).answers, V1), 'version-1 answers still unchanged after edits');
+  check(same((await get(fresh.c)).answers, { intent: 'long_term', intent_also: ['see_where'] }), 'a fresh session (reopen) reads it back');
+  const full = { intent: 'long_term', intent_also: ['see_where', 'marriage'],
+    priorities: { active: { exercises: 'preference', active_together: 'must_have' }, interests: { travel: 'must_have', music: 'preference' }, children: { wants: 'must_have' } },
+    connection: ['gradual', 'open_talk'] };
+  check(!(await save(A.c, full)).error && same((await get(A.c)).answers, full), 'all three answered: per-detail Preference / Must-have kept');
+  const edited = { ...full, intent: 'marriage', intent_also: ['see_where'] };
+  check(!(await save(A.c, edited)).error && same((await get(A.c)).answers, edited), 'edit: new main intention, its duplicate extra removed');
+  const noPrefs = { intent: 'marriage', intent_also: ['see_where'], priorities_none: true, connection: ['not_sure'] };
+  check(!(await save(A.c, noPrefs)).error && same((await get(A.c)).answers, noPrefs), '"No specific preferences" and "I’m not sure yet" alone are valid');
+  check(!(await save(A.c, { intent: 'marriage' })).error && same((await get(A.c)).answers, { intent: 'marriage' }), 'cleared parts are removed');
+  check(!(await save(A.c, {})).error && same((await get(A.c)).answers, {}), 'everything skipped: empty set valid');
+  check(same((await get(A.c, 1)).answers, V1) && same((await get(A.c, 2)).answers, V2), 'version-1 and version-2 answers unchanged');
 
-  // Refused writes leave everything as it was (save error → nothing saved).
-  await save(A.c, { plan_first_date: 'any' });
-  for (const [name, ans, ver] of [['a version-1 id in version 2', { meet_new: 'take_time' }, 2], ['a version-2 id in version 1', { plan_first_date: 'any' }, 1], ['unknown option', { plan_first_date: 'call_first' }, 2], ['non-string value', { plan_first_date: 1 }, 2], ['not an object', ['plan_first_date'], 2], ['unknown version', { plan_first_date: 'any' }, 3]]) {
-    const r = await save(A.c, ans, ver);
-    check(/invalid_answers|unknown_version/.test(r.error?.message ?? ''), `${name} → refused`);
-  }
-  check(same((await get(A.c)).answers, { plan_first_date: 'any' }) && same((await get(A.c, 1)).answers, V1), 'after the refusals both versions are unchanged');
+  // Refusals leave the saved answers unchanged.
+  await save(A.c, { intent: 'casual' });
+  const refused = [
+    ['main intention repeated in extras', { intent: 'casual', intent_also: ['casual'] }],
+    ['"Still figuring it out" as an extra', { intent: 'casual', intent_also: ['figuring_out'] }],
+    ['extras without a main intention', { intent_also: ['casual'] }],
+    ['unknown intention', { intent: 'friends' }],
+    ['4 priority topics', { priorities: { active: { exercises: 'preference' }, education: { degree: 'preference' }, career: { steady_job: 'preference' }, money: { independent: 'preference' } } }],
+    ['a topic without a detail', { priorities: { active: {} } }],
+    ['two children choices', { priorities: { children: { wants: 'preference', deciding: 'preference' } } }],
+    ['an interest the user doesn’t have', { priorities: { interests: { gaming: 'preference' } } }],
+    ['"Other" as a shared interest', { priorities: { interests: { other: 'preference' } } }],
+    ['4 shared interests', { priorities: { interests: { travel: 'preference', music: 'preference', food: 'preference', books: 'preference' } } }],
+    ['unknown importance', { priorities: { active: { exercises: 'essential' } } }],
+    ['priorities with "No specific preferences"', { priorities_none: true, priorities: { active: { exercises: 'preference' } } }],
+    ['3 connection choices', { connection: ['gradual', 'open_talk', 'own_space'] }],
+    ['"I’m not sure yet" with another choice', { connection: ['not_sure', 'gradual'] }],
+    ['an old-version id in version 3', { plan_first_date: 'any' }],
+  ];
+  for (const [name, ans] of refused) check(/invalid_answers/.test((await save(A.c, ans)).error?.message ?? ''), `${name} → refused`);
+  check(same((await get(A.c)).answers, { intent: 'casual' }), 'after the refusals the saved answers are unchanged');
 
   // Isolation.
-  const gb = await get(B.c);
-  check(same(gb.answers, {}) && gb.version === null, 'another account reads only its own (empty) answers');
+  check(same((await get(B.c)).answers, {}), 'another account reads only its own answers');
   const direct = await B.c.from('connection_answers_v2').select('*');
   check(!!direct.error || (direct.data ?? []).length === 0, 'the table is not readable directly');
-  const forge = await B.c.from('connection_answers_v2').insert({ user_id: A.uid, version: 2, answers: {} });
-  check(!!forge.error, 'nobody writes answers for someone else (direct insert refused)');
-  const anon = await fetch(`${env.url}/rest/v1/rpc/get_my_connection_answers_v2`, { method: 'POST', headers: { apikey: env.anonKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_version: 2 }) });
+  check(!!(await B.c.rpc('v2_connection_check_v3', { p_uid: A.uid, a: {} })).error && !!(await B.c.rpc('v2_connection_has_intent', { p_uid: A.uid })).error, 'helper functions are not callable by apps');
+  const anon = await fetch(`${env.url}/rest/v1/rpc/get_my_connection_answers_v2`, { method: 'POST', headers: { apikey: env.anonKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_version: 3 }) });
   check(anon.status >= 400, 'signed out → refused');
 
-  // Optional: the normal submit works with or without answers; completeness unchanged.
-  const S = await signIn(mail('s'));
-  await fillApplication(S.c, S.uid, { ...base, first: 'Selin', gender: 'woman', interested: ['men'], dob: '1993-02-02', look: LOOKS[3] });
-  await save(S.c, { first_date_comfort: 'small_activity' });
-  const subS = (await S.c.rpc('submit_application_v2', { p_request_id: crypto.randomUUID() })).data;
-  check(subS?.status === 'submitted', 'submit with partial answers → submitted');
-  const sAfter = await get(S.c);
-  check(sAfter.can_edit === false && sAfter.answers.first_date_comfort === 'small_activity', 'after submitting: answers kept, no longer editable');
-  check(/application_locked/.test((await save(S.c, { first_date_comfort: 'quiet_place' })).error?.message ?? '') && (await get(S.c)).answers.first_date_comfort === 'small_activity', 'a submitted applicant cannot change answers (save error, data unchanged)');
-  const C = await signIn(mail('c'));
-  await fillApplication(C.c, C.uid, { ...base, first: 'Cem', gender: 'man', interested: ['women'], dob: '1991-04-04', look: LOOKS[0] });
-  check((await C.c.rpc('submit_application_v2', { p_request_id: crypto.randomUUID() })).data?.status === 'submitted', 'no answers at all (section skipped / turned off) → normal submit works');
-  const I = await signIn(mail('i'));
-  await fillApplication(I.c, I.uid, { ...base, first: 'Can', gender: 'man', interested: ['women'], dob: '1991-05-05', look: LOOKS[2], prompts: [['small_thing_i_love', 'Tea.']] });
-  await save(I.c, { plan_first_date: 'any', first_date_comfort: 'short_casual' });
-  const subI = (await I.c.rpc('submit_application_v2', { p_request_id: crypto.randomUUID() })).data;
-  check(subI?.status !== 'submitted' && JSON.stringify(subI?.missing ?? []).includes('prompt'), 'completeness unchanged: answering everything does not complete a missing prompt');
+  // Completeness: the intention is still required — old field OR new main intention, never mapped.
+  const N = await signIn(mail('n'));
+  await fillApplication(N.c, N.uid, { ...base, first: 'Nil', gender: 'woman', interested: ['men'], dob: '1996-02-02', look: LOOKS[3] });
+  const cl = await N.c.rpc('save_onboarding_v2', { p_section: 'compatibility', p_data: { intent: null } });
+  check(!cl.error, 'setup: a draft that never answered the old intent question');
+  check((await missing(N.uid))?.includes('compatibility.answers'), 'no old intent and no new intention → incomplete');
+  const sub0 = (await N.c.rpc('submit_application_v2', { p_request_id: crypto.randomUUID() })).data;
+  check(sub0?.status !== 'submitted', 'submit refused without any intention (required info can’t be skipped)');
+  await save(N.c, { priorities_none: true, connection: ['gradual'] });
+  check((await missing(N.uid))?.includes('compatibility.answers'), 'optional answers alone don’t complete it');
+  await save(N.c, { intent: 'see_where', priorities_none: true, connection: ['gradual'] });
+  check(((await missing(N.uid)) ?? []).length === 0, 'new main intention completes the application');
+  const oldIntentN = (await admin.from('onboarding_v2').select('intent').eq('user_id', N.uid).single()).data?.intent;
+  check(oldIntentN === null, 'the new intention is NOT copied into the old intent field');
+  const subN = (await N.c.rpc('submit_application_v2', { p_request_id: crypto.randomUUID() })).data;
+  check(subN?.status === 'submitted', 'submit with the new intention → submitted');
+  check((await get(N.c)).can_edit === false && /application_locked/.test((await save(N.c, { intent: 'casual' })).error?.message ?? '') && (await get(N.c)).answers.intent === 'see_where', 'after submitting: answers kept and locked (save error, data unchanged)');
 
-  // Members are never asked; answers are not part of what others see.
-  check((await get(M.c)).can_edit === false && /application_locked/.test((await save(M.c, { plan_first_date: 'any' })).error?.message ?? ''), 'an approved member is not asked (cannot save)');
-  const rv = await admin.rpc('review_application_v2', { p_user: S.uid, p_decision: 'accept' });
+  // Section off / old flow: old intent, no new answers → normal submit.
+  const O = await signIn(mail('o'));
+  await fillApplication(O.c, O.uid, { ...base, first: 'Oya', gender: 'woman', interested: ['men'], dob: '1993-03-03', look: LOOKS[2] });
+  check((await O.c.rpc('submit_application_v2', { p_request_id: crypto.randomUUID() })).data?.status === 'submitted', 'old intent only (section off) → normal submit works');
+
+  // Visibility: the new answers never reach other people.
+  const rv = await admin.rpc('review_application_v2', { p_user: N.uid, p_decision: 'accept' });
   if (rv.error) throw new Error(rv.error.message);
-  const pub = JSON.stringify((await M.c.rpc('get_profile_v2', { p_user: S.uid })).data ?? {});
-  check(pub.length > 2 && !/first_date_comfort|small_activity|plan_first_date|connection/.test(pub), 'the public profile does not contain the answers');
+  const pub = (await M.c.rpc('get_profile_v2', { p_user: N.uid })).data ?? {};
+  const pubText = JSON.stringify(pub);
+  check(pubText.length > 2 && pub.intent == null && !/see_where|priorities|gradual|connection/.test(pubText), 'public profile: no new intention, priorities or connection style');
+  check(/application_locked/.test((await save(M.c, { intent: 'casual' })).error?.message ?? ''), 'an approved member is not asked (cannot save)');
 
   console.log(`smoke_connection_answers_local (local Supabase, real services): ${passed}/${passed + failed} passed`);
   process.exit(failed ? 1 : 0);

@@ -41,6 +41,7 @@ const PACKAGES = [
   '20261022090000_v2_profile_visits.sql',
   '20261022120000_v2_connection_answers.sql',
   '20261023090000_v2_connection_answers_versions.sql',
+  '20261025090000_v2_connection_intent_priorities.sql',
 ];
 
 const fail = (m) => {

@@ -130,3 +130,79 @@ Applied to tempa-local as local migration `00000000000028` (psql in one transact
 ## Phone test (not done yet)
 
 Account: `tempa-local-connect-mvk0pgkx-a@tempa-test.example.com` — draft, every section filled, 3 photos, **version-1 answers only** (all four), no version-2 answers. Checked read-only; nothing changed. The previous phone account (`…-p`) is **submitted** and was left as it is.
+
+## Phone result — version 2 (two questions), reported by the owner (2026-10-25)
+
+Account `tempa-local-connv2-phone-45094@tempa-test.example.com` (Nehir, draft). Owner reported on the phone:
+- answering works;
+- the summary with a single answer shows one line;
+- after fully closing and reopening the app, the answer and the summary were kept.
+
+Server state matches (read-only): version 2 `{"plan_first_date": "decide_together"}`. This result is for **version 2 only**; version 3 below has not been seen on a phone.
+
+---
+
+# Rebuild (2026-10-25, D104b) — "What you're looking for", version 3
+
+Author: Claude Code. **LOCAL (tempa-local) only**; no merge, no deploy, nothing on the shared project. Mockup built with existing onboarding tokens and components (ivory / dark green / sage); no global theme or branding change.
+
+## Flow
+
+Live first-submit screen, draft only (same integration point, no new numbered step):
+1. **Invite** "What you’re looking for" — card + (when required) "Choosing what you’re looking for is needed for your application." + "Your answers are saved privately. They aren’t shown on your profile and aren’t used for matching yet." Explore / Skip for now (no Skip when the intention is required).
+2. **1 of 3 — "What are you looking for?"** radio, 6 options; "Also open to…" chips (concrete intentions only; the main one and "Still figuring it out" never offered). Changing the main intention removes it from the extras, others kept. Required (no Skip) when there is no old intent.
+3. **2 of 3 — "What matters to you?"** up to 3 topic chips; each chosen topic opens a card with its details (checkboxes; children = radio; shared interests = up to 3 of the user's own interests, "Other" excluded); every chosen detail has Preference / Must-have (default Preference). Removing a topic removes its details and importance. Continue needs ≥1 detail per topic. "No specific preferences" (secondary) warns before clearing chosen priorities. Skip question; Clear answer when saved.
+4. **3 of 3 — "How do you like to connect?"** square checkboxes, up to 2; "I’m not sure yet" alone. "See my summary" saves; Skip question; Clear answer when saved.
+5. **Summary** "What you’re looking for" / "Based on the preferences you shared." — Your intention · What matters (each detail with its own Preference / Must-have tag) · Your connection style; only answered parts; fixed text. Continue to application / Edit preferences. Never submits.
+6. **Submit screen** — "What you’re looking for · Private · Saved · View" when answers are saved; **Submit application** is the only submit. People with current answers don’t get the invite again.
+
+Every Continue saves first and advances only after a real save; a failed save stays on the screen with "Couldn’t save your answer. Check your connection and try again." Selecting never advances.
+
+## Intention: asked once
+
+| | Old Compatibility intent (`onboarding_v2.intent`) | New main intention (version 3) |
+|---|---|---|
+| Options | long_term · casual · figuring_out | one_night · casual · see_where · long_term · marriage · figuring_out (+ extras) |
+| Asked | Compatibility step 1 — **hidden while this section is on** (server package + draft, or a saved new intention) | in this section |
+| Completeness | required — **either** field satisfies `compatibility.answers` | |
+| Profile | shown as "Looking for" (`get_profile_v2`, discover card, profile preview) — unchanged | **private**, not shown |
+| Matching (V2) | not used (discovery / daily picks filter gender, interest, age, blocks only) | not used |
+
+No mapping in either direction. Section off → the old step shows again and is required as before. Drafts that already answered the old intent (e.g. Nehir) keep it and see the new intention as optional.
+
+## Where the data is used now
+
+- **Saved:** `connection_answers_v2` (version 3 row), RPCs only, the applicant themself, draft only.
+- **Read by:** this onboarding section only (and `v2_missing_for` checks whether a version-3 main intention exists).
+- **Not read by:** public profile, discovery, daily picks, likes, review screens, other packages.
+
+## For matching later — missing other-person data and open decisions
+
+| Preference | Other person's data today |
+|---|---|
+| Main intention / extras | Only people who answered version 3; others have the old 3-option intent — no agreed relation between them |
+| Exercises regularly | Only self-reported "How active are you?" (very / somewhat / not very) — whether it counts needs a decision |
+| Enjoys being active together | none |
+| Shared interests | `onboarding_v2.interests` — available |
+| Has a university degree | none (school is a name, no degree level) |
+| Has a steady job | work status (full-time / part-time / self-employed / student / between jobs) — mapping needs a decision |
+| Values their career, financially independent, similar spending, lives alone, similar daily routine | none |
+| Plans for children | none (nobody states their own plans) |
+| Connection style | only people who answered; private |
+
+Open decisions: Must-have = hard filter or ranking; missing data = unknown, never a match or mismatch (no fake fit); whether extras widen matching; whether the new intention becomes visible on the profile; **disclosure to users and re-confirmation of preferences before any matching use.**
+
+## Server package
+
+`supabase/proposed/20261025090000_v2_connection_intent_priorities.sql`: `v2_connection_check_v3` (all version-3 rules incl. own interests, limits, exclusivity), save validates version 3, reader returns `supports: [1,2,3]` (the app hides the section on older servers), `v2_connection_has_intent`, `v2_missing_for` changed in one line only (old intent OR version-3 intention). Applied to tempa-local as `00000000000029` in one transaction (listed in `setup.mjs`, setup not run). Backup `~/tempa-backups/2026-10-25-before-connection-v3/` (76 TABLE DATA); data fingerprint before / after identical; `v2_missing_for` definition diff = the intended line.
+
+## Verified locally (not on a phone)
+
+- `v2_connection_questions` **70/70**: owner copy, ids, no labels / scores / wealth wording, no "change this later"; intention extras rules; ≤3 topics, details required, per-detail importance, topic removal clears, children single, ≤3 interests, "No specific preferences" clears; ≤2 connection, "not sure" alone; summary (only answered, per-detail tags); stages (no invite with current answers); save stub (partial, edit, failure + retry, clear); wiring (off-switch, old step hidden, required intention without Skip, can't reach Submit without it, summary never submits); SQL shape.
+- `smoke_connection_answers_local.mjs` on real local services **40/40** (fresh `tempa-local-connv3-*`): partial, reopen, edit, clear, all skipped, versions 1/2 unchanged, 15 invalid shapes refused with data unchanged, isolation / anon / helpers not callable; completeness: no intention → refused, optional answers alone don't complete, new intention completes **without** writing the old field, submitted = locked; old-intent-only (section off) submits; public profile has no new data; member can't save.
+- `smoke_review_local` 17/17 (after chunking `review.mjs list` queries — 316 synthetic accounts made the id list exceed the URL limit; local tool only), `smoke_onboarding_takes_local` 18/18.
+- `run.js` all 22 suites pass; `p0-checks` 28 · 12 · 14 · 21; `tsc` clean; LOCAL iOS `expo export` exit 0 (new copy in the bundle, version-2 copy absent).
+
+## Phone test (version 3, not done)
+
+Account Nehir `tempa-local-connv2-phone-45094@tempa-test.example.com` — draft, old intent present (so the new intention is optional there and the invite has Skip for now), version-1/2 answers kept, no version-3 answers. Checked read-only; nothing changed. The required-intention path (no old intent) is covered by local tests only.

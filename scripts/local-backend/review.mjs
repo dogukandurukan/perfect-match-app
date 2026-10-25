@@ -69,10 +69,15 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 
 async function list() {
   const users = await allSyntheticUsers();
-  const states = must(await admin.from('account_state_v2').select('user_id, application_status, verification_status, membership_status, submitted_at')
-    .in('user_id', users.map((u) => u.id)), 'states');
-  const names = new Map((must(await admin.from('onboarding_v2').select('user_id, first_name').in('user_id', users.map((u) => u.id)), 'names') ?? [])
-    .map((r) => [r.user_id, r.first_name]));
+  // In chunks: hundreds of ids in one ?in=(…) exceed the URL length limit.
+  const ids = users.map((u) => u.id);
+  const chunked = async (table, cols, label) => {
+    const out = [];
+    for (let i = 0; i < ids.length; i += 100) out.push(...(must(await admin.from(table).select(cols).in('user_id', ids.slice(i, i + 100)), label) ?? []));
+    return out;
+  };
+  const states = await chunked('account_state_v2', 'user_id, application_status, verification_status, membership_status, submitted_at', 'states');
+  const names = new Map((await chunked('onboarding_v2', 'user_id, first_name', 'names')).map((r) => [r.user_id, r.first_name]));
   const email = new Map(users.map((u) => [u.id, u.email]));
   const order = { submitted: 0, changes_requested: 1, draft: 2, accepted: 3, rejected: 4 };
   const rows = (states ?? []).sort((a, b) => (order[a.application_status] ?? 9) - (order[b.application_status] ?? 9)

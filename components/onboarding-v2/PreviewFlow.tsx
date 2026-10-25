@@ -61,6 +61,7 @@ import {
 } from '@/lib/onboardingV2/basics';
 import {
   EMPTY_COMPAT_DRAFT,
+  isCompatStepValid,
   SINGLE_QUESTIONS,
   VALUES_HELPER,
   VALUES_TITLE,
@@ -116,21 +117,35 @@ import {
 } from '@/lib/onboardingV2/yourWorld';
 import {
   ConnectionInviteFields,
-  ConnectionQuestionFields,
+  ConnectionStyleFields,
   ConnectionSubmitCard,
   ConnectionSummaryFields,
+  IntentFields,
+  PrioritiesFields,
 } from '@/components/onboarding-v2/yourProfile/ConnectionFields';
 import {
-  afterQuestions,
-  answeredCount,
-  commitConnectionAnswer,
+  commitConnection,
   CONNECTION_COPY,
   CONNECTION_ENABLED,
-  CONNECTION_QUESTIONS,
+  hasAnyAnswer,
+  initialConnectStage,
   nextConnectStage,
   prevConnectStage,
+  prioritiesComplete,
+  QUESTION_COUNT,
+  setImportance,
+  setPrimaryIntent,
+  toggleAlsoOpen,
+  toggleConnection,
+  toggleDetail,
+  toggleTopic,
+  withConnection,
+  withIntent,
+  withPriorities,
   type ConnectionAnswers,
   type ConnectStage,
+  type IntentKey,
+  type Priorities,
 } from '@/lib/onboardingV2/connection';
 import { loadConnectionAnswers, saveConnectionAnswers } from '@/lib/onboardingV2/connectionRemote';
 
@@ -345,19 +360,25 @@ export function PreviewFlow({ onExit, live }: Props) {
 
   const valid = isPosValid(pos, basics, compat, life, world, dates, profile);
 
-  // Optional "How do you connect?" (D104): an interstitial INSIDE the live
-  // first-submit screen (step "code", email verified, first application only —
-  // never an update, never after submitting). No new numbered step, so the
-  // server resume position is unchanged. Only shown when the server has the
-  // package and the application is still a draft; every path ends on the
-  // normal submit. Answers are private and never block the submit.
+  // "What you're looking for" (D104b): intention → priorities → connection
+  // style → summary, an interstitial INSIDE the live first-submit screen
+  // (step "code", email verified, first application only — never an update,
+  // never after submitting). No new numbered step, so the server resume
+  // position is unchanged. Only with the server package and a draft. The
+  // intention is asked once: while the section is on, the old Compatibility
+  // intent step is hidden; without an old intent the new main intention is
+  // required (no skip). Priorities and connection style are optional.
   const atFirstSubmit =
     !!live && pos.section === 'yourProfile' && pos.step === PROFILE_STEP.code && valid && !live.review && !profile.applicationPreview;
   const [connectAvail, setConnectAvail] = useState(false);
+  const [hideOldIntent, setHideOldIntent] = useState(false);
   const [connectStage, setConnectStage] = useState<ConnectStage>('invite');
-  // Server-confirmed answers only; a pick is local until Continue saves it.
+  // Server-confirmed answers; the c* drafts are local until Continue saves.
   const [connectSaved, setConnectSaved] = useState<ConnectionAnswers>({});
-  const [connectPick, setConnectPick] = useState<string | null>(null);
+  const [cIntent, setCIntent] = useState<IntentKey | undefined>(undefined);
+  const [cAlso, setCAlso] = useState<IntentKey[]>([]);
+  const [cPrios, setCPrios] = useState<Priorities>({});
+  const [cConn, setCConn] = useState<string[]>([]);
   const [connectBusy, setConnectBusy] = useState(false);
   const [connectNotice, setConnectNotice] = useState<string | null>(null);
   const [summaryFromSubmit, setSummaryFromSubmit] = useState(false);
@@ -367,44 +388,66 @@ export function PreviewFlow({ onExit, live }: Props) {
     if (!hasLive || !CONNECTION_ENABLED) return;
     let alive = true;
     void loadConnectionAnswers().then((r) => {
-      if (!alive || r.kind !== 'ok' || !r.canEdit) return;
+      if (!alive || r.kind !== 'ok') return;
+      // Asked once: the old step stays hidden for whoever answers here.
+      setHideOldIntent(r.canEdit || !!r.answers.intent);
+      if (!r.canEdit) return;
       setConnectSaved(r.answers);
+      // Current answers → no invite on every open; View/Edit on the submit screen.
+      setConnectStage(initialConnectStage(r.answers));
       setConnectAvail(true);
     });
     return () => {
       alive = false;
     };
   }, [hasLive]);
-  const connectActive = atFirstSubmit && connectAvail && connectStage !== 'done';
-  const connectPrev = connectActive ? prevConnectStage(connectStage, summaryFromSubmit) : null;
-  const goConnect = (s: ConnectStage) => {
-    setConnectPick(null);
+  const intentRequired = connectAvail && !compat.intent;
+  // Required intention missing → the section cannot be left for the submit screen.
+  const stageNow: ConnectStage = connectStage === 'done' && intentRequired && !connectSaved.intent ? 'invite' : connectStage;
+  const connectActive = atFirstSubmit && connectAvail && stageNow !== 'done';
+  const connectPrev = connectActive ? prevConnectStage(stageNow, summaryFromSubmit) : null;
+  const connectQuestion = connectActive && typeof stageNow === 'number' ? stageNow : null;
+  /** Moves within the section; local edits restart from the saved answers. */
+  const goConnect = (s: ConnectStage, saved: ConnectionAnswers = connectSaved) => {
     setConnectNotice(null);
     if (s !== 'summary') setSummaryFromSubmit(false);
+    setCIntent(saved.intent);
+    setCAlso(saved.intent_also ?? []);
+    setCPrios(saved.priorities ?? {});
+    setCConn(saved.connection ?? []);
     setConnectStage(s);
   };
-  const connectQuestion = typeof connectStage === 'number' ? CONNECTION_QUESTIONS[connectStage] : null;
-  const connectSelected = connectQuestion ? (connectPick ?? connectSaved[connectQuestion.id]) : undefined;
-  /** Saves (key) or clears (null) the current question; advances only after a real save. */
-  const commitConnect = async (key: string | null, advance: boolean) => {
-    if (!connectQuestion || typeof connectStage !== 'number' || connectBusyRef.current) return;
+  /** Saves one question's part; advances only after a real save. */
+  const commitConnect = async (edit: (a: ConnectionAnswers) => ConnectionAnswers, advance: boolean) => {
+    if (connectBusyRef.current) return;
     connectBusyRef.current = true;
     setConnectBusy(true);
     setConnectNotice(null);
-    const r = await commitConnectionAnswer(connectSaved, connectQuestion.id, key, saveConnectionAnswers);
+    const r = await commitConnection(connectSaved, edit, saveConnectionAnswers);
     connectBusyRef.current = false;
     setConnectBusy(false);
     if (!r.ok) return setConnectNotice(CONNECTION_COPY.saveError);
     setConnectSaved(r.saved);
-    setConnectPick(null);
-    if (advance) goConnect(nextConnectStage(connectStage, r.saved));
+    goConnect(advance ? nextConnectStage(stageNow, r.saved) : stageNow, r.saved);
   };
-  const continueConnect = () => {
-    if (!connectQuestion || typeof connectStage !== 'number' || !connectSelected) return;
-    // Unchanged saved answer: nothing to save.
-    if (connectSelected === connectSaved[connectQuestion.id]) return goConnect(nextConnectStage(connectStage, connectSaved));
-    void commitConnect(connectSelected, true);
+  const choosePrimaryIntent = (k: IntentKey) => {
+    const n = setPrimaryIntent(cAlso, k);
+    setCIntent(n.intent);
+    setCAlso(n.also);
   };
+  const noPreferences = () => {
+    const run = () => void commitConnect(withPriorities(null, true), true);
+    if (Object.keys(cPrios).length === 0 && !connectSaved.priorities) return run();
+    Alert.alert(CONNECTION_COPY.noPreferencesConfirmTitle, CONNECTION_COPY.noPreferencesConfirmBody, [
+      { text: CONNECTION_COPY.cancel, style: 'cancel' },
+      { text: CONNECTION_COPY.noPreferencesConfirm, onPress: run },
+    ]);
+  };
+
+  // Resumed on the hidden old intent step → the next Compatibility question.
+  useEffect(() => {
+    if (hideOldIntent && pos.section === 'compatibility' && pos.step === 1) setPos({ section: 'compatibility', step: 2 });
+  }, [hideOldIntent, pos]);
 
   const goTo = (next: FlowPos) => {
     Keyboard.dismiss();
@@ -425,6 +468,8 @@ export function PreviewFlow({ onExit, live }: Props) {
     if (live && n && n.section === 'yourProfile' && n.step === PROFILE_STEP.email) {
       return { section: 'yourProfile', step: PROFILE_STEP.code };
     }
+    // The intention is asked in "What you're looking for" instead (D104b).
+    if (hideOldIntent && n && n.section === 'compatibility' && n.step === 1) return { section: 'compatibility', step: 2 };
     return n;
   };
   const prevOf = (p: FlowPos): FlowPos | null => {
@@ -432,6 +477,7 @@ export function PreviewFlow({ onExit, live }: Props) {
     if (live && b && b.section === 'yourProfile' && b.step === PROFILE_STEP.email) {
       return { section: 'yourProfile', step: PROFILE_STEP.selfie };
     }
+    if (hideOldIntent && b && b.section === 'compatibility' && b.step === 1) return prevPos(b);
     return b;
   };
 
@@ -555,7 +601,7 @@ export function PreviewFlow({ onExit, live }: Props) {
       onPress: editTo({ section: 'basics', step: 1 }) },
     { key: 'looking', icon: 'heart-outline', title: 'Looking for',
       description: [intentTitle, compat.values.length ? plural(compat.values.length, 'value', 'values') : null].filter(Boolean).join(' · ') || 'Not answered yet',
-      onPress: editTo({ section: 'compatibility', step: 1 }) },
+      onPress: editTo({ section: 'compatibility', step: hideOldIntent ? 2 : 1 }) },
     { key: 'life', icon: 'leaf-outline', title: 'Lifestyle', description: `${lifeAnswered} of 4 answered`,
       onPress: editTo({ section: 'yourLife', step: 1 }) },
     { key: 'world', icon: 'globe-outline', title: 'Your world',
@@ -618,7 +664,13 @@ export function PreviewFlow({ onExit, live }: Props) {
       return;
     }
     if (outcome.kind === 'missing') {
-      const where = firstMissingPos(outcome.missing);
+      let where = firstMissingPos(outcome.missing);
+      if (hideOldIntent && where && where.section === 'compatibility' && where.step === 1) {
+        // The old intent step is hidden: send people to the real gap.
+        const gap = SINGLE_QUESTIONS.findIndex((_, i) => i > 0 && !isCompatStepValid(i + 1, compat));
+        if (gap === -1) return goConnect(0);
+        where = { section: 'compatibility', step: gap + 1 };
+      }
       Alert.alert(
         'Almost there',
         where
@@ -709,23 +761,26 @@ export function PreviewFlow({ onExit, live }: Props) {
   }
   let tertiary: Action | null = null;
   if (connectActive) {
-    if (connectStage === 'invite') {
+    const busyLabel = (label: string) => (connectBusy ? CONNECTION_COPY.saving : label);
+    if (stageNow === 'invite') {
       primary = { label: CONNECTION_COPY.explore, onPress: () => goConnect(0) };
-      secondary = { label: CONNECTION_COPY.skip, onPress: () => goConnect('done') };
-    } else if (typeof connectStage === 'number') {
-      // Continue saves, then advances; nothing selected → disabled. Skipping
-      // never changes a saved answer (Clear answer does that explicitly).
-      primary = {
-        label: connectBusy ? CONNECTION_COPY.saving : CONNECTION_COPY.continue,
-        onPress: continueConnect,
-        disabled: !connectSelected || connectBusy,
-      };
-      secondary = { label: CONNECTION_COPY.skipQuestion, onPress: () => goConnect(nextConnectStage(connectStage, connectSaved)), disabled: connectBusy };
-      tertiary = { label: CONNECTION_COPY.skipRemaining, onPress: () => goConnect(afterQuestions(connectSaved)), disabled: connectBusy };
-    } else if (connectStage === 'summary') {
-      // Never submits: Continue only leads to the normal submit screen.
-      primary = { label: CONNECTION_COPY.continue, onPress: () => goConnect('done') };
-      secondary = { label: CONNECTION_COPY.editAnswers, onPress: () => goConnect(0) };
+      // A required intention can't be skipped.
+      secondary = intentRequired ? null : { label: CONNECTION_COPY.skip, onPress: () => goConnect('done') };
+    } else if (stageNow === 0) {
+      primary = { label: busyLabel(CONNECTION_COPY.continue), onPress: () => void commitConnect(withIntent(cIntent, cAlso), true), disabled: !cIntent || connectBusy };
+      secondary = intentRequired ? null : { label: CONNECTION_COPY.skipQuestion, onPress: () => goConnect(1), disabled: connectBusy };
+    } else if (stageNow === 1) {
+      primary = { label: busyLabel(CONNECTION_COPY.continue), onPress: () => void commitConnect(withPriorities(cPrios), true), disabled: !prioritiesComplete(cPrios) || connectBusy };
+      secondary = { label: CONNECTION_COPY.noPreferences, onPress: noPreferences, disabled: connectBusy };
+      tertiary = { label: CONNECTION_COPY.skipQuestion, onPress: () => goConnect(2), disabled: connectBusy };
+    } else if (stageNow === 2) {
+      primary = { label: busyLabel(CONNECTION_COPY.seeSummary), onPress: () => void commitConnect(withConnection(cConn), true), disabled: cConn.length === 0 || connectBusy };
+      // Skipping never changes a saved answer (Clear answer does that explicitly).
+      secondary = { label: CONNECTION_COPY.skipQuestion, onPress: () => goConnect(nextConnectStage(2, connectSaved)), disabled: connectBusy };
+    } else if (stageNow === 'summary') {
+      // Never submits: only leads to the normal submit screen.
+      primary = { label: CONNECTION_COPY.continueToApplication, onPress: () => goConnect('done') };
+      secondary = { label: CONNECTION_COPY.editPreferences, onPress: () => goConnect(0) };
     }
   }
   if (live && saving && primary.onPress === handleContinue) {
@@ -742,6 +797,7 @@ export function PreviewFlow({ onExit, live }: Props) {
   const dob = parseDob(basics.dobDay, basics.dobMonth, basics.dobYear);
   const dobError = dob.ok ? null : dobErrorMessage(dob.reason);
   const section = sectionOf(pos);
+  const compatHidden = hideOldIntent && pos.section === 'compatibility';
   const bProps = { draft: basics, update: updateBasics, onSubmit: handleContinue };
   const cProps = { draft: compat, update: updateCompat };
   const lifeQuestion = pos.section === 'yourLife' ? LIFE_QUESTIONS[step - 1] : null;
@@ -776,27 +832,37 @@ export function PreviewFlow({ onExit, live }: Props) {
   return (
     <OnboardingScreen
       // The optional questions show their own progress: the real question count.
-      sectionLabel={connectQuestion && connectActive ? 'Optional questions' : section.label}
-      step={connectQuestion && connectActive ? (connectStage as number) + 1 : step}
-      totalSteps={connectQuestion && connectActive ? CONNECTION_QUESTIONS.length : section.steps}
+      // The section shows its own progress (the real question count); with the
+      // old intent step hidden, Compatibility counts one step less.
+      sectionLabel={connectQuestion !== null ? undefined : section.label}
+      step={connectQuestion !== null ? connectQuestion + 1 : compatHidden ? step - 1 : step}
+      totalSteps={connectQuestion !== null ? QUESTION_COUNT : compatHidden ? section.steps - 1 : section.steps}
       title={
         connectActive
-          ? connectStage === 'invite'
-            ? CONNECTION_COPY.title
-            : connectStage === 'summary'
+          ? stageNow === 'invite'
+            ? CONNECTION_COPY.inviteTitle
+            : stageNow === 'summary'
               ? CONNECTION_COPY.summaryTitle
-              : CONNECTION_QUESTIONS[connectStage as number].title
+              : stageNow === 0
+                ? CONNECTION_COPY.intentTitle
+                : stageNow === 1
+                  ? CONNECTION_COPY.prioritiesTitle
+                  : CONNECTION_COPY.connectionTitle
           : liveCodeCopy
             ? liveCodeCopy.title
             : titleFor(pos)
       }
       helper={
         connectActive
-          ? connectStage === 'invite'
-            ? CONNECTION_COPY.helper
-            : connectStage === 'summary'
+          ? stageNow === 'invite'
+            ? CONNECTION_COPY.inviteHelper
+            : stageNow === 'summary'
               ? CONNECTION_COPY.summaryHelper
-              : undefined
+              : stageNow === 0
+                ? CONNECTION_COPY.intentHelper
+                : stageNow === 1
+                  ? CONNECTION_COPY.prioritiesHelper
+                  : CONNECTION_COPY.connectionHelper
           : liveCodeCopy
           ? liveCodeCopy.helper
           : takesSupported && pos.section === 'yourProfile' && pos.step === PROFILE_STEP.prompts
@@ -805,9 +871,9 @@ export function PreviewFlow({ onExit, live }: Props) {
       }
       compactTitle={pos.section !== 'basics'}
       reserveTitleBlock={!(inProfile && step === PROFILE_STEP.preview) && !liveCodeCopy}
-      hideProgress={(inProfile && step === PROFILE_STEP.preview && reviewing) || (connectActive && !connectQuestion)}
+      hideProgress={(inProfile && step === PROFILE_STEP.preview && reviewing) || (connectActive && connectQuestion === null)}
       onBack={handleBack}
-      contentKey={connectActive ? `${pos.section}-${step}-connect-${connectStage}` : `${pos.section}-${step}`}
+      contentKey={connectActive ? `${pos.section}-${step}-connect-${stageNow}` : `${pos.section}-${step}`}
       onScrollY={inProfile && step === PROFILE_STEP.preview ? (y) => (previewScrollRef.current = y) : undefined}
       restoreScrollY={inProfile && step === PROFILE_STEP.preview && restorePreview ? previewScrollRef.current : null}
       footer={
@@ -939,22 +1005,41 @@ export function PreviewFlow({ onExit, live }: Props) {
           </Text>
         </View>
       ) : null}
-      {connectActive && connectStage === 'invite' ? <ConnectionInviteFields /> : null}
-      {connectActive && connectQuestion ? (
-        <ConnectionQuestionFields
-          question={connectQuestion}
-          selected={connectSelected}
-          onPick={(key) => {
-            setConnectPick(key);
-            setConnectNotice(null);
-          }}
-          canClear={!!connectSaved[connectQuestion.id]}
-          onClear={() => void commitConnect(null, false)}
+      {connectActive && stageNow === 'invite' ? <ConnectionInviteFields intentRequired={intentRequired} /> : null}
+      {connectActive && stageNow === 0 ? (
+        <IntentFields
+          intent={cIntent}
+          also={cAlso}
+          onPrimary={choosePrimaryIntent}
+          onToggleAlso={(k) => setCAlso((a) => toggleAlsoOpen(a, k, cIntent))}
           busy={connectBusy}
           notice={connectNotice}
         />
       ) : null}
-      {connectActive && connectStage === 'summary' ? <ConnectionSummaryFields answers={connectSaved} /> : null}
+      {connectActive && stageNow === 1 ? (
+        <PrioritiesFields
+          priorities={cPrios}
+          myInterests={world.interests}
+          onToggleTopic={(k) => setCPrios((p) => toggleTopic(p, k))}
+          onToggleDetail={(k, d) => setCPrios((p) => toggleDetail(p, k, d))}
+          onImportance={(k, d, v) => setCPrios((p) => setImportance(p, k, d, v))}
+          canClear={!!connectSaved.priorities || !!connectSaved.priorities_none}
+          onClear={() => void commitConnect(withPriorities(null), false)}
+          busy={connectBusy}
+          notice={connectNotice}
+        />
+      ) : null}
+      {connectActive && stageNow === 2 ? (
+        <ConnectionStyleFields
+          selected={cConn}
+          onToggle={(k) => setCConn((c) => toggleConnection(c, k))}
+          canClear={!!connectSaved.connection?.length}
+          onClear={() => void commitConnect(withConnection([]), false)}
+          busy={connectBusy}
+          notice={connectNotice}
+        />
+      ) : null}
+      {connectActive && stageNow === 'summary' ? <ConnectionSummaryFields answers={connectSaved} /> : null}
       {inProfile && step === PROFILE_STEP.code && live && liveCode === 'verified' && !connectActive ? (
         <View style={styles.emailRow} accessible accessibilityLabel={`Verified email ${live.email}`}>
           <Ionicons name="mail-outline" size={18} color={obColors.cta} importantForAccessibility="no" />
@@ -963,7 +1048,7 @@ export function PreviewFlow({ onExit, live }: Props) {
           </Text>
         </View>
       ) : null}
-      {atFirstSubmit && connectAvail && !connectActive && answeredCount(connectSaved) > 0 ? (
+      {atFirstSubmit && connectAvail && !connectActive && hasAnyAnswer(connectSaved) ? (
         <ConnectionSubmitCard
           onView={() => {
             goConnect('summary');
