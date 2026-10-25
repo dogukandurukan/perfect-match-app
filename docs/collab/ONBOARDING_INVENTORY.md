@@ -1,6 +1,6 @@
 # Tempa V2 onboarding — inventory of the current live flow
 
-Snapshot of the code in the worktree `tempa-collab-prep` (branch `tempa/collab-design-prep`), read on 2026-10-21.
+Written on 2026-10-21 against product commit `652e2ba`; **updated 2026-10-26 for product commit `f9200c1`** (branch `tempa/v2-persist-r2`). The only onboarding change in between is D104 / D104a / D104b — see **§2b**, which overrides anything older below.
 Everything below was checked in source code or SQL. File paths are relative to the repo root. Line numbers are for this snapshot. **"Not verified"** means the code or docs could not confirm the point.
 
 Main sources:
@@ -164,6 +164,30 @@ The gate is read from RPC `get_my_access_v2` (persistence SQL 643–660) through
 | DevNotices | shown | `ReceivedFields` hides its notice in live mode. **But `SelfieFields.tsx:109` always renders "Preview only — this selfie is not uploaded or reviewed.", in live mode too** (see §7). |
 
 ---
+
+## 2b. Change since 2026-10-21 — "What you're looking for" (D104b, version 3)
+
+Source: `lib/onboardingV2/connection.ts` (copy + rules), `components/onboarding-v2/yourProfile/ConnectionFields.tsx`, `components/onboarding-v2/PreviewFlow.tsx`, `docs/tempa/DECISIONS.md` D104 / D104a / D104b, `docs/tempa/work-packages/V2_CONNECTION_QUESTIONS_RESULT.md`. Server package `supabase/proposed/20261025090000_v2_connection_intent_priorities.sql` — **tempa-local only**.
+
+**Where:** inside the live first-submit screen, only for V2 applicants in **draft** on a server with the package, while `CONNECTION_ENABLED = true` (`connection.ts:22`, the single off-switch). Order: invite → intention → priorities → connection style → summary → submit screen.
+
+**Compatibility 3.1 is hidden there.** "What are you looking for?" (Compatibility step 1) is skipped while the section is on (`PreviewFlow.tsx` `hideOldIntent`); the intention is asked once, in this section. Progress still reads "2 of 7" on the next Compatibility step. The DEV design preview therefore uses **3.2 "How social are you?"** as its representative question.
+
+| Screen | Title / helper (exact) | Options & rules |
+|---|---|---|
+| Invite | "What you’re looking for" / "Three short questions: what you’re looking for, what matters to you and how you like to connect." | **Explore** / **Skip for now**. With no old intent: "Choosing what you’re looking for is needed for your application." and no Skip |
+| Intention | "What are you looking for?" / "Choose what fits you best right now." | single: A one-night connection · Casual dating, without commitment · Seeing where things go · A long-term relationship · A relationship leading to marriage · Still figuring it out. Optional "Also open to…" (any of the first five, never the main one, never "Still figuring it out"). Required only when there is no old intent |
+| Priorities | "What matters to you?" / "Choose up to 3 priorities." | topics: Active lifestyle · Shared interests (up to 3 of your own) · Education · Work & career · Money mindset · Living arrangements · Plans for children (single). Each chosen topic needs ≥ 1 detail, each detail **Preference** or **Must-have**. "No specific preferences" clears after a confirm. Optional |
+| Connection style | "How do you like to connect?" / "Choose up to 2 that feel right for you." | Regular contact and clear mutual interest · Letting closeness grow gradually · Keeping time and space for myself · Talking openly about expectations · Finding our own rhythm together · I’m not sure yet (only alone). Optional |
+| Summary | "What you’re looking for" / "Based on the preferences you shared." | fixed text per option; never submits |
+
+Privacy line (exact): "Your answers are saved privately. They aren’t shown on your profile and aren’t used for matching yet."
+
+**Stored:** stable ids per version (version 3) via RPCs; version 1/2 answers kept, never converted. **Private** — not on the profile, not used for matching or review. Completeness (`v2_missing_for`) accepts the old intent **or** the new main intention; never mapped to each other. The old intent keeps its public "Looking for" line.
+
+**Verified:** local tests (`v2_connection_questions` 76/76, `smoke_connection_answers_local.mjs`); owner phone 2026-10-25: design approved, answers + summary + reopen. **Not phone-tested:** selection-limit cases, clearing an answer, the required-intention path, save failure / retry, submitting with version-3 answers (per `docs/tempa/HANDOFF_CLAUDE.md` §3).
+
+**Open product decisions (not for design work to settle):** old public intent vs new private intention can contradict; Must-have semantics; any matching use.
 
 ## 3. Per screen: questions, options, keys, rules
 

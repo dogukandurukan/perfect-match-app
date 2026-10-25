@@ -57,7 +57,10 @@ export const DESIGN_SCREENS: DesignScreen[] = [
   },
   {
     id: 'question',
-    title: '2 · Onboarding question (Compatibility 1 of 7)',
+    // 3.2 "How social are you?": still in the live flow. 3.1 "What are you
+    // looking for?" is hidden on servers with the D104b package (asked in
+    // "What you're looking for" instead), so it is not representative.
+    title: '2 · Onboarding question (Compatibility 2 of 7)',
     liveSource: 'components/onboarding-v2/PreviewFlow.tsx → components/onboarding-v2/compatibility/CompatibilityFields.tsx · copy in lib/onboardingV2/compatibility.ts',
     states: [
       { id: 'question-empty', label: 'Nothing selected' },
