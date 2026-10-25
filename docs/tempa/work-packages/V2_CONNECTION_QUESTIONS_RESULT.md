@@ -211,7 +211,19 @@ Account Nehir `tempa-local-connv2-phone-45094@tempa-test.example.com` — draft,
 
 Owner saw on the phone (Nehir): the three questions and the summary were displayed, and the choices visible in the screenshots were carried into the summary.
 
-**Not yet verified by the owner:** Must-have, the selection limits, clearing, and version-3 persistence after closing / reopening the app.
+**Not yet verified by the owner at that point:** Must-have, the selection limits, clearing, and version-3 persistence (see the later result below).
+
+## Phone result — version 3, owner (2026-10-25, at `0dee292`)
+
+Owner approved the design and confirmed on the phone (Nehir):
+- answered the questions and reached the summary;
+- main intention, extra intentions and connection choices appeared in the summary;
+- one priority appeared as **Must-have** in the summary;
+- after **Continue to application**, fully closing and reopening the app, **View** showed the same summary.
+
+Server state matches (read-only): version 3 `intent one_night`, `intent_also casual, see_where`, `priorities money.independent must_have`, `connection regular_contact, open_talk`. (Nehir's public old intent is `long_term` — an example of the open intent conflict.)
+
+**Not phone-tested:** every selection-limit case; clearing an answer and it staying cleared after reopen; the required-intention path (account without an old intent); save failure / retry; submitting with version-3 answers. Local automated tests are separate (listed above) and are not phone results.
 
 ## UI fixes after that look (2026-10-25)
 

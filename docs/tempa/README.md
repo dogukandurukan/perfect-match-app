@@ -20,6 +20,11 @@ Mockup copy, sample answers, selected states and decorations are **never**
 decisions by themselves. Written specs govern copy; mockups govern visual
 direction only.
 
+## Session handoff
+
+- [`HANDOFF_CLAUDE.md`](HANDOFF_CLAUDE.md) — technical state at the end of the last session (branch, commits, local migrations, test accounts, open issues, next step). Points to the result documents; they win on details.
+- [`HANDOFF_CHATGPT.md`](HANDOFF_CHATGPT.md) — self-contained product summary to paste into a new ChatGPT session.
+
 ## Read in this order
 
 1. [`DECISIONS.md`](DECISIONS.md) — decision log with status.
