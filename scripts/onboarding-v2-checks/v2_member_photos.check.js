@@ -23,7 +23,8 @@ ok(/setBanner\(\{ kind: 'error', text: r\.text, changed: r\.changed \}\);/.test(
 ok(/addListener\('beforeRemove'/.test(scr) && /if \(!dirty \|\| busy\.current\) return;/.test(scr) && /Discard changes\?/.test(scr), 'leaving with unsaved changes asks first');
 ok(/Main photo/.test(scr) && /Make main photo/.test(scr) && /Move photo \$\{n\} up/.test(scr) && /Move photo \$\{n\} down/.test(scr), 'main photo marked; make-main and up / down controls with labels');
 ok(!/add_profile_photo|delete_profile_photo|upload\(|ImagePicker/.test(scr + code('lib/profile/memberPhotos.ts')), 'no add / delete / upload in this package');
-ok(/label="Photos" variant="outline" onPress=\{\(\) => router\.push\('\/v2\/edit-photos'/.test(code('components/main/V2ProfileHome.tsx')), 'Profile tab: Photos entry');
+// Since 2026-10-27 the Photos entry lives in Profile → Edit profile.
+ok(/router\.push\('\/v2\/edit-profile'/.test(code('components/main/V2ProfileHome.tsx')) && /to: '\/v2\/edit-photos'/.test(code('app/v2/edit-profile.tsx')), 'Profile tab → Edit profile → Photos entry');
 ok(/rpc\('reorder_member_photos_v2', \{ p_ids: ids, p_expected: expected \}\)/.test(code('lib/profile/memberPhotos.ts')), 'client calls the narrow member function');
 
 const sql = read('supabase/proposed/20261021090000_v2_member_photo_order.sql').replace(/^--.*$/gm, '');

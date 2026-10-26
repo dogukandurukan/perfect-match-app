@@ -2,10 +2,11 @@
 // counts, and two actions. No completion percentage (the old one read V1
 // columns and showed an approved profile as 25%). "View profile" opens the
 // approved V2 profile view (get_profile_v2 — exactly what others see).
-// Editing after approval: only "Interests & conversation starter" (D87–D93,
-// narrow server operations); everything else stays locked (the server locks
-// answers once an application is sent), so "Edit profile" never routes to the
-// V1 editor.
+// Editing after approval: Profile → Edit profile lists every detail with its
+// visibility; Photos (order / main), Interests & conversation starters
+// (D87–D93) and the Package 1 details (Looking for, height, work status,
+// lifestyle, first-date choices) open narrow member-only editors. Everything
+// else stays locked; it never routes to the V1 editor.
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -117,15 +118,8 @@ export function V2ProfileHome() {
           label="View profile"
           onPress={() => router.push(`/v2/profile?userId=${data.userId}&own=1` as never)}
         />
-        {/* Editing after approval: photo order / main photo (2026-10-21,
-            narrow D90 exception) and interests, activities, books / movies /
-            artists and the conversation starters (D87–D93). */}
-        <OnboardingPrimaryButton label="Photos" variant="outline" onPress={() => router.push('/v2/edit-photos' as never)} />
-        <OnboardingPrimaryButton label="Your interests" variant="outline" onPress={() => router.push('/v2/edit-interests' as never)} />
-        <OnboardingPrimaryButton label="Edit profile" variant="outline" disabled onPress={() => {}} />
-        <Text style={styles.caption} maxFontSizeMultiplier={1.6}>
-          Other profile details can&apos;t be edited after approval yet.
-        </Text>
+        {/* Photos and Interests are reached from Edit profile (2026-10-27). */}
+        <OnboardingPrimaryButton label="Edit profile" variant="outline" onPress={() => router.push('/v2/edit-profile' as never)} />
       </View>
 
       {__DEV__ ? (
@@ -184,7 +178,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, fontFamily: obFonts.bodyMedium, fontSize: 16, lineHeight: 22, color: obColors.textPrimary },
   rowValue: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textSecondary },
   actions: { gap: obSpacing.md },
-  caption: { fontFamily: obFonts.body, fontSize: 14, lineHeight: 20, color: obColors.textSecondary, textAlign: 'center' },
   body: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary, textAlign: 'center' },
   link: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.cta, textDecorationLine: 'underline' },
   signOut: { alignSelf: 'center', minHeight: 44, justifyContent: 'center' },

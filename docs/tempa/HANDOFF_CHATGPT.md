@@ -99,7 +99,7 @@ Yerel otomatik testlerin hepsi geçiyor; ancak bunlar telefon testinin yerine ge
 1. **Eski ve yeni niyet çelişebilir.**
    - Eski niyet herkese açık: profilde "Looking for" olarak görünüyor. Seçenekleri long-term, casual ve not sure.
    - Yeni niyet özel. Örneğin test hesabında eski niyet "long-term" iken yeni niyet "one-night".
-   - Hangisinin gösterileceği ya da kullanılacağı karar bekliyor.
+   - 27 Ekim kararı: "Looking for" herkese açık kalıyor ve ayrı düzenleniyor; özel niyet ona aktarılmıyor. İkisinin farklı olabilmesi artık bilinçli bir durum. Açık kalan: yeni hesapların "Looking for"u onboarding'de nerede seçeceği.
 2. **Tercihlerin eşleştirmede kullanılıp kullanılmayacağı.**
    - Birçok tercih için karşı tarafta veri yok: üniversite derecesi, yalnız yaşama, çocuk planı, finansal bağımsızlık, harcama yaklaşımı, kariyere verilen önem, birlikte aktif olma.
    - Kısmen var olanlar: aktiflik düzeyi, çalışma durumu, ilgi alanları.
@@ -108,16 +108,27 @@ Yerel otomatik testlerin hepsi geçiyor; ancak bunlar telefon testinin yerine ge
 4. **"Also open to…" seçimleri** eşleşme havuzunu genişletecek mi?
 5. **Profil ziyaretleri:** premium ayrımı (öneri durumunda).
 
-## Yarın: genel profil düzenleme — önce inceleme, sonra karar
+## Genel profil düzenleme — Paket 1 (27 Ekim, yalnız yerel; henüz push edilmedi)
 
-Henüz kodlama yok; önce mevcut durum çıkarılıp seçenekler ürün sahibine sunulacak.
+Onaylanmış üye artık Profile → **Edit profile** ekranından şunları değiştirebiliyor:
+- **Looking for:** herkese açık; eski üç seçenek (long-term, casual, not sure); isteğe bağlı. Kaldırılırsa profilde görünmez. Özel tercihlerden türetilmez.
+- **Boy.**
+- **İş durumu:** unvan korunur; profilde unvan varsa unvan görünür.
+- **Yaşam tarzı:** "I have pets" seçilince tür zorunlu; başka bir cevapta eski tür temizlenir.
+- **İlk buluşma tercihleri:** tür, gün ve saat.
 
-Bugünkü kural: onaylanmış üyeler yalnız ilgi alanlarını, aktiviteleri, kitap/film/sanatçıları ve sohbet başlatıcıyı düzenleyebiliyor. Fotoğraflarda yalnız sıralamayı ve ana fotoğrafı değiştirebiliyorlar. Diğer her şey kilitli.
+Ekranın genel davranışı:
+- Listede her bilginin gerçek görünürlüğü yazıyor: Public ya da Private. Cinsiyet ve kimi görmek istediği Private ve kilitli.
+- Kilitli satırlarda "This detail can't be changed yet" yazıyor.
+- Photos ve Interests de bu listenin içinden açılıyor.
+- Kaydetme, vazgeçme, hata sonrası tekrar deneme ve başka cihazda yapılmış bir değişiklik için "Reload" davranışı, mevcut fotoğraf sırası ekranıyla aynı.
 
-İnceleme sırası:
-1. Hangi alanlar düzenlenebilir olmalı? Hangileri doğrulama ya da yeniden inceleme gerektirir (fotoğraf, isim, doğum tarihi, cinsiyet, selfie)?
-2. Eski herkese açık niyet ile yeni özel niyet düzenlemede nasıl ele alınmalı?
-3. Kaydetme, vazgeçme (kaydedilmemiş değişiklik uyarısı), hata ve tekrar deneme, yeniden açınca kalıcılık davranışı.
-4. Fotoğraf ekleme, silme ve değiştirme ne gerektirir? Mevcut sıralama ve ana fotoğraf davranışı korunmalı.
+Durum: yerel otomatik testler geçti; **telefonda henüz test edilmedi.**
 
-ChatGPT'den beklenen: bu dört başlık için ürün değerlendirmesi ve Claude Code'a gidecek "önce incele, kod yazma" promptu.
+**Karar verildi:** "Looking for" herkese açık kalıyor ve ayrı düzenleniyor. Yeni özel niyet özel kalıyor; ikisi farklı olabilir.
+
+**Açık:**
+- Eski niyeti olmayan yeni hesap "Looking for"u onboarding'de nerede seçecek? Öneri: profil önizlemesinde isteğe bağlı bir kart; henüz yapılmadı.
+- Serbest metin alanları, üyeler için özel tercihlerin düzenlenmesi, fotoğraf ekleme/silme/değiştirme ve kimlik alanları sonraki paketlerde, ayrı kararlarla ele alınacak.
+
+ChatGPT'den beklenen: Paket 1 telefon testinin sonucuna göre sıradaki paketin önceliği ve "önce incele" promptu.

@@ -1,10 +1,10 @@
-# Tempa — technical handoff for the next Claude session (2026-10-25 → 2026-10-26)
+# Tempa — technical handoff for the next Claude session (updated 2026-10-27)
 
-Author: Claude Code, end of 2026-10-25. Details live in the result documents linked below; this file only points to them and records the state at handoff. If anything here disagrees with a result document, the result document and the code win — check, don't assume.
+Author: Claude Code, 2026-10-25; updated 2026-10-27 (Edit profile, Package 1). Details live in the result documents linked below; this file only points to them and records the state at handoff. If anything here disagrees with a result document, the result document and the code win — check, don't assume.
 
-## 1. Repository state (checked 2026-10-25)
+## 1. Repository state (checked 2026-10-27)
 
-- Repo `~/tempa-p0`, branch `tempa/v2-persist-r2`, HEAD = `origin/tempa/v2-persist-r2` (the handoff commit on top of `0dee292`).
+- Repo `~/tempa-p0`, branch `tempa/v2-persist-r2`. `origin` is at `f9200c1`; the Package 1 commit (D105) is a **local commit, not pushed** (owner's instruction) — check `git log origin/tempa/v2-persist-r2..HEAD`.
 - Working tree: only the owner's untracked `.codex/` and `AGENTS.md` — **not ours; never commit, move or delete them.**
 - **Not merged, not deployed.** Nothing here is release-ready or merge-safe; no SHA has been agreed for merge.
 
@@ -15,11 +15,13 @@ Author: Claude Code, end of 2026-10-25. Details live in the result documents lin
 | `1340b81` → `d75ecdd` | D104 first draft → D104a two questions (version 2) |
 | `f7246af` | **D104b "What you're looking for", version 3** (intention, priorities, connection style, summary) |
 | `0dee292` | D104b UI fixes (see §3) |
+| `f9200c1` | handoff docs (pushed) |
+| local, not pushed | **D105 Edit profile, Package 1** (see §3) |
 
 ## 2. Backends
 
 - **Use only tempa-local:** API `127.0.0.1:55421`, DB `55422`, mail `55424` (project `tempa-local`, Docker). Never the shared project `fyqwjduzpnjuxqsloxih`, terapi, the branding worktree (`~/tempa-collab-prep`), `~/tempa-p06` or `~/dating-app-recovered`.
-- **Local migrations applied** (psql, one transaction each, listed in `scripts/local-backend/setup.mjs`, `setup.mjs` NOT run): `…027` connection answers, `…028` versions (PK `user_id, version`), `…029` version 3 + `v2_missing_for` intent alternative. Backups: `~/tempa-backups/2026-10-22-before-connection-answers/`, `2026-10-23-before-connection-versions/`, `2026-10-25-before-connection-v3/` (each: `pg_dump -Fc` + data fingerprint, before = after).
+- **Local migrations applied** (psql, one transaction each, listed in `scripts/local-backend/setup.mjs`, `setup.mjs` NOT run): `…027` connection answers, `…028` versions (PK `user_id, version`), `…029` version 3 + `v2_missing_for` intent alternative, `…030` `update_member_profile_v2` (D105). Backups: `~/tempa-backups/2026-10-22-before-connection-answers/`, `2026-10-23-before-connection-versions/`, `2026-10-25-before-connection-v3/`, `2026-10-27-before-member-profile-edit/` (each: `pg_dump -Fc` + data fingerprint, before = after).
 - **Shared DEV/production: current real state NOT verified.** Last reported (memory, 2026-09-30): V2+P0 packages applied to the DEV target; the D103/D104 packages are LOCAL only and not in `apply-dev.mjs`. Whether a push to `main` triggers anything (Supabase GitHub integration, EAS, other automation) is **not verified**; this worktree has no `.github/workflows`. Don't push to `main`.
 
 ## 3. Done, with how it was verified
@@ -52,6 +54,21 @@ Flow inside the live first-submit screen (draft only): invite → intention → 
   - submitting an application with version-3 answers.
 - **Version 2 (two questions), phone, owner:** answering, a one-line summary, and persistence after close / reopen were confirmed (recorded for version 2 only).
 
+### Edit profile, Package 1 (D105) — `docs/tempa/work-packages/V2_MEMBER_PROFILE_EDIT_RESULT.md`
+
+- **What members can change:** Profile → Edit profile — Looking for (public, old three options, optional, never derived from private answers), height, work status (job title kept), lifestyle (pet kind rule) and first-date types / days / time.
+- **How it works:**
+  - narrow `update_member_profile_v2` (allow-list, merged-value validation, field-level conflict check, atomic);
+  - the general onboarding lock is unchanged;
+  - the list shows real Public / Private visibility and "This detail can’t be changed yet" for locked rows;
+  - Photos / Interests shortcuts moved into Edit profile.
+- **Local tests:**
+  - `smoke_member_profile_edit_local.mjs` 42/42 on real local services;
+  - `v2_member_profile_edit` 35/35 (logic + static wiring, not UI behaviour);
+  - `run.js` 23 suites; `p0-checks`; `smoke_takes_local` 25/25; `smoke_shared_local` 13/13;
+  - `tsc` clean; iOS export exit 0.
+- **Not phone-tested:** every tap, the Discard / Reload prompts, the height ruler, the pet-kind row, the layout.
+
 ### Profile visits (D103) — `docs/tempa/work-packages/V2_PROFILE_VISITS_RESULT.md`
 
 - **Phone, owner, at `c572da5` (the OLD alert notice):**
@@ -64,7 +81,8 @@ Flow inside the live first-submit screen (draft only): invite → intention → 
 
 ## 4. Open bugs, technical debt, product decisions
 
-- 🔴 **Old public intent vs new private intention can contradict.** Example, Nehir: public `onboarding_v2.intent = long_term` ("Looking for" on the profile), private version-3 intention `one_night`. No mapping either way; which one is shown or used is an open product decision.
+- ✅ **Decided 2026-10-27 (D105):** "Looking for" (old field) stays public and is edited separately; the private version-3 intention stays private and is never copied to it. They may still differ (Nehir: `long_term` vs `one_night`) — by design now.
+- 🔴 **Still open:** where a NEW account without an old intent chooses "Looking for" during onboarding (proposed: an optional card at the profile-preview step — not built); whether the public options grow beyond three.
 - 🔴 **Matching use of the new preferences:** private and **not used for matching** today (V2 matching uses no intent at all).
   - Missing other-person data and open decisions are listed in the D104b result document.
   - Before any matching use: tell users and ask them to re-confirm their preferences.
@@ -87,6 +105,7 @@ Status checked read-only on 2026-10-25 unless marked "last reported".
 | `tempa-local-connect-mvk0pgkx-p@tempa-test.example.com` | submitted |
 | `tempa-local-visit-mvk0i5kw-p@…` (Pars) | accepted member, visits notice acknowledged |
 | `tempa-local-visit-mvk0i5kw-h@…` (Hale) | accepted member, not acknowledged |
+| `tempa-local-mphoto-mvik8slv-m@tempa-test.example.com` | accepted member (photo-order phone account); **the D105 Edit profile phone account** — checked 2026-10-27: Looking for long_term, 170 cm, full-time + job title, like_no_pets, coffee + walk, weekends, daytime |
 | Phone accounts Mert `3d1525b2-…`, Defne `e40b19ac-…`, match `f19c1951-…` | **never touch their data** |
 
 **Start:**
@@ -104,19 +123,16 @@ It prints a fresh one-time code (also in git-ignored `.test-backend/local-phone-
 
 **Restarting Metro does NOT change who is signed in on the phone.** `login-code.mjs` only creates a code.
 
-## 6. Tomorrow (2026-10-26): general profile editing — inspection first, no code
+## 6. Next
 
-**Scope:** read the code and DB, then present findings and options to the owner. **No product decisions, no implementation** until the owner decides.
-
-1. **Fields:** list every profile field and where it is edited today.
-   - D90 (approved): members may edit only interests, activities, books, screen, artists and the conversation starter; everything else is locked and `v2_assert_editable` is not relaxed.
-   - `app/v2/edit-interests.tsx`, `app/v2/edit-photos.tsx` (reorder + main photo only, D90 exception), `components/main/V2ProfileHome.tsx`, `app/v2/profile.tsx`.
-   - Mark which edits would need verification or a new review (photos, name, birthday, gender, selfie).
-2. **Intent:** how the old public intent and the new private intention should be handled in editing (connects to the 🔴 decision above).
-3. **Behaviour:** save / cancel (unsaved changes), error and retry, persistence after reopen.
-   - Reuse the D91 consistency rules and the edit-photos conflict pattern (save sends the loaded order; a newer change → Reload).
-4. **Photos:** what adding / deleting / replacing would need; keep the existing order and main-photo behaviour (`V2_MEMBER_PHOTO_ORDER_RESULT.md`).
-   - Today members cannot add, delete or replace photos.
+1. Owner's phone test of D105 (steps in the result document). Don't call it verified before the owner reports.
+2. Push only when the owner asks.
+3. Later packages, each only after a decision:
+   - free text (job title, favorite spot, prompts, school, hometown) and values — moderation / re-review;
+   - private preferences for approved members (a member-only operation; nothing to the public profile);
+   - photo add / delete / replace — re-review, minimum 3, likes targeting a photo id, storage clean-up, `profiles.photos` copy;
+   - identity and matching fields (name, birthday, gender, interested in, city) — re-review / support path, `profiles` copies;
+   - the onboarding "Looking for" card for new accounts.
 
 **Limits (unchanged):**
 - tempa-local only;

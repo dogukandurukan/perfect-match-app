@@ -78,7 +78,9 @@ function useTimeOneRow(): boolean {
 }
 
 // 1 — Your ideal first date? (required 1–2) + optional favorite spot
-export function DateTypesFields({ draft, update }: Props) {
+/** `hideSpot`: Edit profile (Package 1) edits the date types only; the
+ * free-text favorite spot stays as it is. Onboarding is unchanged. */
+export function DateTypesFields({ draft, update, hideSpot = false }: Props & { hideSpot?: boolean }) {
   const twoColumns = useTwoDateColumns();
   const full = draft.dateTypes.length >= MAX_DATE_TYPES;
   return (
@@ -124,6 +126,7 @@ export function DateTypesFields({ draft, update }: Props) {
         </Text>
       </View>
 
+      {hideSpot ? null : (
       <View style={styles.spot}>
         <View style={styles.spotHeading}>
           <Text style={styles.groupTitle} accessibilityRole="header" maxFontSizeMultiplier={MAX_SCALE}>
@@ -146,6 +149,7 @@ export function DateTypesFields({ draft, update }: Props) {
           clearButtonMode="while-editing"
         />
       </View>
+      )}
     </View>
   );
 }
