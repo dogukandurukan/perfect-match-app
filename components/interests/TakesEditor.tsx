@@ -7,7 +7,7 @@
 // selections only.
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { TakeRow } from '@/components/interests/TakeCard';
 import { OnboardingPrimaryButton } from '@/components/onboarding-v2/OnboardingPrimaryButton';
@@ -95,6 +95,7 @@ export function TakesEditor({
     if (fresh.kind === 'ok') onTakesChange(fresh.value.takes);
     else if (r.take) onTakesChange(orderedTakes([...unordered.filter((t) => t.id !== draft.takeId), r.take]));
     setDraft(null);
+    Keyboard.dismiss();
     onNotice({ kind: 'ok', text: 'Saved' });
   };
 

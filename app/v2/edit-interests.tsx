@@ -111,7 +111,7 @@ export default function EditInterestsScreen() {
         setSel(pick(r.value));
         return setBanner({
           kind: 'ok',
-          text: r.takesRemoved > 0 ? `Profile updated. ${r.takesRemoved === 1 ? '1 conversation starter was' : `${r.takesRemoved} conversation starters were`} removed.` : 'Profile updated',
+          text: r.takesRemoved > 0 ? `Interests saved. ${r.takesRemoved === 1 ? '1 conversation starter was' : `${r.takesRemoved} conversation starters were`} removed.` : 'Interests saved',
         });
       }
       if (r.kind === 'confirm') {
@@ -208,7 +208,10 @@ export default function EditInterestsScreen() {
           takes={takes}
           options={options}
           onTakesChange={(t) => setSaved((prev) => (prev ? { ...prev, takes: t } : prev))}
-          onNotice={(n) => setBanner(n ? { kind: n.kind, text: n.kind === 'ok' ? 'Profile updated' : n.text } : null)}
+          // Say exactly what was saved (a starter is saved only by its own Save).
+          onNotice={(n) =>
+            setBanner(n ? { kind: n.kind, text: n.kind === 'ok' ? (n.text === 'Removed' ? 'Conversation starter removed' : 'Conversation starter saved') : n.text } : null)
+          }
           onDirtyChange={setTakeDirty}
           noSubjectHint="To add one, save an activity, book, film or artist below first."
         />
@@ -225,7 +228,18 @@ export default function EditInterestsScreen() {
             {`Saving will also remove your answer about ${willRemove.map((t) => t.subject_title).join(', ')}.`}
           </Text>
         ) : null}
-        <OnboardingPrimaryButton label={savingSel ? 'Saving…' : 'Save interests'} onPress={() => void doSaveSelections(false)} disabled={savingSel || !selDirty || !selValid} />
+        {takeDirty ? (
+          // This button never saves a conversation starter; an open, unsaved
+          // starter must be saved (or cancelled) with its own buttons first.
+          <Text style={styles.warn} accessibilityLiveRegion="polite">
+            Your conversation starter isn’t saved yet. Use Save under it (or Cancel) first.
+          </Text>
+        ) : null}
+        <OnboardingPrimaryButton
+          label={savingSel ? 'Saving…' : 'Save interests'}
+          onPress={() => void doSaveSelections(false)}
+          disabled={savingSel || !selDirty || !selValid || takeDirty}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

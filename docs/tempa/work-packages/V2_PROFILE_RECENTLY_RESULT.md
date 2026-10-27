@@ -147,3 +147,30 @@ Client only — no server, permission or account change. Colours and fonts are u
   - Saved with the keyboard still open.
 - They also showed the tab jump cutting "Your answers" under the tab bar. The jump now compares real on-screen positions: the part's title (`measureInWindow`) against the top of the visible scroll area, using the current offset, and keeps an 8 pt gap. It no longer relies on assumed padding or layout values. Not yet seen on the phone.
 
+## Conversation starter "not saved" (owner's phone, 2026-10-27)
+
+**Evidence** (read-only, `tempa-local-mphoto-mvik8slv-m`):
+- Metro is served from `~/tempa-p0` at HEAD `77686b0`. Another Metro on 8082 belongs to a different project.
+- The phone signed in as this account at 18:31 UTC.
+- The API gateway log shows one save only: `save_interests_v2` at 19:15:30 (200). The selections were stored: activity photography, 1 artist, 1 book.
+- There was **no `save_take_v2` call**, and `profile_takes_v2` has no row for the account.
+- So the starter was never sent. The server didn't refuse it, and no screen held stale data.
+
+**Cause:**
+- On "Your interests" a conversation starter is saved only by the Save under it.
+- The big **Save interests** button at the bottom saves selections only. It stayed enabled while a starter was open and unsaved, and afterwards said "Profile updated", which read as if everything had been saved.
+
+**Fix** (client only):
+- While a starter is open and unsaved, **Save interests** is disabled, with "Your conversation starter isn't saved yet. Use Save under it (or Cancel) first."
+- Messages now say what was saved: "Interests saved", "Conversation starter saved", "Conversation starter removed".
+- A successful starter save closes the keyboard. The starter save was already server-first: "Saved" only after `ok`, an error keeps the draft, and the list is re-read from the server.
+- Edit profile shows the saved starters' subjects ("About …"), reloaded on focus. Preview reloads on focus as before.
+- Standard prompts stay locked and separate.
+
+**Checks:**
+- `v2_interests_takes` 63/63, with 6 new static regression checks (not UI behaviour);
+- `smoke_takes_local` 25/25 and `smoke_onboarding_takes_local` 18/18 (real local services: save → re-read → public profile);
+- `run.js` 24 suites; `tsc` clean; LOCAL iOS export exit 0.
+
+Not seen on the phone yet.
+

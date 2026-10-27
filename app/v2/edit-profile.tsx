@@ -58,12 +58,12 @@ type Ready = {
   profile: Extract<MemberProfileLoad, { ok: true }>;
   photoUrls: (string | null)[];
   recently: PublicRecently | null;
-  starters: number | null;
+  /** Subjects of the saved conversation starters (server copy); null = couldn't load. */
+  starters: string[] | null;
 };
 type Load = { kind: 'loading' } | { kind: 'error'; text: string } | ({ kind: 'ready' } & Ready);
 
 const titleOf = (v: unknown): string => (v && typeof v === 'object' && typeof (v as { title?: unknown }).title === 'string' ? (v as { title: string }).title : '');
-const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 /** The member's real choices as labels, in their order (unknown keys left out). */
 const labels = (keys: unknown, catalog: { key: string; label: string }[]): string[] =>
   (Array.isArray(keys) ? keys : []).map((k) => catalog.find((c) => c.key === k)?.label).filter((x): x is string => !!x);
@@ -206,7 +206,7 @@ export default function EditProfileScreen() {
           profile,
           photoUrls,
           recently: recentlyForDisplay(rec.draft),
-          starters: ints.kind === 'ok' ? ints.value.takes.length : null,
+          starters: ints.kind === 'ok' ? ints.value.takes.map((t) => t.subject_title) : null,
         });
       })();
       return () => {
@@ -382,7 +382,7 @@ export default function EditProfileScreen() {
               {
                 key: 'starters',
                 label: 'Conversation starters',
-                value: load.starters === null ? 'Open to see them' : count(load.starters, 'starter', 'starters'),
+                value: load.starters === null ? 'Open to see them' : load.starters.length ? `About ${load.starters.join(', ')}` : 'None yet',
                 visibility: 'Public',
                 to: '/v2/edit-interests',
               },

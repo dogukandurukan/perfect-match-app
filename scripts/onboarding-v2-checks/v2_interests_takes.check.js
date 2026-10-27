@@ -132,4 +132,20 @@ ok(!/save_prompts_v2|delete from profile_prompts_v2|update account_state_v2|v2_a
 ok(/v2_can_view_public_profile\(auth\.uid\(\), p_user\)/.test(sql), 'starters shown only under the existing visibility rule');
 ok(!/2026101[456]09/.test(read('scripts/dev-backend/apply-dev.mjs')) && /20261015090000_v2_takes_multi\.sql/.test(read('scripts/local-backend/setup.mjs')) && /20261016090000_v2_onboarding_takes\.sql/.test(read('scripts/local-backend/setup.mjs')), 'LOCAL setup only; not wired into apply-dev');
 
+// Regression 2026-10-27 (phone): a starter was edited, "Save interests" was
+// pressed (save_interests_v2 only, no save_take_v2) and "Profile updated"
+// showed — the starter was never saved. Static wiring (not UI behaviour):
+{
+  const ei = code('app/v2/edit-interests.tsx');
+  const te = code('components/interests/TakesEditor.tsx');
+  ok(/disabled=\{savingSel \|\| !selDirty \|\| !selValid \|\| takeDirty\}/.test(ei) && /\{takeDirty \? \(/.test(ei) && /isn’t saved yet/.test(read('app/v2/edit-interests.tsx')),
+    '"Save interests" is off while a conversation starter is open and unsaved, and says why');
+  ok(!/Profile updated/.test(ei) && /'Interests saved'/.test(ei) && /'Conversation starter saved'/.test(ei) && /'Conversation starter removed'/.test(ei), 'messages say exactly what was saved');
+  ok(/if \(r\.kind === 'error'\) \{[\s\S]{0,120}return onNotice\(\{ kind: 'error', text: r\.message \}\);\s*\}[\s\S]*setDraft\(null\);\s*Keyboard\.dismiss\(\);\s*onNotice\(\{ kind: 'ok', text: 'Saved' \}\);/.test(te),
+    'starter: "Saved" only after the server said ok; an error keeps the draft and shows');
+  ok(/const fresh = await loadMyInterests\(\);/.test(te), 'starter: the list is re-read from the server after a save');
+  const ep = code('app/v2/edit-profile.tsx');
+  ok(/useFocusEffect/.test(ep) && /ints\.value\.takes\.map\(\(t\) => t\.subject_title\)/.test(ep), 'Edit profile shows the saved starters (server copy, reloaded on focus)');
+  ok(/refreshKey=\{refreshKey\}/.test(code('app/v2/profile.tsx')) && /setRefreshKey/.test(code('app/v2/profile.tsx')), 'Preview reloads from the server when it regains focus');
+}
 module.exports = done('v2_interests_takes');
