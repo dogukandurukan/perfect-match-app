@@ -16,8 +16,14 @@ Author: Claude Code, 2026-10-25; updated 2026-10-27 (Edit profile, Package 1). D
 | `f7246af` | **D104b "What you're looking for", version 3** (intention, priorities, connection style, summary) |
 | `0dee292` | D104b UI fixes (see §3) |
 | `f9200c1` | handoff docs (pushed) |
-| `81ea900` (local, not pushed) | **D105 Edit profile, Package 1** (see §3) |
-| local, not pushed | **D106 My Profile / Edit profile layout + Recently** (see §3) |
+| `81ea900` | **D105 Edit profile, Package 1** (see §3) |
+| `c039862` | **D106 My Profile / Edit profile layout + Recently** |
+| `f3b73ae` | Sign out on "You're on the list!" |
+| `08424b7`, `77686b0` | profile UI round (DEV previews → Settings, lock notes, real selections, tab jump) |
+| `cb6d062`, `90c3d92` | conversation starters: the save confusion fixed, then their own screens |
+| next commit | docs: setup + design hand-off (2026-10-27) |
+
+As of 2026-10-27 (checked with `git fetch`), everything from `81ea900` on is **local, not pushed**; the remote branch is at `f9200c1`. `origin/main` has 2 doc-only commits this branch lacks. **The GitHub repo is public.** It has no webhooks, Actions workflows, deployments or commit checks, so there is no evidence that a push deploys anything. Externally configured integrations (e.g. Expo / EAS or Supabase GitHub apps) can't be seen from here and are not verified.
 
 ## 2. Backends
 
@@ -86,7 +92,7 @@ Flow inside the live first-submit screen (draft only): invite → intention → 
 - **UI round (same day, after the owner's phone screenshots):** DEV previews → Settings (DEV only), tighter My Profile, one lock note per section, real interests / values, plain lifestyle words, measured tab jumps, Preview without owner prompts, Recently editor keyboard / Saved. Client only; not phone-tested.
 - **Conversation starters (same day):**
   - "Save interests" no longer looks like it saves a starter (phone evidence: only `save_interests_v2` was ever sent). Starters then moved to their own list + editor screens (one Save; Remove after server success). Your interests = selections only.
-  - Owner saw a saved starter in the editor and in the Edit profile summary; **Preview not checked**. The new screens are not phone-tested.
+  - Owner reported the latest starter flow works (a saved starter seen in the editor and in the Edit profile summary). **Not extended:** errors, delete, reopen persistence, Preview and the new separate screens are not phone-tested.
 
 ### Profile visits (D103) — `docs/tempa/work-packages/V2_PROFILE_VISITS_RESULT.md`
 
@@ -143,6 +149,12 @@ It prints a fresh one-time code (also in git-ignored `.test-backend/local-phone-
 **Restarting Metro does NOT change who is signed in on the phone.** Check before testing:
 - A new code shows in the auth log as `user_recovery_requested`; the real sign-in as `login`. A `token_refreshed` for another account means the phone is still on that account.
 - 2026-10-27: "You're on the list!" right after submitting had no way out. It now offers the normal **Sign out** (`LiveOptions.onSignOut`). The status screen (`app/v2/status.tsx`, shown after a reopen) already had one. `login-code.mjs` only creates a code.
+
+## 5b. Working with a second person (from 2026-10-28)
+
+- Setup (not verified on a clean machine): [`SETUP_NEW_DEVELOPER.md`](SETUP_NEW_DEVELOPER.md).
+- Design scope, screen inventory, phone-test backlog and the April 2027 release list: [`DESIGN_HANDOFF.md`](DESIGN_HANDOFF.md).
+- The owner's tempa-local is not reachable from another computer. Use their own tempa-local, the same Wi-Fi with the owner's Mac, or design work from screenshots / DEV previews.
 
 ## 6. Next
 

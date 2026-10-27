@@ -146,3 +146,18 @@ Son mockup'a göre yapıldı; story fikrinin ve büyük müzik/kitap kartların�
 Durum: yerel testler geçti; ekran görüntüsü alınamadı (bu Mac'te simülatör yok); **telefonda test edilmedi.**
 
 ChatGPT'den beklenen: Paket 1 ve profil düzeni telefon testlerinin sonucuna göre sıradaki paketin önceliği ve "önce incele" promptu.
+
+## 27 Ekim sonu — ortak çalışmaya hazırlık
+
+- **Commit'ler:** `81ea900`'dan sonraki tüm commit'ler henüz yalnız yerelde (push edilmedi):
+  - Edit profile Paket 1;
+  - profil düzeni ve "Recently";
+  - UI düzeltmeleri;
+  - sohbet başlatıcıların kendi ekranları.
+- **Sohbet başlatıcılar:** ürün sahibi son akışın çalıştığını bildirdi (editörde ve Edit profile özetinde göründü). Hata, silme, yeniden açılış ve Preview henüz telefonda test edilmedi.
+- **Depo:** herkese açık (public).
+- **Yeni belgeler:**
+  - Yeni geliştirici kurulumu: `docs/tempa/SETUP_NEW_DEVELOPER.md` (temiz bir makinede henüz denenmedi).
+  - Tasarım devri, ekran envanteri, bekleyen telefon testleri ve Nisan 2027 yayın listesi: `docs/tempa/DESIGN_HANDOFF.md`.
+- **İlk tasarım kapsamı:** Discover, açık profil, Edit profile.
+

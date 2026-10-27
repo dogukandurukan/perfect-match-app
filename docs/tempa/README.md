@@ -24,6 +24,8 @@ direction only.
 
 - [`HANDOFF_CLAUDE.md`](HANDOFF_CLAUDE.md) — technical state at the end of the last session (branch, commits, local migrations, test accounts, open issues, next step). Points to the result documents; they win on details.
 - [`HANDOFF_CHATGPT.md`](HANDOFF_CHATGPT.md) — self-contained product summary to paste into a new ChatGPT session.
+- [`SETUP_NEW_DEVELOPER.md`](SETUP_NEW_DEVELOPER.md) — clean setup for a new developer (versions, env var names, own tempa-local, phone build options). Not yet verified on a clean machine.
+- [`DESIGN_HANDOFF.md`](DESIGN_HANDOFF.md) — screen inventory, what can / can't be edited, first design scope, phone-test backlog, April 2027 release list.
 
 ## Read in this order
 
