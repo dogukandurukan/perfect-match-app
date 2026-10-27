@@ -327,6 +327,17 @@ export default function SettingsScreen() {
             <ThemedText style={styles.dangerText}>Delete account</ThemedText>
           </TouchableOpacity>
         </View>
+
+        {__DEV__ ? (
+          // DEV-only design previews (local sample data, no real accounts).
+          // Moved here from the V2 Profile tab (2026-10-27); never in release builds.
+          <View style={styles.card}>
+            <SectionTitle title="Developer (DEV only)" />
+            <NavRow label="Matches design preview" onPress={() => router.push('/dev/matches-preview' as never)} />
+            <NavRow label="Discover design preview" onPress={() => router.push('/dev/discover-preview' as never)} />
+            <NavRow label="Activity design preview" onPress={() => router.push('/dev/activity-preview' as never)} />
+          </View>
+        ) : null}
       </ScrollView>
     </ScreenContainer>
   );

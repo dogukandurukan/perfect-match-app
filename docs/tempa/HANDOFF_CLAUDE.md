@@ -83,6 +83,7 @@ Flow inside the live first-submit screen (draft only): invite → intention → 
   - `run.js` 24 suites; profile-related smokes pass;
   - `tsc` clean; iOS export exit 0.
 - **No screenshots** (no simulator / react-native-web here). **Not phone-tested.**
+- **UI round (same day, after the owner's phone screenshots):** DEV previews → Settings (DEV only), tighter My Profile, one lock note per section, real interests / values, plain lifestyle words, measured tab jumps, Preview without owner prompts, Recently editor keyboard / Saved. Client only; not phone-tested.
 
 ### Profile visits (D103) — `docs/tempa/work-packages/V2_PROFILE_VISITS_RESULT.md`
 

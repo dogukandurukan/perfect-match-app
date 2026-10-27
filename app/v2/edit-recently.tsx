@@ -10,7 +10,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingPrimaryButton } from '@/components/onboarding-v2/OnboardingPrimaryButton';
@@ -76,12 +76,14 @@ export default function EditRecentlyScreen() {
     busy.current = false;
     setSaving(false);
     if (r.ok) {
+      Keyboard.dismiss();
       setSaved(r.draft);
       setDraft(r.draft);
       setVersion(r.version);
-      setBanner({ kind: 'saved' });
+      setBanner({ kind: 'saved' }); // cleared by the next edit (set)
       return;
     }
+    // Keep the draft (and the keyboard) for a retry.
     setBanner({ kind: 'error', text: r.text, changed: r.changed });
   }, [draft, version, dirty, problem]);
 
@@ -134,7 +136,13 @@ export default function EditRecentlyScreen() {
   return (
     <KeyboardAvoidingView style={[styles.root, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {header}
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: obSpacing.xl }]} keyboardShouldPersistTaps="handled">
+      {/* The footer (Save) sits below the scroll area and moves above the
+          keyboard with it, so it never covers a field; every field can be
+          scrolled to while the keyboard is open. */}
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: obSpacing.xxl }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive">
         <Text style={styles.hint} maxFontSizeMultiplier={1.6}>
           Optional. Shown under your name on your profile and stays until you change it.
         </Text>

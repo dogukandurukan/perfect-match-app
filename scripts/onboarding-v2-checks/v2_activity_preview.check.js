@@ -107,7 +107,8 @@ const src = files.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('
 ok(!/supabase|matchInvite|send_like|rpc\(|fetch\(|matchChatV2/.test(src.replace(/import type \{[^}]*\} from '@\/lib\/matchChatV2';/, '')), 'preview never imports Supabase or network helpers (type-only chat import)');
 ok(/if \(!__DEV__\) return <Redirect href="\/" \/>/.test(fs.readFileSync(path.join(ROOT, 'app/dev/activity-preview.tsx'), 'utf8')), 'route redirects outside DEV');
 const home = fs.readFileSync(path.join(ROOT, 'components/main/V2ProfileHome.tsx'), 'utf8');
-ok(/__DEV__ \?[\s\S]{0,300}\/dev\/activity-preview[\s\S]{0,400}Activity design preview \(DEV\)/.test(home), 'DEV entry is __DEV__-gated');
+// Since 2026-10-27 the DEV design previews live under Settings (DEV only).
+ok(/__DEV__ \?[\s\S]{0,900}label="Activity design preview" onPress=\{\(\) => router\.push\('\/dev\/activity-preview'/.test(fs.readFileSync(path.join(ROOT, 'app/settings.tsx'), 'utf8')) && !/dev\/activity-preview/.test(home), 'DEV entry is __DEV__-gated (Settings)');
 ok(!/activity-preview|activityPreview/.test(fs.readFileSync(path.join(ROOT, 'app/(tabs)/notifications.tsx'), 'utf8')), 'real Activity tab untouched by preview code');
 const items = fs.readFileSync(path.join(ROOT, 'components/discover/DiscoverProfileItems.tsx'), 'utf8');
 ok(/readOnly\?: boolean/.test(items) && !/readOnly/.test(fs.readFileSync(path.join(ROOT, 'components/main/V2DiscoverScreen.tsx'), 'utf8')), 'shared profile: readOnly is opt-in; real Discover does not set it');

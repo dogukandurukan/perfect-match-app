@@ -20,9 +20,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OnboardingPrimaryButton } from '@/components/onboarding-v2/OnboardingPrimaryButton';
 import { RecentlyRows } from '@/components/profile/RecentlyRows';
 import { loadMyInterests } from '@/lib/interests/interestsV2';
+import { ACTIVITIES } from '@/lib/interests/takes';
 import { GENDER_OPTIONS, INTERESTED_IN_OPTIONS } from '@/lib/onboardingV2/basics';
+import { VALUE_OPTIONS } from '@/lib/onboardingV2/compatibility';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import { promptLabel } from '@/lib/onboardingV2/yourProfile';
+import { INTERESTS } from '@/lib/onboardingV2/yourWorld';
 import { loadMemberProfile, type MemberProfileLoad } from '@/lib/profile/memberProfile';
 import { ageFromIso, sectionSummary, type SectionId } from '@/lib/profile/memberProfileCore';
 import { loadMyRecently } from '@/lib/profile/recently';
@@ -30,8 +33,11 @@ import { recentlyForDisplay, type PublicRecently } from '@/lib/profile/recentlyC
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 
-const LOCKED = 'This detail can’t be changed yet';
+// One short note per part / section; locked rows only carry a lock icon.
+const LOCKED_NOTE = 'Details with a lock can’t be changed yet.';
 type Part = 'photos' | 'answers' | 'details';
+const SCROLL_TOP = obSpacing.md; // the scroll content's top padding
+const TITLE_GAP = obSpacing.sm; // space kept above a part's title after a jump
 const PARTS: { key: Part; label: string }[] = [
   { key: 'photos', label: 'Photos' },
   { key: 'answers', label: 'Answers' },
@@ -58,14 +64,17 @@ type Load = { kind: 'loading' } | { kind: 'error'; text: string } | ({ kind: 're
 
 const titleOf = (v: unknown): string => (v && typeof v === 'object' && typeof (v as { title?: unknown }).title === 'string' ? (v as { title: string }).title : '');
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** The member's real choices as labels, in their order (unknown keys left out). */
+const labels = (keys: unknown, catalog: { key: string; label: string }[]): string[] =>
+  (Array.isArray(keys) ? keys : []).map((k) => catalog.find((c) => c.key === k)?.label).filter((x): x is string => !!x);
 
 function detailSections(r: Ready): { title: string; rows: Row[] }[] {
   const p = r.profile;
   const d = (p.bundle.draft ?? {}) as Record<string, unknown>;
   const f = p.fields;
   const edit = (s: SectionId) => `/v2/edit-profile-section?section=${s}`;
-  const interests = Array.isArray(d.interests) ? d.interests.length : 0;
-  const values = Array.isArray(d.core_values) ? d.core_values.length : 0;
+  const interests = [...labels(d.interests, INTERESTS), ...labels(d.activities, ACTIVITIES)].join(', ');
+  const values = labels(d.core_values, VALUE_OPTIONS).join(', ');
   const age = ageFromIso(d.date_of_birth);
   const interestedIn = (Array.isArray(d.interested_in) ? d.interested_in : [])
     .map((k) => INTERESTED_IN_OPTIONS.find((o) => o.key === k)?.label)
@@ -110,8 +119,8 @@ function detailSections(r: Ready): { title: string; rows: Row[] }[] {
     {
       title: 'Interests & values',
       rows: [
-        { key: 'interests', label: 'Interests', value: count(interests, 'interest', 'interests'), visibility: 'Public', to: '/v2/edit-interests' },
-        { key: 'values', label: 'What matters most', value: count(values, 'value', 'values'), visibility: 'Public', to: null },
+        { key: 'interests', label: 'Interests & activities', value: interests || 'None yet', visibility: 'Public', to: '/v2/edit-interests' },
+        { key: 'values', label: 'What matters most', value: values || '—', visibility: 'Public', to: null },
       ],
     },
   ];
@@ -132,14 +141,9 @@ function RowList({ rows, onOpen }: { rows: Row[]; onOpen: (to: string) => void }
                   {row.visibility}
                 </Text>
               </View>
-              <Text style={styles.value} numberOfLines={2} maxFontSizeMultiplier={1.6}>
+              <Text style={styles.value} maxFontSizeMultiplier={1.6}>
                 {row.value}
               </Text>
-              {row.to ? null : (
-                <Text style={styles.locked} maxFontSizeMultiplier={1.6}>
-                  {LOCKED}
-                </Text>
-              )}
             </View>
             <Ionicons name={row.to ? 'chevron-forward' : 'lock-closed-outline'} size={18} color={obColors.textSecondary} importantForAccessibility="no" />
           </>
@@ -156,7 +160,7 @@ function RowList({ rows, onOpen }: { rows: Row[]; onOpen: (to: string) => void }
             {body}
           </TouchableOpacity>
         ) : (
-          <View key={row.key} style={rowStyle} accessible accessibilityLabel={`${row.label}, ${row.value}, ${row.visibility}. ${LOCKED}`}>
+          <View key={row.key} style={rowStyle} accessible accessibilityLabel={`${row.label}, ${row.value}, ${row.visibility}. Locked`}>
             {body}
           </View>
         );
@@ -172,7 +176,13 @@ export default function EditProfileScreen() {
   const [reload, setReload] = useState(0);
   const [active, setActive] = useState<Part>('photos');
   const scrollRef = useRef<ScrollView>(null);
+  // Parts are measured inside `bodyRef` (the scroll content without its top
+  // padding); positions are read again at tap time, so images or text that
+  // changed height since the last layout don't throw the jump off.
+  const bodyRef = useRef<View>(null);
+  const partRef = useRef<Record<Part, View | null>>({ photos: null, answers: null, details: null });
   const partY = useRef<Record<Part, number>>({ photos: 0, answers: 0, details: 0 });
+  const jumping = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -205,12 +215,28 @@ export default function EditProfileScreen() {
   const at = (part: Part) => (e: LayoutChangeEvent) => {
     partY.current[part] = e.nativeEvent.layout.y;
   };
+  const setPartRef = (part: Part) => (v: View | null) => {
+    partRef.current[part] = v;
+  };
+  // The part's title is its first child: scrolling to the part's top puts the
+  // whole title right under the fixed header + tabs (they sit outside the
+  // scroll view), with a small gap.
+  const scrollToY = (y: number) => {
+    if (jumping.current) clearTimeout(jumping.current);
+    jumping.current = setTimeout(() => (jumping.current = null), 600);
+    scrollRef.current?.scrollTo({ y: Math.max(0, SCROLL_TOP + y - TITLE_GAP), animated: true });
+  };
   const goTo = (part: Part) => {
     setActive(part);
-    scrollRef.current?.scrollTo({ y: Math.max(0, partY.current[part] - obSpacing.sm), animated: true });
+    const node = partRef.current[part];
+    const body = bodyRef.current;
+    if (node && body) node.measureLayout(body, (_x, y) => scrollToY(y), () => scrollToY(partY.current[part]));
+    else scrollToY(partY.current[part]);
   };
   const onScroll = (y: number) => {
-    const p: Part = y + 120 >= partY.current.details ? 'details' : y + 120 >= partY.current.answers ? 'answers' : 'photos';
+    if (jumping.current) return; // a tab jump in progress decides the tab
+    const top = y - SCROLL_TOP + TITLE_GAP + 1;
+    const p: Part = top >= partY.current.details ? 'details' : top >= partY.current.answers ? 'answers' : 'photos';
     if (p !== active) setActive(p);
   };
 
@@ -282,7 +308,8 @@ export default function EditProfileScreen() {
         onScroll={(e) => onScroll(e.nativeEvent.contentOffset.y)}
         scrollEventThrottle={64}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + obSpacing.xxl * 3 }]}>
-        <View onLayout={at('photos')} style={styles.part}>
+        <View ref={bodyRef} collapsable={false} style={styles.parts}>
+        <View ref={setPartRef('photos')} collapsable={false} onLayout={at('photos')} style={styles.part}>
           <View style={styles.partHead}>
             <Text style={styles.partTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
               Photos
@@ -316,12 +343,17 @@ export default function EditProfileScreen() {
           </View>
         </View>
 
-        <View onLayout={at('answers')} style={styles.part}>
+        <View ref={setPartRef('answers')} collapsable={false} onLayout={at('answers')} style={styles.part}>
           <Text style={styles.partTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
             Your answers
           </Text>
+          {prompts.length ? (
+            <Text style={styles.note} maxFontSizeMultiplier={1.6}>
+              Prompt answers can’t be changed yet. Conversation starters can.
+            </Text>
+          ) : null}
           {prompts.map((p) => (
-            <View key={p.slot} style={styles.answer} accessible accessibilityLabel={`${promptLabel(p.prompt_id as never)}. ${p.answer}. ${LOCKED}`}>
+            <View key={p.slot} style={styles.answer} accessible accessibilityLabel={`${promptLabel(p.prompt_id as never)}. ${p.answer}. Locked`}>
               <View style={styles.answerHead}>
                 <Text style={styles.answerLabel} maxFontSizeMultiplier={1.5}>
                   {promptLabel(p.prompt_id as never)}
@@ -330,9 +362,6 @@ export default function EditProfileScreen() {
               </View>
               <Text style={styles.answerText} maxFontSizeMultiplier={1.6}>
                 {p.answer}
-              </Text>
-              <Text style={styles.locked} maxFontSizeMultiplier={1.6}>
-                {LOCKED}
               </Text>
             </View>
           ))}
@@ -350,7 +379,7 @@ export default function EditProfileScreen() {
           />
         </View>
 
-        <View onLayout={at('details')} style={styles.part}>
+        <View ref={setPartRef('details')} collapsable={false} onLayout={at('details')} style={styles.part}>
           <Text style={styles.partTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
             Details
           </Text>
@@ -362,9 +391,15 @@ export default function EditProfileScreen() {
               <Text style={styles.sectionTitle} accessibilityRole="header" maxFontSizeMultiplier={1.5}>
                 {s.title}
               </Text>
+              {s.rows.some((r) => !r.to) ? (
+                <Text style={styles.sectionNote} maxFontSizeMultiplier={1.6}>
+                  {LOCKED_NOTE}
+                </Text>
+              ) : null}
               <RowList rows={s.rows} onOpen={open} />
             </View>
           ))}
+        </View>
         </View>
       </ScrollView>
     </View>
@@ -385,7 +420,8 @@ const styles = StyleSheet.create({
   tabTextOn: { color: obColors.cta, fontFamily: obFonts.bodySemiBold },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: obSpacing.md, paddingHorizontal: obSpacing.gutter },
   body: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary, textAlign: 'center' },
-  scroll: { paddingHorizontal: obSpacing.gutter, paddingTop: obSpacing.md, gap: obSpacing.xxl },
+  scroll: { paddingHorizontal: obSpacing.gutter, paddingTop: SCROLL_TOP },
+  parts: { gap: obSpacing.xxl },
   part: { gap: obSpacing.md },
   partHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   partTitle: { fontFamily: obFonts.heading, fontSize: 20, lineHeight: 26, color: obColors.textPrimary },
@@ -413,5 +449,5 @@ const styles = StyleSheet.create({
   tag: { fontFamily: obFonts.bodyMedium, fontSize: 11, lineHeight: 15, color: obColors.cta, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: obColors.selectedFill, overflow: 'hidden' },
   tagPrivate: { color: obColors.textSecondary, backgroundColor: obColors.notice },
   value: { fontFamily: obFonts.body, fontSize: 15, lineHeight: 20, color: obColors.textSecondary },
-  locked: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary, fontStyle: 'italic' },
+  sectionNote: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
 });

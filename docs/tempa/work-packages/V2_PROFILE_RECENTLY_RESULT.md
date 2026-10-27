@@ -103,3 +103,38 @@ Applied to tempa-local:
   - the grid is 3 × ≈108 pt;
   - the Preview pill sits in the header.
 - **Waiting for the phone:** taps, tab scrolling, the link opening outside the app, the Discard / Reload prompts, and how it all looks.
+
+## UI round after the phone look (2026-10-27)
+
+Client only — no server, permission or account change. Colours and fonts are unchanged.
+
+- **My Profile:**
+  - The three DEV design-preview buttons moved to **Settings → "Developer (DEV only)"**. They are `__DEV__`-gated and absent from the production export.
+  - Tighter spacing.
+  - Recently = a small title + the book / song lines. When empty, a compact "Add a book or a song" link sits on the title row.
+- **Edit profile:**
+  - The repeated "This detail can't be changed yet" is gone. Each section with locked rows has one short note ("Details with a lock can't be changed yet."); locked rows keep a lock icon. Answers have one note.
+  - Interests & activities and values show the real choices as labels, wrapping instead of truncating.
+  - Lifestyle uses the profile's plain words, including activity — e.g. "Doesn't smoke · Drinks sometimes · Has a dog · Somewhat active". These come from the shared `lifestylePhrases`.
+  - Tab jumps measure the part at tap time (`measureLayout` in the parts wrapper). The part's title lands just under the fixed header + tabs, which sit outside the scroll view. The active tab doesn't flicker during the jump.
+- **Preview** (`/v2/profile?own=1`):
+  - titled "Preview";
+  - no owner prompts ("Add a conversation starter" removed there);
+  - no like / comment;
+  - other members' profiles are unchanged (shared marks, visit recording).
+- **Recently editor:**
+  - A successful Save closes the keyboard and shows "Saved". The next edit clears it.
+  - A failure keeps the draft.
+  - Fields scroll with the keyboard open (interactive dismiss), and the Save footer stays below the scroll area.
+
+**Checks:**
+- `run.js` 24 suites; `v2_member_profile_edit` 37/37; `v2_profile_recently` 38/38.
+- The DEV-entry / lock-copy checks were updated to the new places.
+- `p0-checks`; `tsc` clean; LOCAL iOS export exit 0.
+- The new checks are pure logic (lifestyle words) and static wiring — **not** UI behaviour.
+
+**Not verified in a real UI** (no simulator here):
+- spacing;
+- where the title lands after a tab jump;
+- keyboard behaviour;
+- text wrapping on the phone.

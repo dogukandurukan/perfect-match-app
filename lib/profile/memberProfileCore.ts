@@ -11,6 +11,7 @@
 import { SINGLE_QUESTIONS } from '@/lib/onboardingV2/compatibility';
 import { DATE_TYPES, DAY_OPTIONS, MAX_DATE_TYPES, MIN_DATE_TYPES, TIME_OPTIONS } from '@/lib/onboardingV2/yourDates';
 import { HAVE_PETS, LIFE_QUESTIONS, PET_KIND_OPTIONS } from '@/lib/onboardingV2/yourLife';
+import { lifestylePhrases } from '@/lib/onboardingV2/yourProfile';
 import { WORK_OPTIONS } from '@/lib/onboardingV2/yourWorld';
 
 export type MemberFields = {
@@ -152,10 +153,11 @@ export function sectionSummary(section: SectionId, f: MemberFields): string {
       return f.heightCm ? `${f.heightCm} cm` : 'Not set';
     case 'work':
       return titleOf(WORK_OPTIONS, f.workStatus) ?? 'Not set';
-    case 'lifestyle':
-      return [titleOf(lifeQ('smoking').options, f.smoking), titleOf(lifeQ('drinking').options, f.drinking), titleOf(lifeQ('pets').options, f.pets)]
-        .filter(Boolean)
-        .join(' · ') || 'Not set';
+    case 'lifestyle': {
+      // The same plain words as the profile ("Doesn't smoke"), incl. activity.
+      const l = lifestylePhrases({ smoking: f.smoking, drinking: f.drinking, pets: f.pets, petKind: f.petKind, activity: f.activity });
+      return [l.smoking, l.drinking, l.pets, l.activity].filter(Boolean).join(' · ') || 'Not set';
+    }
     case 'dates': {
       const types = f.dateTypes.map((t) => DATE_TYPES.find((d) => d.key === t)?.label).filter(Boolean).join(' · ');
       const when = [DAY_OPTIONS.find((o) => o.key === f.days)?.summary, TIME_OPTIONS.find((o) => o.key === f.time)?.summary].filter(Boolean).join(' · ');

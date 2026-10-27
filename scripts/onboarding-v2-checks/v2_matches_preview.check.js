@@ -93,6 +93,6 @@ for (const f of files) {
   ok(!/supabase|onboardingV2\/remote|matchChatV2|discover\/discoverV2|@\/lib\/(likes|matchInvite|dailyViews)/.test(src), `${f}: no backend import`);
 }
 ok(/if \(!__DEV__\) return <Redirect/.test(fs.readFileSync(path.join(ROOT, 'app/dev/matches-preview.tsx'), 'utf8')), 'route redirects in production');
-ok(/__DEV__ \?[\s\S]{0,200}dev\/matches-preview/.test(fs.readFileSync(path.join(ROOT, 'components/main/V2ProfileHome.tsx'), 'utf8')), 'Profile entry is DEV-only');
+ok(/__DEV__ \?[\s\S]{0,900}dev\/matches-preview/.test(fs.readFileSync(path.join(ROOT, 'app/settings.tsx'), 'utf8')), 'Settings entry is DEV-only');
 
 module.exports = done('v2_matches_preview');

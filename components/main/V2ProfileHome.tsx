@@ -5,8 +5,7 @@
 // with no like / comment actions). Editing after approval goes through Edit
 // profile (Photos order / main, Interests & conversation starters, the
 // Package 1 details, Recently); everything else stays locked and it never
-// routes to the V1 editor.
-import { Ionicons } from '@expo/vector-icons';
+// routes to the V1 editor. DEV design previews live under Settings (DEV only).
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -128,40 +127,6 @@ export function V2ProfileHome() {
         </View>
       </View>
 
-      {__DEV__ ? (
-        // DEV-only entry to the local Matches design preview (no real data).
-        <TouchableOpacity
-          onPress={() => router.push('/dev/matches-preview' as never)}
-          accessibilityRole="button"
-          hitSlop={10}
-          style={styles.devEntry}>
-          <Ionicons name="construct-outline" size={18} color={obColors.textSecondary} importantForAccessibility="no" />
-          <Text style={styles.devEntryText}>Matches design preview (DEV)</Text>
-        </TouchableOpacity>
-      ) : null}
-      {__DEV__ ? (
-        // DEV-only entry to the local Discover design preview (no real data).
-        <TouchableOpacity
-          onPress={() => router.push('/dev/discover-preview' as never)}
-          accessibilityRole="button"
-          hitSlop={10}
-          style={styles.devEntry}>
-          <Ionicons name="construct-outline" size={18} color={obColors.textSecondary} importantForAccessibility="no" />
-          <Text style={styles.devEntryText}>Discover design preview (DEV)</Text>
-        </TouchableOpacity>
-      ) : null}
-      {__DEV__ ? (
-        // DEV-only entry to the local Activity design preview (no real data).
-        <TouchableOpacity
-          onPress={() => router.push('/dev/activity-preview' as never)}
-          accessibilityRole="button"
-          hitSlop={10}
-          style={styles.devEntry}>
-          <Ionicons name="construct-outline" size={18} color={obColors.textSecondary} importantForAccessibility="no" />
-          <Text style={styles.devEntryText}>Activity design preview (DEV)</Text>
-        </TouchableOpacity>
-      ) : null}
-
       <TouchableOpacity onPress={signOut} accessibilityRole="button" hitSlop={10} style={styles.signOut}>
         <Text style={styles.link}>Sign out</Text>
       </TouchableOpacity>
@@ -171,7 +136,7 @@ export function V2ProfileHome() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: obColors.background },
-  content: { padding: obSpacing.gutter, gap: obSpacing.xl },
+  content: { paddingHorizontal: obSpacing.gutter, paddingTop: obSpacing.lg, paddingBottom: obSpacing.xl, gap: obSpacing.lg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: obSpacing.md, backgroundColor: obColors.background, padding: obSpacing.gutter },
   identity: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.lg },
   identityText: { flex: 1, minWidth: 0, gap: 2 },
@@ -185,17 +150,4 @@ const styles = StyleSheet.create({
   body: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary, textAlign: 'center' },
   link: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.cta, textDecorationLine: 'underline' },
   signOut: { alignSelf: 'center', minHeight: 44, justifyContent: 'center' },
-  devEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: obSpacing.sm,
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: obColors.border,
-    backgroundColor: obColors.notice,
-  },
-  devEntryText: { fontFamily: obFonts.bodyMedium, fontSize: 15, lineHeight: 20, color: obColors.textSecondary },
 });

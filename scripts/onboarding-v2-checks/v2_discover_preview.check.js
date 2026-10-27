@@ -106,7 +106,7 @@ ok(pctStrings.length === 0, 'no compatibility percentage in any text');
 ok(/returnKeyType="done"/.test(src) && /submitBehavior="blurAndSubmit"/.test(src) && !/onSubmitEditing/.test(src), 'Done closes the keyboard without sending');
 ok(/chrome\.tabBar \? <PreviewTabBar/.test(src) && D.chromeVisibility({ kind: 'profile', keyboardOpen: true, editorOpen: true, liked: false, outOfLikes: false }).tabBar === false, 'tab bar hidden while typing in the comment field');
 ok(/if \(!__DEV__\) return <Redirect/.test(fs.readFileSync(path.join(ROOT, 'app/dev/discover-preview.tsx'), 'utf8')), 'route redirects in production');
-ok(/__DEV__ \?[\s\S]{0,200}dev\/discover-preview/.test(fs.readFileSync(path.join(ROOT, 'components/main/V2ProfileHome.tsx'), 'utf8')), 'Profile entry is DEV-only');
+ok(/__DEV__ \?[\s\S]{0,900}dev\/discover-preview/.test(fs.readFileSync(path.join(ROOT, 'app/settings.tsx'), 'utf8')), 'Settings entry is DEV-only');
 
 // Round 3: out of likes, no one left, load error.
 const out0 = R(I, { type: 'dev_use_up_likes' });

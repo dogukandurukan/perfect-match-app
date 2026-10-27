@@ -423,6 +423,16 @@ const PETS_TEXT: Record<string, string> = {
 };
 const ACTIVITY_TEXT: Record<string, string> = { very: 'Very active', somewhat: 'Somewhat active', not_very: 'Not very active' };
 
+/** Lifestyle in plain words, as profiles show it (smoking, drinking, pets, activity). */
+export function lifestylePhrases(life: LifeDraft): { smoking: string | null; drinking: string | null; pets: string | null; activity: string | null } {
+  return {
+    smoking: (life.smoking && SMOKING_TEXT[life.smoking]) || null,
+    drinking: (life.drinking && DRINKING_TEXT[life.drinking]) || null,
+    pets: life.pets === HAVE_PETS ? PET_KIND_TEXT[life.petKind ?? 'other'] : (life.pets && PETS_TEXT[life.pets]) || null,
+    activity: (life.activity && ACTIVITY_TEXT[life.activity]) || null,
+  };
+}
+
 function nonEmpty<T>(xs: (T | null | undefined | false | '')[]): T[] {
   return xs.filter((x): x is T => !!x);
 }
@@ -546,13 +556,12 @@ export function buildPublicProfileBlocks(p: PublicProfileInput): PreviewBlock[] 
   ]);
 
   // Lifestyle
-  const pets =
-    life.pets === HAVE_PETS ? PET_KIND_TEXT[life.petKind ?? 'other'] : life.pets ? PETS_TEXT[life.pets] : null;
+  const ls = lifestylePhrases(life);
   const lifestyle: PreviewFact[] = nonEmpty<PreviewFact>([
-    life.smoking && SMOKING_TEXT[life.smoking] && { icon: 'leaf-outline', text: SMOKING_TEXT[life.smoking] },
-    life.drinking && DRINKING_TEXT[life.drinking] && { icon: 'wine-outline', text: DRINKING_TEXT[life.drinking] },
-    pets && { icon: 'paw-outline', text: pets },
-    life.activity && ACTIVITY_TEXT[life.activity] && { icon: 'bicycle-outline', text: ACTIVITY_TEXT[life.activity] },
+    ls.smoking && { icon: 'leaf-outline', text: ls.smoking },
+    ls.drinking && { icon: 'wine-outline', text: ls.drinking },
+    ls.pets && { icon: 'paw-outline', text: ls.pets },
+    ls.activity && { icon: 'bicycle-outline', text: ls.activity },
   ]);
 
   // First dates

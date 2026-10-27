@@ -1,5 +1,7 @@
-// A V2 member's full public profile (approved preview design), reached from
-// the Profile tab ("View profile"). Same data path as Home: get_profile_v2.
+// A V2 member's full public profile (approved preview design). Same data path
+// as Home: get_profile_v2. `own=1` is the owner's Preview (from My Profile /
+// Edit profile): exactly what others see — no owner prompts such as "Add a
+// conversation starter", no like / comment (PublicProfileView has none).
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -34,7 +36,7 @@ export default function V2ProfileScreen() {
           <Ionicons name="chevron-back" size={24} color={obColors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
-          Profile
+          {isOwn ? 'Preview' : 'Profile'}
         </Text>
         <View style={styles.back} />
       </View>
@@ -44,7 +46,6 @@ export default function V2ProfileScreen() {
           <PublicProfileView
             userId={String(userId)}
             refreshKey={refreshKey}
-            onAddTake={isOwn ? () => router.push('/v2/edit-interests' as never) : undefined}
             markShared={!isOwn}
             // Another member's full profile, really loaded → a profile visit (D103).
             onLoaded={isOwn ? undefined : recordVisit}

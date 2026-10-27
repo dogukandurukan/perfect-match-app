@@ -59,6 +59,15 @@ ok(/accessibilityRole="tab"/.test(ep) && /scrollTo\(\{ y:/.test(ep) && /onLayout
 ok(!/ImagePicker|add_profile_photo|delete_profile_photo|save_prompts_v2|connection_answers|loadConnectionAnswers/.test(ep), 'no photo add / delete, prompt editing or private preferences');
 ok(!/\b(story|stories|ring|rings|expires?|autoplay)\b|future feature|\bMert\b|Rick Rubin|Bill Withers/i.test(rows + home + ed + ep), 'no story / ring / expiry / autoplay, no mockup sample content or design notes');
 
+// UI round 2026-10-27 (static wiring only — the phone shows the result).
+ok(/const labels = \(keys: unknown/.test(ep) && /labels\(d\.interests, INTERESTS\)/.test(ep) && /labels\(d\.core_values, VALUE_OPTIONS\)/.test(ep) && !/count\(interests|count\(values/.test(ep), 'Edit profile shows the real interests / values, not counts');
+ok(/node\.measureLayout\(body,/.test(ep) && /SCROLL_TOP \+ y - TITLE_GAP/.test(ep) && /if \(jumping\.current\) return;/.test(ep), 'tab jump measures the part at tap time; the title lands under the fixed bar');
+const prof = code('app/v2/profile.tsx');
+ok(!/onAddTake/.test(prof) && /isOwn \? 'Preview' : 'Profile'/.test(prof) && /onLoaded=\{isOwn \? undefined : recordVisit\}/.test(prof), 'own Preview: no owner prompts; other profiles unchanged');
+ok(/onEdit && recently \?[\s\S]{0,400}\) : onEdit \?/.test(rows) && !/addRow/.test(rows), 'empty Recently: a compact add link on the title row');
+ok(/if \(r\.ok\) \{\s*Keyboard\.dismiss\(\);/.test(ed) && /keyboardDismissMode="interactive"/.test(ed), 'Recently editor: keyboard closes after a save; fields scroll with the keyboard open');
+ok(!/dev\/(matches|discover|activity)-preview/.test(home) && /__DEV__ \?[\s\S]{0,900}Developer \(DEV only\)/.test(read('app/settings.tsx')), 'DEV design previews: Settings, DEV only; not on My Profile');
+
 // Server package.
 const sql = read('supabase/proposed/20261027120000_v2_profile_recently.sql').replace(/^--.*$/gm, '');
 ok(/v_uid uuid := public\.v2_assert_member_profile_edit\(\);/.test(sql) && !/v2_assert_editable/.test(sql), 'active members only; the general onboarding lock is not used or changed');

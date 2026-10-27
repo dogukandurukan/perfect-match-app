@@ -40,6 +40,10 @@ ok(M.sectionSummary('lookingFor', { ...f, intent: null }) === 'Not shown on your
 ok(M.sectionSummary('dates', f) === 'Coffee · A walk — Weekends · Evening', 'first dates summary');
 ok(M.saveError('profile_changed').changed === true && M.saveError(null).changed === false && /try again/i.test(M.saveError(null).text), 'conflict → Reload; other failures → retry');
 
+// UI round 2026-10-27: plain lifestyle words (as on the profile), incl. activity.
+ok(M.sectionSummary('lifestyle', { ...f, pets: 'like_no_pets', petKind: null }) === "Doesn't smoke · Drinks sometimes · " + require(path.join(ROOT, 'lib/onboardingV2/yourProfile.ts')).lifestylePhrases({ smoking: null, drinking: null, pets: 'like_no_pets', petKind: null, activity: null }).pets + ' · Somewhat active', 'lifestyle summary: plain words + activity');
+ok(M.sectionSummary('lifestyle', f) === "Doesn't smoke · Drinks sometimes · Has a dog · Somewhat active", 'lifestyle summary with a pet kind');
+
 // Static wiring (not UI behaviour).
 const sec = code('app/v2/edit-profile-section.tsx');
 ok(/addListener\('beforeRemove'/.test(sec) && /if \(!dirty \|\| busy\.current\) return;/.test(sec) && /Discard changes\?/.test(sec), 'wired: Discard changes prompt');
@@ -51,7 +55,7 @@ ok(!/connection_answers|connectionRemote|loadConnectionAnswers|onboardingV2\/con
 const hub = code('app/v2/edit-profile.tsx');
 ok(/open\('\/v2\/edit-photos'\)/.test(hub) && /to: '\/v2\/edit-interests'/.test(hub), 'Photos and Interests open the existing editors');
 ok(/label: 'Gender'[^\n]*visibility: 'Private', to: null/.test(hub) && /label: 'Interested in'[^\n]*visibility: 'Private', to: null/.test(hub), 'gender / interested in: Private, locked');
-ok(/This detail can’t be changed yet/.test(read('app/v2/edit-profile.tsx')) && !/support|mailto|contact us/i.test(hub), 'locked copy; no support link');
+ok(/Details with a lock can’t be changed yet\./.test(read('app/v2/edit-profile.tsx')) && /lock-closed-outline/.test(hub) && !/This detail can’t be changed yet/.test(hub) && !/support|mailto|contact us/i.test(hub), 'one lock note per section + lock icons; no support link');
 ok(/useFocusEffect/.test(hub), 'list reloads on focus (shows saved values)');
 const home = code('components/main/V2ProfileHome.tsx');
 ok(/router\.push\('\/v2\/edit-profile'/.test(home) && !/router\.push\('\/v2\/edit-(photos|interests)'/.test(home) && /label="Preview"[\s\S]*own=1/.test(home), 'Profile tab: Edit profile + Preview (own public view); no Photos / Interests shortcuts');

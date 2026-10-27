@@ -40,6 +40,14 @@ export function RecentlyRows({
           <TouchableOpacity onPress={onEdit} hitSlop={12} accessibilityRole="button" accessibilityLabel="Edit Recently" style={styles.pencil}>
             <Ionicons name="pencil-outline" size={18} color={obColors.textPrimary} />
           </TouchableOpacity>
+        ) : onEdit ? (
+          // Empty: a compact add link on the title row.
+          <TouchableOpacity onPress={onEdit} hitSlop={12} accessibilityRole="button" accessibilityLabel="Add a book or a song" style={styles.addInline}>
+            <Ionicons name="add" size={16} color={obColors.cta} importantForAccessibility="no" />
+            <Text style={styles.add} maxFontSizeMultiplier={1.4}>
+              Add a book or a song
+            </Text>
+          </TouchableOpacity>
         ) : null}
       </View>
       {recently?.book ? (
@@ -73,14 +81,6 @@ export function RecentlyRows({
           </View>
         )
       ) : null}
-      {!recently && onEdit ? (
-        <TouchableOpacity onPress={onEdit} accessibilityRole="button" accessibilityLabel="Add a book or a song" style={styles.addRow} hitSlop={6}>
-          <Ionicons name="add-circle-outline" size={18} color={obColors.cta} importantForAccessibility="no" />
-          <Text style={styles.add} maxFontSizeMultiplier={1.5}>
-            Add a book or a song
-          </Text>
-        </TouchableOpacity>
-      ) : null}
       {hint ? (
         <Text style={styles.hint} maxFontSizeMultiplier={1.6}>
           {hint}
@@ -91,14 +91,14 @@ export function RecentlyRows({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 6 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 24 },
+  wrap: { gap: 2 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 32 },
   title: { fontFamily: obFonts.bodyMedium, fontSize: 14, lineHeight: 19, color: obColors.textSecondary },
   pencil: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.sm, minHeight: 28 },
   text: { flexShrink: 1, fontFamily: obFonts.body, fontSize: 15, lineHeight: 20, color: obColors.textPrimary },
   external: { transform: [{ rotate: '45deg' }] },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, alignSelf: 'flex-start' },
-  add: { fontFamily: obFonts.bodySemiBold, fontSize: 15, lineHeight: 20, color: obColors.cta },
+  addInline: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 32 },
+  add: { fontFamily: obFonts.bodySemiBold, fontSize: 14, lineHeight: 19, color: obColors.cta },
   hint: { fontFamily: obFonts.body, fontSize: 13, lineHeight: 18, color: obColors.textSecondary },
 });
