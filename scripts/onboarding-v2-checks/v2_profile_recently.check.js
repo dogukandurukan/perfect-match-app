@@ -61,7 +61,7 @@ ok(!/\b(story|stories|ring|rings|expires?|autoplay)\b|future feature|\bMert\b|Ri
 
 // UI round 2026-10-27 (static wiring only — the phone shows the result).
 ok(/const labels = \(keys: unknown/.test(ep) && /labels\(d\.interests, INTERESTS\)/.test(ep) && /labels\(d\.core_values, VALUE_OPTIONS\)/.test(ep) && !/count\(interests|count\(values/.test(ep), 'Edit profile shows the real interests / values, not counts');
-ok(/node\.measureLayout\(body,/.test(ep) && /SCROLL_TOP \+ y - TITLE_GAP/.test(ep) && /if \(jumping\.current\) return;/.test(ep), 'tab jump measures the part at tap time; the title lands under the fixed bar');
+ok(/node\.measureInWindow\(/.test(ep) && /offset\.current \+ \(titleTop - viewTop\) - TITLE_GAP/.test(ep) && /<View ref=\{viewportRef\}/.test(ep) && /if \(jumping\.current\) return;/.test(ep), 'tab jump uses real on-screen positions (title vs. the top of the scroll area)');
 const prof = code('app/v2/profile.tsx');
 ok(!/onAddTake/.test(prof) && /isOwn \? 'Preview' : 'Profile'/.test(prof) && /onLoaded=\{isOwn \? undefined : recordVisit\}/.test(prof), 'own Preview: no owner prompts; other profiles unchanged');
 ok(/onEdit && recently \?[\s\S]{0,400}\) : onEdit \?/.test(rows) && !/addRow/.test(rows), 'empty Recently: a compact add link on the title row');

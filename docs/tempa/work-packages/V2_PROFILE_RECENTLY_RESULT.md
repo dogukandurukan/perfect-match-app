@@ -138,3 +138,12 @@ Client only — no server, permission or account change. Colours and fonts are u
 - where the title lands after a tab jump;
 - keyboard behaviour;
 - text wrapping on the phone.
+
+**Follow-up (owner's screenshots, taken before `08424b7`):**
+- The screenshots showed four problems fixed in `08424b7`:
+  - DEV buttons on My Profile;
+  - the repeated lock text;
+  - "No · Sometimes";
+  - Saved with the keyboard still open.
+- They also showed the tab jump cutting "Your answers" under the tab bar. The jump now compares real on-screen positions: the part's title (`measureInWindow`) against the top of the visible scroll area, using the current offset, and keeps an 8 pt gap. It no longer relies on assumed padding or layout values. Not yet seen on the phone.
+

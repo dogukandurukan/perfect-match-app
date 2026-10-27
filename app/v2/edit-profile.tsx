@@ -176,13 +176,16 @@ export default function EditProfileScreen() {
   const [reload, setReload] = useState(0);
   const [active, setActive] = useState<Part>('photos');
   const scrollRef = useRef<ScrollView>(null);
-  // Parts are measured inside `bodyRef` (the scroll content without its top
-  // padding); positions are read again at tap time, so images or text that
-  // changed height since the last layout don't throw the jump off.
-  const bodyRef = useRef<View>(null);
+  // Parts sit in one wrapper (the scroll content without its top padding);
+  // their layout positions only drive the active tab while scrolling.
   const partRef = useRef<Record<Part, View | null>>({ photos: null, answers: null, details: null });
   const partY = useRef<Record<Part, number>>({ photos: 0, answers: 0, details: 0 });
   const jumping = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The visible scroll area (right under the fixed header + tabs) and the
+  // current offset: a jump compares real on-screen positions, so it doesn't
+  // depend on any assumed header, padding or layout height.
+  const viewportRef = useRef<View>(null);
+  const offset = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -221,19 +224,26 @@ export default function EditProfileScreen() {
   // The part's title is its first child: scrolling to the part's top puts the
   // whole title right under the fixed header + tabs (they sit outside the
   // scroll view), with a small gap.
-  const scrollToY = (y: number) => {
+  const scrollToOffset = (y: number) => {
     if (jumping.current) clearTimeout(jumping.current);
     jumping.current = setTimeout(() => (jumping.current = null), 600);
-    scrollRef.current?.scrollTo({ y: Math.max(0, SCROLL_TOP + y - TITLE_GAP), animated: true });
+    scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
   };
+  // Fallback when on-screen measuring isn't available: layout position.
+  const scrollToLayoutY = (y: number) => scrollToOffset(SCROLL_TOP + y - TITLE_GAP);
   const goTo = (part: Part) => {
     setActive(part);
     const node = partRef.current[part];
-    const body = bodyRef.current;
-    if (node && body) node.measureLayout(body, (_x, y) => scrollToY(y), () => scrollToY(partY.current[part]));
-    else scrollToY(partY.current[part]);
+    const viewport = viewportRef.current;
+    if (!node || !viewport) return scrollToLayoutY(partY.current[part]);
+    // Where the part's title (its first child) is on screen now vs. the top
+    // of the visible scroll area → move by exactly that, keeping a small gap.
+    node.measureInWindow((_x, titleTop) =>
+      viewport.measureInWindow((_vx, viewTop) => scrollToOffset(offset.current + (titleTop - viewTop) - TITLE_GAP)),
+    );
   };
   const onScroll = (y: number) => {
+    offset.current = y;
     if (jumping.current) return; // a tab jump in progress decides the tab
     const top = y - SCROLL_TOP + TITLE_GAP + 1;
     const p: Part = top >= partY.current.details ? 'details' : top >= partY.current.answers ? 'answers' : 'photos';
@@ -303,12 +313,13 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         ))}
       </View>
+      <View ref={viewportRef} collapsable={false} style={styles.viewport}>
       <ScrollView
         ref={scrollRef}
         onScroll={(e) => onScroll(e.nativeEvent.contentOffset.y)}
         scrollEventThrottle={64}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + obSpacing.xxl * 3 }]}>
-        <View ref={bodyRef} collapsable={false} style={styles.parts}>
+        <View style={styles.parts}>
         <View ref={setPartRef('photos')} collapsable={false} onLayout={at('photos')} style={styles.part}>
           <View style={styles.partHead}>
             <Text style={styles.partTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
@@ -402,6 +413,7 @@ export default function EditProfileScreen() {
         </View>
         </View>
       </ScrollView>
+      </View>
     </View>
   );
 }
@@ -422,6 +434,7 @@ const styles = StyleSheet.create({
   body: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary, textAlign: 'center' },
   scroll: { paddingHorizontal: obSpacing.gutter, paddingTop: SCROLL_TOP },
   parts: { gap: obSpacing.xxl },
+  viewport: { flex: 1 },
   part: { gap: obSpacing.md },
   partHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   partTitle: { fontFamily: obFonts.heading, fontSize: 20, lineHeight: 26, color: obColors.textPrimary },
