@@ -1,12 +1,11 @@
-// Profile tab for an approved V2 member: name, main photo, the real saved
-// counts, and two actions. No completion percentage (the old one read V1
-// columns and showed an approved profile as 25%). "View profile" opens the
-// approved V2 profile view (get_profile_v2 — exactly what others see).
-// Editing after approval: Profile → Edit profile lists every detail with its
-// visibility; Photos (order / main), Interests & conversation starters
-// (D87–D93) and the Package 1 details (Looking for, height, work status,
-// lifestyle, first-date choices) open narrow member-only editors. Everything
-// else stays locked; it never routes to the V1 editor.
+// Profile tab for an approved V2 member (D106 layout, owner 2026-10-27):
+// a compact row (main photo, first name + age, city), "Recently" (book /
+// song — own add / edit access), then Edit profile and Preview. Preview opens
+// the shared public profile view (get_profile_v2 — exactly what others see,
+// with no like / comment actions). Editing after approval goes through Edit
+// profile (Photos order / main, Interests & conversation starters, the
+// Package 1 details, Recently); everything else stays locked and it never
+// routes to the V1 editor.
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -14,13 +13,16 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { OnboardingPrimaryButton } from '@/components/onboarding-v2/OnboardingPrimaryButton';
+import { RecentlyRows } from '@/components/profile/RecentlyRows';
 import { loadMyOnboarding } from '@/lib/onboardingV2/remote';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
-import { MAX_PHOTOS, PROMPT_SLOTS } from '@/lib/onboardingV2/yourProfile';
+import { ageFromIso } from '@/lib/profile/memberProfileCore';
+import { loadMyRecently } from '@/lib/profile/recently';
+import { recentlyForDisplay, type PublicRecently } from '@/lib/profile/recentlyCore';
 import { resolveProfilePhotoUrl } from '@/lib/resolveProfilePhotoUrl';
 import { supabase } from '@/lib/supabaseClient';
 
-type Data = { userId: string; name: string; photoUrl: string | null; photos: number; prompts: number };
+type Data = { userId: string; name: string; age: number | null; city: string; photoUrl: string | null; recently: PublicRecently | null };
 
 export function V2ProfileHome() {
   const router = useRouter();
@@ -35,18 +37,21 @@ export function V2ProfileHome() {
         setError(null);
         const { data: s } = await supabase.auth.getSession();
         const userId = s.session?.user?.id;
-        const r = await loadMyOnboarding();
+        const [r, rec] = await Promise.all([loadMyOnboarding(), loadMyRecently()]);
         if (!live) return;
         if (!userId || !r.ok) return setError(r.ok ? 'Not signed in.' : r.message);
+        if (!rec.ok) return setError(rec.text);
         const photos = [...r.value.photos].sort((a, b) => a.position - b.position);
         const photoUrl = photos[0] ? await resolveProfilePhotoUrl(photos[0].path) : null;
         if (!live) return;
+        const d = r.value.draft ?? {};
         setData({
           userId,
-          name: (r.value.draft?.first_name ?? '').trim(),
+          name: (d.first_name ?? '').trim(),
+          age: ageFromIso(d.date_of_birth),
+          city: (d.location_city ?? '').trim(),
           photoUrl,
-          photos: photos.length,
-          prompts: r.value.prompts.filter((p) => p.answer?.trim()).length,
+          recently: recentlyForDisplay(rec.draft),
         });
       })();
       return () => {
@@ -95,31 +100,32 @@ export function V2ProfileHome() {
             <Text style={styles.initial}>{(data.name[0] ?? '?').toUpperCase()}</Text>
           </View>
         )}
-        <Text style={styles.name} accessibilityRole="header" numberOfLines={2} maxFontSizeMultiplier={1.4}>
-          {data.name || 'Your profile'}
-        </Text>
+        <View style={styles.identityText}>
+          <Text style={styles.name} accessibilityRole="header" numberOfLines={2} maxFontSizeMultiplier={1.4}>
+            {data.name || 'Your profile'}
+            {data.age !== null ? `, ${data.age}` : ''}
+          </Text>
+          {data.city ? (
+            <Text style={styles.city} numberOfLines={1} maxFontSizeMultiplier={1.5}>
+              {data.city}
+            </Text>
+          ) : null}
+        </View>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <Ionicons name="images-outline" size={20} color={obColors.cta} importantForAccessibility="no" />
-          <Text style={styles.rowText}>Photos</Text>
-          <Text style={styles.rowValue}>{`${data.photos} of ${MAX_PHOTOS}`}</Text>
-        </View>
-        <View style={[styles.row, styles.rowDivider]}>
-          <Ionicons name="chatbubble-ellipses-outline" size={20} color={obColors.cta} importantForAccessibility="no" />
-          <Text style={styles.rowText}>Prompts</Text>
-          <Text style={styles.rowValue}>{`${data.prompts} of ${PROMPT_SLOTS}`}</Text>
-        </View>
-      </View>
+      <RecentlyRows recently={data.recently} onEdit={() => router.push('/v2/edit-recently' as never)} />
 
       <View style={styles.actions}>
-        <OnboardingPrimaryButton
-          label="View profile"
-          onPress={() => router.push(`/v2/profile?userId=${data.userId}&own=1` as never)}
-        />
-        {/* Photos and Interests are reached from Edit profile (2026-10-27). */}
-        <OnboardingPrimaryButton label="Edit profile" variant="outline" onPress={() => router.push('/v2/edit-profile' as never)} />
+        <View style={styles.action}>
+          <OnboardingPrimaryButton label="Edit profile" onPress={() => router.push('/v2/edit-profile' as never)} />
+        </View>
+        <View style={styles.action}>
+          <OnboardingPrimaryButton
+            label="Preview"
+            variant="outline"
+            onPress={() => router.push(`/v2/profile?userId=${data.userId}&own=1` as never)}
+          />
+        </View>
       </View>
 
       {__DEV__ ? (
@@ -167,17 +173,15 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: obColors.background },
   content: { padding: obSpacing.gutter, gap: obSpacing.xl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: obSpacing.md, backgroundColor: obColors.background, padding: obSpacing.gutter },
-  identity: { alignItems: 'center', gap: obSpacing.md },
-  avatar: { width: 112, height: 112, borderRadius: 56, backgroundColor: obColors.selectedFill },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.lg },
+  identityText: { flex: 1, minWidth: 0, gap: 2 },
+  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: obColors.selectedFill },
   avatarEmpty: { alignItems: 'center', justifyContent: 'center' },
-  initial: { fontFamily: obFonts.heading, fontSize: 40, lineHeight: 48, color: obColors.cta },
-  name: { fontFamily: obFonts.heading, fontSize: 30, lineHeight: 38, color: obColors.textPrimary, textAlign: 'center' },
-  card: { backgroundColor: '#FFFDF8', borderRadius: 14, borderWidth: 1, borderColor: '#E4DCCB', paddingHorizontal: obSpacing.lg },
-  row: { flexDirection: 'row', alignItems: 'center', gap: obSpacing.md, minHeight: 52 },
-  rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E4DCCB' },
-  rowText: { flex: 1, fontFamily: obFonts.bodyMedium, fontSize: 16, lineHeight: 22, color: obColors.textPrimary },
-  rowValue: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textSecondary },
-  actions: { gap: obSpacing.md },
+  initial: { fontFamily: obFonts.heading, fontSize: 30, lineHeight: 36, color: obColors.cta },
+  name: { fontFamily: obFonts.heading, fontSize: 26, lineHeight: 32, color: obColors.textPrimary },
+  city: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textSecondary },
+  actions: { flexDirection: 'row', gap: obSpacing.md },
+  action: { flex: 1 },
   body: { fontFamily: obFonts.body, fontSize: 16, lineHeight: 22, color: obColors.textPrimary, textAlign: 'center' },
   link: { fontFamily: obFonts.bodySemiBold, fontSize: 16, lineHeight: 22, color: obColors.cta, textDecorationLine: 'underline' },
   signOut: { alignSelf: 'center', minHeight: 44, justifyContent: 'center' },

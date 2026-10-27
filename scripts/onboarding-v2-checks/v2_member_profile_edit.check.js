@@ -49,12 +49,12 @@ ok(/disabled=\{saving \|\| !dirty \|\| !!problem\}/.test(sec), 'wired: Save disa
 ok(/DateTypesFields hideSpot/.test(sec) && !/spotText: draft/.test(sec), 'wired: favorite spot not editable here');
 ok(!/connection_answers|connectionRemote|loadConnectionAnswers|onboardingV2\/connection/.test(sec + code('lib/profile/memberProfile.ts') + code('lib/profile/memberProfileCore.ts')), 'private preferences never read or written');
 const hub = code('app/v2/edit-profile.tsx');
-ok(/to: '\/v2\/edit-photos'/.test(hub) && /to: '\/v2\/edit-interests'/.test(hub), 'Photos and Interests open the existing editors');
+ok(/open\('\/v2\/edit-photos'\)/.test(hub) && /to: '\/v2\/edit-interests'/.test(hub), 'Photos and Interests open the existing editors');
 ok(/label: 'Gender'[^\n]*visibility: 'Private', to: null/.test(hub) && /label: 'Interested in'[^\n]*visibility: 'Private', to: null/.test(hub), 'gender / interested in: Private, locked');
 ok(/This detail can’t be changed yet/.test(read('app/v2/edit-profile.tsx')) && !/support|mailto|contact us/i.test(hub), 'locked copy; no support link');
 ok(/useFocusEffect/.test(hub), 'list reloads on focus (shows saved values)');
 const home = code('components/main/V2ProfileHome.tsx');
-ok(/router\.push\('\/v2\/edit-profile'/.test(home) && !/router\.push\('\/v2\/edit-(photos|interests)'/.test(home) && /View profile/.test(home), 'Profile tab: Edit profile replaces the Photos / Interests shortcuts; View profile kept');
+ok(/router\.push\('\/v2\/edit-profile'/.test(home) && !/router\.push\('\/v2\/edit-(photos|interests)'/.test(home) && /label="Preview"[\s\S]*own=1/.test(home), 'Profile tab: Edit profile + Preview (own public view); no Photos / Interests shortcuts');
 ok(/hideSpot \? null :/.test(code('components/onboarding-v2/yourDates/YourDatesFields.tsx')) && !/hideSpot/.test(code('components/onboarding-v2/PreviewFlow.tsx')), 'onboarding still shows the favorite spot');
 
 // Server package.

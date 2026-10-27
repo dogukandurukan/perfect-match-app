@@ -4,7 +4,7 @@ Author: Claude Code, 2026-10-25; updated 2026-10-27 (Edit profile, Package 1). D
 
 ## 1. Repository state (checked 2026-10-27)
 
-- Repo `~/tempa-p0`, branch `tempa/v2-persist-r2`. `origin` is at `f9200c1`; the Package 1 commit (D105) is a **local commit, not pushed** (owner's instruction) — check `git log origin/tempa/v2-persist-r2..HEAD`.
+- Repo `~/tempa-p0`, branch `tempa/v2-persist-r2`. `origin` is at `f9200c1`; the D105 (Package 1) and D106 (profile layout + Recently) commits are **local commits, not pushed** (owner's instruction) — check `git log origin/tempa/v2-persist-r2..HEAD`.
 - Working tree: only the owner's untracked `.codex/` and `AGENTS.md` — **not ours; never commit, move or delete them.**
 - **Not merged, not deployed.** Nothing here is release-ready or merge-safe; no SHA has been agreed for merge.
 
@@ -16,12 +16,13 @@ Author: Claude Code, 2026-10-25; updated 2026-10-27 (Edit profile, Package 1). D
 | `f7246af` | **D104b "What you're looking for", version 3** (intention, priorities, connection style, summary) |
 | `0dee292` | D104b UI fixes (see §3) |
 | `f9200c1` | handoff docs (pushed) |
-| local, not pushed | **D105 Edit profile, Package 1** (see §3) |
+| `81ea900` (local, not pushed) | **D105 Edit profile, Package 1** (see §3) |
+| local, not pushed | **D106 My Profile / Edit profile layout + Recently** (see §3) |
 
 ## 2. Backends
 
 - **Use only tempa-local:** API `127.0.0.1:55421`, DB `55422`, mail `55424` (project `tempa-local`, Docker). Never the shared project `fyqwjduzpnjuxqsloxih`, terapi, the branding worktree (`~/tempa-collab-prep`), `~/tempa-p06` or `~/dating-app-recovered`.
-- **Local migrations applied** (psql, one transaction each, listed in `scripts/local-backend/setup.mjs`, `setup.mjs` NOT run): `…027` connection answers, `…028` versions (PK `user_id, version`), `…029` version 3 + `v2_missing_for` intent alternative, `…030` `update_member_profile_v2` (D105). Backups: `~/tempa-backups/2026-10-22-before-connection-answers/`, `2026-10-23-before-connection-versions/`, `2026-10-25-before-connection-v3/`, `2026-10-27-before-member-profile-edit/` (each: `pg_dump -Fc` + data fingerprint, before = after).
+- **Local migrations applied** (psql, one transaction each, listed in `scripts/local-backend/setup.mjs`, `setup.mjs` NOT run): `…027` connection answers, `…028` versions (PK `user_id, version`), `…029` version 3 + `v2_missing_for` intent alternative, `…030` `update_member_profile_v2` (D105), `…031` `profile_recently_v2` + `get_profile_v2.recently` (D106). Backups: `~/tempa-backups/2026-10-22-before-connection-answers/`, `2026-10-23-before-connection-versions/`, `2026-10-25-before-connection-v3/`, `2026-10-27-before-member-profile-edit/`, `2026-10-27-before-profile-recently/` (each: `pg_dump -Fc` + data fingerprint, before = after).
 - **Shared DEV/production: current real state NOT verified.** Last reported (memory, 2026-09-30): V2+P0 packages applied to the DEV target; the D103/D104 packages are LOCAL only and not in `apply-dev.mjs`. Whether a push to `main` triggers anything (Supabase GitHub integration, EAS, other automation) is **not verified**; this worktree has no `.github/workflows`. Don't push to `main`.
 
 ## 3. Done, with how it was verified
@@ -69,6 +70,20 @@ Flow inside the live first-submit screen (draft only): invite → intention → 
   - `tsc` clean; iOS export exit 0.
 - **Not phone-tested:** every tap, the Discard / Reload prompts, the height ruler, the pet-kind row, the layout.
 
+### Profile layout + Recently (D106) — `docs/tempa/work-packages/V2_PROFILE_RECENTLY_RESULT.md`
+
+- **My Profile:** compact photo / name, age / city, Recently (own edit), Edit profile + Preview (shared public view, no like / comment).
+- **Edit profile:** Photos / Answers / Details tabs scroll to their part; the D105 details are unchanged; no photo add / remove button; prompts shown locked.
+- **Recently:**
+  - optional book / song, shown under the name on every profile view (`RecentlyRows`); empty → hidden for others;
+  - the song link opens outside the app only with an https music-service link;
+  - `save_my_recently_v2` is member-only, own row, with limits and a version conflict check.
+- **Local tests:**
+  - `smoke_profile_recently_local.mjs` 37/37; `v2_profile_recently` 32/32;
+  - `run.js` 24 suites; profile-related smokes pass;
+  - `tsc` clean; iOS export exit 0.
+- **No screenshots** (no simulator / react-native-web here). **Not phone-tested.**
+
 ### Profile visits (D103) — `docs/tempa/work-packages/V2_PROFILE_VISITS_RESULT.md`
 
 - **Phone, owner, at `c572da5` (the OLD alert notice):**
@@ -105,7 +120,7 @@ Status checked read-only on 2026-10-25 unless marked "last reported".
 | `tempa-local-connect-mvk0pgkx-p@tempa-test.example.com` | submitted |
 | `tempa-local-visit-mvk0i5kw-p@…` (Pars) | accepted member, visits notice acknowledged |
 | `tempa-local-visit-mvk0i5kw-h@…` (Hale) | accepted member, not acknowledged |
-| `tempa-local-mphoto-mvik8slv-m@tempa-test.example.com` | accepted member (photo-order phone account); **the D105 Edit profile phone account** — checked 2026-10-27: Looking for long_term, 170 cm, full-time + job title, like_no_pets, coffee + walk, weekends, daytime |
+| `tempa-local-mphoto-mvik8slv-m@tempa-test.example.com` | accepted member (photo-order phone account); **the D105 / D106 phone account** (no Recently saved yet) — checked 2026-10-27: Looking for long_term, 170 cm, full-time + job title, like_no_pets, coffee + walk, weekends, daytime |
 | Phone accounts Mert `3d1525b2-…`, Defne `e40b19ac-…`, match `f19c1951-…` | **never touch their data** |
 
 **Start:**
@@ -125,7 +140,7 @@ It prints a fresh one-time code (also in git-ignored `.test-backend/local-phone-
 
 ## 6. Next
 
-1. Owner's phone test of D105 (steps in the result document). Don't call it verified before the owner reports.
+1. Owner's phone test of D105 and D106 (steps in the result documents). Don't call either verified before the owner reports.
 2. Push only when the owner asks.
 3. Later packages, each only after a decision:
    - free text (job title, favorite spot, prompts, school, hometown) and values — moderation / re-review;

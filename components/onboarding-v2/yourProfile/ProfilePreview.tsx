@@ -14,6 +14,8 @@ import { SHARED_LABEL, tasteMarkKey } from '@/lib/interests/shared';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
 import type { PreviewBlock, PreviewFact } from '@/lib/onboardingV2/yourProfile';
 import type { TasteItem } from '@/lib/onboardingV2/yourWorld';
+import { RecentlyRows } from '@/components/profile/RecentlyRows';
+
 
 export function DevNotice({ text }: { text: string }) {
   return (
@@ -177,6 +179,12 @@ export function ProfilePreview({
               </View>
             );
           }
+          case 'recently':
+            return (
+              <View key={i} style={styles.recently}>
+                <RecentlyRows recently={b.recently} />
+              </View>
+            );
           case 'photo':
             return (
               <View key={i} style={styles.card}>
@@ -266,6 +274,7 @@ export function ProfilePreview({
 }
 
 const styles = StyleSheet.create({
+  recently: { paddingVertical: obSpacing.sm },
   wrap: {
     gap: obSpacing.md,
   },

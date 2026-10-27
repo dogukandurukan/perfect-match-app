@@ -4,6 +4,7 @@
 // are local device URIs chosen by the user, nothing is uploaded, sent,
 // verified or submitted. Prompt IDs are preview keys, not an approved backend
 // enum (Q6).
+import type { PublicRecently } from '@/lib/profile/recentlyCore';
 import { parseDob, type BasicsDraft } from '@/lib/onboardingV2/basics';
 import { SINGLE_QUESTIONS, VALUE_OPTIONS, type CompatDraft } from '@/lib/onboardingV2/compatibility';
 import { DATE_TYPES, datesSummary, favoriteSpot, type DatesDraft } from '@/lib/onboardingV2/yourDates';
@@ -394,7 +395,9 @@ export type PreviewBlock =
   | { type: 'prompt'; label: string; answer: string }
   | { type: 'taste'; groups: PreviewTaste[] }
   /** The member's conversation starters, 0–3 (D87–D97); no like / comment yet. */
-  | { type: 'takes'; takes: PublicTake[] };
+  | { type: 'takes'; takes: PublicTake[] }
+  /** "Recently" (D106): under the name, before everything else. */
+  | { type: 'recently'; recently: PublicRecently };
 
 /** A conversation starter as shown on a profile (from get_profile_v2). */
 export type PublicTake = { kind: TakeKind; subjectId: string; subjectTitle: string; questionId: string; answer: string };
@@ -451,6 +454,8 @@ export type PublicProfileInput = {
   activities?: string[];
   /** Conversation starters (0–3, in their saved order); none → nothing shown. */
   takes?: PublicTake[];
+  /** "Recently" book / song (D106); null / absent → nothing shown. */
+  recently?: PublicRecently | null;
 };
 
 /**
@@ -586,6 +591,8 @@ export function buildPublicProfileBlocks(p: PublicProfileInput): PreviewBlock[] 
   const blocks: PreviewBlock[] = photos[0]
     ? [{ type: 'hero', photo: photos[0], name, age }]
     : [{ type: 'header', name, age }];
+  // "Recently" (D106) right under the name; nothing when both lines are empty.
+  if (p.recently && (p.recently.book || p.recently.song)) blocks.push({ type: 'recently', recently: p.recently });
   // Conversation starters sit right under the main photo, as ONE section.
   const takes = (p.takes ?? []).filter((t) => t.answer.trim() && takeQuestionText(t.questionId, t.subjectId)).slice(0, 3);
   if (takes.length > 0) blocks.push({ type: 'takes', takes });

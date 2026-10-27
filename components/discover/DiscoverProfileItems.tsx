@@ -3,6 +3,7 @@
 // hearts, "Add a comment" and Send only call back into the owner screen,
 // which decides what they do (server RPC or local reducer). Photo sources
 // are injected, so no fixture image ever reaches the real screen.
+import { RecentlyRows } from '@/components/profile/RecentlyRows';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image, type ImageSource } from 'expo-image';
 import type { ReactNode } from 'react';
@@ -71,6 +72,12 @@ export function DiscoverProfileItems({ items, h }: { items: DiscoverItem[]; h: I
             return <Taste key="taste" groups={it.groups} shared={h.shared} />;
           case 'firstDate':
             return <FirstDate key="firstDate" facts={it.facts} />;
+          case 'recently':
+            return (
+              <View key="recently" style={styles.recently}>
+                <RecentlyRows recently={it.recently} />
+              </View>
+            );
           case 'takes':
             // Read-only conversation starters (no heart / comment yet).
             return <TakesSection key="takes" takes={it.takes} style={styles.takeCard} />;
@@ -377,6 +384,7 @@ function FirstDate({ facts }: { facts: PreviewFact[] }) {
 }
 
 const styles = StyleSheet.create({
+  recently: { paddingHorizontal: obSpacing.lg + 4, paddingVertical: obSpacing.md },
   photo4x5: { width: '100%', aspectRatio: 4 / 5, backgroundColor: obColors.selectedFill },
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '45%' },
   heroText: { position: 'absolute', left: obSpacing.lg + 4, right: obSpacing.lg + 4, bottom: 92, gap: 4 },

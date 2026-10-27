@@ -62,7 +62,9 @@ export type DiscoverItem =
   | { type: 'taste'; groups: PreviewTaste[] }
   | { type: 'firstDate'; facts: PreviewFact[] }
   /** Conversation starters, 0–3 (read-only for now — no heart / comment). */
-  | { type: 'takes'; takes: PublicTake[] };
+  | { type: 'takes'; takes: PublicTake[] }
+  /** "Recently" book / song (D106), right under the hero (name + location). */
+  | { type: 'recently'; recently: NonNullable<DiscoverPerson['recently']> };
 
 /** District when shared, otherwise the city. Never coordinates. */
 export function heroLocation(p: Pick<DiscoverPerson, 'district' | 'city'>): string | null {
@@ -121,6 +123,7 @@ export function buildDiscoverLayout(p: DiscoverPerson): DiscoverItem[] {
 
   const head: (DiscoverItem | null)[] = [
     { type: 'hero', photoIndex: 0, target: photoTarget(p, 0), name: p.name, age: p.age, location: heroLocation(p) },
+    p.recently && (p.recently.book || p.recently.song) ? { type: 'recently', recently: p.recently } : null,
     takesBlock && takesBlock.type === 'takes' ? { type: 'takes', takes: takesBlock.takes } : null,
     prompts[0] ?? null,
     details.length ? { type: 'details', facts: details } : null,

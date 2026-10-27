@@ -180,3 +180,13 @@ export function saveError(code: string | null | undefined): SaveFailure {
       return { text: 'Couldn’t save. Check your connection and try again.', changed: false };
   }
 }
+
+/** Whole years from an ISO birth date (null when missing / invalid). */
+export function ageFromIso(iso: unknown, now: Date = new Date()): number | null {
+  if (typeof iso !== 'string') return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  let a = now.getFullYear() - d.getFullYear();
+  if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) a -= 1;
+  return a;
+}

@@ -2,6 +2,7 @@
 // testable in Node: scripts/p0-checks/v2_mapping.check.mjs). Column names
 // and value keys are those of supabase/proposed/20260930120000_v2_onboarding_persistence.sql,
 // which uses the V2 code keys unchanged.
+import type { PublicRecently } from '@/lib/profile/recentlyCore';
 import type { BasicsDraft, Gender, InterestedIn } from './basics';
 import type { CompatDraft } from './compatibility';
 import type { FlowPos, SectionId } from './previewFlow';
@@ -315,6 +316,8 @@ export type ServerPublicProfile = {
   /** 20261014090000_v2_interests_takes (older servers: absent). */
   activities?: string[] | null;
   takes?: { subject_kind: string; subject_id: string; subject_title: string; question_id: string; answer: string }[] | null;
+  /** 20261027120000_v2_profile_recently (older servers: absent). */
+  recently?: unknown;
 };
 
 const TAKE_KINDS = ['activity', 'book', 'screen', 'artist'];
@@ -360,5 +363,20 @@ export function publicProfileFromServer(p: ServerPublicProfile, signed: Map<stri
     photos,
     activities: p.activities ?? [],
     takes: publicTakesFromServer(p.takes),
+    recently: publicRecentlyFromServer(p.recently),
+  };
+}
+
+/** get_profile_v2 'recently' → display, dropping anything malformed. */
+export function publicRecentlyFromServer(raw: unknown): PublicRecently | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as { book?: { title?: unknown; author?: unknown } | null; song?: { title?: unknown; artist?: unknown; url?: unknown } | null };
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const bookTitle = str(r.book?.title);
+  const songTitle = str(r.song?.title);
+  if (!bookTitle && !songTitle) return null;
+  return {
+    book: bookTitle ? { title: bookTitle, author: str(r.book?.author) } : null,
+    song: songTitle ? { title: songTitle, artist: str(r.song?.artist), url: str(r.song?.url) } : null,
   };
 }

@@ -131,4 +131,18 @@ Durum: yerel otomatik testler geçti; **telefonda henüz test edilmedi.**
 - Eski niyeti olmayan yeni hesap "Looking for"u onboarding'de nerede seçecek? Öneri: profil önizlemesinde isteğe bağlı bir kart; henüz yapılmadı.
 - Serbest metin alanları, üyeler için özel tercihlerin düzenlenmesi, fotoğraf ekleme/silme/değiştirme ve kimlik alanları sonraki paketlerde, ayrı kararlarla ele alınacak.
 
-ChatGPT'den beklenen: Paket 1 telefon testinin sonucuna göre sıradaki paketin önceliği ve "önce incele" promptu.
+### Profil düzeni ve "Recently" (27 Ekim, yalnız yerel; henüz push edilmedi)
+
+Son mockup'a göre yapıldı; story fikrinin ve büyük müzik/kitap kartlarının yerini aldı.
+- **My Profile:** kompakt fotoğraf, "ad, yaş" ve şehir; altında "Recently"; ardından Edit profile ve Preview. Preview, karşı tarafın gördüğü ortak profil görünümü; kendi önizlemende beğeni/yorum yok.
+- **Edit profile:** tek sayfa. Photos / Answers / Details sekmeleri ilgili bölüme kaydırıyor.
+  - Fotoğraflarda yalnız sıra ve ana fotoğraf değişiyor; ekleme/silme düğmesi yok.
+  - Prompt cevapları kilitli kartlar olarak görünüyor.
+  - Details, Paket 1'deki satırlar.
+- **Recently:** isteğe bağlı bir kitap (ad — yazar) ve bir şarkı (ad — sanatçı, isteğe bağlı müzik bağlantısı). Elle giriliyor ve değiştirilene ya da kaldırılana kadar kalıyor.
+  - Her profil görünümünde ismin altında iki küçük satır olarak görünüyor; boş satır gösterilmiyor; ikisi de boşsa başkaları başlığı da görmüyor.
+  - Şarkı satırı yalnız güvenli bir müzik bağlantısı (https; Spotify, Apple Music, YouTube vb.) varsa dışarıda açılıyor.
+
+Durum: yerel testler geçti; ekran görüntüsü alınamadı (bu Mac'te simülatör yok); **telefonda test edilmedi.**
+
+ChatGPT'den beklenen: Paket 1 ve profil düzeni telefon testlerinin sonucuna göre sıradaki paketin önceliği ve "önce incele" promptu.
