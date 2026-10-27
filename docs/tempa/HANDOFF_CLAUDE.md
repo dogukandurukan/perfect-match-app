@@ -84,6 +84,9 @@ Flow inside the live first-submit screen (draft only): invite → intention → 
   - `tsc` clean; iOS export exit 0.
 - **No screenshots** (no simulator / react-native-web here). **Not phone-tested.**
 - **UI round (same day, after the owner's phone screenshots):** DEV previews → Settings (DEV only), tighter My Profile, one lock note per section, real interests / values, plain lifestyle words, measured tab jumps, Preview without owner prompts, Recently editor keyboard / Saved. Client only; not phone-tested.
+- **Conversation starters (same day):**
+  - "Save interests" no longer looks like it saves a starter (phone evidence: only `save_interests_v2` was ever sent). Starters then moved to their own list + editor screens (one Save; Remove after server success). Your interests = selections only.
+  - Owner saw a saved starter in the editor and in the Edit profile summary; **Preview not checked**. The new screens are not phone-tested.
 
 ### Profile visits (D103) — `docs/tempa/work-packages/V2_PROFILE_VISITS_RESULT.md`
 

@@ -174,3 +174,28 @@ Client only — no server, permission or account change. Colours and fonts are u
 
 Not seen on the phone yet.
 
+## Conversation starters on their own screens (2026-10-27)
+
+Phone status before this change, as reported by the owner: a starter saved from the editor showed in the editor and in the Edit profile summary. **Preview was not checked separately.**
+
+**Change** (client only; same server functions and rules):
+- **Edit profile → Conversation starters** opens `app/v2/conversation-starters.tsx`:
+  - the saved starters (server copy, re-read on focus) with Edit / Change topic / Remove;
+  - "Add a conversation starter" (max 3 and one per topic, unchanged);
+  - when no topic is saved, a link to Your interests.
+- **Remove** asks first. The starter leaves the list only after `delete_take_v2` succeeds; an error keeps it and is shown.
+- **Editor** `app/v2/conversation-starter.tsx` (`mode=new|edit|change`) has topic, question and answer with **one Save**:
+  - Save is off when nothing changed or the answer isn't valid;
+  - `save_take_v2` saves only this starter;
+  - success → the keyboard closes and you return to the list with "Conversation starter saved";
+  - an error keeps the draft and shows it; leaving unsaved asks "Discard changes?".
+- **Your interests** keeps only the selections and their Save. There is no embedded starter editor and no `takeDirty` gate any more. The confirm-before-removing-a-topic-with-a-starter rule is unchanged.
+- **Unchanged:** onboarding still uses the shared `TakesEditor`; standard prompts stay locked.
+
+**Checks:**
+- `v2_interests_takes` 69/69, with new static checks for the separate screens — not UI behaviour;
+- `smoke_takes_local` 25/25 and `smoke_onboarding_takes_local` 18/18;
+- `run.js` 24 suites; `tsc` clean; LOCAL iOS export exit 0.
+
+Not seen on the phone.
+

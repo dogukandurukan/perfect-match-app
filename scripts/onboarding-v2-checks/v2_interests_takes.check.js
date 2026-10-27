@@ -80,7 +80,7 @@ ok(/onAddTake && !state\.blocks\.some\(\(b\) => b\.type === 'takes'\)/.test(read
 // Edit screen + the shared starters editor (also used in onboarding).
 const ed = code('app/v2/edit-interests.tsx');
 const te = code('components/interests/TakesEditor.tsx');
-ok(/Your interests/.test(ed) && /<TakesEditor/.test(ed) && /<ActivitiesField/.test(ed) && /Conversation starters/.test(te) && /`\$\{takes\.length\} of \$\{MAX_TAKES\}`/.test(te), 'titles “Your interests” / “Conversation starters” + “n of 3” counter (shared editor)');
+ok(/Your interests/.test(ed) && !/<TakesEditor/.test(ed) && /<ActivitiesField/.test(ed) && /Conversation starters/.test(te) && /`\$\{takes\.length\} of \$\{MAX_TAKES\}`/.test(te) && /<TakesEditor/.test(code('components/onboarding-v2/PreviewFlow.tsx')), 'titles “Your interests” / “Conversation starters” + “n of 3” counter (shared editor)');
 ok(/!draft && takes\.length < MAX_TAKES/.test(te) && /canAddTake\(takes, options\)/.test(te), 'no add offered at three');
 ok(/d\.choosing \|\| !d\.subject/.test(te) && /freeSubjects\(options, takes, d\.takeId\)/.test(te), 'subject list only while adding / changing, one starter per subject');
 ok(/hideLabel/.test(ed) && !/MediaFields|ArtistsFields|LiveNote|public catalogs/.test(ed), 'no repeated section labels or catalog notes');
@@ -138,9 +138,21 @@ ok(!/2026101[456]09/.test(read('scripts/dev-backend/apply-dev.mjs')) && /2026101
 {
   const ei = code('app/v2/edit-interests.tsx');
   const te = code('components/interests/TakesEditor.tsx');
-  ok(/disabled=\{savingSel \|\| !selDirty \|\| !selValid \|\| takeDirty\}/.test(ei) && /\{takeDirty \? \(/.test(ei) && /isn’t saved yet/.test(read('app/v2/edit-interests.tsx')),
-    '"Save interests" is off while a conversation starter is open and unsaved, and says why');
-  ok(!/Profile updated/.test(ei) && /'Interests saved'/.test(ei) && /'Conversation starter saved'/.test(ei) && /'Conversation starter removed'/.test(ei), 'messages say exactly what was saved');
+  // 2026-10-27: starters moved to their own screens; "Your interests" has selections only.
+  ok(!/TakesEditor|takeDirty|save_take|saveTake/.test(ei) && /disabled=\{savingSel \|\| !selDirty \|\| !selValid\}/.test(ei) && /'Interests saved'/.test(ei),
+    'Your interests: selections + their own Save only (no embedded starter editor)');
+  {
+    const list = code('app/v2/conversation-starters.tsx');
+    const one = code('app/v2/conversation-starter.tsx');
+    const prof = code('app/v2/edit-profile.tsx');
+    ok(/key: 'starters'[\s\S]{0,400}to: '\/v2\/conversation-starters'/.test(prof) && /Conversation starters/.test(list), 'Edit profile → Conversation starters opens its own screen');
+    ok(/useFocusEffect/.test(list) && /loadMyInterests\(\)/.test(list) && /canAddTake\(takes, options\)/.test(list) && /takes\.length < MAX_TAKES/.test(list), 'list: server copy on focus; up to 3 (existing rules)');
+    ok(/Alert\.alert\('Remove this conversation starter\?'/.test(list) && /const r = await deleteTake\(t\.id\);[\s\S]{0,200}if \(r\.kind === 'error'\) return setBanner/.test(list) && /setReload\(/.test(list), 'remove: asks first; leaves the list only after the server confirmed');
+    ok((one.match(/label=\{saving \? 'Saving…' : 'Save'\}/g) || []).length === 1 && /disabled=\{saving \|\| !valid \|\| !dirty\}/.test(one), 'editor: exactly one Save, off when unchanged / invalid');
+    ok(/if \(r\.kind === 'error'\) return setError\(r\.message\);/.test(one) && /Keyboard\.dismiss\(\);\s*setScreenNotice\('Conversation starter saved'\);\s*leaving\.current = true;\s*router\.back\(\);/.test(one), 'editor: success → keyboard closes, back to the list with a confirmation; error keeps the draft');
+    ok(/addListener\('beforeRemove'/.test(one) && /if \(!dirty \|\| leaving\.current \|\| busy\.current\) return;/.test(one) && /Discard changes\?/.test(one), 'editor: Discard changes on leaving unsaved');
+    ok(/saveTake\(draft\.takeId, draft\.subject\.kind, draft\.subject\.id, draft\.questionId, draft\.answer\)/.test(one) && !/save_prompts_v2|savePrompts/.test(one + list), 'reuses save_take_v2; standard prompts not touched');
+  }
   ok(/if \(r\.kind === 'error'\) \{[\s\S]{0,120}return onNotice\(\{ kind: 'error', text: r\.message \}\);\s*\}[\s\S]*setDraft\(null\);\s*Keyboard\.dismiss\(\);\s*onNotice\(\{ kind: 'ok', text: 'Saved' \}\);/.test(te),
     'starter: "Saved" only after the server said ok; an error keeps the draft and shows');
   ok(/const fresh = await loadMyInterests\(\);/.test(te), 'starter: the list is re-read from the server after a save');

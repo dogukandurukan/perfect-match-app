@@ -384,7 +384,7 @@ export default function EditProfileScreen() {
                 label: 'Conversation starters',
                 value: load.starters === null ? 'Open to see them' : load.starters.length ? `About ${load.starters.join(', ')}` : 'None yet',
                 visibility: 'Public',
-                to: '/v2/edit-interests',
+                to: '/v2/conversation-starters',
               },
             ]}
           />

@@ -1,17 +1,12 @@
-// "Your interests" (D87–D97) — the ONLY profile editing an approved V2 member
-// has: broad interests, activities, artists, books, movies/series and up to
-// three conversation starters. Identity, photos, standard prompts and every
-// other application field stay locked (server: v2_assert_editable untouched;
-// these narrow operations change nothing else).
+// "Your interests" (D87–D97): broad interests, activities, artists, books and
+// movies/series of an approved V2 member, with one Save. Conversation starters
+// have their own screen since 2026-10-27 (Edit profile → Conversation
+// starters, app/v2/conversation-starters.tsx) — no starter editor here.
 //
-// Server-first saves (nothing looks saved until the server said so; a failure
-// keeps the draft and shows an error):
-//   • selections → save_interests_v2. Removing a subject that starters depend
-//     on is refused until the user confirms; then the selection and ONLY those
-//     starters change together.
-//   • starters → the shared TakesEditor (save_take_v2 / delete_take_v2: new
-//     never overwrites; edit keeps the id; another subject gets a new id and
-//     nothing is carried over).
+// Server-first save (nothing looks saved until the server said so; a failure
+// keeps the draft and shows an error): save_interests_v2. Removing a subject
+// that starters depend on is refused until the user confirms; then the
+// selection and ONLY those starters change together (unchanged rule).
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -19,12 +14,11 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, S
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActivitiesField } from '@/components/interests/ActivitiesField';
-import { TakesEditor } from '@/components/interests/TakesEditor';
 import { OnboardingPrimaryButton } from '@/components/onboarding-v2/OnboardingPrimaryButton';
 import { SelectedList, Typeahead } from '@/components/onboarding-v2/yourWorld/Typeahead';
 import { InterestsFields } from '@/components/onboarding-v2/yourWorld/YourWorldFields';
 import { loadMyInterests, saveSelections, type MyInterests } from '@/lib/interests/interestsV2';
-import { orderedTakes, selectionsEqual, subjectOptions, takesRemovedBy, type Selections } from '@/lib/interests/takes';
+import { orderedTakes, selectionsEqual, takesRemovedBy, type Selections } from '@/lib/interests/takes';
 import { LIVE_ATTRIBUTION } from '@/lib/onboardingV2/liveCatalog';
 import { searchArtists, searchBooks, searchScreen, type SearchFn } from '@/lib/onboardingV2/tasteSearch';
 import { obColors, obFonts, obSpacing } from '@/lib/onboardingV2/theme';
@@ -54,7 +48,6 @@ export default function EditInterestsScreen() {
   const [saved, setSaved] = useState<MyInterests | null>(null);
   const [sel, setSel] = useState<Selections | null>(null);
   const [savingSel, setSavingSel] = useState(false);
-  const [takeDirty, setTakeDirty] = useState(false);
   const [banner, setBanner] = useState<Banner>(null);
   const busy = useRef(false);
 
@@ -77,7 +70,6 @@ export default function EditInterestsScreen() {
   }, [reload]);
 
   const takes = useMemo(() => (saved ? orderedTakes(saved.takes) : []), [saved]);
-  const options = useMemo(() => (saved ? subjectOptions(pick(saved)) : []), [saved]);
   const selDirty = !!saved && !!sel && !selectionsEqual(sel, pick(saved));
   const willRemove = sel ? takesRemovedBy(sel, takes) : [];
   const selValid = !!sel && sel.interests.length >= MIN_INTERESTS && sel.interests.length <= MAX_INTERESTS;
@@ -85,7 +77,7 @@ export default function EditInterestsScreen() {
   // Leaving with unsaved changes asks first (nothing is saved silently).
   useEffect(() => {
     const unsub = navigation.addListener('beforeRemove', (e: { preventDefault: () => void; data: { action: unknown } }) => {
-      if (!selDirty && !takeDirty) return;
+      if (!selDirty) return;
       e.preventDefault();
       Alert.alert('Discard changes?', 'Your unsaved changes will be lost.', [
         { text: 'Keep editing', style: 'cancel' },
@@ -93,7 +85,7 @@ export default function EditInterestsScreen() {
       ]);
     });
     return unsub;
-  }, [navigation, selDirty, takeDirty]);
+  }, [navigation, selDirty]);
 
   const world: WorldDraft = sel ? { ...EMPTY_WORLD_DRAFT, interests: sel.interests } : EMPTY_WORLD_DRAFT;
 
@@ -204,19 +196,7 @@ export default function EditInterestsScreen() {
           </View>
         ) : null}
 
-        <TakesEditor
-          takes={takes}
-          options={options}
-          onTakesChange={(t) => setSaved((prev) => (prev ? { ...prev, takes: t } : prev))}
-          // Say exactly what was saved (a starter is saved only by its own Save).
-          onNotice={(n) =>
-            setBanner(n ? { kind: n.kind, text: n.kind === 'ok' ? (n.text === 'Removed' ? 'Conversation starter removed' : 'Conversation starter saved') : n.text } : null)
-          }
-          onDirtyChange={setTakeDirty}
-          noSubjectHint="To add one, save an activity, book, film or artist below first."
-        />
-
-        <Text style={[styles.section, styles.sectionGap]} accessibilityRole="header">Interests</Text>
+        <Text style={styles.section} accessibilityRole="header">Interests</Text>
         <InterestsFields draft={world} update={(p) => p.interests && setSel((s) => (s ? { ...s, interests: p.interests! } : s))} />
         <ActivitiesField value={sel.activities} onChange={(activities) => setSel((s) => (s ? { ...s, activities } : s))} />
         {taste('artist', 'Artists', 'artists', searchArtists, LIVE_ATTRIBUTION.artist)}
@@ -228,17 +208,10 @@ export default function EditInterestsScreen() {
             {`Saving will also remove your answer about ${willRemove.map((t) => t.subject_title).join(', ')}.`}
           </Text>
         ) : null}
-        {takeDirty ? (
-          // This button never saves a conversation starter; an open, unsaved
-          // starter must be saved (or cancelled) with its own buttons first.
-          <Text style={styles.warn} accessibilityLiveRegion="polite">
-            Your conversation starter isn’t saved yet. Use Save under it (or Cancel) first.
-          </Text>
-        ) : null}
         <OnboardingPrimaryButton
           label={savingSel ? 'Saving…' : 'Save interests'}
           onPress={() => void doSaveSelections(false)}
-          disabled={savingSel || !selDirty || !selValid || takeDirty}
+          disabled={savingSel || !selDirty || !selValid}
         />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -255,7 +228,6 @@ const styles = StyleSheet.create({
   link: { fontFamily: obFonts.bodySemiBold, fontSize: 15, lineHeight: 20, color: obColors.cta, textDecorationLine: 'underline' },
   content: { padding: obSpacing.gutter, gap: obSpacing.md },
   section: { fontFamily: obFonts.heading, fontSize: 21, lineHeight: 28, color: obColors.textPrimary },
-  sectionGap: { marginTop: obSpacing.lg },
   subSection: { fontFamily: obFonts.bodySemiBold, fontSize: 15, lineHeight: 20, color: obColors.textPrimary },
   block: { gap: obSpacing.sm, marginTop: obSpacing.sm },
   warn: { fontFamily: obFonts.bodyMedium, fontSize: 14, lineHeight: 20, color: obColors.error },
