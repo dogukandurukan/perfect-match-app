@@ -25,6 +25,16 @@ Author: Claude Code, 2026-10-25; updated 2026-10-27 (Edit profile, Package 1). D
 
 As of 2026-10-27 (checked with `git fetch`), everything from `81ea900` on is **local, not pushed**; the remote branch is at `f9200c1`. `origin/main` has 2 doc-only commits this branch lacks. **The GitHub repo is public.** It has no webhooks, Actions workflows, deployments or commit checks, so there is no evidence that a push deploys anything. Externally configured integrations (e.g. Expo / EAS or Supabase GitHub apps) can't be seen from here and are not verified.
 
+**Read-only checks (2026-10-28):**
+
+| Service | What was found |
+|---|---|
+| **EAS** | Project `@dogukandurukan/dating-app`: only **2 builds ever** (2026-06-02, 2026-08-26), both started by the owner by hand, none from Git. **No EAS updates.** `expo-updates` isn't installed, so no over-the-air code can reach the app. No `.eas/workflows` in the repo. |
+| **Supabase** | Shared project `fyqwjduzpnjuxqsloxih`: **no Supabase branches** (no per-branch preview DBs). The tracked migration history ends at `20260921091500`. The V2 packages applied with `apply-dev.mjs` aren't in that list, and their current presence wasn't re-checked. |
+| **Owner checks in the panels** | Supabase Dashboard → Project Settings → Integrations → **GitHub**: connected? which production branch? "deploy migrations" on? · expo.dev → project → **GitHub** / build triggers / Workflows. These settings aren't readable here. |
+
+**Clean-setup sources (2026-10-28):** all 22 packages and the setup inputs are tracked. A clean `git archive` regenerates all 23 migration files, byte-identical to the shared ones. The owner's git-ignored `local-backend/supabase/migrations/` lacks copies of `…024–…027` (applied by psql earlier, never copied in); the local DB records all of them. Harmless — `setup.mjs` regenerates the folder.
+
 ## 2. Backends
 
 - **Use only tempa-local:** API `127.0.0.1:55421`, DB `55422`, mail `55424` (project `tempa-local`, Docker). Never the shared project `fyqwjduzpnjuxqsloxih`, terapi, the branding worktree (`~/tempa-collab-prep`), `~/tempa-p06` or `~/dating-app-recovered`.
@@ -92,7 +102,7 @@ Flow inside the live first-submit screen (draft only): invite → intention → 
 - **UI round (same day, after the owner's phone screenshots):** DEV previews → Settings (DEV only), tighter My Profile, one lock note per section, real interests / values, plain lifestyle words, measured tab jumps, Preview without owner prompts, Recently editor keyboard / Saved. Client only; not phone-tested.
 - **Conversation starters (same day):**
   - "Save interests" no longer looks like it saves a starter (phone evidence: only `save_interests_v2` was ever sent). Starters then moved to their own list + editor screens (one Save; Remove after server success). Your interests = selections only.
-  - Owner reported the latest starter flow works (a saved starter seen in the editor and in the Edit profile summary). **Not extended:** errors, delete, reopen persistence, Preview and the new separate screens are not phone-tested.
+  - **Owner reported (2026-10-28):** the separate starter screens work and the starter shows in **Preview** ("evet oldu o şekilde"). **Not counted as tested:** delete, save error, Discard on leaving, reopen persistence.
 
 ### Profile visits (D103) — `docs/tempa/work-packages/V2_PROFILE_VISITS_RESULT.md`
 

@@ -199,3 +199,5 @@ Phone status before this change, as reported by the owner: a starter saved from 
 
 Not seen on the phone.
 
+**Phone, owner (2026-10-28):** the separate conversation-starter flow works and the starter shows in Preview ("evet oldu o şekilde"), as reported by the owner. Delete, save error, Discard and reopen persistence are not yet tested on the phone.
+

@@ -1,5 +1,18 @@
 # Tempa — design hand-off (2026-10-27)
 
+## Start here — first design meeting (2026-10-28)
+
+- **First three screens:**
+  1. **Discover**
+  2. **Public profile** (others' profiles and the own Preview share it)
+  3. **Edit profile**
+- **First delivery from the designer:**
+  - **2–3 visual directions**;
+  - then, in the chosen direction, these three screens;
+  - plus the **basic component rules**: type scale, colours, spacing, buttons, cards, chips, lock / Public-Private tags, empty / error states.
+- **No cosmetic code changes for now.** The app stays as it is until a direction is chosen.
+- **Day one: review the app on the owner's phone.** That is enough to start. The designer's own local setup ([`SETUP_NEW_DEVELOPER.md`](SETUP_NEW_DEVELOPER.md)) is separate work and is not needed for the first delivery.
+
 For the designer joining on branding / UI / UX. This describes the **current code** on `tempa/v2-persist-r2`. That branch isn't merged or released, and a production build still runs V1 (see "Release").
 
 - Decisions: [`DECISIONS.md`](DECISIONS.md).
@@ -69,7 +82,7 @@ Local automated tests don't count as phone tests.
 | What you're looking for (D104b) | design, answers → summary, Must-have, kept after reopen | limits, clearing, required-intention path, save error / retry; a version-3 submit happened on Nehir's phone session (owner to confirm it counts) |
 | Edit profile Package 1 (D105) | — | everything |
 | My Profile / Edit profile / Recently (D106) + UI rounds | screenshots of the pre-fix UI | the fixes, tab jumps, link opening, keyboard |
-| Conversation starters | **owner reported the latest flow works** (editor + Edit profile summary) | the new separate screens: error / delete / reopen persistence and **Preview** |
+| Conversation starters (own screens, `90c3d92`) | **owner reported (2026-10-28):** the separate starter flow works, and the starter shows in **Preview** ("evet oldu o şekilde") | delete, save error, Discard on leaving, reopen persistence — not counted as done until tested |
 | Chat (from merge readiness) | photo send, full screen, draft, retry | Realtime re-establishment, photo URL refresh, HEIC / very large photos |
 
 ## Release (target April 2027) — open work, most important first

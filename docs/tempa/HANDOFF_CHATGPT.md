@@ -154,7 +154,7 @@ ChatGPT'den beklenen: Paket 1 ve profil düzeni telefon testlerinin sonucuna gö
   - profil düzeni ve "Recently";
   - UI düzeltmeleri;
   - sohbet başlatıcıların kendi ekranları.
-- **Sohbet başlatıcılar:** ürün sahibi son akışın çalıştığını bildirdi (editörde ve Edit profile özetinde göründü). Hata, silme, yeniden açılış ve Preview henüz telefonda test edilmedi.
+- **Sohbet başlatıcılar:** ürün sahibi ayrı ekranlardaki akışın çalıştığını ve başlatıcının Preview'da göründüğünü bildirdi (28 Ekim). Silme, kayıt hatası, Discard ve yeniden açılış henüz telefonda test edilmedi.
 - **Depo:** herkese açık (public).
 - **Yeni belgeler:**
   - Yeni geliştirici kurulumu: `docs/tempa/SETUP_NEW_DEVELOPER.md` (temiz bir makinede henüz denenmedi).

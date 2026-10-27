@@ -1,6 +1,14 @@
 # Tempa — setting up as a new developer (2026-10-27)
 
 > **Not verified on a clean machine.** These steps are put together from the repo and the owner's working setup. Nobody has run them end to end on a fresh Mac yet. Record what differs when you do.
+>
+> **Checked 2026-10-28 (owner's Mac, read-only):** everything `setup.mjs` needs is tracked by git:
+> - the 22 SQL packages in `PACKAGES`;
+> - `replica.mjs` and the schema-only snapshot;
+> - `local-backend/supabase/config.toml` and the email templates;
+> - the scripts.
+>
+> On a clean `git archive` of `603b800`, setup's migration-generation step alone produced all **23** migration files. Supabase was not started and nothing was reset. The files common to the owner's working copy are byte-identical. Not checked: `supabase start`, `db reset`, `seed.mjs` on a fresh machine.
 
 Branch for the V2 product: `tempa/v2-persist-r2`. It is **not merged into `main`**: `main` has 2 doc-only commits this branch doesn't have, and this branch is far ahead of `main`. Nothing here is released or deployed.
 
