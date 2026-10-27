@@ -83,4 +83,16 @@ ok(!JSON.stringify(min).includes('title'),'no empty section titles');
   ok(eq(secs,['basics','compatibility','yourLife','yourWorld','yourDates','yourProfile']),'section order');
   const back=[];q=seq[seq.length-1];while(q){back.push(q);q=F.prevPos(q);}ok(eq(back.reverse(),seq),'back mirrors forward (32)');
 }
+// "You're on the list!" right after submitting (live): the app's normal
+// sign-out is offered there, so another account can sign in (2026-10-27).
+// Static wiring only — the tap itself needs the phone.
+{
+  const fs = require('fs');
+  const path = require('path');
+  const root = path.resolve(__dirname, '..', '..');
+  const flow = fs.readFileSync(path.join(root, 'components/onboarding-v2/PreviewFlow.tsx'), 'utf8');
+  const screen = fs.readFileSync(path.join(root, 'app/v2/onboarding.tsx'), 'utf8');
+  ok(/if \(live\?\.onSignOut\) secondary = \{ label: 'Sign out', onPress: live\.onSignOut \};/.test(flow), 'received step (live): Sign out offered');
+  ok(/onSignOut: \(\) => \{\s*void supabase\.auth\.signOut\(\)\.then\(\(\) => router\.replace\('\/'\)\);/.test(screen), 'uses the normal sign-out, then back to the start');
+}
 module.exports = done('P07 R1 Your Profile');

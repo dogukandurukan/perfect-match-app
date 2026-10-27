@@ -115,7 +115,7 @@ Status checked read-only on 2026-10-25 unless marked "last reported".
 
 | Account | State |
 |---|---|
-| `tempa-local-connv2-phone-45094@tempa-test.example.com` (Nehir) | **draft**; old intent `long_term`; version 1, 2, 3 answers saved; the D104 phone account |
+| `tempa-local-connv2-phone-45094@tempa-test.example.com` (Nehir) | **submitted 2026-10-27 18:23:52 UTC** from the phone session that was still signed in as Nehir (not by a script). Old intent `long_term`; version 1, 2, 3 answers kept. Whether that counts as the owner's "submit with version 3" phone test is for the owner to say. |
 | `tempa-local-connect-mvk0pgkx-a@tempa-test.example.com` | submitted (2026-10-23) — no questions any more |
 | `tempa-local-connect-mvk0pgkx-p@tempa-test.example.com` | submitted |
 | `tempa-local-visit-mvk0i5kw-p@…` (Pars) | accepted member, visits notice acknowledged |
@@ -136,7 +136,9 @@ It prints a fresh one-time code (also in git-ignored `.test-backend/local-phone-
 2. On the phone, sign out (status screen: **Sign out**) and fully close and reopen the app.
 3. Sign in via **DEV · Test account sign-in**; the email field shows the account Metro was started with.
 
-**Restarting Metro does NOT change who is signed in on the phone.** `login-code.mjs` only creates a code.
+**Restarting Metro does NOT change who is signed in on the phone.** Check before testing:
+- A new code shows in the auth log as `user_recovery_requested`; the real sign-in as `login`. A `token_refreshed` for another account means the phone is still on that account.
+- 2026-10-27: "You're on the list!" right after submitting had no way out. It now offers the normal **Sign out** (`LiveOptions.onSignOut`). The status screen (`app/v2/status.tsx`, shown after a reopen) already had one. `login-code.mjs` only creates a code.
 
 ## 6. Next
 

@@ -64,6 +64,10 @@ export default function V2Onboarding() {
     }
     setLive({
       userId: user.id,
+      // Same sign-out as the status screen: back to the start (sign-in).
+      onSignOut: () => {
+        void supabase.auth.signOut().then(() => router.replace('/'));
+      },
       email,
       review,
       initial: {

@@ -189,6 +189,9 @@ const samePos = (a: FlowPos | null, b: FlowPos) => !!a && a.section === b.sectio
 
 export type LiveOptions = {
   userId: string;
+  /** The app's normal sign-out (same as the status screen). Offered on
+   * "You're on the list!" so another account can sign in from there. */
+  onSignOut?: () => void;
   /** The address verified at sign-in (email OTP). */
   email: string;
   initial: {
@@ -761,6 +764,7 @@ export function PreviewFlow({ onExit, live }: Props) {
           goTo(PREVIEW_POS);
         },
       };
+      if (live?.onSignOut) secondary = { label: 'Sign out', onPress: live.onSignOut };
     }
   }
   let tertiary: Action | null = null;
