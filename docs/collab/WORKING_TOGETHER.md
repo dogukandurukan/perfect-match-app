@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Repo | https://github.com/dogukandurukan/perfect-match-app |
-| Başlangıç (teslim) dalı | `tempa/collab-design-prep-r2` — ürün `f9200c1` + bu hazırlık paketi |
+| Başlangıç (teslim) dalı | `tempa/collab-design-prep-r3` — ürün `0a03bd7` + bu hazırlık paketi |
 | Senin dalın | `tempa/branding-r1` (teslim commit'inden açılır) |
 | Ürün geliştirme dalı | `tempa/v2-persist-r2` — **dokunma**: push, merge, rebase yok |
 | Karar veren | Doğukan |
@@ -35,7 +35,7 @@ npm run collab:preview          # yalnız tasarım önizlemesi
 ```bash
 git push -u origin tempa/branding-r1
 ```
-PR: GitHub'da repo → "Compare & pull request" → **base: `tempa/collab-design-prep-r2`**, compare: `tempa/branding-r1`. Açıklama = [`HANDOFF_TEMPLATE.md`](HANDOFF_TEMPLATE.md). PR'ı Doğukan inceler ve birleştirir; sen birleştirmezsin.
+PR: GitHub'da repo → "Compare & pull request" → **base: `tempa/collab-design-prep-r3`**, compare: `tempa/branding-r1`. Açıklama = [`HANDOFF_TEMPLATE.md`](HANDOFF_TEMPLATE.md). PR'ı Doğukan inceler ve birleştirir; sen birleştirmezsin.
 
 Asla:
 - `git push` ile `tempa/v2-persist-r2`, `main` veya başkasının dalına göndermek;

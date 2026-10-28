@@ -6,7 +6,8 @@ Mac'indeki Claude Code) içindir. Ürün sahibi ve nihai karar verici: **Doğuka
 Okuma sırası:
 1. Bu dosya — durum, kapsam, kurallar, çalışma yöntemi.
 2. [`SETUP_MAC_IPHONE.md`](SETUP_MAC_IPHONE.md) — Mac + iPhone kurulumu, günlük başlatma / durdurma.
-3. [`ONBOARDING_INVENTORY.md`](ONBOARDING_INVENTORY.md) — bugünkü onboarding: ekran sırası, tam metinler, seçenekler, kurallar, saklanan değerler.
+3. [`../tempa/DESIGN_HANDOFF.md`](../tempa/DESIGN_HANDOFF.md) — **ilk tasarım turunun kaynağı**: ekran envanteri, neyin düzenlenebildiği / kilitli olduğu, ilk kapsam, açık işler.
+   [`ONBOARDING_INVENTORY.md`](ONBOARDING_INVENTORY.md) — onboarding envanteri (sonraki aşama için; ilk turda gerekmez).
 4. [`WORKING_TOGETHER.md`](WORKING_TOGETHER.md) — dal, commit, push, PR, ürün güncellemesini alma, çakışma.
 5. [`HANDOFF_TEMPLATE.md`](HANDOFF_TEMPLATE.md) — her teslimde doldurulacak şablon.
 6. Gerekirse: `docs/tempa/DECISIONS.md` (onaylı kararlar), `docs/tempa/ONBOARDING_FLOW.md` (onboarding spec'i).
@@ -14,35 +15,36 @@ Okuma sırası:
 ## 1. Projenin kısa durumu
 
 - **Tempa bir çalışma adı.** Kesin marka adı değil; logo da yok (header'daki "Tempa" yazısı geçici, `components/onboarding-v2/TempaWordmark.tsx`).
-- Bu paket ürün commit'i **`f9200c1`** (`tempa/v2-persist-r2`, 2026-10-25) üzerine kuruludur.
+- Bu paket ürün commit'i **`0a03bd7`** (`tempa/v2-persist-r2`, 2026-10-28) üzerine kuruludur; teslim dalı `tempa/collab-design-prep-r3`.
 - Uygulama: Expo SDK 54 + React Native 0.81 + TypeScript + expo-router, iPhone'da **kendi development build'i** (Expo Go değil). Backend: Supabase (Postgres, Auth, Storage, Realtime).
 - Onboarding V2 (7 bölüm) yazılmış ve yerel backend'de uçtan uca çalışıyor. Görsel yön onaylı: fildişi zemin, koyu yeşil buton, Playfair Display başlık + DM Sans metin (`docs/tempa/DECISIONS.md` D2, D42, D43, D46).
 - Senin çalışacağın kod, ortak hazırlık commit'inden ayrılan **kendi branding dalın**. Ürün geliştirme dalı ayrı yürüyor; birleştirme kararını Doğukan verir.
 
-### Doğrulama sınırları (bu paket hazırlanırken)
+### Doğrulama sınırları (r3 hazırlanırken, 2026-10-28)
 
 | Kontrol | Durum |
 |---|---|
-| Kod incelemesi | yapıldı (önizleme gerçek bileşenleri kullanıyor; backend çağrısı yok) |
-| Otomatik kontroller | ürün `f9200c1` + paket: `npx tsc --noEmit` temiz; `node scripts/onboarding-v2-checks/run.js` 23 grubun tümü geçti (`design_preview` 19/19 dahil); `scripts/p0-checks` 28·12·14·21 geçti |
-| Görsel inceleme | yalnız **web tarayıcısında** (375×812), offline modda, geçici web ayarıyla (ürün `652e2ba` üzerinde yapıldı; `f9200c1` için tekrarlandı — bkz. teslim raporu): üç ekranın hub'ı ve durumları doğru metinle render ediliyor, backend'e istek yok. **iPhone'da değil.** |
+| Kod incelemesi | yapıldı: önizleme gerçek bileşenleri kullanıyor; Discover / Matches / Activity örnek önizlemelerinde backend çağrısı yok (statik kontrol) |
+| Otomatik kontroller | ürün `0a03bd7` + paket: `npx tsc --noEmit` temiz; `node scripts/onboarding-v2-checks/run.js` **25 grubun tümü geçti** (`design_preview` 22/22 dahil). Bunlar saf mantık + statik bağlantı kontrolleri, UI testi değil |
+| Görsel inceleme | onboarding önizlemesi önceki turda yalnız **web tarayıcısında** bakıldı; r3 eklemeleri (ana ekran önizleme bağlantıları) **hiç görsel olarak görülmedi** |
 | Fiziksel iPhone | **yapılmadı** — senin iPhone'un için yeni development build gerekiyor (SETUP §3) |
-| Senin Mac'inde kurulum | **denenmedi** — ilk gün birlikte doğrulanacak |
-| "1 standart cevap + 1 sohbet başlatıcı" başvuru yolu | sunucu + istemci kodu var; **telefonda doğrulanmadı** (bkz. INVENTORY §5) |
+| Senin Mac'inde kurulum | **denenmedi** — `collab:setup` / `collab:start` ilk kez senin Mac'inde çalışacak |
 
 ## 2. Kapsamın
 
-Çalışabileceğin alanlar:
-- Marka dili, renk, tipografi, görsel bütünlük **önerileri**.
-- Welcome, giriş (login) ve onboarding ekranlarının **sunumu** (yerleşim, boşluk, metin hiyerarşisi).
-- Soru metinlerinin anlaşılırlığı ve akış **önerileri**.
-- Başvuru tamamlandı / beklemede ekranları.
-- Giriş sonrası Home/Discover için **öneri** (mockup / not) — çalışan ürün akışı değiştirilmez.
+**İlk tur — üç ekran** (onboarding sonraki aşama):
+1. **Discover** — profil kartı sırası, ana fotoğraf, prompt'lar, beğeni / yorum, "Recently", boş / limit durumları. Backend'siz önizleme: **DEV · Design preview → Main screens · Discover**.
+2. **Açık profil** — başkalarının profili ve kendi **Preview**'ın aynı bileşeni (`ProfilePreview`) kullanıyor; bir değişiklik her yerde görünür. Görmek için kendi yerel backend'inde test hesabıyla giriş: `npm run collab:start` → Discover / Matches → bir profil; Profile → Preview.
+3. **Edit profile** — Photos / Answers / Details sekmeleri, kilit notları, düzenleyiciler, Recently, sohbet başlatıcılar. Görmek için aynı şekilde giriş: Profile → Edit profile.
 
-**İlk tur yalnız üç ekran** (hepsi `DEV · Design preview` içinde):
-1. Welcome (bugünkü e-posta ile giriş ekranı + spec'teki henüz yapılmamış "People, not profiles." karşılama ekranı).
-2. Temsilî onboarding sorusu: Compatibility 3.2 "How social are you?" (3.1 "What are you looking for?" yerel backend'de artık gizli; niyet D104b "What you're looking for" bölümünde soruluyor — INVENTORY §2b).
-3. Başvuru alındı / beklemede (+ reddedildi, yüklenemedi durumları).
+**İlk teslim:**
+- **2–3 görsel yön**;
+- seçilen yönde bu üç ekran;
+- **temel bileşen kuralları**: tipografi ölçeği, renk, boşluk, buton, kart, chip, kilit / Public-Private etiketi, boş / hata durumları.
+
+**Şimdilik kozmetik kod değişikliği yok** — yön seçilene kadar uygulama olduğu gibi kalır. Önerileri mockup / ekran görüntüsü olarak ver. Kod denemesi gerekiyorsa yalnız önizleme dosyalarında (§3) ve kendi dalında yap.
+
+Sonraki aşama (şimdi değil): Welcome / giriş, onboarding soruları, başvuru durum ekranları. `DEV · Design preview` içindeki onboarding ekranları ve `ONBOARDING_INVENTORY.md` bunun için hazır.
 
 ### Doğukan'ın onayı gerektirenler (önerebilirsin, tek başına uygulamazsın)
 - Soru ekleme / çıkarma, zorunluluk değişikliği, saklanan değerler (option key'leri), gerçek akış sırası.
@@ -57,7 +59,11 @@ Auth / giriş mantığı, veritabanı, SQL / RPC / erişim kuralları (`supabase
 
 | Dosya | Ne için | Etki alanı |
 |---|---|---|
-| `lib/dev/designPreview.ts` | önizleme durumları, sentetik içerik, **WELCOME_PROPOSALS** (yeni karşılama metni denemeleri) | yalnız DEV önizleme — serbest |
+| `lib/dev/designPreview.ts` | önizleme durumları, sentetik içerik, **WELCOME_PROPOSALS**, `MAIN_SCREEN_PREVIEWS` | yalnız DEV önizleme — serbest |
+| `components/dev/discover/*`, `components/dev/MatchesDesignPreview.tsx`, `components/dev/activity/*` | ana ekran örnek önizlemeleri (örnek veri) | yalnız DEV önizleme — serbest |
+| `components/main/V2DiscoverScreen.tsx`, `components/discover/DiscoverProfileItems.tsx`, `lib/discover/profileLayout.ts` | **Discover** | **canlı** → onaylı değişiklik |
+| `components/onboarding-v2/yourProfile/ProfilePreview.tsx`, `components/onboarding-v2/PublicProfileView.tsx`, `components/profile/RecentlyRows.tsx` | **açık profil** (başkaları + kendi Preview + Discover blokları) | **canlı, çok yerde** → onaylı değişiklik |
+| `app/v2/edit-profile.tsx` ve düzenleyiciler (`edit-profile-section.tsx`, `edit-recently.tsx`, `edit-photos.tsx`, `edit-interests.tsx`, `conversation-starters.tsx`, `conversation-starter.tsx`), `components/main/V2ProfileHome.tsx` | **Edit profile / My Profile** | **canlı** → onaylı değişiklik; kayıt mantığına dokunma |
 | `components/dev/design/DesignPreview.tsx` | önizleme ekranları, spec welcome düzeni denemeleri | yalnız DEV önizleme — serbest |
 | `components/onboarding-v2/account/AccountFields.tsx` | giriş ekranı metni / onay satırı / hata görünümü | **canlı** giriş ekranı + önizleme → onaylı değişiklik |
 | `components/onboarding-v2/yourProfile/ApplicationFields.tsx` | başvuru alındı ekranı, `STATUS_COPY` | **canlı** durum ekranı + onboarding son adımı → onaylı değişiklik |
@@ -85,7 +91,7 @@ Not: önizlemedeki gerçek bileşenler `theme.ts`'i doğrudan okur; renk paleti 
 2. Claude Code'a **tek ekran / tek konu** ver: "Welcome başlığı için 2 varyantı WELCOME_PROPOSALS'a ekle" gibi.
 3. iPhone'da önizlemede bak (Metro çalışırken kaydetmek yeterli; olmazsa terminalde `r`).
 4. Kontroller: `npx tsc --noEmit` ve `node scripts/onboarding-v2-checks/run.js`.
-5. Kendi dalında (`tempa/branding-r1`) küçük commit, sonra **yalnız kendi dalını** push et ve PR aç (taban: `tempa/collab-design-prep-r2`) — ayrıntı [`WORKING_TOGETHER.md`](WORKING_TOGETHER.md). Ürün dalına push / merge yok; PR açıklaması [`HANDOFF_TEMPLATE.md`](HANDOFF_TEMPLATE.md).
+5. Kendi dalında (`tempa/branding-r1`) küçük commit, sonra **yalnız kendi dalını** push et ve PR aç (taban: `tempa/collab-design-prep-r3`) — ayrıntı [`WORKING_TOGETHER.md`](WORKING_TOGETHER.md). Ürün dalına push / merge yok; PR açıklaması [`HANDOFF_TEMPLATE.md`](HANDOFF_TEMPLATE.md).
 6. Bir paket = en fazla birkaç dosya. Auth / DB / kurallar dosyalarına hiç dokunma.
 
 Sırlar: `.env*` dosyalarını, giriş kodlarını, anahtarları asla commit'leme, ekran görüntüsüne / ChatGPT'ye koyma. Uygulamada yalnız `@tempa-test.example.com` sentetik hesaplar ve `@example.com` örnek adresleri kullan.

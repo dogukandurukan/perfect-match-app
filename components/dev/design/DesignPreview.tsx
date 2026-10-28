@@ -5,6 +5,7 @@
 // SingleChoiceFields, ReceivedFields) with synthetic values from
 // lib/dev/designPreview.ts. Nothing here reads or writes Supabase, signs in or
 // sends a code; buttons only switch preview states.
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +25,7 @@ import { ReceivedFields, STATUS_COPY } from '@/components/onboarding-v2/yourProf
 import { DevNotice } from '@/components/onboarding-v2/yourProfile/ProfilePreview';
 import {
   DESIGN_SCREENS,
+  MAIN_SCREEN_PREVIEWS,
   SPEC_WELCOME,
   SYNTHETIC,
   WELCOME_PROPOSALS,
@@ -60,6 +62,7 @@ function Hub({
   setProposal: (i: number) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   return (
     <ScrollView
       style={styles.root}
@@ -101,6 +104,23 @@ function Hub({
           ) : null}
         </View>
       ))}
+      {/* Main screens: the product's own DEV previews (sample data, offline). */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Main screens · sample data</Text>
+        <Text style={styles.cardSource}>Public profile and Edit profile need a signed-in test account (npm run collab:start).</Text>
+        <View style={styles.chips}>
+          {MAIN_SCREEN_PREVIEWS.map((m) => (
+            <TouchableOpacity
+              key={m.id}
+              onPress={() => router.push(m.route as never)}
+              accessibilityRole="button"
+              accessibilityLabel={m.title}
+              style={styles.chip}>
+              <Text style={styles.chipText}>{m.title}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
       {onExit ? <AccountLink label="Close preview" onPress={onExit} /> : null}
     </ScrollView>
   );

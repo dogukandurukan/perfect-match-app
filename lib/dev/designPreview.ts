@@ -80,6 +80,21 @@ export const DESIGN_SCREENS: DesignScreen[] = [
   },
 ];
 
+/**
+ * Main-screen design previews that already exist in the product (DEV only,
+ * local sample data, no Supabase calls) — reachable here without signing in,
+ * so they also work with `npm run collab:preview` (no backend). The public
+ * profile and Edit profile have no offline preview: they need a signed-in
+ * synthetic member on the collaborator's own local backend (collab:start).
+ */
+export type MainPreview = { id: string; title: string; route: string; liveSource: string };
+
+export const MAIN_SCREEN_PREVIEWS: MainPreview[] = [
+  { id: 'discover', title: 'Discover · sample profiles', route: '/dev/discover-preview', liveSource: 'components/main/V2DiscoverScreen.tsx · components/discover/DiscoverProfileItems.tsx · lib/discover/profileLayout.ts' },
+  { id: 'matches', title: 'Matches · sample', route: '/dev/matches-preview', liveSource: 'components/main/V2DailyMatchesScreen.tsx · V2MatchesScreen.tsx' },
+  { id: 'activity', title: 'Activity · sample', route: '/dev/activity-preview', liveSource: 'components/activity/V2ActivityScreen.tsx' },
+];
+
 /** Synthetic values only (RFC 2606 example domain, made-up digits). */
 export const SYNTHETIC = {
   email: 'alex.sample@example.com',

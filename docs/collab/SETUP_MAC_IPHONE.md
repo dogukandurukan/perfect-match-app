@@ -54,9 +54,10 @@ paylaşma, değerlerini bir yere yapıştırma.
 Uygulama Expo Go ile değil, kendi **development build**'iyle çalışır
 (`expo-dev-client`, push bildirimi vb. yerel modüller; Expo Go denenmedi ve önerilmiyor).
 
-Doğrulanan durum (EAS, 2026-10-26, salt okunur):
-- Tek iOS development build: 2026-08-26, commit `5dba6a8`, dağıtım **internal** (ad-hoc). Kurulum bağlantısının süresi 2026-09-09'da doldu.
-- O tarihten bu yana yerel (native) bağımlılık değişmedi (`package.json` / `app.json` farkı yalnız npm komutları + `eas.json`) → güncel JS sürümü bu build'de çalışır (Doğukan'ın telefonunda kullanılıyor).
+Doğrulanan durum (EAS + git, 2026-10-28, salt okunur):
+- EAS projesi `@dogukandurukan/dating-app`'te şimdiye kadar **2 iOS build** var (2026-06-02, 2026-08-26), ikisi de elle başlatılmış. Son development build: 2026-08-26, commit `5dba6a8`, dağıtım **internal** (ad-hoc). Kurulum bağlantısının süresi 2026-09-09'da doldu.
+- `5dba6a8` → `0a03bd7`: `package.json`, `package-lock.json`, `app.json` **değişmedi** (yalnız `eas.json` ve `app.config.js` eklendi; ikisi de native kod değil) → güncel JS bu native içerikle çalışır (Doğukan'ın telefonunda kullanılıyor). Bu kit `package.json`'a yalnız `collab:*` npm komutları ekler.
+- EAS update yok, `expo-updates` kurulu değil: kod telefona yalnız Metro üzerinden gelir.
 - Internal build yalnız provisioning profilinde **kayıtlı** cihazlara kurulur; senin iPhone'un kayıtlı değil → **yeni build gerekir** (aynı native içerik, yeni cihaz listesi).
 - Gerekenler: Doğukan'ın Apple Developer Program üyeliği (aktif olmalı) ve EAS hesabı. Senin Apple hesabına, Xcode'a gerek yok.
 
@@ -72,7 +73,15 @@ Yeni bir yerel modül (npm paketi) eklenirse build yeniden alınır; metin / sti
 
 ## 4. Günlük akış
 
-### A) Yalnız tasarım önizlemesi (backend gerekmez — ilk tur için yeterli)
+Hangi ekran hangi modda:
+
+| Ekran (ilk tur) | Mod |
+|---|---|
+| Discover (örnek profiller) | A — **DEV · Design preview → Main screens · Discover** |
+| Açık profil (başkası / kendi Preview) | B — test hesabıyla giriş; Discover veya Matches'ten bir profil, Profile → Preview |
+| Edit profile | B — test hesabıyla giriş; Profile → Edit profile |
+
+### A) Yalnız tasarım önizlemesi (backend gerekmez)
 ```bash
 npm run collab:preview
 ```

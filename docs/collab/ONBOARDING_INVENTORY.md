@@ -1,6 +1,8 @@
 # Tempa V2 onboarding — inventory of the current live flow
 
 Written on 2026-10-21 against product commit `652e2ba`; **updated 2026-10-26 for product commit `f9200c1`** (branch `tempa/v2-persist-r2`). The only onboarding change in between is D104 / D104a / D104b — see **§2b**, which overrides anything older below.
+
+> 2026-10-28 (`0a03bd7`): onboarding is unchanged since `f9200c1` except that the "You're on the list!" step now offers **Sign out**. Onboarding is the **next** design phase, not the first round.
 Everything below was checked in source code or SQL. File paths are relative to the repo root. Line numbers are for this snapshot. **"Not verified"** means the code or docs could not confirm the point.
 
 Main sources:

@@ -40,4 +40,14 @@ ok(/127\.0\.0\.1:59999/.test(sp) && /sb_publishable_/.test(sp) && !/55421/.test(
 const fsx = read('scripts/collab/first-setup.sh');
 ok(fsx.indexOf('already exists') < fsx.indexOf('setup.mjs'), 'first-setup refuses an existing backend before setup.mjs (reset) can run');
 
+// Main screens (2026-10-28): the product's own DEV previews, offline, reachable
+// from this hub without signing in. Static wiring only — not a UI test.
+{
+  const routes = P.MAIN_SCREEN_PREVIEWS.map((m) => m.route);
+  ok(routes.join() === '/dev/discover-preview,/dev/matches-preview,/dev/activity-preview' && routes.every((r) => fs.existsSync(path.join(ROOT, 'app', `${r.slice(1)}.tsx`))), 'main-screen previews point at existing DEV routes');
+  const offline = ['components/dev/discover/DiscoverDesignPreview.tsx', 'components/dev/MatchesDesignPreview.tsx', 'components/dev/activity/ActivityDesignPreview.tsx']
+    .map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
+  ok(!/supabase|\.rpc\(|loadRealProfile|loadMyOnboarding/.test(offline), 'those previews make no backend calls (static check)');
+  ok(/router\.push\(m\.route as never\)/.test(fs.readFileSync(path.join(ROOT, 'components/dev/design/DesignPreview.tsx'), 'utf8')), 'hub links to them');
+}
 module.exports = done('design_preview');
