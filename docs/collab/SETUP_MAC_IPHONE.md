@@ -10,25 +10,50 @@ paylaşılmaz; gerekmez.
 
 ## 1. Gerekenler
 
-| Ne | Sürüm / not | Ne zaman |
-|---|---|---|
-| macOS | Docker Desktop'ın desteklediği güncel bir sürüm | — |
-| Boş disk | 25 GB+ (Docker imajları + node_modules) | — |
-| Git | `xcode-select --install` (Command Line Tools; tam Xcode **gerekmez**) | buluşmadan önce |
-| Node.js | 22 LTS veya daha yeni (Expo SDK 54 en az 20.19 ister; bu paket Node 24.14 ile denendi) | buluşmadan önce |
-| Docker Desktop | yalnız yerel backend için; tasarım önizlemesi için gerekmez | buluşmadan önce |
-| GitHub hesabı | `dogukandurukan/perfect-match-app` reposuna Doğukan'ın verdiği erişim | Doğukan ekler |
-| Claude Code | Mac'te, dosya/terminal erişimli | — |
-| iPhone | iOS 16+ ise Developer Mode açılabilmeli; Mac ile **aynı Wi-Fi** | — |
-| Tempa development build | Doğukan'ın Apple hesabıyla, **senin iPhone'una kayıtlı** yeni build (§3) | Doğukan hazırlar |
+Önce Mac'i kontrol et:
 
-Gerekmeyenler: Xcode, Apple Developer hesabı (senin), EAS CLI, Expo Go.
+```bash
+sw_vers -productVersion
+uname -m
+sysctl -n hw.memsize
+df -h ~
+xcode-select -p
+```
+
+Bu komutlar sırasıyla macOS sürümünü, işlemciyi (`arm64` = Apple Silicon, `x86_64` = Intel), belleği (≥ 8 GB önerilir; 16 GB rahat), boş diski (25 GB+) ve Command Line Tools kurulu mu olduğunu gösterir.
+
+| Ne | Sürüm / not | Gerekli mi |
+|---|---|---|
+| Git | Command Line Tools'taki `/usr/bin/git` yeterli (yoksa `xcode-select --install`) | **evet** |
+| Node.js + npm | **Node 22 LTS** önerilir. Expo SDK 54'ün alt sınırı 20.19.x; Doğukan 24.14 kullanıyor. Kurulum: nodejs.org'dan macOS **.pkg** yükleyicisi, işlemcine uygun olanı. Homebrew **gerekmez** | **evet** |
+| Container runtime | **Docker Desktop for Mac** (Apple Silicon veya Intel sürümü). Kurmadan önce Docker'ın güncel sistem gereksinimlerinde macOS sürümünün desteklendiğini kontrol et (docs.docker.com → Install Docker Desktop on Mac). Betikler `docker` komutunu kullanır; OrbStack / Colima da `docker` sağlar ama **denenmedi** | yerel backend için **evet**; yalnız backend'siz önizleme için hayır |
+| Supabase CLI | **kurma** — betikler `npx supabase@2.120.0` ile kendisi indirir (Node gerekir) | hayır |
+| Claude Code | Mac'te, dosya / terminal erişimli | evet |
+| GitHub hesabı | `dogukandurukan/perfect-match-app` erişimi (Doğukan ekler) | evet |
+| iPhone | iOS 16+ (Geliştirici Modu açılabilmeli), Mac ile **aynı Wi-Fi** (misafir ağı değil) | evet |
+| Tempa development build | Doğukan'ın EAS / Apple hesabıyla **senin iPhone'una kayıtlı** yeni build (§3) | evet (Doğukan hazırlar) |
+
+**Gerekmeyenler (fiziksel iPhone yolu):**
+- **Tam Xcode gerekmez.** Development build EAS'in bulut sunucularında Doğukan'ın Apple hesabıyla derlenir. Senin Mac'in yalnız JavaScript'i Metro ile iPhone'a sunar.
+- Senin Apple Developer hesabın, EAS CLI ve Expo Go gerekmez.
+- **Homebrew ve GitHub CLI (`gh`) gerekmez.**
+  - Klonlama ve okuma için git yeterli.
+  - Kendi dalını push etmen gerektiğinde git, GitHub kullanıcı adını ve bir **Personal Access Token** ister (GitHub → Settings → Developer settings → Fine-grained token, yalnız bu repo, Contents: Read and write). macOS bunu Anahtar Zinciri'nde saklar.
+  - `gh` yalnız isteğe bağlı bir kolaylıktır.
+
+**İsteğe bağlı: iOS Simülatörü (bugün gerekmez, denenmedi):**
+- **Tam Xcode** gerekir (App Store; ~15 GB+, kurulumdan sonra bir kez açılıp ek bileşenleri yüklenir) ve yerel derleme yapılır: `npx expo run:ios`.
+  - Bu komut git dışında kalan bir `ios/` klasörü üretir ve CocoaPods ister.
+  - İlk derleme uzun sürer.
+- Repo'da simülatör için bir EAS build profili **yok**; eklemek bir yapılandırma değişikliğidir ve Doğukan'ın onayını gerektirir.
 
 ### Buluşmadan önce yapılacak büyük indirmeler
-1. Docker Desktop'ı kur ve bir kez aç ("Running" görünsün).
-2. Node.js 22 LTS kur.
-3. Repo'yu klonla, teslim commit'ine geç ve `npm ci` çalıştır (Doğukan'ın verdiği komutlarla).
-4. `npm run collab:setup` — ilk çalıştırma Supabase Docker imajlarını indirir (birkaç GB, 10–30 dk).
+1. Node.js 22 LTS (.pkg) — `node -v`, `npm -v`.
+2. Docker Desktop — kurup bir kez aç, "Running" görünsün; `docker info` hata vermemeli.
+3. Repo: `~/tempa` klasörüne klonla.
+   - Klasör **zaten varsa silme veya üzerine yazma**; dur ve sor.
+   - Tasarım klasörün `~/TempaApp`'e **dokunulmaz**.
+4. `npm ci`, sonra `npm run collab:setup`. İlk çalıştırma Supabase Docker imajlarını indirir (birkaç GB, 10–30 dk).
 5. iPhone: Doğukan'ın gönderdiği kayıt bağlantısını aç (UDID kaydı), sonra build bağlantısından uygulamayı kur.
 
 ## 2. Repo ve kendi dalın
